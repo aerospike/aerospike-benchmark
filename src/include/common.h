@@ -22,19 +22,11 @@
 #pragma once
 
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
 
-#include "aerospike/as_log.h"
 #include <citrusleaf/alloc.h>
 
 #define _STR(x) #x
 #define STR(x) _STR(x)
-
-#define STATIC_ASSERT(expr) \
-	extern void static_assert_ ## __LINE__(int STATIC_ASSERTION_FAILED[(expr)?1:-1])
-
-typedef uint64_t ptr_int_t;
 
 #define as_assert(expr) \
 	do { \
@@ -46,11 +38,25 @@ typedef uint64_t ptr_int_t;
 	} while(0)
 
 
+inline void *
+__attribute__((always_inline))
+safe_malloc(size_t sz) {
+	void * ptr = cf_malloc(sz);
+	if (ptr == NULL) {
+		fprintf(stderr, "Unable to malloc %zu bytes\n", sz);
+		abort();
+	}
+	return ptr;
+}
 
-void blog_line(const char* fmt, ...);
-void blog_detailv(as_log_level leve, const char* fmt, va_list ap);
-void blog_detail(as_log_level level, const char* fmt, ...);
+inline void *
+__attribute__((always_inline))
+safe_calloc(size_t nmemb, size_t sz) {
+	void * ptr = cf_calloc(nmemb, sz);
+	if (ptr == NULL) {
+		fprintf(stderr, "Unable to calloc %zu bytes\n", sz);
+		abort();
+	}
+	return ptr;
+}
 
-#define blog(_fmt, ...) { printf(_fmt, ##__VA_ARGS__); }
-#define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
-#define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }

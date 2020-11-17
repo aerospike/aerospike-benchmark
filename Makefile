@@ -18,7 +18,7 @@ else
 	ARCH = $(shell uname -m)
 endif
 
-CFLAGS = -std=gnu99 -g -Wall -fPIC -O3
+CFLAGS = -std=gnu99 -g -Wall -fPIC -O0
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
@@ -139,9 +139,8 @@ AR = ar
 ###############################################################################
 
 MAIN_OBJECT = main.o
-OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o \
-		  swap_buffer.o
-TEST_OBJECTS = histogram_test.o sanity.o setup.o main.o
+OBJECTS = benchmark.o histogram.o latency.o linear.o random.o record.o
+TEST_OBJECTS = sanity.o setup.o main.o
 
 ###############################################################################
 ##  MAIN TARGETS                                                             ##
@@ -183,13 +182,12 @@ archive: $(addprefix target/obj/,$(OBJECTS)) target/libbench.a
 target/libbench.a: $(addprefix target/obj/,$(OBJECTS))
 	$(AR) -rcs $@ $^
 
-
-#.PHONY: test
-#test: archive | target/obj target/bin
-#	(make -C $(ROOT)/src/test OBJECT_DIR=$(ROOT)/target/obj TARGET_DIR=$(ROOT)/target/bin \
-#		CC=$(CC) CFLAGS="$(CFLAGS)" INCLUDES="$(INCLUDES)" \
-#		LIBS="$(ROOT)/target/libbench.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a" \
-#		LDFLAGS="$(LDFLAGS)" CLIENTREPO="$(CLIENTREPO)")
+.PHONY: test
+test: archive | target/obj target/bin
+	(make -C $(ROOT)/src/test OBJECT_DIR=$(ROOT)/target/obj TARGET_DIR=$(ROOT)/target/bin \
+		CC=$(CC) CFLAGS="$(CFLAGS)" INCLUDES="$(INCLUDES)" \
+		LIBS="$(ROOT)/target/libbench.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a" \
+		LDFLAGS="$(LDFLAGS)" CLIENTREPO="$(CLIENTREPO)")
 
 .PHONY: clean
 clean:
@@ -205,7 +203,7 @@ target/bin: | target
 	mkdir $@
 
 target/obj/%.o: src/main/%.c | target/obj
-	$(CC) $(INCLUDES) $(CFLAGS) -o $@ -c $^ $(INCLUDES)
+	$(CC) $(CFLAGS) -o $@ -c $^ $(INCLUDES)
 
 target/benchmarks: $(addprefix target/obj/,$(MAIN_OBJECT)) $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $^ $(LDFLAGS)
