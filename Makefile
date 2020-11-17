@@ -22,7 +22,7 @@ CFLAGS = -std=gnu99 -g -Wall -fPIC -O3
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
-DIR_INCLUDE += src/main
+DIR_INCLUDE =  $(ROOT)/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
@@ -185,7 +185,7 @@ target/obj: | target
 	mkdir $@
 
 target/obj/%.o: src/main/%.c | target/obj
-	$(CC) $(CFLAGS) -o $@ -c $^
+	$(CC) $(CFLAGS) -o $@ -c $^ $(INCLUDES)
 
 target/benchmarks: $(addprefix target/obj/,$(MAIN_OBJECT)) $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $^ $(LDFLAGS)

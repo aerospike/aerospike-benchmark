@@ -52,3 +52,12 @@ typedef struct rangespec_t {
  */
 void histogram_init(histogram * h, delay_t lowb, size_t n_ranges, rangespec * ranges);
 
+void histogram_free(histogram * h);
+
+/*
+ * insert the delay into the histogram in a thread-safe manner
+ */
+void histogram_add(histogram * h, delay_t elapsed_us);
+
+void histogram_print(histogram * h);
+
