@@ -185,7 +185,7 @@ target/obj: | target
 	mkdir $@
 
 target/obj/%.o: src/main/%.c | target/obj
-	$(CC) $(CFLAGS) -o $@ -c $^ $(INCLUDES)
+	$(CC) $(INCLUDES) $(CFLAGS) -o $@ -c $^ $(INCLUDES)
 
 target/benchmarks: $(addprefix target/obj/,$(MAIN_OBJECT)) $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $^ $(LDFLAGS)
