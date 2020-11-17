@@ -21,39 +21,19 @@
  ******************************************************************************/
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
-
 /*
  * delays are measured in microseconds
  */
 typedef uint64_t delay_t;
 
-typedef struct rangespec {
+typedef struct histogram_t {
+	
+} histogram;
+
+typedef struct rangespec_t {
 	delay_t upper_bound;
 	delay_t bucket_width;
-} rangespec_t;
-
-
-typedef struct histogram {
-	uint32_t * buckets;
-	struct bucket_range_desc * bounds;
-
-	// inclusive lower bound on the histogram range
-	delay_t range_min;
-	// exclusive upper bound on the histogram range
-	delay_t range_max;
-
-	// a count of the number of data points below the minimum bucket
-	uint32_t underflow_cnt;
-	// a count of the number of data points above the maximum bucket
-	uint32_t overflow_cnt;
-
-	// the number of elements in the bounds array
-	uint32_t n_bounds;
-	// total number of buckets in the histogram;
-	uint32_t n_buckets;
-} histogram;
+} rangespec;
 
 
 /*
@@ -64,40 +44,20 @@ typedef struct histogram {
  *     4ms - 64ms with 1ms buckets
  *     64ms - 128ms with 4ms buckts
  * you would write
- *     histogram_init(h, 3, 100, (rangespec_t[]) {
+ *     histogram_init(h, 100, 3, {
  *         { .upper_bound = 4000,   .bucket_width = 100  },
  *         { .upper_bound = 64000,  .bucket_width = 1000 },
  *         { .upper_bound = 128000, .bucket_width = 4000 },
  *     });
  */
-void histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges);
+void histogram_init(histogram * h, delay_t lowb, size_t n_ranges, rangespec * ranges);
 
 void histogram_free(histogram * h);
-
-/*
- * resets all bucket counts to 0
- */
-void histogram_clear(histogram * h);
-
-/*
- * Calculates the totals of all buckets by traversing them and adding. This
- * information is not stored in the histogram because it would require two
- * atomic increments per insertion rather than one, and that atomic increment
- * would be on highly contentious memory
- */
-uint64_t histogram_calc_total(const histogram * h);
 
 /*
  * insert the delay into the histogram in a thread-safe manner
  */
 void histogram_add(histogram * h, delay_t elapsed_us);
 
-/*
- * prints the histogram in a condensed format, requires period duration in
- * seconds (i.e. how long this histogram has been accumulating)
- */
-void histogram_print(const histogram * h, uint32_t period_duration);
-void histogram_print_info(const histogram * h, const char * title);
-
-void histogram_print_dbg(const histogram * h);
+void histogram_print(histogram * h);
 
