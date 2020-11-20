@@ -30,10 +30,10 @@ jobs:
     - name: show env
       run: env
     - name: Show contents of main
-      run: find `pwd`
+      run: find `pwd` | sort
       working-directory: main
     - name: Show contents of client
-      run: find `pwd`
+      run: find `pwd` | sort
       working-directory: client    
     - name: make
       run: make
