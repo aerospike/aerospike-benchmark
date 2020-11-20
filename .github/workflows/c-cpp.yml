@@ -24,7 +24,7 @@ jobs:
         path: ${GITHUB_WORKSPACE}/client
     - name: info
       run: make info
-      working-directory: main
+      working-directory:  ${GITHUB_WORKSPACE}/main
     - name: make
       run: make
-      working-directory: main
+      working-directory:  ${GITHUB_WORKSPACE}/main
