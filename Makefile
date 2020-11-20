@@ -150,8 +150,8 @@ OBJECTS = benchmark.o latency.o linear.o main.o random.o record.o
 	# @echo "      includes:   " $(INC_PATH)
 	# @echo "      libraries:  " $(LIB_PATH)
 
-
-all: build
+.PHONY: all
+all:  info build
 
 info:
 	@echo
