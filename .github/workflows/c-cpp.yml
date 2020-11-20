@@ -17,6 +17,7 @@ jobs:
       uses: actions/checkout@v2
       with: 
         path: main
+        submodules: recursive
     - name: Checkout c client
       uses: actions/checkout@v2
       with:
