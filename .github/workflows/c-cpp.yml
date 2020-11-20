@@ -27,8 +27,12 @@ jobs:
       working-directory: main
     - name: show env
       run: env
-    - name: Show contents
-      run: find .
+    - name: Show contents of main
+      run: find `pwd`
+      working-directory: main
+    - name: Show contents of client
+      run: find `pwd`
+      working-directory: client    
     - name: make
       run: make
       working-directory: main
