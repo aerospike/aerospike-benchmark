@@ -1,4 +1,4 @@
-name: C/C++ CI
+name: Benchmark CI
 
 on:
   push:
@@ -24,3 +24,4 @@ jobs:
         path: client
     - name: make
       run: make
+      working-directory: main
