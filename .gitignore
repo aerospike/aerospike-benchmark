@@ -75,3 +75,7 @@ x64
 ipch
 packages
 packages/repositories.config
+
+#vscode
+########################
+.vscode/c_cpp_properties.json

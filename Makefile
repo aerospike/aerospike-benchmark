@@ -23,9 +23,9 @@ CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
 DIR_INCLUDE =  $(CLIENT_PATH)/src/include
-DIR_INCLUDE += $(CLIENTREPO)/modules/common/src/include
-DIR_INCLUDE += $(CLIENTREPO)/modules/mod-lua/src/include
-DIR_INCLUDE += $(CLIENTREPO)/modules/base/src/include
+DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
+DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
+DIR_INCLUDE += $(CLIENT_PATH)/modules/base/src/include
 INCLUDES = $(DIR_INCLUDE:%=-I%) 
 
 ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le))
@@ -38,7 +38,7 @@ else ifeq ($(OS),Linux)
   CFLAGS += -rdynamic
 endif
 
-CFLAGS += -I$(CLIENTREPO)/target/$(PLATFORM)/include -I/usr/local/include
+CFLAGS += $(INCLUDES) -I/usr/local/include
 
 ifeq ($(EVENT_LIB),libev)
   CFLAGS += -DAS_USE_LIBEV
@@ -141,24 +141,23 @@ OBJECTS = benchmark.o latency.o linear.o main.o random.o record.o
 ##  MAIN TARGETS                                                             ##
 ###############################################################################
 
-#####################
-# From standard make file for tools. Add to info section when standardized
-#####################
-	# @echo "  PATHS:"
-	# @echo "      source:     " $(SOURCE)
-	# @echo "      target:     " $(TARGET_BASE)
-	# @echo "      includes:   " $(INC_PATH)
-	# @echo "      libraries:  " $(LIB_PATH)
 
-
-all: build
+.PHONY: all
+all:  info build
 
 info:
 	@echo
-	@echo "  NAME:     " $(NAME) 
-	@echo "  OS:       " $(OS)
-	@echo "  ARCH:     " $(ARCH)
+	@echo "  NAME:       " $(NAME) 
+	@echo "  OS:         " $(OS)
+	@echo "  ARCH:       " $(ARCH)
+	@echo "  CLIENTREPO: " $(CLIENT_PATH)
+	@echo "  WD:         " $(shell pwd)	
 	@echo
+	@echo "  PATHS:"
+	@echo "      source:     " $(SOURCE)
+	@echo "      target:     " $(TARGET_BASE)
+	@echo "      includes:   " $(INC_PATH)
+	@echo "      libraries:  " $(LIB_PATH)
 	@echo
 	@echo "  COMPILER:"
 	@echo "      command:    " $(CC)
