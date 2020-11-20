@@ -25,6 +25,10 @@ jobs:
     - name: info
       run: make info
       working-directory:  ${GITHUB_WORKSPACE}/main
+    - name: show env
+      run: env
+    - name: Show contents
+      run: find .
     - name: make
       run: make
       working-directory:  ${GITHUB_WORKSPACE}/main
