@@ -1,18 +1,32 @@
-###############################################################################
-##  SETTINGS                                                                 ##
-###############################################################################
 
-AEROSPIKE := ..
 AS_HOST := 127.0.0.1
 AS_PORT := 3000
 
-OS = $(shell uname)
+ifndef CLIENTREPO
+$(error Please set the CLIENTREPO environment variable)
+endif
+
+CLIENT_PATH = $(CLIENTREPO)
 ARCH = $(shell uname -m)
 PLATFORM = $(OS)-$(ARCH)
+ROOT = $(CURDIR)
+NAME = $(shell basename $(ROOT))
+OS = $(shell uname)
+ifeq ($(OS),Darwin)
+	ARCH = $(shell uname -m)
+else
+	ARCH = $(shell uname -m)
+endif
 
 CFLAGS = -std=gnu99 -g -Wall -fPIC -O3
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
+
+DIR_INCLUDE =  $(CLIENT_PATH)/src/include
+DIR_INCLUDE += $(CLIENTREPO)/modules/common/src/include
+DIR_INCLUDE += $(CLIENTREPO)/modules/mod-lua/src/include
+DIR_INCLUDE += $(CLIENTREPO)/modules/base/src/include
+INCLUDES = $(DIR_INCLUDE:%=-I%) 
 
 ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le))
   CFLAGS += -march=nocona
@@ -24,7 +38,7 @@ else ifeq ($(OS),Linux)
   CFLAGS += -rdynamic
 endif
 
-CFLAGS += -I$(AEROSPIKE)/target/$(PLATFORM)/include -I/usr/local/include
+CFLAGS += -I$(CLIENTREPO)/target/$(PLATFORM)/include -I/usr/local/include
 
 ifeq ($(EVENT_LIB),libev)
   CFLAGS += -DAS_USE_LIBEV
@@ -127,7 +141,34 @@ OBJECTS = benchmark.o latency.o linear.o main.o random.o record.o
 ##  MAIN TARGETS                                                             ##
 ###############################################################################
 
+#####################
+# From standard make file for tools. Add to info section when standardized
+#####################
+	# @echo "  PATHS:"
+	# @echo "      source:     " $(SOURCE)
+	# @echo "      target:     " $(TARGET_BASE)
+	# @echo "      includes:   " $(INC_PATH)
+	# @echo "      libraries:  " $(LIB_PATH)
+
+
 all: build
+
+info:
+	@echo
+	@echo "  NAME:     " $(NAME) 
+	@echo "  OS:       " $(OS)
+	@echo "  ARCH:     " $(ARCH)
+	@echo
+	@echo
+	@echo "  COMPILER:"
+	@echo "      command:    " $(CC)
+	@echo "      flags:      " $(CFLAGS)
+	@echo
+	@echo "  LINKER:"
+	@echo "      command:    " $(LD)
+	@echo "      flags:      " $(LDFLAGS)
+	@echo
+
 
 .PHONY: build
 build: target/benchmarks
@@ -145,7 +186,7 @@ target/obj: | target
 target/obj/%.o: src/main/%.c | target/obj
 	$(CC) $(CFLAGS) -o $@ -c $^
 
-target/benchmarks: $(addprefix target/obj/,$(OBJECTS)) $(AEROSPIKE)/target/$(PLATFORM)/lib/libaerospike.a | target
+target/benchmarks: $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 

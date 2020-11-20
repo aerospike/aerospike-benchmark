@@ -6,6 +6,7 @@ This program is used to insert data and generate load.
 
 Build instructions:
 
+    export CLIENTREPO=.. #or location of the C client repository
     make clean
     make [EVENT_LIB=libev|libuv|libevent]
 
