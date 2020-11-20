@@ -16,13 +16,13 @@ jobs:
     - name: Checkout 
       uses: actions/checkout@v2
       with: 
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.REPO_ACCESS_TOKEN }}
         path: main
     - name: Checkout c client
       uses: actions/checkout@v2
       with:
         repository: citrusleaf/aerospike-client-c
         path: client
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.REPO_ACCESS_TOKEN }}
     - name: make
       run: make
