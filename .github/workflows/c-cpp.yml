@@ -35,6 +35,9 @@ jobs:
     - name: Show contents of client
       run: find `pwd` | sort
       working-directory: client    
-    - name: make
+    - name: build client lib
+      run: make
+      working-directory: client
+    - name: build benchmark
       run: make
       working-directory: main
