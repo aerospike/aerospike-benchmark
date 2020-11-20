@@ -35,8 +35,6 @@ jobs:
     - name: Show contents of client
       run: find `pwd` | sort
       working-directory: client
-    - name: Debugging with tmate
-      uses: mxschmitt/action-tmate@v3.1
     - name: build client lib
       run: make
       working-directory: client
