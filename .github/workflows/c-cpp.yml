@@ -10,8 +10,18 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
+    env:
+      CLIENTREPO: ${GITHUB_WORKSPACE}/client
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout 
+      uses: actions/checkout@v2
+      with: 
+        path: main
+    - name: Checkout c client
+      uses: actions/checkout@v2
+      with:
+        repository: citrusleaf/aerospike-client-c
+        path: client
+        token: ${{ secrets.GitHub_PAT }}        
     - name: make
       run: make
