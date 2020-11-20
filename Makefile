@@ -23,7 +23,7 @@ CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
 DIR_INCLUDE =  $(CLIENT_PATH)/src/include
-DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
+3DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/base/src/include
 INCLUDES = $(DIR_INCLUDE:%=-I%) 
