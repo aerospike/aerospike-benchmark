@@ -16,19 +16,19 @@ jobs:
     - name: Checkout 
       uses: actions/checkout@v2
       with: 
-        path: ${GITHUB_WORKSPACE}/main
+        path: main
     - name: Checkout c client
       uses: actions/checkout@v2
       with:
         repository: aerospike/aerospike-client-c
-        path: ${GITHUB_WORKSPACE}/client
+        path: client
     - name: info
       run: make info
-      working-directory:  ${GITHUB_WORKSPACE}/main
+      working-directory: main
     - name: show env
       run: env
     - name: Show contents
       run: find .
     - name: make
       run: make
-      working-directory:  ${GITHUB_WORKSPACE}/main
+      working-directory: main
