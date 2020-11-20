@@ -155,10 +155,10 @@ all: build
 
 info:
 	@echo
-	@echo "  NAME:     " $(NAME) 
-	@echo "  OS:       " $(OS)
-	@echo "  ARCH:     " $(ARCH)
-	@echo
+	@echo "  NAME:       " $(NAME) 
+	@echo "  OS:         " $(OS)
+	@echo "  ARCH:       " $(ARCH)
+	@echo "  CLIENTREPO: " $(CLIENT_PATH)	
 	@echo
 	@echo "  COMPILER:"
 	@echo "      command:    " $(CC)
