@@ -27,14 +27,6 @@ jobs:
     - name: info
       run: make info
       working-directory: main
-    - name: show env
-      run: env
-    - name: Show contents of main
-      run: find `pwd` | sort
-      working-directory: main
-    - name: Show contents of client
-      run: find `pwd` | sort
-      working-directory: client
     - name: build client lib
       run: make
       working-directory: client
