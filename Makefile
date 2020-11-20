@@ -158,7 +158,8 @@ info:
 	@echo "  NAME:       " $(NAME) 
 	@echo "  OS:         " $(OS)
 	@echo "  ARCH:       " $(ARCH)
-	@echo "  CLIENTREPO: " $(CLIENT_PATH)	
+	@echo "  CLIENTREPO: " $(CLIENT_PATH)
+	@echo "  WD:         " $(shell pwd)	
 	@echo
 	@echo "  COMPILER:"
 	@echo "      command:    " $(CC)
