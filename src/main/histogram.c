@@ -195,14 +195,15 @@ histogram_print(const histogram * h, uint32_t period_duration,
 }
 
 void
-histogram_print_info(const histogram * h, FILE * out_file)
+histogram_print_info(const histogram * h, const char * title, FILE * out_file)
 {
 
 	fprintf(out_file,
-			"Histogram:\n"
+			"%s:\n"
 			"\tTotal num buckets: %u\n"
 			"\tRange min: %luus\n"
 			"\tRange max: %luus\n",
+			title,
 			h->n_buckets,
 			h->range_min,
 			h->range_max);
