@@ -39,6 +39,16 @@ typedef struct bucket_range_desc {
 #define UNDERFLOW_IDX (-2)
 #define OVERFLOW_IDX  (-1)
 
+STATIC_ASSERT(offsetof(histogram, underflow_cnt) + sizeof(uint32_t) ==
+		offsetof(histogram, overflow_cnt));
+
+inline uint32_t *
+__attribute__((always_inline))
+__histogram_get_bucket(histogram * h, int32_t idx) {
+	return (idx < 0) ? (((uint32_t *) (((ptr_int_t) h) + offsetof(histogram, underflow_cnt)
+				+ 2 * sizeof(uint32_t))) + idx) : &h->bins[idx];
+}
+
 
 void
 histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges)
@@ -87,6 +97,9 @@ static int32_t
 _histogram_get_index(histogram * h, delay_t elapsed_us)
 {
 	int32_t bin_idx;
+	delay_t lower_bound;
+	int32_t bin_offset;
+
 	// find which range index belongs in. Expecting a small number
 	// of bins-size ranges, so do a simple linear search
 
@@ -98,14 +111,20 @@ _histogram_get_index(histogram * h, delay_t elapsed_us)
 	}
 
 	bin_idx = h->n_bounds - 1;
-	while (elapsed_us < h->bounds[bin_idx].lower_bound) {
+	while (elapsed_us < (lower_bound = h->bounds[bin_idx].lower_bound)) {
 		bin_idx--;
 	}
+
+	bin_offset = (elapsed_us - lower_bound) / h->bounds[bin_idx].bucket_width;
+	return h->bounds[bin_idx].offset + bin_offset;
 }
 
 void
 histogram_add(histogram * h, delay_t elapsed_us)
 {
-	
+	int32_t bucket_idx = _histogram_get_index(h, elapsed_us);
+	uint32_t * bucket = __histogram_get_bucket(h, bucket_idx);
+
+	as_incr_uint32(bucket);
 }
 

@@ -22,11 +22,17 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdint.h>
 
 #include <citrusleaf/alloc.h>
 
 #define _STR(x) #x
 #define STR(x) _STR(x)
+
+#define STATIC_ASSERT(expr) \
+	extern void static_assert_ ## __LINE__(int STATIC_ASSERTION_FAILED[(expr)?1:-1])
+
+typedef uint64_t ptr_int_t;
 
 #define as_assert(expr) \
 	do { \
