@@ -19,8 +19,10 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  ******************************************************************************/
-#include <aerospike/as_atomic.h>
 #include <stdio.h>
+#include <time.h>
+
+#include <aerospike/as_atomic.h>
 
 #include "histogram.h"
 #include "common.h"
@@ -137,12 +139,67 @@ histogram_add(histogram * h, delay_t elapsed_us)
 	as_incr_uint32(bucket);
 }
 
+uint64_t
+histogram_calc_total(const histogram * h)
+{
+	uint64_t total;
+
+	total = h->underflow_cnt + h->overflow_cnt;
+	
+	for (uint32_t i = 0; i < h->n_buckets; i++) {
+		total += h->buckets[i];
+	}
+
+	return total;
+}
+
+
+void
+histogram_print(const histogram * h, uint32_t period_duration)
+{
+	struct tm * utc;
+	time_t t;
+	uint64_t total_cnt;
+
+	t = time(NULL);
+	utc = gmtime(&t);
+	
+	total_cnt = histogram_calc_total(h);
+	printf("%.24s, %us, %lu", asctime(utc), period_duration, total_cnt);
+
+	if (h->underflow_cnt > 0) {
+		printf(", 0:%u", h->underflow_cnt);
+	}
+
+	uint32_t idx = 0;
+	for (uint32_t i = 0; i < h->n_bounds; i++) {
+		bucket_range_desc_t * r = &h->bounds[i];
+
+		for (uint32_t j = 0; j < r->n_buckets; j++) {
+			if (h->buckets[idx] > 0) {
+				printf(", %lu:%u",
+						r->lower_bound + j * r->bucket_width,
+						h->buckets[idx]);
+			}
+			idx++;
+		}
+	}
+
+	if (h->overflow_cnt > 0) {
+		printf(", %lu:%u", h->range_max, h->overflow_cnt);
+	}
+
+	printf("\n");
+}
+
 #define BUCKETS_PER_LINE 16
 
-void histogram_print(histogram * h) {
+void
+histogram_print_dbg(const histogram * h)
+{
 	printf(
 			"Histogram:\n"
-			"Range: %lu - %lu\n"
+			"Range: %luus - %luus\n"
 			"\n"
 			" < %luus:\n"
 			" [ %6u ]\n"
@@ -157,9 +214,10 @@ void histogram_print(histogram * h) {
 	for (size_t i = 0; i < h->n_bounds; i++) {
 		bucket_range_desc_t * r = &h->bounds[i];
 		printf(
-				"%luus <= x < %luus:\n"
+				"%luus <= x < %luus (width=%luus):\n"
 				" [ ",
-				r->lower_bound, r->lower_bound + r->bucket_width * r->n_buckets);
+				r->lower_bound, r->lower_bound + r->bucket_width * r->n_buckets,
+				r->bucket_width);
 
 		for (size_t j = 0; j < r->n_buckets; j++) {
 			printf("%6u",
