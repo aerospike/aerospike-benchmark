@@ -80,9 +80,22 @@ void histogram_free(histogram * h);
 void histogram_clear(histogram * h);
 
 /*
+ * Calculates the totals of all buckets by traversing them and adding. This
+ * information is not stored in the histogram because it would require two
+ * atomic increments per insertion rather than one, and that atomic increment
+ * would be on highly contentious memory
+ */
+uint64_t histogram_calc_total(const histogram * h);
+
+/*
  * insert the delay into the histogram in a thread-safe manner
  */
 void histogram_add(histogram * h, delay_t elapsed_us);
 
-void histogram_print(histogram * h);
+/*
+ * prints the histogram in a condensed format, requires period duration in
+ * seconds (i.e. how long this histogram has been accumulating)
+ */
+void histogram_print(const histogram * h, uint32_t period_duration);
+void histogram_print_dbg(const histogram * h);
 
