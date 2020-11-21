@@ -14,6 +14,8 @@ int main(int argc, char * argv[])
 			{ .upper_bound = 128000, .bucket_width = 4000 }
 			});
 
+	histogram_print(&h);
+
 	histogram_free(&h);
 	return 0;
 }
