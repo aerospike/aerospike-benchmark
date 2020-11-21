@@ -200,9 +200,9 @@ histogram_print_info(const histogram * h, FILE * out_file)
 
 	fprintf(out_file,
 			"Histogram:\n"
-			"    Total num buckets: %u\n"
-			"    Range min: %luus\n"
-			"    Range max: %luus\n",
+			"\tTotal num buckets: %u\n"
+			"\tRange min: %luus\n"
+			"\tRange max: %luus\n",
 			h->n_buckets,
 			h->range_min,
 			h->range_max);
@@ -211,11 +211,11 @@ histogram_print_info(const histogram * h, FILE * out_file)
 		bucket_range_desc_t * r = &h->bounds[i];
 
 		fprintf(out_file,
-				"    Bucket range %d:\n"
-				"        Range min: %luus\n"
-				"        Range max: %luus\n"
-				"        Bucket width: %luus\n"
-				"        Num buckets: %u\n",
+				"\tBucket range %d:\n"
+				"\t\tRange min: %luus\n"
+				"\t\tRange max: %luus\n"
+				"\t\tBucket width: %luus\n"
+				"\t\tNum buckets: %u\n",
 				i,
 				r->lower_bound,
 				r->lower_bound + r->bucket_width * r->n_buckets,

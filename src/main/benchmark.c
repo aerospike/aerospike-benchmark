@@ -314,10 +314,18 @@ run_benchmark(arguments* args)
 	}
 	
 	if (args->latency) {
-		latency_init(&data.write_latency, args->latency_columns, args->latency_shift);
+		histogram_init(&data.write_histogram, 3, 100, (rangespec_t[]) {
+				{ .upper_bound = 4000,   .bucket_width = 100  },
+				{ .upper_bound = 64000,  .bucket_width = 1000 },
+				{ .upper_bound = 128000, .bucket_width = 4000 }
+				});
 		
 		if (! args->init) {
-			latency_init(&data.read_latency, args->latency_columns, args->latency_shift);
+			histogram_init(&data.read_histogram, 3, 100, (rangespec_t[]) {
+					{ .upper_bound = 4000,   .bucket_width = 100  },
+					{ .upper_bound = 64000,  .bucket_width = 1000 },
+					{ .upper_bound = 128000, .bucket_width = 4000 }
+					});
 		}
 	}
 
@@ -338,10 +346,10 @@ run_benchmark(arguments* args)
 	}
 
 	if (args->latency) {
-		latency_free(&data.write_latency);
+		histogram_free(&data.write_histogram);
 		
 		if (! args->init) {
-			latency_free(&data.read_latency);
+			histogram_free(&data.read_histogram);
 		}
 	}
 

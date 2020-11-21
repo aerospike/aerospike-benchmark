@@ -21,6 +21,7 @@
  ******************************************************************************/
 #include "benchmark.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -437,7 +438,7 @@ print_args(arguments* args)
 	blog_line("debug:                  %s", boolstring(args->debug));
 	
 	if (args->latency) {
-		blog_line("latency:                %d columns, shift exponent %d", args->latency_columns, args->latency_shift);
+		blog_line("latency:                true");
 	}
 	else {
 		blog_line("latency:                false");
@@ -607,7 +608,7 @@ validate_args(arguments* args)
 		return 1;
 	}
 	
-	if (args->latency_columns < 0 || args->latency_columns > 16) {
+	/*if (args->latency_columns < 0 || args->latency_columns > 16) {
 		blog_line("Invalid latency columns: %d  Valid values: [1-16]", args->latency_columns);
 		return 1;
 	}
@@ -615,7 +616,7 @@ validate_args(arguments* args)
 	if (args->latency_shift < 0 || args->latency_shift > 5) {
 		blog_line("Invalid latency exponent shift: %d  Valid values: [1-5]", args->latency_shift);
 		return 1;
-	}
+	}*/
 	
 	if (args->conn_pools_per_node <= 0 || args->conn_pools_per_node > 1000) {
 		blog_line("Invalid connPoolsPerNode: %d  Valid values: [1-1000]", args->conn_pools_per_node);
@@ -803,10 +804,10 @@ set_args(int argc, char * const * argv, arguments* args)
 				
 			case 'L': {
 				args->latency = true;
-				char* tmp = strdup(optarg);
-				char* p = strchr(tmp, ',');
+				//char* tmp = strdup(optarg);
+				//char* p = strchr(tmp, ',');
 				
-				if (p) {
+				/*if (p) {
 					*p = 0;
 					args->latency_columns = atoi(tmp);
 					args->latency_shift = atoi(p + 1);
@@ -814,8 +815,8 @@ set_args(int argc, char * const * argv, arguments* args)
 				else {
 					args->latency_columns = 4;
 					args->latency_shift = 3;
-				}
-				free(tmp);
+				}*/
+				//free(tmp);
 				break;
 			}
 				
@@ -1001,8 +1002,6 @@ main(int argc, char * const * argv)
 	args.max_retries = 1;
 	args.debug = false;
 	args.latency = false;
-	args.latency_columns = 4;
-	args.latency_shift = 3;
 	args.use_shm = false;
 	args.replica = AS_POLICY_REPLICA_SEQUENCE;
 	args.read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;

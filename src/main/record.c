@@ -23,6 +23,7 @@
 #include <aerospike/aerospike_batch.h>
 #include <aerospike/aerospike_key.h>
 #include <aerospike/as_arraylist.h>
+#include <aerospike/as_atomic.h>
 #include <aerospike/as_hashmap.h>
 #include <aerospike/as_monitor.h>
 #include <aerospike/as_random.h>
@@ -374,7 +375,7 @@ write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key)
 		
 		if (status == AEROSPIKE_OK) {
 			as_incr_uint32(&cdata->write_count);
-			latency_add(&cdata->write_latency, end - begin);
+			histogram_add(&cdata->write_histogram, end - begin);
 			return true;
 		}
 	}
@@ -421,7 +422,7 @@ read_record_sync(clientdata* cdata, threaddata* tdata)
 		// Record may not have been initialized, so not found is ok.
 		if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
 			as_incr_uint32(&cdata->read_count);
-			latency_add(&cdata->read_latency, end - begin);
+			histogram_add(&cdata->read_histogram, end - begin);
 			as_record_destroy(rec);
 			return status;
 		}
@@ -476,7 +477,7 @@ batch_record_sync(clientdata* cdata, threaddata* tdata)
 		
 		if (status == AEROSPIKE_OK) {
 			as_incr_uint32(&cdata->read_count);
-			latency_add(&cdata->read_latency, end - begin);
+			histogram_add(&cdata->read_histogram, end - begin);
 			as_batch_read_destroy(records);
 			return status;
 		}
@@ -553,7 +554,7 @@ linear_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	if (!err) {
 		if (cdata->latency) {
 			uint64_t end = cf_getms();
-			latency_add(&cdata->write_latency, end - tdata->begin);
+			histogram_add(&cdata->write_histogram, end - tdata->begin);
 		}
 		as_incr_uint32(&cdata->write_count);
 		tdata->key_count++;
@@ -673,7 +674,7 @@ random_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	if (!err) {
 		if (cdata->latency) {
 			uint64_t end = cf_getms();
-			latency_add(&cdata->write_latency, end - tdata->begin);
+			histogram_add(&cdata->write_histogram, end - tdata->begin);
 		}
 		as_incr_uint32(&cdata->write_count);
 	}
@@ -703,7 +704,7 @@ random_read_listener(as_error* err, as_record* rec, void* udata, as_event_loop* 
 	if (!err || err->code == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
 		if (cdata->latency) {
 			uint64_t end = cf_getms();
-			latency_add(&cdata->read_latency, end - tdata->begin);
+			histogram_add(&cdata->read_histogram, end - tdata->begin);
 		}
 		as_incr_uint32(&cdata->read_count);
 	}
@@ -733,7 +734,7 @@ random_batch_listener(as_error* err, as_batch_read_records* records, void* udata
 	if (!err) {
 		if (cdata->latency) {
 			uint64_t end = cf_getms();
-			latency_add(&cdata->read_latency, end - tdata->begin);
+			histogram_add(&cdata->read_histogram, end - tdata->begin);
 		}
 		as_incr_uint32(&cdata->read_count);
 	}

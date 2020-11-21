@@ -20,6 +20,7 @@
  * IN THE SOFTWARE.
  ******************************************************************************/
 #include "benchmark.h"
+#include <aerospike/as_atomic.h>
 #include <aerospike/as_monitor.h>
 #include <aerospike/as_sleep.h>
 #include <citrusleaf/cf_clock.h>
@@ -31,17 +32,15 @@ static void*
 ticker_worker(void* udata)
 {
 	clientdata* data = (clientdata*)udata;
-	latency* write_latency = &data->write_latency;
+	histogram* write_histogram = &data->write_histogram;
 	bool latency = data->latency;
-	char latency_header[512];
-	char latency_detail[512];
 	
 	uint64_t prev_time = cf_getms();
 	data->period_begin = prev_time;
 	
-	if (latency) {
-		latency_set_header(write_latency, latency_header);
-	}
+	//if (latency) {
+	//	latency_set_header(write_latency, latency_header);
+	//}
 	as_sleep(1000);
 
 	uint64_t total_count = 0;
@@ -64,9 +63,10 @@ ticker_worker(void* udata)
 			write_tps, write_timeout_current, write_error_current, total_count);
 		
 		if (latency) {
-			blog_line("%s", latency_header);
-			latency_print_results(write_latency, "write", latency_detail);
-			blog_line("%s", latency_detail);
+			histogram_print(write_histogram, 1, stdout);
+			//blog_line("%s", latency_header);
+			//latency_print_results(write_latency, "write", latency_detail);
+			//blog_line("%s", latency_detail);
 		}
 
 		if (complete) {

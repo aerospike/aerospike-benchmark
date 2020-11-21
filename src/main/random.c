@@ -20,6 +20,7 @@
  * IN THE SOFTWARE.
  ******************************************************************************/
 #include "benchmark.h"
+#include <aerospike/as_atomic.h>
 #include <aerospike/as_monitor.h>
 #include <aerospike/as_random.h>
 #include <aerospike/as_sleep.h>
@@ -32,17 +33,15 @@ static void*
 ticker_worker(void* udata)
 {
 	clientdata* data = (clientdata*)udata;
-	latency* write_latency = &data->write_latency;
-	latency* read_latency = &data->read_latency;
+	histogram* write_histogram = &data->write_histogram;
+	histogram* read_histogram = &data->read_histogram;
 	bool latency = data->latency;
-	char latency_header[512];
-	char latency_detail[512];
 	
 	uint64_t prev_time = cf_getms();
 	data->period_begin = prev_time;
 	
 	if (latency) {
-		latency_set_header(write_latency, latency_header);
+		//latency_set_header(write_latency, latency_header);
 	}
 	as_sleep(1000);
 	
@@ -70,11 +69,13 @@ ticker_worker(void* udata)
 			write_tps + read_tps, write_timeout_current + read_timeout_current, write_error_current + read_error_current);
 		
 		if (latency) {
-			blog_line("%s", latency_header);
+			histogram_print(write_histogram, 1, stdout);
+			histogram_print(read_histogram, 1, stdout);
+			/*blog_line("%s", latency_header);
 			latency_print_results(write_latency, "write", latency_detail);
 			blog_line("%s", latency_detail);
 			latency_print_results(read_latency, "read", latency_detail);
-			blog_line("%s", latency_detail);
+			blog_line("%s", latency_detail);*/
 		}
 
 		if ((data->transactions_limit > 0) && (transactions_current > data->transactions_limit)) {
