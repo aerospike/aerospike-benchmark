@@ -1,11 +1,16 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <time.h>
+
+#include "aerospike/as_random.h"
 
 #include "histogram.h"
 
 #define HIST_ASSERT(expr) \
 	assert(expr)
+
+#define N_INSERTIONS 1000000
 
 
 int main(int argc, char * argv[])
@@ -24,8 +29,6 @@ int main(int argc, char * argv[])
 		histogram_add(&h, us);
 	}
 
-	histogram_print(&h);
-
 	HIST_ASSERT(h.underflow_cnt == 99);
 	HIST_ASSERT(h.overflow_cnt == 500);
 
@@ -42,6 +45,26 @@ int main(int argc, char * argv[])
 		}
 	}
 
+
+	histogram_clear(&h);
+
+	// timed randomized test
+	as_random * r = as_random_instance();
+
+	struct timespec start, end;
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	for (size_t cnt = 0; cnt < N_INSERTIONS; cnt++) {
+		delay_t delay = as_random_next_uint64(r);
+		delay %= 129000;
+		histogram_add(&h, delay);
+	}
+	clock_gettime(CLOCK_MONOTONIC, &end);
+
+	printf("Randomized test on %d insertions: %f s\n",
+			N_INSERTIONS,
+			((end.tv_sec  - start.tv_sec) +
+			 (end.tv_nsec - start.tv_nsec) * 0.000000001));
+	histogram_print(&h);
 
 	histogram_free(&h);
 	return 0;
