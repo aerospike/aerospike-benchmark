@@ -37,7 +37,7 @@ swap_buffer_primary(swap_buffer_t * buf)
 void *
 swap_buffer_swap(swap_buffer_t * buf)
 {
-	// TODO: not yet implemented
+	// NOT YET IMPLEMENTED
 	abort();
 }
 

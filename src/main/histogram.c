@@ -156,8 +156,7 @@ histogram_calc_total(const histogram * h)
 
 
 void
-histogram_print(const histogram * h, uint32_t period_duration,
-		FILE * out_file)
+histogram_print(const histogram * h, uint32_t period_duration)
 {
 	struct tm * utc;
 	time_t t;
@@ -167,10 +166,10 @@ histogram_print(const histogram * h, uint32_t period_duration,
 	utc = gmtime(&t);
 	
 	total_cnt = histogram_calc_total(h);
-	fprintf(out_file, "%.24s, %us, %lu", asctime(utc), period_duration, total_cnt);
+	blog("%.24s, %us, %lu", asctime(utc), period_duration, total_cnt);
 
 	if (h->underflow_cnt > 0) {
-		fprintf(out_file, ", 0:%u", h->underflow_cnt);
+		blog(", 0:%u", h->underflow_cnt);
 	}
 
 	uint32_t idx = 0;
@@ -179,7 +178,7 @@ histogram_print(const histogram * h, uint32_t period_duration,
 
 		for (uint32_t j = 0; j < r->n_buckets; j++) {
 			if (h->buckets[idx] > 0) {
-				fprintf(out_file, ", %lu:%u",
+				blog(", %lu:%u",
 						r->lower_bound + j * r->bucket_width,
 						h->buckets[idx]);
 			}
@@ -188,17 +187,17 @@ histogram_print(const histogram * h, uint32_t period_duration,
 	}
 
 	if (h->overflow_cnt > 0) {
-		fprintf(out_file, ", %lu:%u", h->range_max, h->overflow_cnt);
+		blog(", %lu:%u", h->range_max, h->overflow_cnt);
 	}
 
-	fprintf(out_file, "\n");
+	blog("\n");
 }
 
 void
-histogram_print_info(const histogram * h, const char * title, FILE * out_file)
+histogram_print_info(const histogram * h, const char * title)
 {
 
-	fprintf(out_file,
+	blog(
 			"%s:\n"
 			"\tTotal num buckets: %u\n"
 			"\tRange min: %luus\n"
@@ -211,7 +210,7 @@ histogram_print_info(const histogram * h, const char * title, FILE * out_file)
 	for (uint32_t i = 0; i < h->n_bounds; i++) {
 		bucket_range_desc_t * r = &h->bounds[i];
 
-		fprintf(out_file,
+		blog(
 				"\tBucket range %d:\n"
 				"\t\tRange min: %luus\n"
 				"\t\tRange max: %luus\n"
@@ -230,7 +229,7 @@ histogram_print_info(const histogram * h, const char * title, FILE * out_file)
 void
 histogram_print_dbg(const histogram * h)
 {
-	printf(
+	blog(
 			"Histogram:\n"
 			"Range: %luus - %luus\n"
 			"\n"
@@ -246,23 +245,23 @@ histogram_print_dbg(const histogram * h)
 
 	for (size_t i = 0; i < h->n_bounds; i++) {
 		bucket_range_desc_t * r = &h->bounds[i];
-		printf(
+		blog(
 				"%luus <= x < %luus (width=%luus):\n"
 				" [ ",
 				r->lower_bound, r->lower_bound + r->bucket_width * r->n_buckets,
 				r->bucket_width);
 
 		for (size_t j = 0; j < r->n_buckets; j++) {
-			printf("%6u",
+			blog("%6u",
 					h->buckets[r->offset + j]);
 			if (j != r->n_buckets - 1) {
-				printf(", ");
+				blog(", ");
 				if (j % BUCKETS_PER_LINE == BUCKETS_PER_LINE - 1) {
-					printf("\n   ");
+					blog("\n   ");
 				}
 			}
 		}
-		printf(" ]\n");
+		blog(" ]\n");
 	}
 }
 

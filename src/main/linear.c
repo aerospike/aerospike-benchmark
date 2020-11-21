@@ -20,6 +20,7 @@
  * IN THE SOFTWARE.
  ******************************************************************************/
 #include "benchmark.h"
+#include "common.h"
 #include <aerospike/as_atomic.h>
 #include <aerospike/as_monitor.h>
 #include <aerospike/as_sleep.h>
@@ -63,7 +64,7 @@ ticker_worker(void* udata)
 			write_tps, write_timeout_current, write_error_current, total_count);
 		
 		if (latency) {
-			histogram_print(write_histogram, 1, stdout);
+			histogram_print(write_histogram, 1);
 			//blog_line("%s", latency_header);
 			//latency_print_results(write_latency, "write", latency_detail);
 			//blog_line("%s", latency_detail);

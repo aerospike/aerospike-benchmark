@@ -23,7 +23,9 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 
+#include "aerospike/as_log.h"
 #include <citrusleaf/alloc.h>
 
 #define _STR(x) #x
@@ -42,6 +44,17 @@ typedef uint64_t ptr_int_t;
 			abort(); \
 		} \
 	} while(0)
+
+
+
+void blog_line(const char* fmt, ...);
+void blog_detailv(as_log_level leve, const char* fmt, va_list ap);
+void blog_detail(as_log_level level, const char* fmt, ...);
+
+#define blog(_fmt, ...) { printf(_fmt, ##__VA_ARGS__); }
+#define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
+#define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }
+
 
 
 inline void *
