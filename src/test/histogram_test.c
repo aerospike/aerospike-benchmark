@@ -11,8 +11,7 @@
 #define HIST_ASSERT(expr) \
 	assert(expr)
 
-//#define N_INSERTIONS 10000000
-#define N_INSERTIONS 10
+#define N_INSERTIONS 10000000
 
 
 int main(int argc, char * argv[])
@@ -71,7 +70,8 @@ int main(int argc, char * argv[])
 			 (end.tv_nsec - start.tv_nsec) * 0.000000001));
 	printf("clock cycles/insertion: %f\n",
 			(c2 - c1) / ((double) N_INSERTIONS));
-	histogram_print(&h, 1);
+	histogram_print_info(&h, stdout);
+	histogram_print(&h, 1, stdout);
 
 	histogram_free(&h);
 	return 0;
