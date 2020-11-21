@@ -138,7 +138,8 @@ AR = ar
 ###############################################################################
 
 MAIN_OBJECT = main.o
-OBJECTS = benchmark.o histogram.o latency.o linear.o random.o record.o
+OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o \
+		  swap_buffer.o
 TEST_OBJECTS = sanity.o setup.o main.o
 
 ###############################################################################

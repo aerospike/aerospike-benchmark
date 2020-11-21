@@ -154,11 +154,3 @@ void random_read_write_async(clientdata* cdata, threaddata* tdata, as_event_loop
 
 int gen_value(arguments* args, as_val** val);
 bool is_stop_writes(aerospike* client, const char* namespace);
-
-void blog_line(const char* fmt, ...);
-void blog_detail(as_log_level level, const char* fmt, ...);
-void blog_detailv(as_log_level level, const char* fmt, va_list ap);
-
-#define blog(_fmt, ...) { printf(_fmt, ##__VA_ARGS__); }
-#define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
-#define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }

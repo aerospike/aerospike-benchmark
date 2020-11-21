@@ -20,6 +20,7 @@
  * IN THE SOFTWARE.
  ******************************************************************************/
 #include "benchmark.h"
+#include "common.h"
 #include "aerospike/aerospike_info.h"
 #include "aerospike/as_config.h"
 #include "aerospike/as_event.h"
@@ -30,51 +31,6 @@
 #include <time.h>
 
 as_monitor monitor;
-
-void
-blog_line(const char* fmt, ...)
-{
-	char fmtbuf[1024];
-	size_t len = strlen(fmt);
-	memcpy(fmtbuf, fmt, len);
-	char* p = fmtbuf + len;
-	*p++ = '\n';
-	*p = 0;
-	
-	va_list ap;
-	va_start(ap, fmt);
-	vprintf(fmtbuf, ap);
-	va_end(ap);
-}
-
-void
-blog_detailv(as_log_level level, const char* fmt, va_list ap)
-{
-	// Write message all at once so messages generated from multiple threads have less of a chance
-	// of getting garbled.
-	char fmtbuf[1024];
-	time_t now = time(NULL);
-	struct tm* t = localtime(&now);
-	int len = sprintf(fmtbuf, "%d-%02d-%02d %02d:%02d:%02d %s ",
-		t->tm_year+1900, t->tm_mon+1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec, as_log_level_tostring(level));
-	size_t len2 = strlen(fmt);
-	char* p = fmtbuf + len;
-	memcpy(p, fmt, len2);
-	p += len2;
-	*p++ = '\n';
-	*p = 0;
-	
-	vprintf(fmtbuf, ap);
-}
-
-void
-blog_detail(as_log_level level, const char* fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-	blog_detailv(level, fmt, ap);
-	va_end(ap);
-}
 
 static bool
 as_client_log_callback(as_log_level level, const char * func, const char * file, uint32_t line, const char * fmt, ...)
@@ -319,7 +275,7 @@ run_benchmark(arguments* args)
 				{ .upper_bound = 64000,  .bucket_width = 1000 },
 				{ .upper_bound = 128000, .bucket_width = 4000 }
 				});
-		histogram_print_info(&data.write_histogram, "Write histogram", stdout);
+		histogram_print_info(&data.write_histogram, "Write histogram");
 		
 		if (! args->init) {
 			histogram_init(&data.read_histogram, 3, 100, (rangespec_t[]) {
@@ -327,7 +283,7 @@ run_benchmark(arguments* args)
 					{ .upper_bound = 64000,  .bucket_width = 1000 },
 					{ .upper_bound = 128000, .bucket_width = 4000 }
 					});
-			histogram_print_info(&data.read_histogram, "Read histogram", stdout);
+			histogram_print_info(&data.read_histogram, "Read histogram");
 		}
 
 	}

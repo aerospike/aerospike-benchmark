@@ -20,6 +20,7 @@
  * IN THE SOFTWARE.
  ******************************************************************************/
 #include "benchmark.h"
+#include "common.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -60,7 +61,7 @@ static struct option long_options[] = {
 	{"writeTimeout",         required_argument, 0, 'V'},
 	{"maxRetries",           required_argument, 0, 'r'},
 	{"debug",                no_argument,       0, 'd'},
-	{"latency",              required_argument, 0, 'L'},
+	{"latency",              no_argument,       0, 'L'},
 	{"shared",               no_argument,       0, 'S'},
 	{"replica",              required_argument, 0, 'C'},
 	{"readModeAP",           required_argument, 0, 'N'},
@@ -235,23 +236,10 @@ print_usage(const char* program)
 	blog_line("-d --debug           # Default: debug mode is false.");
 	blog_line("   Run benchmarks in debug mode.");
 	blog_line("");
-	
-	blog_line("-L --latency <columns>,<shift>  # Default: latency display is off.");
-	blog_line("   Show transaction latency percentages using elapsed time ranges.");
-	blog_line("   <columns> Number of elapsed time ranges.");
-	blog_line("   <shift>   Power of 2 multiple between each range starting at column 3.");
-	blog_line("");
-	blog_line("   A latency definition of '--latency 7,1' results in this layout:");
-	blog_line("       <=1ms >1ms >2ms >4ms >8ms >16ms >32ms");
-	blog_line("          x%%   x%%   x%%   x%%   x%%    x%%    x%%");
-	blog_line("");
-	blog_line("   A latency definition of '--latency 4,3' results in this layout:");
-	blog_line("       <=1ms >1ms >8ms >64ms");
-	blog_line("           x%%  x%%   x%%    x%%");
-	blog_line("");
-	blog_line("   Latency columns are cumulative. If a transaction takes 9ms, it will be");
-	blog_line("   included in both the >1ms and >8ms columns.");
-	blog_line("");
+
+	blog_line("-L --latency  # Default: latency display is off.");
+	blog_line("   Show transaction latencies in microseconds in a histogram.");
+	blog_line("   Currently uses the default layout. Add documentation here later.");
 	
 	blog_line("-S --shared          # Default: false");
 	blog_line("   Use shared memory cluster tending.");
