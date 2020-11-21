@@ -275,6 +275,7 @@ run_benchmark(arguments* args)
 				{ .upper_bound = 64000,  .bucket_width = 1000 },
 				{ .upper_bound = 128000, .bucket_width = 4000 }
 				});
+		histogram_print_info(&data.write_histogram, "Write histogram", stdout);
 		
 		if (! args->init) {
 			histogram_init(&data.read_histogram, 3, 100, (rangespec_t[]) {
@@ -282,6 +283,7 @@ run_benchmark(arguments* args)
 					{ .upper_bound = 64000,  .bucket_width = 1000 },
 					{ .upper_bound = 128000, .bucket_width = 4000 }
 					});
+			histogram_print_info(&data.read_histogram, "Read histogram", stdout);
 		}
 
 	}

@@ -97,7 +97,7 @@ void histogram_add(histogram * h, delay_t elapsed_us);
  * seconds (i.e. how long this histogram has been accumulating)
  */
 void histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file);
-void histogram_print_info(const histogram * h, FILE * out_file);
+void histogram_print_info(const histogram * h, const char * title, FILE * out_file);
 
 void histogram_print_dbg(const histogram * h);
 
