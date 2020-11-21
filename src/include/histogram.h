@@ -36,7 +36,7 @@ typedef struct rangespec {
 
 
 typedef struct histogram {
-	uint32_t * bins;
+	uint32_t * buckets;
 	struct bucket_range_desc * bounds;
 
 	// inclusive lower bound on the histogram range
@@ -71,6 +71,11 @@ typedef struct histogram {
 void histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges);
 
 void histogram_free(histogram * h);
+
+/*
+ * resets all bucket counts to 0
+ */
+void histogram_clear(histogram * h);
 
 /*
  * insert the delay into the histogram in a thread-safe manner
