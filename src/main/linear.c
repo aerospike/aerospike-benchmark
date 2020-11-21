@@ -35,7 +35,7 @@ ticker_worker(void* udata)
 	histogram* write_histogram = &data->write_histogram;
 	bool latency = data->latency;
 	
-	uint64_t prev_time = cf_getms();
+	uint64_t prev_time = cf_getus();
 	data->period_begin = prev_time;
 	
 	//if (latency) {
@@ -47,7 +47,7 @@ ticker_worker(void* udata)
 	bool complete = false;
 	
 	while (total_count < data->n_keys) {
-		uint64_t time = cf_getms();
+		uint64_t time = cf_getus();
 		int64_t elapsed = time - prev_time;
 		prev_time = time;
 
