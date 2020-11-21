@@ -596,6 +596,16 @@ validate_args(arguments* args)
 		return 1;
 	}
 	
+	/*if (args->latency_columns < 0 || args->latency_columns > 16) {
+		blog_line("Invalid latency columns: %d  Valid values: [1-16]", args->latency_columns);
+		return 1;
+	}
+	
+	if (args->latency_shift < 0 || args->latency_shift > 5) {
+		blog_line("Invalid latency exponent shift: %d  Valid values: [1-5]", args->latency_shift);
+		return 1;
+	}*/
+	
 	if (args->conn_pools_per_node <= 0 || args->conn_pools_per_node > 1000) {
 		blog_line("Invalid connPoolsPerNode: %d  Valid values: [1-1000]", args->conn_pools_per_node);
 		return 1;
@@ -782,6 +792,19 @@ set_args(int argc, char * const * argv, arguments* args)
 				
 			case 'L': {
 				args->latency = true;
+				//char* tmp = strdup(optarg);
+				//char* p = strchr(tmp, ',');
+				
+				/*if (p) {
+					*p = 0;
+					args->latency_columns = atoi(tmp);
+					args->latency_shift = atoi(p + 1);
+				}
+				else {
+					args->latency_columns = 4;
+					args->latency_shift = 3;
+				}*/
+				//free(tmp);
 				break;
 			}
 				

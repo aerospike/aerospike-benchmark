@@ -30,7 +30,7 @@ int main(int argc, char * argv[])
 		histogram_add(&h, us);
 	}
 
-	/*
+
 	HIST_ASSERT(h.underflow_cnt == 99);
 	HIST_ASSERT(h.overflow_cnt == 500);
 
@@ -45,7 +45,7 @@ int main(int argc, char * argv[])
 		else {
 			HIST_ASSERT(h.buckets[i] == 4000);
 		}
-	}*/
+	}
 
 
 	histogram_clear(&h);
