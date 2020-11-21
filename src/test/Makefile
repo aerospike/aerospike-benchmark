@@ -8,7 +8,7 @@ EXES = $(patsubst %.o,$(TARGET_DIR)/%,$(OBJECTS))
 .PHONY: test
 test: $(EXES)
 
-$(TARGET_DIR)/%: $(OBJECT_DIR)/%.o
+$(TARGET_DIR)/%: $(OBJECT_DIR)/%.o $(LIBS)
 	$(CC) -o $@ $^ $(LIBS) $(LDFLAGS)
 
 .SECONDARY:

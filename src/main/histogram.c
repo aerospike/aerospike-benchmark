@@ -77,7 +77,7 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 		range_start = range_end;
 	}
 
-	h->bins = (uint32_t *) safe_calloc(n_ranges, sizeof(uint32_t));
+	h->bins = (uint32_t *) safe_calloc(total_buckets, sizeof(uint32_t));
 	h->bounds = b;
 	h->range_min = lowb;
 	h->range_max = range_start;
@@ -126,5 +126,41 @@ histogram_add(histogram * h, delay_t elapsed_us)
 	uint32_t * bucket = __histogram_get_bucket(h, bucket_idx);
 
 	as_incr_uint32(bucket);
+}
+
+void histogram_print(histogram * h) {
+	printf(
+			"Histogram:\n"
+			"Range: %lu - %lu\n"
+			"\n"
+			" < %luus:\n"
+			" [ %6u ]\n"
+			" >= %luus:\n"
+			" [ %6u ]\n",
+			h->range_min, h->range_max,
+			h->range_min,
+			h->underflow_cnt,
+			h->range_max,
+			h->overflow_cnt);
+
+	for (size_t i = 0; i < h->n_bounds; i++) {
+		bucket_range_desc_t * r = &h->bounds[i];
+		printf(
+				"%luus <= x < %luus:\n"
+				" [ ",
+				r->lower_bound, r->lower_bound + r->bucket_width * r->n_buckets);
+
+		for (size_t j = 0; j < r->n_buckets; j++) {
+			printf("%6u",
+					h->bins[r->offset + j]);
+			if (j != r->n_buckets - 1) {
+				printf(", ");
+				if (j % 16 == 15) {
+					printf("\n   ");
+				}
+			}
+		}
+		printf(" ]\n");
+	}
 }
 
