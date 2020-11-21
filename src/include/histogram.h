@@ -51,6 +51,8 @@ typedef struct histogram {
 
 	// the number of elements in the bounds array
 	uint32_t n_bounds;
+	// total number of buckets in the histogram;
+	uint32_t n_buckets;
 } histogram;
 
 

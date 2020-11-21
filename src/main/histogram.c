@@ -84,6 +84,7 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 	h->underflow_cnt = 0;
 	h->overflow_cnt  = 0;
 	h->n_bounds = n_ranges;
+	h->n_buckets = total_buckets;
 }
 
 void
@@ -91,6 +92,14 @@ histogram_free(histogram * h)
 {
 	free(h->buckets);
 	free(h->bounds);
+}
+
+void
+histogram_clear(histogram * h)
+{
+	memset(h->buckets, 0, h->n_buckets * sizeof(uint32_t));
+	h->underflow_cnt = 0;
+	h->overflow_cnt  = 0;
 }
 
 static int32_t
@@ -128,6 +137,8 @@ histogram_add(histogram * h, delay_t elapsed_us)
 	as_incr_uint32(bucket);
 }
 
+#define BUCKETS_PER_LINE 16
+
 void histogram_print(histogram * h) {
 	printf(
 			"Histogram:\n"
@@ -155,7 +166,7 @@ void histogram_print(histogram * h) {
 					h->buckets[r->offset + j]);
 			if (j != r->n_buckets - 1) {
 				printf(", ");
-				if (j % 16 == 15) {
+				if (j % BUCKETS_PER_LINE == BUCKETS_PER_LINE - 1) {
 					printf("\n   ");
 				}
 			}
