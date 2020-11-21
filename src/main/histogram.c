@@ -46,7 +46,7 @@ inline uint32_t *
 __attribute__((always_inline))
 __histogram_get_bucket(histogram * h, int32_t idx) {
 	return (idx < 0) ? (((uint32_t *) (((ptr_int_t) h) + offsetof(histogram, underflow_cnt)
-				+ 2 * sizeof(uint32_t))) + idx) : &h->bins[idx];
+				+ 2 * sizeof(uint32_t))) + idx) : &h->buckets[idx];
 }
 
 
@@ -77,7 +77,7 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 		range_start = range_end;
 	}
 
-	h->bins = (uint32_t *) safe_calloc(total_buckets, sizeof(uint32_t));
+	h->buckets = (uint32_t *) safe_calloc(total_buckets, sizeof(uint32_t));
 	h->bounds = b;
 	h->range_min = lowb;
 	h->range_max = range_start;
@@ -89,7 +89,7 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 void
 histogram_free(histogram * h)
 {
-	free(h->bins);
+	free(h->buckets);
 	free(h->bounds);
 }
 
@@ -101,7 +101,7 @@ _histogram_get_index(histogram * h, delay_t elapsed_us)
 	int32_t bin_offset;
 
 	// find which range index belongs in. Expecting a small number
-	// of bins-size ranges, so do a simple linear search
+	// of buckets-size ranges, so do a simple linear search
 
 	if (elapsed_us < h->range_min) {
 		return UNDERFLOW_IDX;
@@ -152,7 +152,7 @@ void histogram_print(histogram * h) {
 
 		for (size_t j = 0; j < r->n_buckets; j++) {
 			printf("%6u",
-					h->bins[r->offset + j]);
+					h->buckets[r->offset + j]);
 			if (j != r->n_buckets - 1) {
 				printf(", ");
 				if (j % 16 == 15) {
