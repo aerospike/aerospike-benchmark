@@ -41,6 +41,7 @@ typedef struct bucket_range_desc {
 #define UNDERFLOW_IDX (-2)
 #define OVERFLOW_IDX  (-1)
 
+
 STATIC_ASSERT(offsetof(histogram, underflow_cnt) + sizeof(uint32_t) ==
 		offsetof(histogram, overflow_cnt));
 
@@ -155,7 +156,8 @@ histogram_calc_total(const histogram * h)
 
 
 void
-histogram_print(const histogram * h, uint32_t period_duration)
+histogram_print(const histogram * h, uint32_t period_duration,
+		FILE * out_file)
 {
 	struct tm * utc;
 	time_t t;
@@ -165,10 +167,10 @@ histogram_print(const histogram * h, uint32_t period_duration)
 	utc = gmtime(&t);
 	
 	total_cnt = histogram_calc_total(h);
-	printf("%.24s, %us, %lu", asctime(utc), period_duration, total_cnt);
+	fprintf(out_file, "%.24s, %us, %lu", asctime(utc), period_duration, total_cnt);
 
 	if (h->underflow_cnt > 0) {
-		printf(", 0:%u", h->underflow_cnt);
+		fprintf(out_file, ", 0:%u", h->underflow_cnt);
 	}
 
 	uint32_t idx = 0;
@@ -177,7 +179,7 @@ histogram_print(const histogram * h, uint32_t period_duration)
 
 		for (uint32_t j = 0; j < r->n_buckets; j++) {
 			if (h->buckets[idx] > 0) {
-				printf(", %lu:%u",
+				fprintf(out_file, ", %lu:%u",
 						r->lower_bound + j * r->bucket_width,
 						h->buckets[idx]);
 			}
@@ -186,10 +188,40 @@ histogram_print(const histogram * h, uint32_t period_duration)
 	}
 
 	if (h->overflow_cnt > 0) {
-		printf(", %lu:%u", h->range_max, h->overflow_cnt);
+		fprintf(out_file, ", %lu:%u", h->range_max, h->overflow_cnt);
 	}
 
-	printf("\n");
+	fprintf(out_file, "\n");
+}
+
+void
+histogram_print_info(const histogram * h, FILE * out_file)
+{
+
+	fprintf(out_file,
+			"Histogram:\n"
+			"    Total num buckets: %u\n"
+			"    Range min: %luus\n"
+			"    Range max: %luus\n",
+			h->n_buckets,
+			h->range_min,
+			h->range_max);
+
+	for (uint32_t i = 0; i < h->n_bounds; i++) {
+		bucket_range_desc_t * r = &h->bounds[i];
+
+		fprintf(out_file,
+				"    Bucket range %d:\n"
+				"        Range min: %luus\n"
+				"        Range max: %luus\n"
+				"        Bucket width: %luus\n"
+				"        Num buckets: %u\n",
+				i,
+				r->lower_bound,
+				r->lower_bound + r->bucket_width * r->n_buckets,
+				r->bucket_width,
+				r->n_buckets);
+	}
 }
 
 #define BUCKETS_PER_LINE 16
