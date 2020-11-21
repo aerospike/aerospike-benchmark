@@ -554,7 +554,7 @@ linear_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 
 	if (!err) {
 		if (cdata->latency) {
-			uint64_t end = cf_getms();
+			uint64_t end = cf_getus();
 			histogram_add(&cdata->write_histogram, end - tdata->begin);
 		}
 		as_incr_uint32(&cdata->write_count);
@@ -674,7 +674,7 @@ random_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	
 	if (!err) {
 		if (cdata->latency) {
-			uint64_t end = cf_getms();
+			uint64_t end = cf_getus();
 			histogram_add(&cdata->write_histogram, end - tdata->begin);
 		}
 		as_incr_uint32(&cdata->write_count);
@@ -704,7 +704,7 @@ random_read_listener(as_error* err, as_record* rec, void* udata, as_event_loop* 
 	
 	if (!err || err->code == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
 		if (cdata->latency) {
-			uint64_t end = cf_getms();
+			uint64_t end = cf_getus();
 			histogram_add(&cdata->read_histogram, end - tdata->begin);
 		}
 		as_incr_uint32(&cdata->read_count);
@@ -734,7 +734,7 @@ random_batch_listener(as_error* err, as_batch_read_records* records, void* udata
 	
 	if (!err) {
 		if (cdata->latency) {
-			uint64_t end = cf_getms();
+			uint64_t end = cf_getus();
 			histogram_add(&cdata->read_histogram, end - tdata->begin);
 		}
 		as_incr_uint32(&cdata->read_count);
