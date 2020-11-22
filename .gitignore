@@ -2,6 +2,7 @@
 bin
 obj
 target
+test_target
 stage
 Version.java
 .cproject
