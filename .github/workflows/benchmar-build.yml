@@ -13,7 +13,21 @@ jobs:
     env:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     steps:
-    - name: Checkout 
+    - name: install Check
+      uses: dsaltares/fetch-gh-release-asset@0.0.5
+      with:
+        repo: "libcheck/check"
+        version: "tags/0.15.2"
+        file: check-0.15.2.tar.gz
+    - name: Setup libcheck
+      run: |
+        tar xvfz check-0.15.2.tar.gz && cd check-0.15.2
+        ./configure
+        make
+        make check
+        sudo make install
+        sudo ldconfig
+    - name: Checkout
       uses: actions/checkout@v2
       with: 
         path: main
@@ -32,4 +46,7 @@ jobs:
       working-directory: client
     - name: build benchmark
       run: make
+      working-directory: main
+    - name: test
+      run: make test
       working-directory: main
