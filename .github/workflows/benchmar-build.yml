@@ -2,15 +2,14 @@ name: Benchmark CI
 
 on:
   push:
-    branches: [ main, artifacts ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, artifacts ]
+    branches: [ main ]
   pull_request_target:
-    branches: [ main, artifacts ]
+    branches: [ main ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     env:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client

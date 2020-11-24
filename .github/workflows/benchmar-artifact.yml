@@ -1,8 +1,7 @@
-name: Benchmark CI
-
+name: Create Artifacts
 on:
   push:
-    branches: [ main, artifacts ]
+    branches: [ main ]
 
 jobs:
   build-libraries:
@@ -13,7 +12,7 @@ jobs:
       matrix: 
         ev-lib: ["", libev, libuv, libevent]
     steps:
-    - name: install event libs
+    - name: Install event libs
       run: sudo apt-get install -y libevent-dev libev-dev libuv1-dev
     - name: Checkout c client
       uses: actions/checkout@v2
@@ -26,9 +25,6 @@ jobs:
       with: 
         path: main
         submodules: recursive
-    - name: Info
-      run: make info
-      working-directory: main
     - name: Build client lib
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: client
