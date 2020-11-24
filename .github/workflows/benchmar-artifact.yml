@@ -1,0 +1,39 @@
+name: Benchmark CI
+
+on:
+  push:
+    branches: [ main, artifacts ]
+
+jobs:
+  build-libraries:
+    runs-on: ubuntu-latest
+    env:
+      CLIENTREPO: ${GITHUB_WORKSPACE}/client
+    strategy:
+      matrix: 
+        ev-lib: ["", libev, libuv, libevent]
+    steps:
+    - name: Checkout c client
+      uses: actions/checkout@v2
+      with:
+        repository: aerospike/aerospike-client-c
+        submodules: recursive
+        path: client
+    - name: Checkout benchmarks 
+      uses: actions/checkout@v2
+      with: 
+        path: main
+        submodules: recursive
+    - name: Info
+      run: make info
+      working-directory: main
+    - name: Build client lib
+      run: make ${{ matrix.ev-lib }}
+      working-directory: client
+    - name: Build benchmark
+      run: make ${{ matrix.ev-lib }}
+      working-directory: main
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with: 
+        name: benchmark${{ matrix.ev-lib}}
