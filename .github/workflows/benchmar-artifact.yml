@@ -11,7 +11,7 @@ jobs:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     strategy:
       matrix: 
-        ev-lib: ["", libev, libuv, libevent]
+        ev-lib: [""]
     steps:
     - name: Checkout c client
       uses: actions/checkout@v2
