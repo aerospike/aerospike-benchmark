@@ -2,11 +2,11 @@ name: Benchmark CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, artifacts ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, artifacts ]
   pull_request_target:
-    branches: [ main ]
+    branches: [ main, artifacts ]
 
 jobs:
   build:
