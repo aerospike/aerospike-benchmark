@@ -25,6 +25,16 @@ jobs:
         ./configure
         make
         make check
+    - name: Cache libcheck
+      uses: actions/cache@v2
+      env:
+        cache-name: libcheck
+      with:
+        # npm cache files are stored in `~/.npm` on Linux/macOS
+        path: check-0.15.2
+        key: check-0.15.2
+    - name: install libcheck
+      run: |
         sudo make install
         sudo ldconfig
     - name: Checkout
