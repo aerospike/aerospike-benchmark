@@ -35,8 +35,12 @@ jobs:
     - name: Build benchmark
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
+    - name: Get artifact name
+      run: |
+        if [ ${{ matrix.ev-lib}} ]; then echo -${{ matrix.ev-lib}} ; fi
+      id: get_name
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
-        name: benchmark${{ matrix.ev-lib}}
+        name: ${{steps.get_name.outputs}}
         path: main/target/benchmarks
