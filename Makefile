@@ -22,7 +22,8 @@ CFLAGS = -std=gnu99 -g -Wall -fPIC -O3
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
-DIR_INCLUDE =  $(CLIENT_PATH)/src/include
+DIR_INCLUDE += src/main
+DIR_INCLUDE += $(CLIENT_PATH)/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/base/src/include
@@ -128,14 +129,15 @@ else
   endif
 endif
 
-LDFLAGS += -lm -lz
+LDFLAGS += -lm -lz -lcheck
 CC = cc
 
 ###############################################################################
 ##  OBJECTS                                                                  ##
 ###############################################################################
-
-OBJECTS = benchmark.o latency.o linear.o main.o random.o record.o
+MAIN_OBJECT = main.o
+OBJECTS = benchmark.o latency.o linear.o random.o record.o
+TEST_OBJECTS = sanity.o setup.o main.o
 
 ###############################################################################
 ##  MAIN TARGETS                                                             ##
@@ -174,7 +176,7 @@ build: target/benchmarks
 
 .PHONY: clean
 clean:
-	@rm -rf target
+	@rm -rf target test_target
 
 target:
 	mkdir $@
@@ -185,7 +187,7 @@ target/obj: | target
 target/obj/%.o: src/main/%.c | target/obj
 	$(CC) $(CFLAGS) -o $@ -c $^
 
-target/benchmarks: $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
+target/benchmarks: $(addprefix target/obj/,$(MAIN_OBJECT)) $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 
@@ -196,3 +198,22 @@ run: build
 .PHONY: valgrind
 valgrind: build
 	valgrind --tool=memcheck --leak-check=yes --show-reachable=yes --num-callers=20 --track-fds=yes -v ./target/benchmarks
+
+.PHONY: test
+test: build_test
+	./test_target/test
+
+.PHONY: build_test
+build_test: test_target/test
+
+test_target: 
+	mkdir $@
+
+test_target/obj: | test_target
+	mkdir $@
+
+test_target/obj/%.o: src/test/%.c | test_target/obj
+	$(CC) $(CFLAGS) -o $@ -c $^
+
+test_target/test: $(addprefix test_target/obj/,$(TEST_OBJECTS)) $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+	$(CC) -o $@ $^ $(LDFLAGS)
