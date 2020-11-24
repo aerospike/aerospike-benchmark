@@ -30,11 +30,11 @@ jobs:
       env:
         cache-name: libcheck
       with:
-        # npm cache files are stored in `~/.npm` on Linux/macOS
         path: check-0.15.2
         key: check-0.15.2
     - name: install libcheck
       run: |
+        cd check-0.15.2
         sudo make install
         sudo ldconfig
     - name: Checkout
