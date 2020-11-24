@@ -37,9 +37,10 @@ jobs:
       working-directory: main
     - name: Get artifact name
       run: |
+        set -e
         NAME=-${{ matrix.ev-lib}}
-        if [ $NAME -eq "-" ]; then NAME="" ; fi
-        echo "::set-output name=name::$NAME"
+        if [ "${NAME}" = "-" ]; then NAME="" ; fi
+        echo "::set-output name=name::benchmarks$NAME"
       id: get_name
     - name: Upload artifact
       uses: actions/upload-artifact@v2
