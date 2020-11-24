@@ -11,8 +11,10 @@ jobs:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     strategy:
       matrix: 
-        ev-lib: [""]
+        ev-lib: ["", libev, libuv, libevent]
     steps:
+    - name: install event libs
+      run: sudo apt-get install -y libevent-dev libev-dev libuv1-dev
     - name: Checkout c client
       uses: actions/checkout@v2
       with:
