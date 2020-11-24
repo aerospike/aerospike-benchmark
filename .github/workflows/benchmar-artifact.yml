@@ -37,3 +37,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with: 
         name: benchmark${{ matrix.ev-lib}}
+        path: main/target/benchmark
