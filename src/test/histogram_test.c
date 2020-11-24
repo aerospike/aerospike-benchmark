@@ -1,5 +1,5 @@
 
-#include <assert.h>
+#include <check.h>
 #include <stdio.h>
 #include <time.h>
 #include <x86intrin.h>
@@ -8,13 +8,35 @@
 
 #include "histogram.h"
 
-#define HIST_ASSERT(expr) \
-	assert(expr)
+
+#define TEST_SUITE_NAME "histogram"
 
 #define N_INSERTIONS 10000000
 
 
-int main(int argc, char * argv[])
+/**
+ * Any setup code to run each test goes here
+ *
+ * @return  void  
+ */
+static void 
+setup(void) 
+{
+}
+
+/**
+ * setup's friend. Does the opposite and cleans up the test
+ *
+ * @return  void  
+ */
+static void
+teardown(void)
+{
+//do some tearing
+}
+
+
+START_TEST(default_config_test)
 {
 	histogram h;
 
@@ -31,50 +53,42 @@ int main(int argc, char * argv[])
 	}
 
 
-	HIST_ASSERT(h.underflow_cnt == 99);
-	HIST_ASSERT(h.overflow_cnt == 500);
+	ck_assert_int_eq(h.underflow_cnt, 99);
+	ck_assert_int_eq(h.overflow_cnt, 500);
 
 	// 115 buckets in total
 	for (size_t i = 0; i < 115; i++) {
 		if (i < 39) {
-			HIST_ASSERT(h.buckets[i] == 100);
+			ck_assert_int_eq(h.buckets[i], 100);
 		}
 		else if (i < 99) {
-			HIST_ASSERT(h.buckets[i] == 1000);
+			ck_assert_int_eq(h.buckets[i], 1000);
 		}
 		else {
-			HIST_ASSERT(h.buckets[i] == 4000);
+			ck_assert_int_eq(h.buckets[i], 4000);
 		}
 	}
 
 
 	histogram_clear(&h);
-
-	// timed randomized test
-	as_random * r = as_random_instance();
-
-	struct timespec start, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	uint64_t c1 = __rdtsc();
-	for (size_t cnt = 0; cnt < N_INSERTIONS; cnt++) {
-		delay_t delay = as_random_next_uint64(r);
-		delay %= 129000;
-		histogram_add(&h, delay);
-	}
-	uint64_t c2 = __rdtsc();
-	clock_gettime(CLOCK_MONOTONIC, &end);
-
-	printf("Randomized test on %d insertions: %f s\n",
-			N_INSERTIONS,
-			((end.tv_sec  - start.tv_sec) +
-			 (end.tv_nsec - start.tv_nsec) * 0.000000001));
-	printf("clock cycles/insertion: %f\n",
-			(c2 - c1) / ((double) N_INSERTIONS));
-	histogram_print_info(&h, stdout);
-	histogram_print(&h, 1, stdout);
-
-	histogram_free(&h);
-	return 0;
 }
+END_TEST
 
+
+Suite*
+histogram_suite(void)
+{
+	Suite* s;
+	TCase* tc_core;
+
+	s = suite_create("Histogram");
+
+	/* Core test cases */
+	tc_core = tcase_create("Core");
+	tcase_add_checked_fixture(tc_core, setup, teardown);
+	tcase_add_test(tc_core, default_config_test);
+	suite_add_tcase(s, tc_core);
+
+	return s;
+}
 
