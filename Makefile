@@ -137,7 +137,7 @@ CC = cc
 ###############################################################################
 MAIN_OBJECT = main.o
 OBJECTS = benchmark.o latency.o linear.o random.o record.o
-TEST_OBJECTS = sanity.o
+TEST_OBJECTS = sanity.o setup.o main.o
 
 ###############################################################################
 ##  MAIN TARGETS                                                             ##
