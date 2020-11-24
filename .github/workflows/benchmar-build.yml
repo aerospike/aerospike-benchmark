@@ -19,19 +19,22 @@ jobs:
         repo: "libcheck/check"
         version: "tags/0.15.2"
         file: check-0.15.2.tar.gz
-    - name: Setup libcheck
-      run: |
-        tar xvfz check-0.15.2.tar.gz && cd check-0.15.2
-        ./configure
-        make
-        make check
     - name: Cache libcheck
+      id: cache-libcheck
       uses: actions/cache@v2
       env:
         cache-name: libcheck
       with:
         path: check-0.15.2
         key: check-0.15.2
+    - name: Build libcheck
+      id: build-libcheck
+      if: steps.cache-libcheck.outputs.cache-hit != 'true'
+      run: |
+        tar xvfz check-0.15.2.tar.gz && cd check-0.15.2
+        ./configure
+        make
+        make check
     - name: install libcheck
       run: |
         cd check-0.15.2
