@@ -129,7 +129,8 @@ else
   endif
 endif
 
-LDFLAGS += -lm -lz -lcheck
+LDFLAGS += -lm -lz
+TEST_LDFLAGS = $(LDFLAGS) -lcheck 
 CC = cc
 
 ###############################################################################
@@ -216,4 +217,4 @@ test_target/obj/%.o: src/test/%.c | test_target/obj
 	$(CC) $(CFLAGS) -o $@ -c $^
 
 test_target/test: $(addprefix test_target/obj/,$(TEST_OBJECTS)) $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CC) -o $@ $^ $(TEST_LDFLAGS)
