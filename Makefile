@@ -140,7 +140,7 @@ AR = ar
 MAIN_OBJECT = main.o
 OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o \
 		  swap_buffer.o
-TEST_OBJECTS = sanity.o setup.o main.o
+TEST_OBJECTS = histogram_test.o sanity.o setup.o main.o
 
 ###############################################################################
 ##  MAIN TARGETS                                                             ##
@@ -182,12 +182,13 @@ archive: $(addprefix target/obj/,$(OBJECTS)) target/libbench.a
 target/libbench.a: $(addprefix target/obj/,$(OBJECTS))
 	$(AR) -rcs $@ $^
 
-.PHONY: test
-test: archive | target/obj target/bin
-	(make -C $(ROOT)/src/test OBJECT_DIR=$(ROOT)/target/obj TARGET_DIR=$(ROOT)/target/bin \
-		CC=$(CC) CFLAGS="$(CFLAGS)" INCLUDES="$(INCLUDES)" \
-		LIBS="$(ROOT)/target/libbench.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a" \
-		LDFLAGS="$(LDFLAGS)" CLIENTREPO="$(CLIENTREPO)")
+
+#.PHONY: test
+#test: archive | target/obj target/bin
+#	(make -C $(ROOT)/src/test OBJECT_DIR=$(ROOT)/target/obj TARGET_DIR=$(ROOT)/target/bin \
+#		CC=$(CC) CFLAGS="$(CFLAGS)" INCLUDES="$(INCLUDES)" \
+#		LIBS="$(ROOT)/target/libbench.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a" \
+#		LDFLAGS="$(LDFLAGS)" CLIENTREPO="$(CLIENTREPO)")
 
 .PHONY: clean
 clean:
