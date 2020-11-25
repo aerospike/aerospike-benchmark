@@ -39,9 +39,6 @@ ticker_worker(void* udata)
 	uint64_t prev_time = cf_getus();
 	data->period_begin = prev_time;
 	
-	//if (latency) {
-	//	latency_set_header(write_latency, latency_header);
-	//}
 	as_sleep(1000);
 
 	uint64_t total_count = 0;
@@ -65,9 +62,6 @@ ticker_worker(void* udata)
 		
 		if (latency) {
 			histogram_print(write_histogram, 1);
-			//blog_line("%s", latency_header);
-			//latency_print_results(write_latency, "write", latency_detail);
-			//blog_line("%s", latency_detail);
 		}
 
 		if (complete) {

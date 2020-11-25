@@ -72,11 +72,6 @@ ticker_worker(void* udata)
 		if (latency) {
 			histogram_print(write_histogram, 1);
 			histogram_print(read_histogram, 1);
-			/*blog_line("%s", latency_header);
-			latency_print_results(write_latency, "write", latency_detail);
-			blog_line("%s", latency_detail);
-			latency_print_results(read_latency, "read", latency_detail);
-			blog_line("%s", latency_detail);*/
 		}
 
 		if ((data->transactions_limit > 0) && (transactions_current > data->transactions_limit)) {
