@@ -20,7 +20,9 @@
  * IN THE SOFTWARE.
  ******************************************************************************/
 #include "benchmark.h"
+#include "common.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,7 +61,7 @@ static struct option long_options[] = {
 	{"writeTimeout",         required_argument, 0, 'V'},
 	{"maxRetries",           required_argument, 0, 'r'},
 	{"debug",                no_argument,       0, 'd'},
-	{"latency",              required_argument, 0, 'L'},
+	{"latency",              no_argument,       0, 'L'},
 	{"shared",               no_argument,       0, 'S'},
 	{"replica",              required_argument, 0, 'C'},
 	{"readModeAP",           required_argument, 0, 'N'},
@@ -234,23 +236,10 @@ print_usage(const char* program)
 	blog_line("-d --debug           # Default: debug mode is false.");
 	blog_line("   Run benchmarks in debug mode.");
 	blog_line("");
-	
-	blog_line("-L --latency <columns>,<shift>  # Default: latency display is off.");
-	blog_line("   Show transaction latency percentages using elapsed time ranges.");
-	blog_line("   <columns> Number of elapsed time ranges.");
-	blog_line("   <shift>   Power of 2 multiple between each range starting at column 3.");
-	blog_line("");
-	blog_line("   A latency definition of '--latency 7,1' results in this layout:");
-	blog_line("       <=1ms >1ms >2ms >4ms >8ms >16ms >32ms");
-	blog_line("          x%%   x%%   x%%   x%%   x%%    x%%    x%%");
-	blog_line("");
-	blog_line("   A latency definition of '--latency 4,3' results in this layout:");
-	blog_line("       <=1ms >1ms >8ms >64ms");
-	blog_line("           x%%  x%%   x%%    x%%");
-	blog_line("");
-	blog_line("   Latency columns are cumulative. If a transaction takes 9ms, it will be");
-	blog_line("   included in both the >1ms and >8ms columns.");
-	blog_line("");
+
+	blog_line("-L --latency  # Default: latency display is off.");
+	blog_line("   Show transaction latencies in microseconds in a histogram.");
+	blog_line("   Currently uses the default layout. Add documentation here later.");
 	
 	blog_line("-S --shared          # Default: false");
 	blog_line("   Use shared memory cluster tending.");
@@ -437,7 +426,7 @@ print_args(arguments* args)
 	blog_line("debug:                  %s", boolstring(args->debug));
 	
 	if (args->latency) {
-		blog_line("latency:                %d columns, shift exponent %d", args->latency_columns, args->latency_shift);
+		blog_line("latency:                true");
 	}
 	else {
 		blog_line("latency:                false");
@@ -604,16 +593,6 @@ validate_args(arguments* args)
 	
 	if (args->write_total_timeout < 0) {
 		blog_line("Invalid write total timeout: %d  Valid values: [>= 0]", args->write_total_timeout);
-		return 1;
-	}
-	
-	if (args->latency_columns < 0 || args->latency_columns > 16) {
-		blog_line("Invalid latency columns: %d  Valid values: [1-16]", args->latency_columns);
-		return 1;
-	}
-	
-	if (args->latency_shift < 0 || args->latency_shift > 5) {
-		blog_line("Invalid latency exponent shift: %d  Valid values: [1-5]", args->latency_shift);
 		return 1;
 	}
 	
@@ -803,19 +782,6 @@ set_args(int argc, char * const * argv, arguments* args)
 				
 			case 'L': {
 				args->latency = true;
-				char* tmp = strdup(optarg);
-				char* p = strchr(tmp, ',');
-				
-				if (p) {
-					*p = 0;
-					args->latency_columns = atoi(tmp);
-					args->latency_shift = atoi(p + 1);
-				}
-				else {
-					args->latency_columns = 4;
-					args->latency_shift = 3;
-				}
-				free(tmp);
 				break;
 			}
 				
@@ -1001,8 +967,6 @@ main(int argc, char * const * argv)
 	args.max_retries = 1;
 	args.debug = false;
 	args.latency = false;
-	args.latency_columns = 4;
-	args.latency_shift = 3;
 	args.use_shm = false;
 	args.replica = AS_POLICY_REPLICA_SEQUENCE;
 	args.read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;

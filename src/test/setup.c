@@ -65,8 +65,6 @@ setup(void)
 	args->max_retries = 1;
 	args->debug = false;
 	args->latency = false;
-	args->latency_columns = 4;
-	args->latency_shift = 3;
 	args->use_shm = false;
 	args->replica = AS_POLICY_REPLICA_SEQUENCE;
 	args->read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;
@@ -121,9 +119,13 @@ teardown(void)
  * better test it a little.
  */
 START_TEST(test_setup) {
-	latency_init(&data->read_latency, args->latency_columns, args->latency_shift);
-	ck_assert_int_eq(data->read_latency.last_bucket, 3);
-	latency_free(&data->read_latency);
+	histogram_init(&data->read_histogram, 3, 100, (rangespec_t[]) {
+			{ .upper_bound = 4000,   .bucket_width = 100  },
+			{ .upper_bound = 64000,  .bucket_width = 1000 },
+			{ .upper_bound = 128000, .bucket_width = 4000 }
+			});
+	ck_assert_int_eq(data->read_histogram.underflow_cnt, 0);
+	histogram_free(&data->read_histogram);
 }
 END_TEST
 

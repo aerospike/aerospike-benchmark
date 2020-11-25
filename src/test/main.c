@@ -28,6 +28,7 @@ main(void) {
 	s = sanity_suite();
 	sr = srunner_create(s);
     srunner_add_suite(sr, setup_suite());
+    srunner_add_suite(sr, histogram_suite());
 
 	srunner_run_all(sr, CK_NORMAL);
 	number_failed = srunner_ntests_failed(sr);

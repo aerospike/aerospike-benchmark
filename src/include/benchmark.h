@@ -26,7 +26,7 @@
 #include "aerospike/as_password.h"
 #include "aerospike/as_random.h"
 #include "aerospike/as_record.h"
-#include "latency.h"
+#include "histogram.h"
 
 typedef enum {
 	LEN_TYPE_COUNT,
@@ -65,8 +65,6 @@ typedef struct arguments_t {
 	int max_retries;
 	bool debug;
 	bool latency;
-	int latency_columns;
-	int latency_shift;
 	bool use_shm;
 	as_policy_replica replica;
 	as_policy_read_mode_ap read_mode_ap;
@@ -96,7 +94,7 @@ typedef struct clientdata_t {
 	aerospike client;
 	as_val *fixed_value;
 	
-	latency write_latency;
+	histogram write_histogram;
 	uint32_t write_count;
 	uint32_t write_timeout_count;
 	uint32_t write_error_count;
@@ -104,7 +102,7 @@ typedef struct clientdata_t {
 	uint32_t read_count;
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
-	latency read_latency;
+	histogram read_histogram;
 
 	uint32_t tdata_count;
 	uint32_t valid;
@@ -156,11 +154,3 @@ void random_read_write_async(clientdata* cdata, threaddata* tdata, as_event_loop
 
 int gen_value(arguments* args, as_val** val);
 bool is_stop_writes(aerospike* client, const char* namespace);
-
-void blog_line(const char* fmt, ...);
-void blog_detail(as_log_level level, const char* fmt, ...);
-void blog_detailv(as_log_level level, const char* fmt, va_list ap);
-
-#define blog(_fmt, ...) { printf(_fmt, ##__VA_ARGS__); }
-#define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
-#define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }
