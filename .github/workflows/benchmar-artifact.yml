@@ -1,4 +1,4 @@
-name: Create Artifacts
+name: Build:Main
 on:
   push:
     branches: [ main ]
