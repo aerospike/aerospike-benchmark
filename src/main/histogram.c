@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <time.h>
 
+#include <citrusleaf/alloc.h>
 #include <aerospike/as_atomic.h>
 
 #include "histogram.h"
@@ -57,7 +58,7 @@ void
 histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges)
 {
 	bucket_range_desc_t * b =
-		(bucket_range_desc_t *) safe_malloc(n_ranges * sizeof(bucket_range_desc_t));
+		(bucket_range_desc_t *) cf_malloc(n_ranges * sizeof(bucket_range_desc_t));
 
 	delay_t range_start = lowb;
 	uint32_t total_buckets = 0;
@@ -80,7 +81,7 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 		range_start = range_end;
 	}
 
-	h->buckets = (uint32_t *) safe_calloc(total_buckets, sizeof(uint32_t));
+	h->buckets = (uint32_t *) cf_calloc(total_buckets, sizeof(uint32_t));
 	h->bounds = b;
 	h->range_min = lowb;
 	h->range_max = range_start;
@@ -93,8 +94,8 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 void
 histogram_free(histogram * h)
 {
-	free(h->buckets);
-	free(h->bounds);
+	cf_free(h->buckets);
+	cf_free(h->bounds);
 }
 
 void

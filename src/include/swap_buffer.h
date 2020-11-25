@@ -21,8 +21,6 @@
  ******************************************************************************/
 #pragma once
 
-
-
 /*
  * used to implement a data structure with two instances, one as the primary
  * instance, and another as the secondary instance. When an atomic

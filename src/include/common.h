@@ -54,28 +54,3 @@ void blog_detail(as_log_level level, const char* fmt, ...);
 #define blog(_fmt, ...) { printf(_fmt, ##__VA_ARGS__); }
 #define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
 #define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }
-
-
-
-inline void *
-__attribute__((always_inline))
-safe_malloc(size_t sz) {
-	void * ptr = cf_malloc(sz);
-	if (ptr == NULL) {
-		fprintf(stderr, "Unable to malloc %zu bytes\n", sz);
-		abort();
-	}
-	return ptr;
-}
-
-inline void *
-__attribute__((always_inline))
-safe_calloc(size_t nmemb, size_t sz) {
-	void * ptr = cf_calloc(nmemb, sz);
-	if (ptr == NULL) {
-		fprintf(stderr, "Unable to calloc %zu bytes\n", sz);
-		abort();
-	}
-	return ptr;
-}
-

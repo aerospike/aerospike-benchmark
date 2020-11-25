@@ -36,12 +36,10 @@ teardown(void)
 }
 
 
+// sequential test
 START_TEST(default_config_test)
 {
 	histogram h;
-
-	// sequential test
-
 	histogram_init(&h, 3, 100, (rangespec_t[]) {
 			{ .upper_bound = 4000,   .bucket_width = 100  },
 			{ .upper_bound = 64000,  .bucket_width = 1000 },
@@ -51,7 +49,6 @@ START_TEST(default_config_test)
 	for (delay_t us = 1; us < 128500; us++) {
 		histogram_add(&h, us);
 	}
-
 
 	ck_assert_int_eq(h.underflow_cnt, 99);
 	ck_assert_int_eq(h.overflow_cnt, 500);
@@ -68,7 +65,6 @@ START_TEST(default_config_test)
 			ck_assert_int_eq(h.buckets[i], 4000);
 		}
 	}
-
 
 	histogram_clear(&h);
 }
