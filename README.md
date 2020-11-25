@@ -1,4 +1,4 @@
-Aerospike C Client Benchmarks
+Aerospike Benchmark
 =============================
 
 ![Build:Main](https://github.com/citrusleaf/aerospike-benchmark/workflows/Build:Main/badge.svg)
