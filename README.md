@@ -10,6 +10,7 @@ Build instructions:
 
     export CLIENTREPO=.. #or location of the C client repository
     make clean
+    make test
     make [EVENT_LIB=libev|libuv|libevent]
 
 The EVENT_LIB setting must also match the same setting when building the client itself.
