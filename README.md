@@ -1,6 +1,8 @@
 Aerospike C Client Benchmarks
 =============================
 
+![Build:Main](https://github.com/citrusleaf/aerospike-benchmark/workflows/Build:Main/badge.svg)
+
 This project contains the files necessary to build C client benchmarks. 
 This program is used to insert data and generate load. 
 
