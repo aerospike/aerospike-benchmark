@@ -39,6 +39,9 @@ typedef struct histogram {
 	uint32_t * buckets;
 	struct bucket_range_desc * bounds;
 
+	// name to be printed before each output line of this histogram
+	char * name;
+
 	// inclusive lower bound on the histogram range
 	delay_t range_min;
 	// exclusive upper bound on the histogram range
@@ -79,6 +82,13 @@ void histogram_free(histogram * h);
  */
 void histogram_clear(histogram * h);
 
+
+/*
+ * sets the name of the histogram, to be printed at the beginning of each
+ * histogram_print call
+ */
+void histogram_set_name(histogram * h, const char * name);
+
 /*
  * Calculates the totals of all buckets by traversing them and adding. This
  * information is not stored in the histogram because it would require two
@@ -97,7 +107,19 @@ void histogram_add(histogram * h, delay_t elapsed_us);
  * seconds (i.e. how long this histogram has been accumulating)
  */
 void histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file);
-void histogram_print_info(const histogram * h, const char * title, FILE * out_file);
+
+/*
+ * prints the histogram, clearing the buckets as their values are read. This
+ * method is thread-safe and is intended to be used in a context with
+ * concurrent writers executing simultaneously. This guarantees that no writes
+ * to the histogram will be missed
+ */
+void histogram_print_clear(const histogram * h, uint32_t period_duration, FILE * out_file);
+
+/*
+ * print info about the histogram and how it is constructed
+ */
+void histogram_print_info(const histogram * h, FILE * out_file);
 
 void histogram_print_dbg(const histogram * h);
 

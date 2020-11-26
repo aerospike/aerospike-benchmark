@@ -83,6 +83,7 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 
 	h->buckets = (uint32_t *) cf_calloc(total_buckets, sizeof(uint32_t));
 	h->bounds = b;
+	h->name = NULL;
 	h->range_min = lowb;
 	h->range_max = range_start;
 	h->underflow_cnt = 0;
@@ -94,6 +95,9 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 void
 histogram_free(histogram * h)
 {
+	if (h->name != NULL) {
+		cf_free(h->name);
+	}
 	cf_free(h->buckets);
 	cf_free(h->bounds);
 }
@@ -104,6 +108,16 @@ histogram_clear(histogram * h)
 	memset(h->buckets, 0, h->n_buckets * sizeof(uint32_t));
 	h->underflow_cnt = 0;
 	h->overflow_cnt  = 0;
+}
+
+
+void
+histogram_set_name(histogram * h, const char * name)
+{
+	if (h->name != NULL) {
+		cf_free(h->name);
+	}
+	h->name = cf_strdup(name);
 }
 
 static int32_t
@@ -156,8 +170,8 @@ histogram_calc_total(const histogram * h)
 }
 
 
-void
-histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file)
+static void
+_print_header(const histogram * h, uint32_t period_duration, FILE * out_file)
 {
 	struct tm * utc;
 	time_t t;
@@ -167,8 +181,19 @@ histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file)
 	utc = gmtime(&t);
 	
 	total_cnt = histogram_calc_total(h);
+
+	if (h->name != NULL) {
+		fblog(out_file, "%s ", h->name);
+	}
 	fblog(out_file, "%.24s, %us, %lu", asctime(utc), period_duration,
 			total_cnt);
+}
+
+
+void
+histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file)
+{
+	_print_header(h, period_duration, out_file);
 
 	if (h->underflow_cnt > 0) {
 		fblog(out_file, ", 0:%u", h->underflow_cnt);
@@ -197,7 +222,38 @@ histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file)
 }
 
 void
-histogram_print_info(const histogram * h, const char * title, FILE * out_file)
+histogram_print_clear(const histogram * h, uint32_t period_duration, FILE * out_file)
+{
+	_print_header(h, period_duration, out_file);
+
+	if (h->underflow_cnt > 0) {
+		fblog(out_file, ", 0:%u", h->underflow_cnt);
+	}
+
+	uint32_t idx = 0;
+	for (uint32_t i = 0; i < h->n_bounds; i++) {
+		bucket_range_desc_t * r = &h->bounds[i];
+
+		for (uint32_t j = 0; j < r->n_buckets; j++) {
+			if (h->buckets[idx] > 0) {
+				fblog(out_file,
+						", %lu:%u",
+						r->lower_bound + j * r->bucket_width,
+						h->buckets[idx]);
+			}
+			idx++;
+		}
+	}
+
+	if (h->overflow_cnt > 0) {
+		fblog(out_file, ", %lu:%u", h->range_max, h->overflow_cnt);
+	}
+
+	fblog(out_file, "\n");
+}
+
+void
+histogram_print_info(const histogram * h, FILE * out_file)
 {
 
 	fblog(out_file,
@@ -205,7 +261,7 @@ histogram_print_info(const histogram * h, const char * title, FILE * out_file)
 			"\tTotal num buckets: %u\n"
 			"\tRange min: %luus\n"
 			"\tRange max: %luus\n",
-			title,
+			h->name != NULL ? h->name : "Histogram",
 			h->n_buckets,
 			h->range_min,
 			h->range_max);
