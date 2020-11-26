@@ -73,8 +73,8 @@ ticker_worker(void* udata)
 		++gen_count;
 		
 		if (latency && ((gen_count % data->latency_period) == 0)) {
-			histogram_print(write_histogram, data->latency_period, data->latency_output);
-			histogram_print(read_histogram, data->latency_period, data->latency_output);
+			histogram_print_clear(write_histogram, data->latency_period, data->latency_output);
+			histogram_print_clear(read_histogram, data->latency_period, data->latency_output);
 			fflush(data->latency_output);
 		}
 

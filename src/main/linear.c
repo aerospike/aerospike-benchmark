@@ -61,7 +61,7 @@ ticker_worker(void* udata)
 			write_tps, write_timeout_current, write_error_current, total_count);
 		
 		if (latency) {
-			histogram_print(write_histogram, data->latency_period, data->latency_output);
+			histogram_print_clear(write_histogram, data->latency_period, data->latency_output);
 			fflush(data->latency_output);
 		}
 

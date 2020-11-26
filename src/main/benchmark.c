@@ -284,7 +284,7 @@ run_benchmark(arguments* args)
 				{ .upper_bound = 64000,  .bucket_width = 1000 },
 				{ .upper_bound = 128000, .bucket_width = 4000 }
 				});
-		histogram_set_name(&data.write_histogram, "Write");
+		histogram_set_name(&data.write_histogram, "write_hist");
 		histogram_print_info(&data.write_histogram, data.latency_output);
 		
 		if (! args->init) {
@@ -293,7 +293,7 @@ run_benchmark(arguments* args)
 					{ .upper_bound = 64000,  .bucket_width = 1000 },
 					{ .upper_bound = 128000, .bucket_width = 4000 }
 					});
-			histogram_set_name(&data.read_histogram, "Read");
+			histogram_set_name(&data.read_histogram, "read_hist");
 			histogram_print_info(&data.read_histogram, data.latency_output);
 		}
 

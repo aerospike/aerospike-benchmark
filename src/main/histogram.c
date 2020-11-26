@@ -171,16 +171,14 @@ histogram_calc_total(const histogram * h)
 
 
 static void
-_print_header(const histogram * h, uint32_t period_duration, FILE * out_file)
+_print_header(const histogram * h, uint32_t period_duration, uint64_t total_cnt,
+		FILE * out_file)
 {
 	struct tm * utc;
 	time_t t;
-	uint64_t total_cnt;
 
 	t = time(NULL);
 	utc = gmtime(&t);
-	
-	total_cnt = histogram_calc_total(h);
 
 	if (h->name != NULL) {
 		fblog(out_file, "%s ", h->name);
@@ -193,7 +191,8 @@ _print_header(const histogram * h, uint32_t period_duration, FILE * out_file)
 void
 histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file)
 {
-	_print_header(h, period_duration, out_file);
+	uint64_t total_cnt = histogram_calc_total(h);
+	_print_header(h, period_duration, total_cnt, out_file);
 
 	if (h->underflow_cnt > 0) {
 		fblog(out_file, ", 0:%u", h->underflow_cnt);
@@ -224,7 +223,24 @@ histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file)
 void
 histogram_print_clear(const histogram * h, uint32_t period_duration, FILE * out_file)
 {
-	_print_header(h, period_duration, out_file);
+	uint64_t total_cnt = 0;
+	uint32_t * cnts = (uint32_t *) cf_malloc(h->n_buckets * sizeof(uint32_t));
+
+	/*
+	 * to avoid race conditions/inconsistencies in the total count of bucket
+	 * values and the values in the buckets, we first go through the entire
+	 * histogram and atomically swap out buckets with 0, accumulating the
+	 * counts that were read in and storing the bucket values in an array
+	 * of counts (to be read later when the individual buckets are printed)
+	 */
+	for (uint32_t idx = 0; idx < h->n_buckets; idx++) {
+		// atomic swap 0 in for the bucket value
+		uint32_t cnt = as_fas_uint32(&h->buckets[idx], 0);
+		cnts[idx] = cnt;
+		total_cnt += cnt;
+	}
+
+	_print_header(h, period_duration, total_cnt, out_file);
 
 	if (h->underflow_cnt > 0) {
 		fblog(out_file, ", 0:%u", h->underflow_cnt);
@@ -235,11 +251,11 @@ histogram_print_clear(const histogram * h, uint32_t period_duration, FILE * out_
 		bucket_range_desc_t * r = &h->bounds[i];
 
 		for (uint32_t j = 0; j < r->n_buckets; j++) {
-			if (h->buckets[idx] > 0) {
+			uint32_t cnt = cnts[idx];
+			if (cnt > 0) {
 				fblog(out_file,
 						", %lu:%u",
-						r->lower_bound + j * r->bucket_width,
-						h->buckets[idx]);
+						r->lower_bound + j * r->bucket_width, cnt);
 			}
 			idx++;
 		}
@@ -250,6 +266,8 @@ histogram_print_clear(const histogram * h, uint32_t period_duration, FILE * out_
 	}
 
 	fblog(out_file, "\n");
+
+	cf_free(cnts);
 }
 
 void
