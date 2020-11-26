@@ -246,6 +246,7 @@ print_usage(const char* program)
 
 	blog_line("   --outputFile  # Default: stdout");
 	blog_line("   Specifies an output file to write periodic latency data.");
+	blog_line("   The file is opened in append mode.");
 	blog_line("");
 
 	blog_line("   --outputPeriod  # Default: 1s");
