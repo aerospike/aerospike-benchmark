@@ -157,7 +157,7 @@ histogram_calc_total(const histogram * h)
 
 
 void
-histogram_print(const histogram * h, uint32_t period_duration)
+histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file)
 {
 	struct tm * utc;
 	time_t t;
@@ -167,10 +167,11 @@ histogram_print(const histogram * h, uint32_t period_duration)
 	utc = gmtime(&t);
 	
 	total_cnt = histogram_calc_total(h);
-	blog("%.24s, %us, %lu", asctime(utc), period_duration, total_cnt);
+	fblog(out_file, "%.24s, %us, %lu", asctime(utc), period_duration,
+			total_cnt);
 
 	if (h->underflow_cnt > 0) {
-		blog(", 0:%u", h->underflow_cnt);
+		fblog(out_file, ", 0:%u", h->underflow_cnt);
 	}
 
 	uint32_t idx = 0;
@@ -179,7 +180,8 @@ histogram_print(const histogram * h, uint32_t period_duration)
 
 		for (uint32_t j = 0; j < r->n_buckets; j++) {
 			if (h->buckets[idx] > 0) {
-				blog(", %lu:%u",
+				fblog(out_file,
+						", %lu:%u",
 						r->lower_bound + j * r->bucket_width,
 						h->buckets[idx]);
 			}
@@ -188,17 +190,17 @@ histogram_print(const histogram * h, uint32_t period_duration)
 	}
 
 	if (h->overflow_cnt > 0) {
-		blog(", %lu:%u", h->range_max, h->overflow_cnt);
+		fblog(out_file, ", %lu:%u", h->range_max, h->overflow_cnt);
 	}
 
-	blog("\n");
+	fblog(out_file, "\n");
 }
 
 void
-histogram_print_info(const histogram * h, const char * title)
+histogram_print_info(const histogram * h, const char * title, FILE * out_file)
 {
 
-	blog(
+	fblog(out_file,
 			"%s:\n"
 			"\tTotal num buckets: %u\n"
 			"\tRange min: %luus\n"
@@ -211,7 +213,7 @@ histogram_print_info(const histogram * h, const char * title)
 	for (uint32_t i = 0; i < h->n_bounds; i++) {
 		bucket_range_desc_t * r = &h->bounds[i];
 
-		blog(
+		fblog(out_file,
 				"\tBucket range %d:\n"
 				"\t\tRange min: %luus\n"
 				"\t\tRange max: %luus\n"

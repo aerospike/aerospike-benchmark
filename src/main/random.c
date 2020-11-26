@@ -70,8 +70,9 @@ ticker_worker(void* udata)
 			write_tps + read_tps, write_timeout_current + read_timeout_current, write_error_current + read_error_current);
 		
 		if (latency) {
-			histogram_print(write_histogram, 1);
-			histogram_print(read_histogram, 1);
+			histogram_print(write_histogram, 1, data->latency_output);
+			histogram_print(read_histogram, 1, data->latency_output);
+			fflush(data->latency_output);
 		}
 
 		if ((data->transactions_limit > 0) && (transactions_current > data->transactions_limit)) {
