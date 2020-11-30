@@ -54,7 +54,7 @@ __histogram_get_bucket(histogram * h, int32_t idx) {
 }
 
 
-void
+int
 histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges)
 {
 	bucket_range_desc_t * b =
@@ -66,9 +66,14 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 		delay_t range_end = ranges[i].upper_bound;
 		delay_t width = ranges[i].bucket_width;
 
-		as_assert(range_end > range_start);
-		as_assert(width > 0);
-		as_assert(((range_end - range_start) % width) == 0);
+		// validate the ranges provided by the user (in ascending order,
+		// non-zero bucket width, and bucket width evenly dividing the range)
+		if (range_end <= range_start ||
+				width == 0 ||
+				((range_end - range_start) % width) != 0) {
+			cf_free(b);
+			return -1;
+		}
 
 		uint32_t n_buckets = (range_end - range_start) / width;
 
@@ -90,6 +95,7 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 	h->overflow_cnt  = 0;
 	h->n_bounds = n_ranges;
 	h->n_buckets = total_buckets;
+	return 0;
 }
 
 void
@@ -153,6 +159,14 @@ histogram_add(histogram * h, delay_t elapsed_us)
 	uint32_t * bucket = __histogram_get_bucket(h, bucket_idx);
 
 	as_incr_uint32(bucket);
+}
+
+delay_t
+histogram_get_count(histogram * h, uint32_t bucket_idx)
+{
+	uint32_t * bucket = __histogram_get_bucket(h, bucket_idx);
+
+	return as_load_uint32(bucket);
 }
 
 uint64_t

@@ -72,8 +72,10 @@ typedef struct histogram {
  *         { .upper_bound = 64000,  .bucket_width = 1000 },
  *         { .upper_bound = 128000, .bucket_width = 4000 },
  *     });
+ *
+ * returns 0 on success and -1 on error
  */
-void histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges);
+int histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges);
 
 void histogram_free(histogram * h);
 
@@ -101,6 +103,11 @@ uint64_t histogram_calc_total(const histogram * h);
  * insert the delay into the histogram in a thread-safe manner
  */
 void histogram_add(histogram * h, delay_t elapsed_us);
+
+/*
+ * returns the count in the bucket of the given index
+ */
+delay_t histogram_get_count(histogram * h, uint32_t bucket_idx);
 
 /*
  * prints the histogram in a condensed format, requires period duration in
