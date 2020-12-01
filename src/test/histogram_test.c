@@ -122,6 +122,8 @@ START_TEST(simple_cleared_on_init)
 	for (uint32_t bucket_idx = 0; bucket_idx < 9; bucket_idx++) {
 		ck_assert_int_eq(histogram_get_count(h, bucket_idx), 0);
 	}
+	ck_assert_int_eq(h->underflow_cnt, 0);
+	ck_assert_int_eq(h->overflow_cnt, 0);
 }
 END_TEST
 
@@ -146,6 +148,57 @@ START_TEST(simple_query_one)
 	ck_assert_int_eq(histogram_get_count(h, 0), 1);
 }
 END_TEST
+
+
+/**
+ * Tests insertion of a single element and querying of it's bin count
+ */
+START_TEST(simple_query_total)
+{
+	histogram * h = &hist;
+	histogram_add(h, 1);
+	ck_assert_int_eq(histogram_calc_total(h), 1);
+}
+END_TEST
+
+
+/**
+ * Tests insertion of a single element and querying of it's bin count
+ */
+START_TEST(simple_query_below_range)
+{
+	histogram * h = &hist;
+	histogram_add(h, 0);
+	ck_assert_int_eq(h->underflow_cnt, 1);
+}
+END_TEST
+
+
+/**
+ * Tests insertion of a single element and querying of it's bin count
+ */
+START_TEST(simple_query_above_range)
+{
+	histogram * h = &hist;
+	histogram_add(h, 10);
+	ck_assert_int_eq(h->overflow_cnt, 1);
+}
+END_TEST
+
+
+/**
+ * Tests insertion of a single element and querying of it's bin count
+ */
+START_TEST(simple_clear)
+{
+	histogram * h = &hist;
+	histogram_add(h, 2);
+	ck_assert_int_eq(histogram_get_count(h, 1), 1);
+	histogram_clear(h);
+	ck_assert_int_eq(histogram_get_count(h, 1), 0);
+}
+END_TEST
+
 
 
 /**
@@ -305,6 +358,10 @@ histogram_suite(void)
 	tcase_add_test(tc_simple, simple_cleared_on_init);
 	tcase_add_test(tc_simple, simple_insert_one);
 	tcase_add_test(tc_simple, simple_query_one);
+	tcase_add_test(tc_simple, simple_query_total);
+	tcase_add_test(tc_simple, simple_query_below_range);
+	tcase_add_test(tc_simple, simple_query_above_range);
+	tcase_add_test(tc_simple, simple_clear);
 	suite_add_tcase(s, tc_simple);
 
 	tc_default = tcase_create("Defualt Config");
