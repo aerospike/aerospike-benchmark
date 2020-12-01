@@ -121,7 +121,7 @@ void histogram_print(const histogram * h, uint32_t period_duration, FILE * out_f
  * concurrent writers executing simultaneously. This guarantees that no writes
  * to the histogram will be missed
  */
-void histogram_print_clear(const histogram * h, uint32_t period_duration, FILE * out_file);
+void histogram_print_clear(histogram * h, uint32_t period_duration, FILE * out_file);
 
 /*
  * print info about the histogram and how it is constructed
