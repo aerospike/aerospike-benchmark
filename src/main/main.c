@@ -62,6 +62,8 @@ static struct option long_options[] = {
 	{"maxRetries",           required_argument, 0, 'r'},
 	{"debug",                no_argument,       0, 'd'},
 	{"latency",              no_argument,       0, 'L'},
+	{"outputFile",           required_argument, 0, '6'},
+	{"outputPeriod",         required_argument, 0, '7'},
 	{"shared",               no_argument,       0, 'S'},
 	{"replica",              required_argument, 0, 'C'},
 	{"readModeAP",           required_argument, 0, 'N'},
@@ -240,6 +242,17 @@ print_usage(const char* program)
 	blog_line("-L --latency  # Default: latency display is off.");
 	blog_line("   Show transaction latencies in microseconds in a histogram.");
 	blog_line("   Currently uses the default layout. Add documentation here later.");
+	blog_line("");
+
+	blog_line("   --outputFile  # Default: stdout");
+	blog_line("   Specifies an output file to write periodic latency data.");
+	blog_line("   The file is opened in append mode.");
+	blog_line("");
+
+	blog_line("   --outputPeriod  # Default: 1s");
+	blog_line("   Specifies the period between successive snapshots of the periodic");
+	blog_line("   latency histogram.");
+	blog_line("");
 	
 	blog_line("-S --shared          # Default: false");
 	blog_line("   Use shared memory cluster tending.");
@@ -427,6 +440,9 @@ print_args(arguments* args)
 	
 	if (args->latency) {
 		blog_line("latency:                true");
+		blog_line("latency output file:    %s",
+				(args->latency_output ? args->latency_output : "stdout"));
+		blog_line("latency output period:  %ds", args->latency_period);
 	}
 	else {
 		blog_line("latency:                false");
@@ -593,6 +609,11 @@ validate_args(arguments* args)
 	
 	if (args->write_total_timeout < 0) {
 		blog_line("Invalid write total timeout: %d  Valid values: [>= 0]", args->write_total_timeout);
+		return 1;
+	}
+
+	if (args->latency && args->latency_period <= 0) {
+		blog_line("Invalid latency period %ds", args->latency_period);
 		return 1;
 	}
 	
@@ -785,6 +806,16 @@ set_args(int argc, char * const * argv, arguments* args)
 				break;
 			}
 				
+			case '6': {
+				args->latency_output = optarg;
+				break;
+			}
+				
+			case '7': {
+				args->latency_period = atoi(optarg);
+				break;
+			}
+				
 			case 'S':
 				args->use_shm = true;
 				break;
@@ -967,6 +998,8 @@ main(int argc, char * const * argv)
 	args.max_retries = 1;
 	args.debug = false;
 	args.latency = false;
+	args.latency_output = NULL;
+	args.latency_period = 1;
 	args.use_shm = false;
 	args.replica = AS_POLICY_REPLICA_SEQUENCE;
 	args.read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;

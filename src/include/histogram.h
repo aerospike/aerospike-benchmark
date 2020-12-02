@@ -39,6 +39,9 @@ typedef struct histogram {
 	uint32_t * buckets;
 	struct bucket_range_desc * bounds;
 
+	// name to be printed before each output line of this histogram
+	char * name;
+
 	// inclusive lower bound on the histogram range
 	delay_t range_min;
 	// exclusive upper bound on the histogram range
@@ -69,8 +72,10 @@ typedef struct histogram {
  *         { .upper_bound = 64000,  .bucket_width = 1000 },
  *         { .upper_bound = 128000, .bucket_width = 4000 },
  *     });
+ *
+ * returns 0 on success and -1 on error
  */
-void histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges);
+int histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges);
 
 void histogram_free(histogram * h);
 
@@ -78,6 +83,13 @@ void histogram_free(histogram * h);
  * resets all bucket counts to 0
  */
 void histogram_clear(histogram * h);
+
+
+/*
+ * sets the name of the histogram, to be printed at the beginning of each
+ * histogram_print call
+ */
+void histogram_set_name(histogram * h, const char * name);
 
 /*
  * Calculates the totals of all buckets by traversing them and adding. This
@@ -93,11 +105,28 @@ uint64_t histogram_calc_total(const histogram * h);
 void histogram_add(histogram * h, delay_t elapsed_us);
 
 /*
+ * returns the count in the bucket of the given index
+ */
+delay_t histogram_get_count(histogram * h, uint32_t bucket_idx);
+
+/*
  * prints the histogram in a condensed format, requires period duration in
  * seconds (i.e. how long this histogram has been accumulating)
  */
-void histogram_print(const histogram * h, uint32_t period_duration);
-void histogram_print_info(const histogram * h, const char * title);
+void histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file);
+
+/*
+ * prints the histogram, clearing the buckets as their values are read. This
+ * method is thread-safe and is intended to be used in a context with
+ * concurrent writers executing simultaneously. This guarantees that no writes
+ * to the histogram will be missed
+ */
+void histogram_print_clear(histogram * h, uint32_t period_duration, FILE * out_file);
+
+/*
+ * print info about the histogram and how it is constructed
+ */
+void histogram_print_info(const histogram * h, FILE * out_file);
 
 void histogram_print_dbg(const histogram * h);
 

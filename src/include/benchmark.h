@@ -65,6 +65,8 @@ typedef struct arguments_t {
 	int max_retries;
 	bool debug;
 	bool latency;
+	const char* latency_output;
+	int latency_period;
 	bool use_shm;
 	as_policy_replica replica;
 	as_policy_read_mode_ap read_mode_ap;
@@ -103,6 +105,10 @@ typedef struct clientdata_t {
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
 	histogram read_histogram;
+
+	FILE* latency_output;
+	bool to_stdout;
+	int latency_period;
 
 	uint32_t tdata_count;
 	uint32_t valid;
