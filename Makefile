@@ -101,6 +101,7 @@ TEST_OBJECTS = histogram_test.o sanity.o setup.o main.o
 .PHONY: all
 all:  build
 
+.PHONY: info
 info:
 	@echo
 	@echo "  NAME:       " $(NAME) 
@@ -125,8 +126,10 @@ info:
 	@echo
 
 
+.PHONY: build
 build: target/benchmarks
 
+.PHONY: archive
 archive: $(addprefix target/obj/,$(OBJECTS)) target/libbench.a
 
 target/libbench.a: $(addprefix target/obj/,$(OBJECTS))
@@ -140,6 +143,7 @@ target/libbench.a: $(addprefix target/obj/,$(OBJECTS))
 #		LIBS="$(ROOT)/target/libbench.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a" \
 #		LDFLAGS="$(LDFLAGS)" CLIENTREPO="$(CLIENTREPO)")
 
+.PHONY: clean
 clean:
 	@rm -rf target test_target
 
@@ -158,30 +162,37 @@ target/obj/%.o: src/main/%.c | target/obj
 target/benchmarks: $(addprefix target/obj/,$(MAIN_OBJECT)) $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $^ $(LDFLAGS)
 
+.PHONY: run
 run: build
 	./target/benchmarks -h $(AS_HOST) -p $(AS_PORT)
 
+.PHONY: valgrind
 valgrind: build
 	valgrind --tool=memcheck --leak-check=yes --show-reachable=yes --num-callers=20 --track-fds=yes -v ./target/benchmarks
 
+.PHONY: test
 test:  | test_target/test
 	@echo
 	@./test_target/test
 
-test_target: 
-	mkdir -p test_target test_target/obj
+test_target:
+	mkdir $@ 
 
-test_target/obj/%.o: src/test/%.c | test_target
+test_target/obj: | test_target
+	mkdir $@ 
+
+test_target/obj/%.o: src/test/%.c | test_target/obj
 	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $^
 
-test_target/obj/%.o: src/main/%.c | test_target
+test_target/obj/%.o: src/main/%.c | test_target/obj
 	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $^
 
 test_target/test: $(addprefix test_target/obj/,$(TEST_OBJECTS)) $(addprefix test_target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
 	$(CC) -fprofile-arcs -coverage -o $@ $^ $(TEST_LDFLAGS)
 
 # Summary requires the lcov tool to be installed
-trace: | test
+.PHONY: coverage
+coverage: | test
 	@echo
 	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark.info
 	@lcov --summary test_target/aerospike-benchmark.info
