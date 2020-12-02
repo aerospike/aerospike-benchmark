@@ -37,6 +37,7 @@ ticker_worker(void* udata)
 	histogram* write_histogram = &data->write_histogram;
 	histogram* read_histogram = &data->read_histogram;
 	bool latency = data->latency;
+	uint64_t gen_count = 0;
 	
 	uint64_t prev_time = cf_getus();
 	data->period_begin = prev_time;
@@ -69,9 +70,12 @@ ticker_worker(void* udata)
 			read_tps, read_timeout_current, read_error_current,
 			write_tps + read_tps, write_timeout_current + read_timeout_current, write_error_current + read_error_current);
 		
-		if (latency) {
-			histogram_print(write_histogram, 1);
-			histogram_print(read_histogram, 1);
+		++gen_count;
+		
+		if (latency && ((gen_count % data->latency_period) == 0)) {
+			histogram_print_clear(write_histogram, data->latency_period, data->latency_output);
+			histogram_print_clear(read_histogram, data->latency_period, data->latency_output);
+			fflush(data->latency_output);
 		}
 
 		if ((data->transactions_limit > 0) && (transactions_current > data->transactions_limit)) {
