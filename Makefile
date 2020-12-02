@@ -165,7 +165,8 @@ valgrind: build
 	valgrind --tool=memcheck --leak-check=yes --show-reachable=yes --num-callers=20 --track-fds=yes -v ./target/benchmarks
 
 test:  | test_target/test
-	./test_target/test
+	@echo
+	@./test_target/test
 
 test_target: 
 	mkdir -p test_target test_target/obj
@@ -178,3 +179,9 @@ test_target/obj/%.o: src/main/%.c | test_target
 
 test_target/test: $(addprefix test_target/obj/,$(TEST_OBJECTS)) $(addprefix test_target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
 	$(CC) -fprofile-arcs -coverage -o $@ $^ $(TEST_LDFLAGS)
+
+# Summary requires the lcov tool to be installed
+trace: | test
+	@echo
+	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark.info
+	@lcov --summary test_target/aerospike-benchmark.info
