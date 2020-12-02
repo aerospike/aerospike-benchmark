@@ -158,7 +158,6 @@ target/obj/%.o: src/main/%.c | target/obj
 target/benchmarks: $(addprefix target/obj/,$(MAIN_OBJECT)) $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-
 run: build
 	./target/benchmarks -h $(AS_HOST) -p $(AS_PORT)
 
@@ -170,7 +169,6 @@ test:  | test_target/test
 
 test_target: 
 	mkdir -p test_target test_target/obj
-
 
 test_target/obj/%.o: src/test/%.c | test_target
 	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $^
