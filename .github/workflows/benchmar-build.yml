@@ -5,9 +5,6 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  pull_request_target:
-    branches: [ main ]
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -46,26 +43,23 @@ jobs:
       with:
         repository: aerospike/aerospike-client-c
         submodules: recursive
-        path: client
+        path: ../client
     - name: Checkout benchmarks 
       uses: actions/checkout@v2
       with: 
-        path: main
         submodules: recursive
     - name: Info
       run: make info
-      working-directory: main
     - name: Build client lib
       run: make
-      working-directory: client
+      working-directory: ../client
     - name: Build benchmark
       run: make
-      working-directory: main
     - name: Test
       run: make test
-      working-directory: main
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.15
       with:
-        verbose: true
-        directory: main
+        verbose: false
+    - name: debug
+      run: tree
