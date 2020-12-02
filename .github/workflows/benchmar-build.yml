@@ -61,9 +61,13 @@ jobs:
     - name: Test
       run: make test
       working-directory: main
+    - name: clear temp directories
+      run: |
+        rm -rf client
+        rm -rf main/target
+        mv main/* .
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.15
       with:
         verbose: false
-        directory: main/test_target/obj/*
 
