@@ -1,7 +1,7 @@
 name: Build:Main
 on:
   push:
-    branches: [ main ]
+    branches: [ main,  gh-release ]
 jobs:
   build-libraries:
     runs-on: ubuntu-latest
@@ -35,28 +35,39 @@ jobs:
         set -e
         NAME=-${{ matrix.ev-lib}}
         if [ "${NAME}" = "-" ]; then NAME="" ; fi
-        mkdir -p artifacts
-        cp target/benchmarks artifacts/${name}
+        echo "::set-output name=name::benchmarks$NAME"
       id: get_name
-      working-directory: main
-    # - name: Upload artifact
-    #   uses: actions/upload-artifact@v2
-    #   with: 
-    #     name: ${{steps.get_name.outputs.name}}
-    #     path: main/target/benchmarks
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with: 
+        name: ${{steps.get_name.outputs.name}}
+        path: main/target/benchmarks
   pre-release:
     needs: build-libraries
     runs-on: ubuntu-latest
+    
     steps: 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3.1
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3.1
+    
+      - name: Checkout benchmarks 
+        uses: actions/checkout@v2
+        with: 
+          submodules: recursive
+      - name: Get artifacts
+        uses: actions/download-artifact@v2
+        with: 
+          path: binaries/
+      - name: Create tarball
+        run: tar -czf binaries.tar.gz binaries
       - name: Automatic Release
         uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           automatic_release_tag: "latest"
           prerelease: true
-          title: "Development Build"
+          title: "Snapshot Build"
           files: |
+            binaries.tar.gz
             LICENSE.md
-            artifacts/*
+            README.md
