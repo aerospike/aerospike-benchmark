@@ -45,6 +45,7 @@ jobs:
     #     name: ${{steps.get_name.outputs.name}}
     #     path: main/target/benchmarks
   pre-release:
+    needs: build-libraries
     runs-on: ubuntu-latest
     steps: 
       - name: Automatic Release
