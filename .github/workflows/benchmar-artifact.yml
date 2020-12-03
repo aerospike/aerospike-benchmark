@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     steps: 
       - name: Automatic Release
-        uses: marvinpinto/action-automatic-releases@v1.1.0
+        uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           automatic_release_tag: "latest"
