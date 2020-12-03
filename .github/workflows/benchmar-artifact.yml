@@ -48,6 +48,8 @@ jobs:
     needs: build-libraries
     runs-on: ubuntu-latest
     steps: 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3.1
       - name: Automatic Release
         uses: marvinpinto/action-automatic-releases@latest
         with:
