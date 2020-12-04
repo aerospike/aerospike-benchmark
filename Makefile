@@ -192,7 +192,26 @@ test_target/test: $(addprefix test_target/obj/,$(TEST_OBJECTS)) $(addprefix test
 
 # Summary requires the lcov tool to be installed
 .PHONY: coverage
-coverage: | test
+coverage: coverage-init force-test
 	@echo
-	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark.info
-	@lcov --summary test_target/aerospike-benchmark.info
+	lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark.info
+	lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark.info
+	lcov --summary test_target/aerospike-benchmark.info
+
+.PHONY: coverage-init
+coverage-init:
+	lcov --zerocounters --directory test_target
+
+force-test: FORCE coverage-init
+	$(MAKE) -C . test
+
+.PHONY: report
+report: | coverage
+	@echo
+	@rm -r test_target/html
+	@mkdir -p test_target/html
+	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark.info --legend --title "test lcov" --output-directory test_target/html
+	@firefox --new-window file:///home/cknittel/aerospike-benchmark/test_target/html/index.html
+
+# used to force a rule to always run
+FORCE:

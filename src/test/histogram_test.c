@@ -204,6 +204,38 @@ END_TEST
 
 
 /**
+ * Tests that changing the name of the historam makes a duplicate of the string
+ * passed
+ */
+START_TEST(simple_rename)
+{
+	histogram * h = &hist;
+	const static char name[] = "name 1";
+
+	histogram_set_name(h, name);
+	char * hname = h->name;
+
+	ck_assert_msg(hname != name, "Histogram renaming did not duplicate the string");
+	ck_assert_int_eq(strcmp(hname, name), 0);
+}
+END_TEST
+
+
+/**
+ * Tests that changing the name twice replaces the first name
+ */
+START_TEST(simple_rename_twice)
+{
+	histogram * h = &hist;
+
+	histogram_set_name(h, "name 1");
+	histogram_set_name(h, "name 2");
+	ck_assert_int_eq(strcmp(h->name, "name 2"), 0);
+}
+END_TEST
+
+
+/**
  * Tests printing a histogram with only one element
  */
 START_TEST(simple_print)
@@ -438,6 +470,8 @@ histogram_suite(void)
 	tcase_add_test(tc_simple, simple_query_below_range);
 	tcase_add_test(tc_simple, simple_query_above_range);
 	tcase_add_test(tc_simple, simple_clear);
+	tcase_add_test(tc_simple, simple_rename);
+	tcase_add_test(tc_simple, simple_rename_twice);
 	tcase_add_test(tc_simple, simple_print);
 	tcase_add_test(tc_simple, simple_print_clear);
 	tcase_add_test(tc_simple, simple_print_name);
