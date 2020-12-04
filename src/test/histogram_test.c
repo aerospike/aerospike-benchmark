@@ -676,7 +676,6 @@ START_TEST(simple_print_info_range_0_n_buckets)
 END_TEST
 
 
-
 /**
  * Any setup code to run each test goes here
  *
