@@ -316,6 +316,222 @@ START_TEST(simple_print_name)
 END_TEST
 
 
+/**
+ * Tests that name is included in output of print_info
+ */
+START_TEST(simple_print_info_name)
+{
+	const static char name[] = "test_histogram_name";
+	histogram * h = &hist;
+
+	histogram_set_name(h, name);
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	char buf[sizeof(name)];
+	ck_assert_int_eq(fread(buf, 1, sizeof(buf) - 1, out_file), sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	ck_assert_int_eq(strncmp(buf, name, sizeof(buf) - 1), 0);
+
+	fclose(out_file);
+}
+END_TEST
+
+
+/**
+ * Tests that the total number of buckets is included in the info
+ */
+START_TEST(simple_print_info_size)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "buckets") != NULL) {
+			ck_assert_msg(strstr(buf, "9") != NULL, "the number of "
+					"buckets is not correct");
+			fclose(out_file);
+			return;
+		}
+	}
+
+	ck_assert_msg(0, "the number of buckets was not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the lower bound on the histogram range is included in the info
+ */
+START_TEST(simple_print_info_range_lowb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "range") != NULL &&
+				strcasestr(buf, "min") != NULL) {
+			ck_assert_msg(strstr(buf, "1us") != NULL, "the lower bound on the "
+					"histogram range is incorrect");
+			fclose(out_file);
+			return;
+		}
+		else if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range") != NULL) {
+			ck_assert_msg(0, "histogram range upper bound not found before the "
+					"first bucket range descriptor");
+		}
+	}
+
+	ck_assert_msg(0, "histogram range lower bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the upper bound on the histogram range is included in the info
+ */
+START_TEST(simple_print_info_range_upb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "range") != NULL &&
+				strcasestr(buf, "max") != NULL) {
+			ck_assert_msg(strstr(buf, "10us") != NULL, "the upper bound on the "
+					"histogram range is incorrect");
+			fclose(out_file);
+			return;
+		}
+		else if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range") != NULL) {
+			ck_assert_msg(0, "histogram range upper bound not found before the "
+					"first bucket range descriptor");
+		}
+	}
+
+	ck_assert_msg(0, "histogram range upper bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the lower bound on the first bucket range is included in the info
+ */
+START_TEST(simple_print_info_range_0_lowb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 0") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "range") != NULL &&
+						strcasestr(buf, "min") != NULL) {
+					ck_assert_msg(strstr(buf, "1us") != NULL, "range 0 lower "
+							"bound not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "a second bucket range found when not "
+							"expected");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 0 lower bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the upper bound on the first bucket range is included in the info
+ */
+START_TEST(simple_print_info_range_0_upb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 0") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "range") != NULL &&
+						strcasestr(buf, "max") != NULL) {
+					ck_assert_msg(strstr(buf, "10us") != NULL, "range 0 upper "
+							"bound not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "a second bucket range found when not "
+							"expected");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 0 upper bound not found");
+}
+END_TEST
+
+
 
 /**
  * Any setup code to run each test goes here
@@ -475,6 +691,12 @@ histogram_suite(void)
 	tcase_add_test(tc_simple, simple_print);
 	tcase_add_test(tc_simple, simple_print_clear);
 	tcase_add_test(tc_simple, simple_print_name);
+	tcase_add_test(tc_simple, simple_print_info_name);
+	tcase_add_test(tc_simple, simple_print_info_size);
+	tcase_add_test(tc_simple, simple_print_info_range_lowb);
+	tcase_add_test(tc_simple, simple_print_info_range_upb);
+	tcase_add_test(tc_simple, simple_print_info_range_0_lowb);
+	tcase_add_test(tc_simple, simple_print_info_range_0_upb);
 	suite_add_tcase(s, tc_simple);
 
 	tc_default = tcase_create("Defualt Config");
