@@ -265,6 +265,66 @@ END_TEST
 
 
 /**
+ * Tests printing a histogram with only one element below the minimum range of
+ * the histogram
+ */
+START_TEST(simple_print_lowb)
+{
+	histogram * h = &hist;
+	histogram_add(h, 0);
+
+	FILE * out_file = tmpfile();
+
+	histogram_print(h, 1, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	int bucket, cnt;
+	ck_assert_int_eq(fscanf(out_file, UTC_DATE_FMT ", 1s, 1, %d:%d\n", &bucket, &cnt), 2);
+	ck_assert_int_eq(bucket, 0);
+	ck_assert_int_eq(cnt, 1);
+
+	// make sure that there is nothing left that was printed
+	long pos = ftell(out_file);
+	fseek(out_file, 0L, SEEK_END);
+	long end = ftell(out_file);
+	ck_assert_int_eq(pos, end);
+
+	fclose(out_file);
+}
+END_TEST
+
+
+/**
+ * Tests printing a histogram with only one element above the maximum range of
+ * the histogram
+ */
+START_TEST(simple_print_upb)
+{
+	histogram * h = &hist;
+	histogram_add(h, 20);
+
+	FILE * out_file = tmpfile();
+
+	histogram_print(h, 1, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	int bucket, cnt;
+	ck_assert_int_eq(fscanf(out_file, UTC_DATE_FMT ", 1s, 1, %d:%d\n", &bucket, &cnt), 2);
+	ck_assert_int_eq(bucket, 10);
+	ck_assert_int_eq(cnt, 1);
+
+	// make sure that there is nothing left that was printed
+	long pos = ftell(out_file);
+	fseek(out_file, 0L, SEEK_END);
+	long end = ftell(out_file);
+	ck_assert_int_eq(pos, end);
+
+	fclose(out_file);
+}
+END_TEST
+
+
+/**
  * Tests that the print clear method correctly prints the single bin and also
  * clears that bin
  */
@@ -1341,6 +1401,8 @@ histogram_suite(void)
 	tcase_add_test(tc_simple, simple_rename);
 	tcase_add_test(tc_simple, simple_rename_twice);
 	tcase_add_test(tc_simple, simple_print);
+	tcase_add_test(tc_simple, simple_print_lowb);
+	tcase_add_test(tc_simple, simple_print_upb);
 	tcase_add_test(tc_simple, simple_print_clear);
 	tcase_add_test(tc_simple, simple_print_name);
 	tcase_add_test(tc_simple, simple_print_info_name);
