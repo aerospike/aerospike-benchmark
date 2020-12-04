@@ -971,9 +971,6 @@ START_TEST(default_print_info_range_0_upb)
 	histogram_print_info(h, out_file);
 	fseek(out_file, 0, SEEK_SET);
 
-	// go through line-by-line and search for a line contaning the number of
-	// buckets
-
 	char * buf = NULL;
 	size_t size = 0;
 	while (getline(&buf, &size, out_file) != -1) {
@@ -1012,9 +1009,6 @@ START_TEST(default_print_info_range_1_upb)
 
 	histogram_print_info(h, out_file);
 	fseek(out_file, 0, SEEK_SET);
-
-	// go through line-by-line and search for a line contaning the number of
-	// buckets
 
 	char * buf = NULL;
 	size_t size = 0;
@@ -1055,9 +1049,6 @@ START_TEST(default_print_info_range_2_upb)
 	histogram_print_info(h, out_file);
 	fseek(out_file, 0, SEEK_SET);
 
-	// go through line-by-line and search for a line contaning the number of
-	// buckets
-
 	char * buf = NULL;
 	size_t size = 0;
 	while (getline(&buf, &size, out_file) != -1) {
@@ -1097,9 +1088,6 @@ START_TEST(default_print_info_range_0_width)
 	histogram_print_info(h, out_file);
 	fseek(out_file, 0, SEEK_SET);
 
-	// go through line-by-line and search for a line contaning the number of
-	// buckets
-
 	char * buf = NULL;
 	size_t size = 0;
 	while (getline(&buf, &size, out_file) != -1) {
@@ -1137,9 +1125,6 @@ START_TEST(default_print_info_range_1_width)
 
 	histogram_print_info(h, out_file);
 	fseek(out_file, 0, SEEK_SET);
-
-	// go through line-by-line and search for a line contaning the number of
-	// buckets
 
 	char * buf = NULL;
 	size_t size = 0;
@@ -1179,9 +1164,6 @@ START_TEST(default_print_info_range_2_width)
 	histogram_print_info(h, out_file);
 	fseek(out_file, 0, SEEK_SET);
 
-	// go through line-by-line and search for a line contaning the number of
-	// buckets
-
 	char * buf = NULL;
 	size_t size = 0;
 	while (getline(&buf, &size, out_file) != -1) {
@@ -1220,9 +1202,6 @@ START_TEST(default_print_info_range_0_n_buckets)
 
 	histogram_print_info(h, out_file);
 	fseek(out_file, 0, SEEK_SET);
-
-	// go through line-by-line and search for a line contaning the number of
-	// buckets
 
 	char * buf = NULL;
 	size_t size = 0;
@@ -1264,9 +1243,6 @@ START_TEST(default_print_info_range_1_n_buckets)
 	histogram_print_info(h, out_file);
 	fseek(out_file, 0, SEEK_SET);
 
-	// go through line-by-line and search for a line contaning the number of
-	// buckets
-
 	char * buf = NULL;
 	size_t size = 0;
 	while (getline(&buf, &size, out_file) != -1) {
@@ -1306,9 +1282,6 @@ START_TEST(default_print_info_range_2_n_buckets)
 
 	histogram_print_info(h, out_file);
 	fseek(out_file, 0, SEEK_SET);
-
-	// go through line-by-line and search for a line contaning the number of
-	// buckets
 
 	char * buf = NULL;
 	size_t size = 0;
