@@ -212,5 +212,5 @@ report: | test_target/aerospike-benchmark.info
 	@rm -rf test_target/html
 	@mkdir -p test_target/html
 	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark.info --legend --title "test lcov" --output-directory test_target/html
-	@xdg-open file:///home/cknittel/aerospike-benchmark/test_target/html/index.html
+	@xdg-open file://$(ROOT)/test_target/html/index.html
 
