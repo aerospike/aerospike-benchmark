@@ -1,0 +1,76 @@
+---
+name: "Tagged Release"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-libraries:
+    runs-on: ubuntu-latest
+    name: "Tagged Release"
+    env:
+      CLIENTREPO: ${GITHUB_WORKSPACE}/client
+    strategy:
+      matrix: 
+        ev-lib: ["", libev, libuv, libevent]
+    steps:
+    - name: Install event libs
+      run: sudo apt-get install -y libevent-dev libev-dev libuv1-dev
+    - name: Checkout c client
+      uses: actions/checkout@v2
+      with:
+        repository: aerospike/aerospike-client-c
+        submodules: recursive
+        path: client
+    - name: Checkout benchmarks 
+      uses: actions/checkout@v2
+      with: 
+        path: main
+        submodules: recursive
+    - name: Build client lib
+      run: make EVENT_LIB=${{ matrix.ev-lib }}
+      working-directory: client
+    - name: Build benchmark
+      run: make EVENT_LIB=${{ matrix.ev-lib }}
+      working-directory: main
+    - name: Get artifact name
+      run: |
+        set -e
+        NAME=-${{ matrix.ev-lib}}
+        if [ "${NAME}" = "-" ]; then NAME="" ; fi
+        echo "::set-output name=name::benchmarks$NAME"
+      id: get_name
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with: 
+        name: ${{steps.get_name.outputs.name}}
+        path: main/target/benchmarks
+  release:
+    needs: build-libraries
+    runs-on: ubuntu-latest
+    
+    steps: 
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3.1
+    
+      - name: Checkout benchmarks 
+        uses: actions/checkout@v2
+        with: 
+          submodules: recursive
+      - name: Get artifacts
+        uses: actions/download-artifact@v2
+        with: 
+          path: binaries/
+      - name: Create tarball
+        run: tar -czf binaries.tar.gz binaries
+      - name: Automatic Release
+        uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          files: |
+            binaries.tar.gz
+            LICENSE.md
+            README.md
