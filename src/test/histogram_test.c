@@ -532,6 +532,91 @@ START_TEST(simple_print_info_range_0_upb)
 END_TEST
 
 
+/**
+ * Tests that the width of the first bucket range is included in the info
+ */
+START_TEST(simple_print_info_range_0_width)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 0") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "width") != NULL) {
+					ck_assert_msg(strstr(buf, "1us") != NULL, "range 0 width "
+							"not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "a second bucket range found when not "
+							"expected");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 0 width not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the number of buckets in the first bucket range is included in
+ * the info
+ */
+START_TEST(simple_print_info_range_0_n_buckets)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 0") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "buckets") != NULL) {
+					ck_assert_msg(strstr(buf, "9") != NULL, "range 0 num "
+							"buckets not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "a second bucket range found when not "
+							"expected");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 0 num buckets not found");
+}
+END_TEST
+
+
 
 /**
  * Any setup code to run each test goes here
@@ -658,6 +743,600 @@ START_TEST(default_calc_total)
 }
 
 
+/**
+ * Tests that the total number of buckets is included in the info
+ */
+START_TEST(default_print_info_size)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "buckets") != NULL) {
+			ck_assert_msg(strstr(buf, "115") != NULL, "the number of "
+					"buckets is not correct");
+			fclose(out_file);
+			return;
+		}
+	}
+
+	ck_assert_msg(0, "the number of buckets was not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the lower bound on the histogram range is included in the info
+ */
+START_TEST(default_print_info_range_lowb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "range") != NULL &&
+				strcasestr(buf, "min") != NULL) {
+			ck_assert_msg(strstr(buf, "100us") != NULL, "the lower bound on the "
+					"histogram range is incorrect");
+			fclose(out_file);
+			return;
+		}
+		else if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range") != NULL) {
+			ck_assert_msg(0, "histogram range upper bound not found before the "
+					"first bucket range descriptor");
+		}
+	}
+
+	ck_assert_msg(0, "histogram range lower bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the upper bound on the histogram range is included in the info
+ */
+START_TEST(default_print_info_range_upb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "range") != NULL &&
+				strcasestr(buf, "max") != NULL) {
+			ck_assert_msg(strstr(buf, "128000us") != NULL, "the upper bound on the "
+					"histogram range is incorrect");
+			fclose(out_file);
+			return;
+		}
+		else if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range") != NULL) {
+			ck_assert_msg(0, "histogram range upper bound not found before the "
+					"first bucket range descriptor");
+		}
+	}
+
+	ck_assert_msg(0, "histogram range upper bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the lower bound on the first bucket range is included in the info
+ */
+START_TEST(default_print_info_range_0_lowb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 0") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "range") != NULL &&
+						strcasestr(buf, "min") != NULL) {
+					ck_assert_msg(strstr(buf, "100us") != NULL, "range 0 lower "
+							"bound not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 0 lower bound not found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 0 lower bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the lower bound on the second bucket range is included in the info
+ */
+START_TEST(default_print_info_range_1_lowb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 1") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "range") != NULL &&
+						strcasestr(buf, "min") != NULL) {
+					ck_assert_msg(strstr(buf, "4000us") != NULL, "range 1 lower "
+							"bound not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 1 lower bound not found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 1 lower bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the lower bound on the third bucket range is included in the info
+ */
+START_TEST(default_print_info_range_2_lowb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 2") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "range") != NULL &&
+						strcasestr(buf, "min") != NULL) {
+					ck_assert_msg(strstr(buf, "64000us") != NULL, "range 2 lower "
+							"bound not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 2 lower bound not found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 2 lower bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the upper bound on the first bucket range is included in the info
+ */
+START_TEST(default_print_info_range_0_upb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 0") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "range") != NULL &&
+						strcasestr(buf, "max") != NULL) {
+					ck_assert_msg(strstr(buf, "4000us") != NULL, "range 0 upper "
+							"bound not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 0 upper bound not found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 0 upper bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the upper bound on the second bucket range is included in the info
+ */
+START_TEST(default_print_info_range_1_upb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 1") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "range") != NULL &&
+						strcasestr(buf, "max") != NULL) {
+					ck_assert_msg(strstr(buf, "64000us") != NULL, "range 1 upper "
+							"bound not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 1 upper bound not found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 1 upper bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the upper bound on the third bucket range is included in the info
+ */
+START_TEST(default_print_info_range_2_upb)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 2") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "range") != NULL &&
+						strcasestr(buf, "max") != NULL) {
+					ck_assert_msg(strstr(buf, "128000us") != NULL, "range 2 upper "
+							"bound not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 2 upper bound not found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 2 upper bound not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the width of the first bucket range is included in the info
+ */
+START_TEST(default_print_info_range_0_width)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 0") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "width") != NULL) {
+					ck_assert_msg(strstr(buf, "100us") != NULL, "range 0 width "
+							"not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 0 width bound not found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 0 width not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the width of the second bucket range is included in the info
+ */
+START_TEST(default_print_info_range_1_width)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 1") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "width") != NULL) {
+					ck_assert_msg(strstr(buf, "1000us") != NULL, "range 1 width "
+							"not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 1 width bound not found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 1 width not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the width of the third bucket range is included in the info
+ */
+START_TEST(default_print_info_range_2_width)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 2") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "width") != NULL) {
+					ck_assert_msg(strstr(buf, "4000us") != NULL, "range 2 width "
+							"not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 2 width bound not found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 2 width not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the number of buckets in the first bucket range is included in
+ * the info
+ */
+START_TEST(default_print_info_range_0_n_buckets)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 0") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "buckets") != NULL) {
+					ck_assert_msg(strstr(buf, "39") != NULL, "range 0 num "
+							"buckets not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 0 num buckets bound not "
+							"found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 0 num buckets not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the number of buckets in the second bucket range is included in
+ * the info
+ */
+START_TEST(default_print_info_range_1_n_buckets)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 1") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "buckets") != NULL) {
+					ck_assert_msg(strstr(buf, "60") != NULL, "range 1 num "
+							"buckets not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 1 num buckets bound not "
+							"found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 1 num buckets not found");
+}
+END_TEST
+
+
+/**
+ * Tests that the number of buckets in the third bucket range is included in
+ * the info
+ */
+START_TEST(default_print_info_range_2_n_buckets)
+{
+	histogram * h = &hist;
+
+	FILE * out_file = tmpfile();
+
+	histogram_print_info(h, out_file);
+	fseek(out_file, 0, SEEK_SET);
+
+	// go through line-by-line and search for a line contaning the number of
+	// buckets
+
+	char * buf = NULL;
+	size_t size = 0;
+	while (getline(&buf, &size, out_file) != -1) {
+		if (strcasestr(buf, "bucket") != NULL &&
+				strcasestr(buf, "range 2") != NULL) {
+
+			while (getline(&buf, &size, out_file) != -1) {
+				
+				if (strcasestr(buf, "buckets") != NULL) {
+					ck_assert_msg(strstr(buf, "16") != NULL, "range 2 num "
+							"buckets not correct");
+					return;
+				}
+				else if (strcasestr(buf, "bucket") != NULL &&
+						strcasestr(buf, "range") != NULL) {
+					ck_assert_msg(0, "histogram range 2 num buckets bound not "
+							"found");
+				}
+			}
+		}
+	}
+
+	ck_assert_msg(0, "histogram range 2 num buckets not found");
+}
+END_TEST
+
+
 Suite*
 histogram_suite(void)
 {
@@ -697,6 +1376,8 @@ histogram_suite(void)
 	tcase_add_test(tc_simple, simple_print_info_range_upb);
 	tcase_add_test(tc_simple, simple_print_info_range_0_lowb);
 	tcase_add_test(tc_simple, simple_print_info_range_0_upb);
+	tcase_add_test(tc_simple, simple_print_info_range_0_width);
+	tcase_add_test(tc_simple, simple_print_info_range_0_n_buckets);
 	suite_add_tcase(s, tc_simple);
 
 	tc_default = tcase_create("Defualt Config");
@@ -709,7 +1390,21 @@ histogram_suite(void)
 	tcase_add_test(tc_default, default_clear);
 	tcase_add_test(tc_default, default_print_clear_clears);
 	tcase_add_test(tc_default, default_calc_total);
-	//tcase_add_test(tc_default, sequential_print_check);
+	tcase_add_test(tc_default, default_print_info_size);
+	tcase_add_test(tc_default, default_print_info_range_lowb);
+	tcase_add_test(tc_default, default_print_info_range_upb);
+	tcase_add_test(tc_default, default_print_info_range_0_lowb);
+	tcase_add_test(tc_default, default_print_info_range_1_lowb);
+	tcase_add_test(tc_default, default_print_info_range_2_lowb);
+	tcase_add_test(tc_default, default_print_info_range_0_upb);
+	tcase_add_test(tc_default, default_print_info_range_1_upb);
+	tcase_add_test(tc_default, default_print_info_range_2_upb);
+	tcase_add_test(tc_default, default_print_info_range_0_width);
+	tcase_add_test(tc_default, default_print_info_range_1_width);
+	tcase_add_test(tc_default, default_print_info_range_2_width);
+	tcase_add_test(tc_default, default_print_info_range_0_n_buckets);
+	tcase_add_test(tc_default, default_print_info_range_1_n_buckets);
+	tcase_add_test(tc_default, default_print_info_range_2_n_buckets);
 	suite_add_tcase(s, tc_default);
 
 	return s;
