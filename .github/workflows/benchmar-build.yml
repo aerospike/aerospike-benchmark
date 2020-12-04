@@ -25,8 +25,8 @@ jobs:
       with:
         path: check-0.15.2
         key: check-0.15.2
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3.1
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3.1
     - name: Build libcheck
       id: build-libcheck
       if: steps.cache-libcheck.outputs.cache-hit != 'true'
