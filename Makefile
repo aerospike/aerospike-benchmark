@@ -207,7 +207,13 @@ do-test: coverage-init
 	@$(MAKE) -C . test
 
 .PHONY: report
-report: | test_target/aerospike-benchmark.info
+report: coverage
+	@rm -rf test_target/html
+	@mkdir -p test_target/html
+	@lcov -l test_target/aerospike-benchmark.info
+
+.PHONY: report-display
+report-display: | test_target/aerospike-benchmark.info
 	@echo
 	@rm -rf test_target/html
 	@mkdir -p test_target/html
