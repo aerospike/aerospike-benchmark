@@ -72,8 +72,8 @@ make coverage
 ```
 > note: this will rerun the tests.
 
-To view coverage data, run
+To view coverage data in the console, run
 ```
 make report
 ```
-> note: this has to be run after running make coverage, otherwise it will fail
+> note: this will rerun the tests.
