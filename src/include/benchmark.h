@@ -27,6 +27,7 @@
 #include "aerospike/as_random.h"
 #include "aerospike/as_record.h"
 #include "histogram.h"
+#include "latency.h"
 
 typedef enum {
 	LEN_TYPE_COUNT,
@@ -65,8 +66,11 @@ typedef struct arguments_t {
 	int max_retries;
 	bool debug;
 	bool latency;
-	const char* latency_output;
-	int latency_period;
+	int latency_columns;
+	int latency_shift;
+	bool latency_histogram;
+	const char* histogram_output;
+	int histogram_period;
 	bool use_shm;
 	as_policy_replica replica;
 	as_policy_read_mode_ap read_mode_ap;
@@ -96,7 +100,7 @@ typedef struct clientdata_t {
 	aerospike client;
 	as_val *fixed_value;
 	
-	histogram write_histogram;
+	latency write_latency;
 	uint32_t write_count;
 	uint32_t write_timeout_count;
 	uint32_t write_error_count;
@@ -104,11 +108,12 @@ typedef struct clientdata_t {
 	uint32_t read_count;
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
-	histogram read_histogram;
+	latency read_latency;
 
-	FILE* latency_output;
-	bool to_stdout;
-	int latency_period;
+	FILE* histogram_output;
+	int histogram_period;
+	histogram write_histogram;
+	histogram read_histogram;
 
 	uint32_t tdata_count;
 	uint32_t valid;

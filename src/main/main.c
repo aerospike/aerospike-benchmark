@@ -61,7 +61,7 @@ static struct option long_options[] = {
 	{"writeTimeout",         required_argument, 0, 'V'},
 	{"maxRetries",           required_argument, 0, 'r'},
 	{"debug",                no_argument,       0, 'd'},
-	{"latency",              no_argument,       0, 'L'},
+	{"latency",              required_argument, 0, 'L'},
 	{"outputFile",           required_argument, 0, '6'},
 	{"outputPeriod",         required_argument, 0, '7'},
 	{"shared",               no_argument,       0, 'S'},
@@ -239,13 +239,16 @@ print_usage(const char* program)
 	blog_line("   Run benchmarks in debug mode.");
 	blog_line("");
 
-	blog_line("-L --latency  # Default: latency display is off.");
-	blog_line("   Show transaction latencies in microseconds in a histogram.");
-	blog_line("   Currently uses the default layout. Add documentation here later.");
+	blog_line("-L --latency <columns>,<shift> # Default: latency display is off.");
+	blog_line("   Show transaction latency percentages using elapsed time ranges.");
+	blog_line("   <columns> Number of elapsed time ranges.");
+	blog_line("   <shift>   Power of 2 multiple between each range starting at column 3.");
 	blog_line("");
 
 	blog_line("   --outputFile  # Default: stdout");
-	blog_line("   Specifies an output file to write periodic latency data.");
+	blog_line("   Specifies an output file to write periodic latency data, which enables");
+	blog_line("   the tracking of transaction latencies in microseconds in a histogram.");
+	blog_line("   Currently uses the default layout. Add documentation here later.");
 	blog_line("   The file is opened in append mode.");
 	blog_line("");
 
@@ -439,13 +442,21 @@ print_args(arguments* args)
 	blog_line("debug:                  %s", boolstring(args->debug));
 	
 	if (args->latency) {
-		blog_line("latency:                true");
-		blog_line("latency output file:    %s",
-				(args->latency_output ? args->latency_output : "stdout"));
-		blog_line("latency output period:  %ds", args->latency_period);
+		blog_line("latency:                %d columns, shift exponent %d",
+				args->latency_columns, args->latency_shift);
 	}
 	else {
 		blog_line("latency:                false");
+	}
+
+	if (args->latency_histogram) {
+		blog_line("latency histogram:      true");
+		blog_line("histogram output file:  %s",
+				(args->histogram_output ? args->histogram_output : "stdout"));
+		blog_line("histogram period:       %ds", args->histogram_period);
+	}
+	else {
+		blog_line("latency histogram:      false");
 	}
 	
 	blog_line("shared memory:          %s", boolstring(args->use_shm));
@@ -612,8 +623,18 @@ validate_args(arguments* args)
 		return 1;
 	}
 
-	if (args->latency && args->latency_period <= 0) {
-		blog_line("Invalid latency period %ds", args->latency_period);
+	if (args->latency_columns < 0 || args->latency_columns > 16) {
+		blog_line("Invalid latency columns: %d  Valid values: [1-16]", args->latency_columns);
+		return 1;
+	}
+
+	if (args->latency_shift < 0 || args->latency_shift > 5) {
+		blog_line("Invalid latency shift: %d  Valid values: [1-5]", args->latency_shift);
+		return 1;
+	}
+
+	if (args->latency_histogram && args->histogram_period <= 0) {
+		blog_line("Invalid histogram period: %ds", args->histogram_period);
 		return 1;
 	}
 	
@@ -803,16 +824,30 @@ set_args(int argc, char * const * argv, arguments* args)
 				
 			case 'L': {
 				args->latency = true;
+				char* tmp = strdup(optarg);
+				char* p = strchr(tmp, ',');
+
+				if (p) {
+					*p = '\0';
+					args->latency_columns = atoi(tmp);
+					args->latency_shift = atoi(p + 1);
+				}
+				else {
+					args->latency_columns = 4;
+					args->latency_shift = 3;
+				}
+				free(tmp);
 				break;
 			}
 				
 			case '6': {
-				args->latency_output = optarg;
+				args->latency_histogram = true;
+				args->histogram_output = optarg;
 				break;
 			}
 				
 			case '7': {
-				args->latency_period = atoi(optarg);
+				args->histogram_period = atoi(optarg);
 				break;
 			}
 				
@@ -998,8 +1033,11 @@ main(int argc, char * const * argv)
 	args.max_retries = 1;
 	args.debug = false;
 	args.latency = false;
-	args.latency_output = NULL;
-	args.latency_period = 1;
+	args.latency_columns = 4;
+	args.latency_shift = 3;
+	args.latency_histogram = false;
+	args.histogram_output = NULL;
+	args.histogram_period = 1;
 	args.use_shm = false;
 	args.replica = AS_POLICY_REPLICA_SEQUENCE;
 	args.read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;

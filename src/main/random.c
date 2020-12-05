@@ -34,16 +34,21 @@ static void*
 ticker_worker(void* udata)
 {
 	clientdata* data = (clientdata*)udata;
+	latency* write_latency = &data->write_latency;
+	latency* read_latency = &data->read_latency;
+	bool latency = data->latency;
+	char latency_header[500];
+	char latency_detail[500];
+	uint64_t gen_count = 0;
 	histogram* write_histogram = &data->write_histogram;
 	histogram* read_histogram = &data->read_histogram;
-	bool latency = data->latency;
-	uint64_t gen_count = 0;
+	FILE* histogram_output = data->histogram_output;
 	
 	uint64_t prev_time = cf_getus();
 	data->period_begin = prev_time;
 	
 	if (latency) {
-		//latency_set_header(write_latency, latency_header);
+		latency_set_header(write_latency, latency_header);
 	}
 	as_sleep(1000);
 	
@@ -69,13 +74,21 @@ ticker_worker(void* udata)
 			write_tps, write_timeout_current, write_error_current,
 			read_tps, read_timeout_current, read_error_current,
 			write_tps + read_tps, write_timeout_current + read_timeout_current, write_error_current + read_error_current);
+
+		if (latency) {
+			blog_line("%s", latency_header);
+			latency_print_results(write_latency, "write", latency_detail);
+			blog_line("%s", latency_detail);
+			latency_print_results(read_latency, "read", latency_detail);
+			blog_line("%s", latency_detail);
+		}
 		
 		++gen_count;
 		
-		if (latency && ((gen_count % data->latency_period) == 0)) {
-			histogram_print_clear(write_histogram, data->latency_period, data->latency_output);
-			histogram_print_clear(read_histogram, data->latency_period, data->latency_output);
-			fflush(data->latency_output);
+		if ((histogram_output != NULL) && ((gen_count % data->histogram_period) == 0)) {
+			histogram_print_clear(write_histogram, data->histogram_period, histogram_output);
+			histogram_print_clear(read_histogram, data->histogram_period, histogram_output);
+			fflush(histogram_output);
 		}
 
 		if ((data->transactions_limit > 0) && (transactions_current > data->transactions_limit)) {
