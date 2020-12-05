@@ -14,7 +14,6 @@
 
 static histogram hist;
 
-
 // format string to consume a UTC time in scanf
 #define UTC_DATE_FMT "%*3s %*3s %*2d %*02d:%*02d:%*02d %*4d"
 
