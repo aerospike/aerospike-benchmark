@@ -268,7 +268,7 @@ run_benchmark(arguments* args)
 	if (! args->random) {
 		gen_value(args, &data.fixed_value);
 	}
-
+	
 	if (args->latency) {
 		latency_init(&data.write_latency, args->latency_columns, args->latency_shift);
 		hdr_init(1, 1000000, 3, &data.write_hdr);
