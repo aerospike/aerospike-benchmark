@@ -128,5 +128,3 @@ void histogram_print_clear(histogram * h, uint32_t period_duration, FILE * out_f
  */
 void histogram_print_info(const histogram * h, FILE * out_file);
 
-void histogram_print_dbg(const histogram * h);
-

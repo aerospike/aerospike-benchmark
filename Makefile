@@ -171,7 +171,7 @@ valgrind: build
 	valgrind --tool=memcheck --leak-check=yes --show-reachable=yes --num-callers=20 --track-fds=yes -v ./target/benchmarks
 
 .PHONY: test
-test:  | test_target/test
+test: | test_target/test
 	@echo
 	@./test_target/test
 
@@ -192,7 +192,25 @@ test_target/test: $(addprefix test_target/obj/,$(TEST_OBJECTS)) $(addprefix test
 
 # Summary requires the lcov tool to be installed
 .PHONY: coverage
-coverage: | test
+coverage: coverage-init do-test
 	@echo
+	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark.info
 	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark.info
 	@lcov --summary test_target/aerospike-benchmark.info
+
+.PHONY: coverage-init
+coverage-init:
+	@lcov --zerocounters --directory test_target
+
+.PHONY: do-test
+do-test: coverage-init
+	@$(MAKE) -C . test
+
+.PHONY: report
+report: | test_target/aerospike-benchmark.info
+	@echo
+	@rm -rf test_target/html
+	@mkdir -p test_target/html
+	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark.info --legend --title "test lcov" --output-directory test_target/html
+	@xdg-open file://$(ROOT)/test_target/html/index.html
+

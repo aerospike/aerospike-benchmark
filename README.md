@@ -56,3 +56,24 @@ target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o B:1400 -w RU,80 -g 
 # Use and 50% read 50% write pattern.
 target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o S:50 -w RU,50 --async --asyncMaxCommands 50 --eventLoops 1
 ```
+
+## Running Tests and Coverage
+
+To run the unit tests, call
+
+```
+make test
+```
+
+To generate coverage data for the unit tests, run
+
+```
+make coverage
+```
+> note: this will rerun the tests.
+
+To view coverage data, run
+```
+make report
+```
+> note: this has to be run after running make coverage, otherwise it will fail
