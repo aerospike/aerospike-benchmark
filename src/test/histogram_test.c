@@ -2,9 +2,6 @@
 #include <check.h>
 #include <stdio.h>
 #include <time.h>
-#include <x86intrin.h>
-
-#include "aerospike/as_random.h"
 
 #include "histogram.h"
 
