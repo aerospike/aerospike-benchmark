@@ -91,7 +91,7 @@ AR = ar
 MAIN_OBJECT = main.o
 OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o \
 		  swap_buffer.o
-TEST_OBJECTS = histogram_test.o sanity.o setup.o main.o
+TEST_OBJECTS = histogram_test.o latency_test.o sanity.o setup.o main.o
 
 ###############################################################################
 ##  MAIN TARGETS                                                             ##
@@ -203,11 +203,15 @@ coverage-init:
 	@lcov --zerocounters --directory test_target
 
 .PHONY: do-test
-do-test: coverage-init
+do-test: | coverage-init
 	@$(MAKE) -C . test
 
 .PHONY: report
-report: | test_target/aerospike-benchmark.info
+report: coverage
+	@lcov -l test_target/aerospike-benchmark.info
+
+.PHONY: report-display
+report-display: | test_target/aerospike-benchmark.info
 	@echo
 	@rm -rf test_target/html
 	@mkdir -p test_target/html

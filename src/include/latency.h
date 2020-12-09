@@ -25,12 +25,13 @@
 
 typedef struct latency_t {
 	uint32_t* buckets;
-	int last_bucket;
+	int n_buckets;
 	int bit_shift;
 } latency;
 
 void latency_init(latency* l, int columns, int shift);
 void latency_free(latency* l);
 void latency_add(latency* l, uint64_t elapsed_ms);
+uint32_t latency_get_count(latency* l, uint32_t bucket_idx);
 void latency_set_header(latency* l, char* header);
 void latency_print_results(latency* l, const char* prefix, char* out);

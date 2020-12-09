@@ -2,9 +2,6 @@
 #include <check.h>
 #include <stdio.h>
 #include <time.h>
-#include <x86intrin.h>
-
-#include "aerospike/as_random.h"
 
 #include "histogram.h"
 
@@ -674,7 +671,6 @@ START_TEST(simple_print_info_range_0_n_buckets)
 	ck_assert_msg(0, "histogram range 0 num buckets not found");
 }
 END_TEST
-
 
 
 /**

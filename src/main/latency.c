@@ -26,10 +26,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <time.h>
+
 void
 latency_init(latency* l, int columns, int shift)
 {
-	l->last_bucket = columns - 1;
+	l->n_buckets = columns;
 	l->bit_shift = shift;
 	l->buckets = cf_calloc(columns, sizeof(uint32_t));
 }
@@ -44,7 +46,7 @@ static int
 latency_getindex(latency* l, uint64_t elapsed_ms)
 {
 	uint64_t limit = 1;
-	int max = l->last_bucket;
+	int max = l->n_buckets - 1;
 	int shift = l->bit_shift;
 	
 	for (int i = 0; i < max; i++) {
@@ -63,13 +65,19 @@ latency_add(latency* l, uint64_t elapsed_ms)
 	as_incr_uint32(&l->buckets[index]);
 }
 
+uint32_t
+latency_get_count(latency* l, uint32_t bucket_idx)
+{
+	return as_load_uint32(&l->buckets[bucket_idx]);
+}
+
 void
 latency_set_header(latency* l, char* header)
 {
 	char* p = header;
 	p += sprintf(p, "      <=1ms >1ms");
 	
-	int max = l->last_bucket + 1;
+	int max = l->n_buckets;
 	int shift = l->bit_shift;
 	int limit = 1;
 
@@ -106,7 +114,7 @@ latency_print_column(latency* l, int limit, double sum, int value, char* out)
 void
 latency_print_results(latency* l, const char* prefix, char* out) {
 	// Capture snapshot and make buckets cumulative.
-	int max = l->last_bucket + 1;
+	int max = l->n_buckets;
 	uint32_t* array = alloca(max * sizeof(uint32_t));
 	uint32_t* buckets = l->buckets;
 	int sum = 0;

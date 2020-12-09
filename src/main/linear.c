@@ -33,12 +33,19 @@ static void*
 ticker_worker(void* udata)
 {
 	clientdata* data = (clientdata*)udata;
-	histogram* write_histogram = &data->write_histogram;
+	latency* write_latency = &data->write_latency;
 	bool latency = data->latency;
+	char latency_header[500];
+	char latency_detail[500];
+	histogram* write_histogram = &data->write_histogram;
+	FILE* histogram_output = data->histogram_output;
 	
 	uint64_t prev_time = cf_getus();
 	data->period_begin = prev_time;
-	
+
+	if (latency) {
+		latency_set_header(write_latency, latency_header);
+	}
 	as_sleep(1000);
 
 	uint64_t total_count = 0;
@@ -59,10 +66,16 @@ ticker_worker(void* udata)
 
 		blog_info("write(tps=%u timeouts=%u errors=%u total=%" PRIu64 ")",
 			write_tps, write_timeout_current, write_error_current, total_count);
-		
+
 		if (latency) {
-			histogram_print_clear(write_histogram, data->latency_period, data->latency_output);
-			fflush(data->latency_output);
+			blog_line("%s", latency_header);
+			latency_print_results(write_latency, "write", latency_detail);
+			blog_line("%s", latency_detail);
+		}
+		
+		if (histogram_output != NULL) {
+			histogram_print_clear(write_histogram, data->histogram_period, histogram_output);
+			fflush(histogram_output);
 		}
 
 		if (complete) {
