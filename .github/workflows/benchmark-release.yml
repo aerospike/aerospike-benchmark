@@ -8,8 +8,8 @@ on:
 
 jobs:
 # It would be nice if we could pass
-# artifacts between jobs but currently not possible so have
-# to build again
+# artifacts between jobs but currently not 
+# possible so have to build again
   build-libraries:
     runs-on: ubuntu-latest
     name: "Tagged Release"
