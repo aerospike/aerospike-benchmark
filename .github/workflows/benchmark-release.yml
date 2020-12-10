@@ -7,6 +7,9 @@ on:
       - "v*"
 
 jobs:
+# It would be nice if we could pass
+# artifacts between jobs but currently not possible so have
+# to build again
   build-libraries:
     runs-on: ubuntu-latest
     name: "Tagged Release"
@@ -70,16 +73,11 @@ jobs:
           files: |
             binaries.tar.gz
             LICENSE.md
-            README.md
-      - name: Automatic Release Latest
-        uses: marvinpinto/action-automatic-releases@latest
+            README.md     
+      # clean up latest since release has been made       
+      - uses: dev-drprasad/delete-tag-and-release@v0.1.2
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
-          prerelease: true
-          title: "latest"
-          files: |
-            binaries.tar.gz
-            LICENSE.md
-            
-
+          delete_release: true 
+          tag_name: latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
