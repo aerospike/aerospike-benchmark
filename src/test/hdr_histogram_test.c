@@ -22,7 +22,6 @@ START_TEST(initialization_test)
 }
 END_TEST
 
-
 /**
  * Any setup code to run each test goes here
  *
