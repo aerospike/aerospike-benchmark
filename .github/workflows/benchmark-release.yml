@@ -71,7 +71,7 @@ jobs:
             binaries.tar.gz
             LICENSE.md
             README.md
-      - name: Automatic Release
+      - name: Automatic Release Latest
         uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
