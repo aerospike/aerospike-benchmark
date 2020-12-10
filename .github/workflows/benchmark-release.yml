@@ -1,10 +1,18 @@
-name: Build:Main
+---
+name: "Tagged Release"
+
 on:
   push:
-    branches: [ main,  gh-release ]
+    tags:
+      - "v*"
+
 jobs:
+# It would be nice if we could pass
+# artifacts between jobs but currently not 
+# possible so have to build again
   build-libraries:
     runs-on: ubuntu-latest
+    name: "Tagged Release"
     env:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     strategy:
@@ -42,14 +50,11 @@ jobs:
       with: 
         name: ${{steps.get_name.outputs.name}}
         path: main/target/benchmarks
-  pre-release:
+  release:
     needs: build-libraries
     runs-on: ubuntu-latest
     
     steps: 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3.1
-    
       - name: Checkout benchmarks 
         uses: actions/checkout@v2
         with: 
@@ -64,10 +69,15 @@ jobs:
         uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
-          prerelease: true
-          title: "Snapshot Build"
+          prerelease: false
           files: |
             binaries.tar.gz
             LICENSE.md
-            README.md
+            README.md     
+      # clean up latest since release has been made       
+      - uses: dev-drprasad/delete-tag-and-release@v0.1.2
+        with:
+          delete_release: true 
+          tag_name: latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
