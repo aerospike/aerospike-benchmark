@@ -1,7 +1,11 @@
 name: Build:Main
 on:
   push:
-    branches: [ main,  gh-release ]
+    branches: [ main ]
+  workflow_run: 
+    workflows: [ "Tagged Release" ]
+    branches: [ main ]
+    types: [ completed ]
 jobs:
   build-libraries:
     runs-on: ubuntu-latest
