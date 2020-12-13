@@ -90,7 +90,7 @@ hdr_histogram_suite(void)
 	tcase_add_checked_fixture(tc_simple, simple_setup, simple_teardown);
 	tcase_add_test(tc_simple, simple_insert_one);
 	tcase_add_test(tc_simple, simple_insert_two);
-	suite_add_tcase(s, tc_core);
+	suite_add_tcase(s, tc_simple);
 
 	return s;
 }
