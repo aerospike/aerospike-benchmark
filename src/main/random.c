@@ -81,6 +81,9 @@ ticker_worker(void* udata)
 			blog_line("%s", latency_detail);
 			latency_print_results(read_latency, "read", latency_detail);
 			blog_line("%s", latency_detail);
+
+			print_hdr_percentiles(data->write_hdr, &data->latency_percentiles);
+			print_hdr_percentiles(data->read_hdr, &data->latency_percentiles);
 		}
 		
 		++gen_count;

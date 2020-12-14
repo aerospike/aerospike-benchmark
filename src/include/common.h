@@ -26,7 +26,10 @@
 #include <stdlib.h>
 
 #include "aerospike/as_log.h"
+#include "aerospike/as_vector.h"
 #include <citrusleaf/alloc.h>
+
+#include <hdr_histogram/hdr_histogram.h>
 
 #define _STR(x) #x
 #define STR(x) _STR(x)
@@ -55,3 +58,7 @@ void blog_detail(as_log_level level, const char* fmt, ...);
 #define fblog(_file, _fmt, ...) { fprintf(_file, _fmt, ##__VA_ARGS__); }
 #define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
 #define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }
+
+
+void print_hdr_percentiles(struct hdr_histogram* h, as_vector* percentiles);
+

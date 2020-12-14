@@ -378,6 +378,7 @@ write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key)
 			as_incr_uint32(&cdata->write_count);
 			if (cdata->latency) {
 				latency_add(&cdata->write_latency, (end - begin) / 1000);
+				hdr_record_value(cdata->write_hdr, end - begin);
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->write_histogram, end - begin);
@@ -430,6 +431,7 @@ read_record_sync(clientdata* cdata, threaddata* tdata)
 			as_incr_uint32(&cdata->read_count);
 			if (cdata->latency) {
 				latency_add(&cdata->read_latency, (end - begin) / 1000);
+				hdr_record_value(cdata->read_hdr, end - begin);
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - begin);
@@ -490,6 +492,7 @@ batch_record_sync(clientdata* cdata, threaddata* tdata)
 			as_incr_uint32(&cdata->read_count);
 			if (cdata->latency) {
 				latency_add(&cdata->read_latency, (end - begin) / 1000);
+				hdr_record_value(cdata->read_hdr, end - begin);
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - begin);
@@ -572,6 +575,7 @@ linear_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->write_latency, (end - tdata->begin) / 1000);
+				hdr_record_value(cdata->write_hdr, end - tdata->begin);
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->write_histogram, end - tdata->begin);
@@ -697,6 +701,7 @@ random_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->write_latency, (end - tdata->begin) / 1000);
+				hdr_record_value(cdata->write_hdr, end - tdata->begin);
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->write_histogram, end - tdata->begin);
@@ -732,6 +737,7 @@ random_read_listener(as_error* err, as_record* rec, void* udata, as_event_loop* 
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->read_latency, (end - tdata->begin) / 1000);
+				hdr_record_value(cdata->read_hdr, end - tdata->begin);
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - tdata->begin);
@@ -767,6 +773,7 @@ random_batch_listener(as_error* err, as_batch_read_records* records, void* udata
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->read_latency, (end - tdata->begin) / 1000);
+				hdr_record_value(cdata->read_hdr, end - tdata->begin);
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - tdata->begin);

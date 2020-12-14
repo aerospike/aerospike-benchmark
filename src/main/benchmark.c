@@ -271,9 +271,17 @@ run_benchmark(arguments* args)
 	
 	if (args->latency) {
 		latency_init(&data.write_latency, args->latency_columns, args->latency_shift);
+		hdr_init(1, 1000000, 3, &data.write_hdr);
+		as_vector_init(&data.latency_percentiles, args->latency_percentiles.item_size,
+				args->latency_percentiles.capacity);
+		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
+			as_vector_append(&data.latency_percentiles,
+					as_vector_get(&args->latency_percentiles, i));
+		}
 
 		if (! args->init) {
 			latency_init(&data.read_latency, args->latency_columns, args->latency_shift);
+			hdr_init(1, 1000000, 3, &data.read_hdr);
 		}
 	}
 	
@@ -320,9 +328,11 @@ run_benchmark(arguments* args)
 
 	if (args->latency) {
 		latency_free(&data.write_latency);
+		hdr_close(data.write_hdr);
 
 		if (! args->init) {
 			latency_free(&data.read_latency);
+			hdr_close(data.read_hdr);
 		}
 	}
 

@@ -658,7 +658,9 @@ validate_args(arguments* args)
 	if (args->latency) {
 		as_vector * perc = &args->latency_percentiles;
 		if (perc->size == 0) {
-			blog_line("Zero-length latency percentile list");
+			// silently fail, this can only happen if the user typed in something
+			// invalid as the argument to --percentiles, which would have already
+			// printed an error message
 			return 1;
 		}
 		for (uint32_t i = 0; i < perc->size; i++) {
@@ -914,6 +916,7 @@ set_args(int argc, char * const * argv, arguments* args)
 					tmp = next_comma + 1;
 				} while (prior != '\0');
 				free(_tmp);
+				break;
 			}
 				
 			case '6': {
