@@ -72,7 +72,7 @@ ticker_worker(void* udata)
 			latency_print_results(write_latency, "write", latency_detail);
 			blog_line("%s", latency_detail);
 
-			print_hdr_percentiles(data->write_hdr, &data->latency_percentiles);
+			print_hdr_percentiles(data->write_hdr, "write", &data->latency_percentiles);
 		}
 		
 		if (histogram_output != NULL) {

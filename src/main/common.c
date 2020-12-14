@@ -70,9 +70,10 @@ blog_detail(as_log_level level, const char* fmt, ...)
 	va_end(ap);
 }
 
-void print_hdr_percentiles(struct hdr_histogram* h, as_vector* percentiles)
+void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
+		as_vector* percentiles)
 {
-	blog("hdr");
+	blog("%-6s", name);
 	blog(" %u", percentiles->size);
 	for (uint32_t i = 0; i < percentiles->size; i++) {
 		double p = *(double *) as_vector_get(percentiles, i);

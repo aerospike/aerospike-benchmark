@@ -60,5 +60,6 @@ void blog_detail(as_log_level level, const char* fmt, ...);
 #define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }
 
 
-void print_hdr_percentiles(struct hdr_histogram* h, as_vector* percentiles);
+void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
+		as_vector* percentiles);
 
