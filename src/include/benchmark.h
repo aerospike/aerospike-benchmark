@@ -26,6 +26,7 @@
 #include "aerospike/as_password.h"
 #include "aerospike/as_random.h"
 #include "aerospike/as_record.h"
+#include "hdr_histogram/hdr_histogram.h"
 #include "histogram.h"
 #include "latency.h"
 
@@ -68,6 +69,7 @@ typedef struct arguments_t {
 	bool latency;
 	int latency_columns;
 	int latency_shift;
+	as_vector latency_percentiles;
 	bool latency_histogram;
 	const char* histogram_output;
 	int histogram_period;
@@ -109,6 +111,10 @@ typedef struct clientdata_t {
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
 	latency read_latency;
+
+	struct hdr_histogram * read_hdr;
+	struct hdr_histogram * write_hdr;
+	as_vector latency_percentiles;
 
 	FILE* histogram_output;
 	int histogram_period;
