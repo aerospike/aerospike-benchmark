@@ -20,7 +20,6 @@
  * IN THE SOFTWARE.
  ******************************************************************************/
 #include <stdio.h>
-#include <time.h>
 
 #include <citrusleaf/alloc.h>
 #include <aerospike/as_atomic.h>
@@ -188,16 +187,10 @@ static void
 _print_header(const histogram * h, uint32_t period_duration, uint64_t total_cnt,
 		FILE * out_file)
 {
-	struct tm * utc;
-	time_t t;
-
-	t = time(NULL);
-	utc = gmtime(&t);
-
 	if (h->name != NULL) {
 		fblog(out_file, "%s ", h->name);
 	}
-	fblog(out_file, "%.24s, %us, %lu", asctime(utc), period_duration,
+	fblog(out_file, "%.24s, %us, %lu", utc_time_str(time(NULL)), period_duration,
 			total_cnt);
 }
 
