@@ -40,7 +40,8 @@ ticker_worker(void* udata)
 	histogram* write_histogram = &data->write_histogram;
 	FILE* histogram_output = data->histogram_output;
 	
-	uint64_t prev_time = cf_getus();
+	uint64_t start_time = cf_getus();
+	uint64_t prev_time = start_time;
 	data->period_begin = prev_time;
 
 	if (latency) {
@@ -72,7 +73,9 @@ ticker_worker(void* udata)
 			latency_print_results(write_latency, "write", latency_detail);
 			blog_line("%s", latency_detail);
 
-			print_hdr_percentiles(data->write_hdr, "write", &data->latency_percentiles);
+			uint64_t elapsed_s = (time - start_time) / 1000000;
+			print_hdr_percentiles(data->write_hdr, "write", elapsed_s,
+					&data->latency_percentiles);
 		}
 		
 		if (histogram_output != NULL) {
