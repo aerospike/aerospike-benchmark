@@ -715,7 +715,7 @@ set_args(int argc, char * const * argv, arguments* args)
 		switch (c) {
 			case '9':
 				print_usage(argv[0]);
-				return 1;
+				return -1;
 			case 'h': {
 				free(args->hosts);
 				args->hosts = strdup(optarg);
@@ -1148,6 +1148,9 @@ main(int argc, char * const * argv)
 	if (ret == 0) {
 		print_args(&args);
 		run_benchmark(&args);
+	}
+	else if (ret != -1) {
+		blog_line("Run with --help to for usage information and flag options.");
 	}
 	
 	free(args.hosts);
