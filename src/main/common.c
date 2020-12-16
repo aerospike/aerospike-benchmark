@@ -88,7 +88,7 @@ void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 
 	min = hdr_min(h);
 	max = hdr_max(h);
-	blog("%-5s %.24s %lu, %ld, %ld", name, utc_time_str(time(NULL)),
+	blog("hdr: %-5s %.24s %lu, %ld, %ld", name, utc_time_str(time(NULL)),
 			elapsed_s, min, max);
 	for (uint32_t i = 0; i < percentiles->size; i++) {
 		double p = *(double *) as_vector_get(percentiles, i);
