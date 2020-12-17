@@ -456,7 +456,7 @@ print_args(arguments* args)
 		blog_line("latency:                %d columns, shift exponent %d",
 				args->latency_columns, args->latency_shift);
 
-		blog("latency format:         UTC-time, seconds-running, total, "
+		blog("hdr histogram format:   UTC-time, seconds-running, total, "
 				"min-latency, max-latency, ");
 		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
 			if (i == 0) {

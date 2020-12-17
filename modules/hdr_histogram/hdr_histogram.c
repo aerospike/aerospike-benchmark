@@ -84,10 +84,11 @@ static void update_min_max(struct hdr_histogram* h, int64_t value)
     h->max_value = (value > h->max_value) ? value : h->max_value;
 }
 
-static void update_min_max_atomic(struct hdr_histogram* h, int64_t value)
+void update_min_max_atomic(struct hdr_histogram* h, int64_t value)
 {
     int64_t current_min_value;
     int64_t current_max_value;
+
     do
     {
         //current_min_value = hdr_atomic_load_64(&h->min_value);
@@ -99,7 +100,7 @@ static void update_min_max_atomic(struct hdr_histogram* h, int64_t value)
         }
     }
     //while (!hdr_atomic_compare_exchange_64(&h->min_value, &current_min_value, value));
-	while (!as_cas_int64(&h->min_value, &current_min_value, value));
+	while (!as_cas_int64(&h->min_value, current_min_value, value));
 
     do
     {
@@ -112,7 +113,7 @@ static void update_min_max_atomic(struct hdr_histogram* h, int64_t value)
         }
     }
     //while (!hdr_atomic_compare_exchange_64(&h->max_value, &current_max_value, value));
-	while (!as_cas_int64(&h->max_value, &current_max_value, value));
+	while (!as_cas_int64(&h->max_value, current_max_value, value));
 }
 
 
