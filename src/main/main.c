@@ -1150,7 +1150,7 @@ main(int argc, char * const * argv)
 		run_benchmark(&args);
 	}
 	else if (ret != -1) {
-		blog_line("Run with --help to for usage information and flag options.");
+		blog_line("Run with --help for usage information and flag options.");
 	}
 	
 	free(args.hosts);
