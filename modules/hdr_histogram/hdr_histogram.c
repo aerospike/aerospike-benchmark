@@ -84,7 +84,7 @@ static void update_min_max(struct hdr_histogram* h, int64_t value)
     h->max_value = (value > h->max_value) ? value : h->max_value;
 }
 
-static void update_min_max_atomic(struct hdr_histogram* h, int64_t value)
+void update_min_max_atomic(struct hdr_histogram* h, int64_t value)
 {
     int64_t current_min_value;
     int64_t current_max_value;
