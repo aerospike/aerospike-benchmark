@@ -69,3 +69,32 @@ blog_detail(as_log_level level, const char* fmt, ...)
 	blog_detailv(level, fmt, ap);
 	va_end(ap);
 }
+
+const char* utc_time_str(time_t t)
+{
+	static char buf[73];
+	struct tm * utc = gmtime(&t);
+	snprintf(buf, sizeof(buf),
+			"%4d-%02d-%02dT%02d:%02d:%02dZ",
+			1900 + utc->tm_year, utc->tm_mon + 1, utc->tm_mday,
+			utc->tm_hour, utc->tm_min, utc->tm_sec);
+	return buf;
+}
+
+void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
+		uint64_t elapsed_s, as_vector* percentiles)
+{
+	int64_t min, max;
+
+	min = hdr_min(h);
+	max = hdr_max(h);
+	blog("hdr: %-5s %.24s %lu, %ld, %ld", name, utc_time_str(time(NULL)),
+			elapsed_s, min, max);
+	for (uint32_t i = 0; i < percentiles->size; i++) {
+		double p = *(double *) as_vector_get(percentiles, i);
+		uint64_t cnt = hdr_value_at_percentile(h, p);
+		blog(", %lu", cnt);
+	}
+	blog_line("");
+}
+

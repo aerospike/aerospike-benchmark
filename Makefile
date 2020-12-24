@@ -23,6 +23,7 @@ CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
 DIR_INCLUDE =  $(ROOT)/src/include
+DIR_INCLUDE += $(ROOT)/modules
 DIR_INCLUDE += $(CLIENT_PATH)/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
@@ -89,9 +90,10 @@ AR = ar
 ###############################################################################
 
 MAIN_OBJECT = main.o
-OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o \
-		  swap_buffer.o
-TEST_OBJECTS = histogram_test.o latency_test.o sanity.o setup.o main.o
+OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o
+HDR_OBJECTS = hdr_histogram.o
+TEST_OBJECTS = hdr_histogram_test.o histogram_test.o latency_test.o sanity.o \
+			   setup.o main.o
 
 ###############################################################################
 ##  MAIN TARGETS                                                             ##
@@ -153,13 +155,19 @@ target:
 target/obj: | target
 	mkdir $@
 
+target/obj/hdr_histogram: | target/obj
+	mkdir $@
+
 target/bin: | target
 	mkdir $@
 
 target/obj/%.o: src/main/%.c | target/obj
 	$(CC) $(CFLAGS) -o $@ -c $^ $(INCLUDES)
 
-target/benchmarks: $(addprefix target/obj/,$(MAIN_OBJECT)) $(addprefix target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
+target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogram
+	$(CC) $(CFLAGS) -o $@ -c $^ $(INCLUDES)
+
+target/benchmarks: $(addprefix target/obj/,$(MAIN_OBJECT)) $(addprefix target/obj/,$(OBJECTS)) $(addprefix target/obj/hdr_histogram/,$(HDR_OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 .PHONY: run
@@ -181,13 +189,19 @@ test_target:
 test_target/obj: | test_target
 	mkdir $@ 
 
+test_target/obj/hdr_histogram: | test_target/obj
+	mkdir $@
+
 test_target/obj/%.o: src/test/%.c | test_target/obj
 	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $^
 
 test_target/obj/%.o: src/main/%.c | test_target/obj
 	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $^
 
-test_target/test: $(addprefix test_target/obj/,$(TEST_OBJECTS)) $(addprefix test_target/obj/,$(OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
+	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $^
+
+test_target/test: $(addprefix test_target/obj/,$(TEST_OBJECTS)) $(addprefix test_target/obj/,$(OBJECTS)) $(addprefix test_target/obj/hdr_histogram/,$(HDR_OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
 	$(CC) -fprofile-arcs -coverage -o $@ $^ $(TEST_LDFLAGS)
 
 # Summary requires the lcov tool to be installed

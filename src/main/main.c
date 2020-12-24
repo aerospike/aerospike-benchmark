@@ -35,6 +35,7 @@
 static const char* short_options = "h:p:U:P::n:s:K:k:b:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:u";
 
 static struct option long_options[] = {
+	{"help",                 no_argument,       0, '9'},
 	{"hosts",                required_argument, 0, 'h'},
 	{"port",                 required_argument, 0, 'p'},
 	{"user",                 required_argument, 0, 'U'},
@@ -62,6 +63,7 @@ static struct option long_options[] = {
 	{"maxRetries",           required_argument, 0, 'r'},
 	{"debug",                no_argument,       0, 'd'},
 	{"latency",              required_argument, 0, 'L'},
+	{"percentiles",          required_argument, 0, '8'},
 	{"outputFile",           required_argument, 0, '6'},
 	{"outputPeriod",         required_argument, 0, '7'},
 	{"shared",               no_argument,       0, 'S'},
@@ -96,6 +98,10 @@ print_usage(const char* program)
 {
 	blog_line("Usage: %s <options>", program);
 	blog_line("options:");
+	blog_line("");
+	
+	blog_line("   --help");
+	blog_line("   Prints this message");
 	blog_line("");
 	
 	blog_line("-h --hosts <host1>[:<tlsname1>][:<port1>],...  # Default: localhost");
@@ -243,6 +249,11 @@ print_usage(const char* program)
 	blog_line("   Show transaction latency percentages using elapsed time ranges.");
 	blog_line("   <columns> Number of elapsed time ranges.");
 	blog_line("   <shift>   Power of 2 multiple between each range starting at column 3.");
+	blog_line("");
+
+	blog_line("   --percentiles <p1>[,<p2>[,<p3>...]] # Default: \"50,90,99,99.9,99.99\".");
+	blog_line("   Specified the latency percentiles to display in the cumulative latency");
+	blog_line("   histogram.");
 	blog_line("");
 
 	blog_line("   --outputFile  # Default: stdout");
@@ -444,6 +455,18 @@ print_args(arguments* args)
 	if (args->latency) {
 		blog_line("latency:                %d columns, shift exponent %d",
 				args->latency_columns, args->latency_shift);
+
+		blog("hdr histogram format:   UTC-time, seconds-running, total, "
+				"min-latency, max-latency, ");
+		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
+			if (i == 0) {
+				blog("%g%%", *(double*) as_vector_get(&args->latency_percentiles, i));
+			}
+			else {
+				blog(",%g%%", *(double*) as_vector_get(&args->latency_percentiles, i));
+			}
+		}
+		blog_line("");
 	}
 	else {
 		blog_line("latency:                false");
@@ -633,6 +656,31 @@ validate_args(arguments* args)
 		return 1;
 	}
 
+	if (args->latency) {
+		as_vector * perc = &args->latency_percentiles;
+		if (perc->size == 0) {
+			// silently fail, this can only happen if the user typed in something
+			// invalid as the argument to --percentiles, which would have already
+			// printed an error message
+			return 1;
+		}
+		for (uint32_t i = 0; i < perc->size; i++) {
+			double itm = *(double*) as_vector_get(perc, i);
+			if (itm < 0 || itm >= 100) {
+				blog_line("Invalid percentile \"%f\"\n", itm);
+				return 1;
+			}
+		}
+		for (uint32_t i = 1; i < perc->size; i++) {
+			double l = *(double*) as_vector_get(perc, i - 1);
+			double r = *(double*) as_vector_get(perc, i);
+			if (l >= r) {
+				blog_line("%f >= %f, out of order in percentile list", l, r);
+				return 1;
+			}
+		}
+	}
+
 	if (args->latency_histogram && args->histogram_period <= 0) {
 		blog_line("Invalid histogram period: %ds", args->histogram_period);
 		return 1;
@@ -665,6 +713,9 @@ set_args(int argc, char * const * argv, arguments* args)
 	
 	while ((c = getopt_long(argc, argv, short_options, long_options, &option_index)) != -1) {
 		switch (c) {
+			case '9':
+				print_usage(argv[0]);
+				return -1;
 			case 'h': {
 				free(args->hosts);
 				args->hosts = strdup(optarg);
@@ -837,6 +888,35 @@ set_args(int argc, char * const * argv, arguments* args)
 					args->latency_shift = 3;
 				}
 				free(tmp);
+				break;
+			}
+
+			case '8': {
+				as_vector * perc = &args->latency_percentiles;
+				as_vector_clear(perc);
+				char* _tmp = strdup(optarg);
+				char* tmp = _tmp;
+
+				char prior;
+				char* next_comma;
+				do {
+					next_comma = strchrnul(tmp, ',');
+					prior = *next_comma;
+					*next_comma = '\0';
+					char* endptr;
+					double val = strtod(tmp, &endptr);
+					if (*tmp == '\0' || *endptr != '\0') {
+						blog_line("string \"%s\" is not a floating point number",
+								tmp);
+						// so that when validate_args is called, it will fail
+						as_vector_clear(perc);
+						break;
+					}
+					as_vector_append(perc, (void*) &val);
+
+					tmp = next_comma + 1;
+				} while (prior != '\0');
+				free(_tmp);
 				break;
 			}
 				
@@ -1035,6 +1115,7 @@ main(int argc, char * const * argv)
 	args.latency = false;
 	args.latency_columns = 4;
 	args.latency_shift = 3;
+	as_vector_init(&args.latency_percentiles, sizeof(double), 5);
 	args.latency_histogram = false;
 	args.histogram_output = NULL;
 	args.histogram_period = 1;
@@ -1051,14 +1132,25 @@ main(int argc, char * const * argv)
 	memset(&args.tls, 0, sizeof(as_config_tls));
 	args.auth_mode = AS_AUTH_INTERNAL;
 
+	double p1 = 50.,
+		   p2 = 90.,
+		   p3 = 99.,
+		   p4 = 99.9,
+		   p5 = 99.99;
+	as_vector_append(&args.latency_percentiles, &p1);
+	as_vector_append(&args.latency_percentiles, &p2);
+	as_vector_append(&args.latency_percentiles, &p3);
+	as_vector_append(&args.latency_percentiles, &p4);
+	as_vector_append(&args.latency_percentiles, &p5);
+
 	int ret = set_args(argc, argv, &args);
 	
 	if (ret == 0) {
 		print_args(&args);
 		run_benchmark(&args);
 	}
-	else {
-		print_usage(argv[0]);
+	else if (ret != -1) {
+		blog_line("Run with --help for usage information and flag options.");
 	}
 	
 	free(args.hosts);
