@@ -82,19 +82,21 @@ const char* utc_time_str(time_t t)
 }
 
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
-		uint64_t elapsed_s, as_vector* percentiles)
+		uint64_t elapsed_s, as_vector* percentiles, FILE *out_file)
 {
 	int64_t min, max;
+	int64_t total_cnt;
 
+	total_cnt = hdr_total_count(h);
 	min = hdr_min(h);
 	max = hdr_max(h);
-	blog("hdr: %-5s %.24s %lu, %ld, %ld", name, utc_time_str(time(NULL)),
-			elapsed_s, min, max);
+	fblog(out_file, "hdr: %-5s %.24s %lu, %lu, %ld, %ld", name,
+			utc_time_str(time(NULL)), elapsed_s, total_cnt, min, max);
 	for (uint32_t i = 0; i < percentiles->size; i++) {
 		double p = *(double *) as_vector_get(percentiles, i);
 		uint64_t cnt = hdr_value_at_percentile(h, p);
-		blog(", %lu", cnt);
+		fblog(out_file, ", %lu", cnt);
 	}
-	blog_line("");
+	fblog(out_file, "\n");
 }
 

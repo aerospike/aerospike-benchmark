@@ -85,9 +85,9 @@ ticker_worker(void* udata)
 
 			uint64_t elapsed_s = (time - start_time) / 1000000;
 			print_hdr_percentiles(data->write_hdr, "write", elapsed_s,
-					&data->latency_percentiles);
+					&data->latency_percentiles, stdout);
 			print_hdr_percentiles(data->read_hdr,  "read",  elapsed_s,
-					&data->latency_percentiles);
+					&data->latency_percentiles, stdout);
 		}
 		
 		++gen_count;

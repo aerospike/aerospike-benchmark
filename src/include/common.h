@@ -64,5 +64,5 @@ void blog_detail(as_log_level level, const char* fmt, ...);
 const char* utc_time_str(time_t t);
 
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
-		uint64_t elapsed_s, as_vector* percentiles);
+		uint64_t elapsed_s, as_vector* percentiles, FILE *out_file);
 
