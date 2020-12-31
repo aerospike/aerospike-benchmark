@@ -28,27 +28,30 @@
  */
 
 #include <sys/isa_defs.h>
-# include <sys/byteorder.h>
+#include <sys/byteorder.h>
 
-# define betoh16(x) BE_16(x)
-# define letoh16(x) LE_16(x)
-# define betoh32(x) BE_32(x)
-# define letoh32(x) LE_32(x)
-# define betoh64(x) BE_64(x)
-# define letoh64(x) LE_64(x)
+#define betoh16(x) BE_16(x)
+#define letoh16(x) LE_16(x)
+#define betoh32(x) BE_32(x)
+#define letoh32(x) LE_32(x)
+#define betoh64(x) BE_64(x)
+#define letoh64(x) LE_64(x)
 #define htobe16(x) BE_16(x)
 #define be16toh(x) BE_16(x)
 #define htobe32(x) BE_32(x)
 #define be32toh(x) BE_32(x)
 #define htobe64(x) BE_64(x)
 #define be64toh(x) BE_64(x)
+
 // Solaris defines endian by setting _LITTLE_ENDIAN or _BIG_ENDIAN
-# ifdef _BIG_ENDIAN
-#  define IS_BIG_ENDIAN
-# endif
-# ifdef _LITTLE_ENDIAN
-#  define IS_LITTLE_ENDIAN
-# endif
+#ifdef _BIG_ENDIAN
+# define IS_BIG_ENDIAN
+#endif
+
+#ifdef _LITTLE_ENDIAN
+# define IS_LITTLE_ENDIAN
+#endif
+
 // Make sure we got some kind of endian (but not both)
 #if defined(IS_BIG_ENDIAN) == defined(IS_LITTLE_ENDIAN)
 # error "Failed to get endian type for this system"
@@ -97,5 +100,5 @@
 #  define LE_16(x) (x)
 #  define LE_32(x) (x)
 #  define LE_64(x) (x)
-#endif
+# endif
 #endif
