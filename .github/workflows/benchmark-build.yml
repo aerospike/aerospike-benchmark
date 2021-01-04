@@ -24,7 +24,7 @@ jobs:
         cache-name: libcheck
       with:
         path: check-0.15.2
-        key: check-0.15.2-test
+        key: check-0.15.2-test2
     # - name: Setup tmate session
     #   uses: mxschmitt/action-tmate@v3.1
     - name: Build libcheck
@@ -69,10 +69,11 @@ jobs:
       run: |
         rm -rf client
         rm -rf main/target
-        rm -rf check-0.15.2
-        mv main/* .
+        #rm -rf check-0.15.2
+        #mv main/* .
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1.0.15
       with:
+        files: ./main/test_target/aerospike-benchmark.info
         verbose: false
 
