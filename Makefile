@@ -138,13 +138,6 @@ target/libbench.a: $(addprefix target/obj/,$(OBJECTS))
 	$(AR) -rcs $@ $^
 
 
-#.PHONY: test
-#test: archive | target/obj target/bin
-#	(make -C $(ROOT)/src/test OBJECT_DIR=$(ROOT)/target/obj TARGET_DIR=$(ROOT)/target/bin \
-#		CC=$(CC) CFLAGS="$(CFLAGS)" INCLUDES="$(INCLUDES)" \
-#		LIBS="$(ROOT)/target/libbench.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a" \
-#		LDFLAGS="$(LDFLAGS)" CLIENTREPO="$(CLIENTREPO)")
-
 .PHONY: clean
 clean:
 	@rm -rf target test_target
