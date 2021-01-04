@@ -24,7 +24,7 @@ jobs:
         cache-name: libcheck
       with:
         path: check-0.15.2
-        key: check-0.15.2
+        key: check-0.15.2-test
     # - name: Setup tmate session
     #   uses: mxschmitt/action-tmate@v3.1
     - name: Build libcheck
