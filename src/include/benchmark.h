@@ -70,6 +70,7 @@ typedef struct arguments_t {
 	int latency_columns;
 	int latency_shift;
 	as_vector latency_percentiles;
+	const char* hdr_output;
 	bool latency_histogram;
 	const char* histogram_output;
 	int histogram_period;
@@ -115,6 +116,7 @@ typedef struct clientdata_t {
 	struct hdr_histogram * read_hdr;
 	struct hdr_histogram * write_hdr;
 	as_vector latency_percentiles;
+	FILE* hdr_output;
 
 	FILE* histogram_output;
 	int histogram_period;
