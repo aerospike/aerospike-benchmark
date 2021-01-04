@@ -38,6 +38,7 @@ jobs:
     - name: install libcheck
       run: |
         ls
+        pwd
         cd check-0.15.2
         sudo make install
         sudo ldconfig
