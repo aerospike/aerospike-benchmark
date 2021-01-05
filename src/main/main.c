@@ -66,6 +66,7 @@ static struct option long_options[] = {
 	{"percentiles",          required_argument, 0, '8'},
 	{"outputFile",           required_argument, 0, '6'},
 	{"outputPeriod",         required_argument, 0, '7'},
+	{"hdrHist",              required_argument, 0, '/'},
 	{"shared",               no_argument,       0, 'S'},
 	{"replica",              required_argument, 0, 'C'},
 	{"readModeAP",           required_argument, 0, 'N'},
@@ -266,6 +267,11 @@ print_usage(const char* program)
 	blog_line("   --outputPeriod  # Default: 1s");
 	blog_line("   Specifies the period between successive snapshots of the periodic");
 	blog_line("   latency histogram.");
+	blog_line("");
+
+	blog_line("   --hdrHist=<path/to/output>  # Default: off");
+	blog_line("   Enables the cumulative HDR histogram and specifies the directory to");
+	blog_line("   dump the cumulative HDR histogram summary.");
 	blog_line("");
 	
 	blog_line("-S --shared          # Default: false");
@@ -480,6 +486,14 @@ print_args(arguments* args)
 	}
 	else {
 		blog_line("latency histogram:      false");
+	}
+
+	if (args->hdr_output) {
+		blog_line("cumulative HDR hist:    true");
+		blog_line("cumulative HDR output:  %s", args->hdr_output);
+	}
+	else {
+		blog_line("cumulative HDR hist:    false");
 	}
 	
 	blog_line("shared memory:          %s", boolstring(args->use_shm));
@@ -922,12 +936,17 @@ set_args(int argc, char * const * argv, arguments* args)
 				
 			case '6': {
 				args->latency_histogram = true;
-				args->histogram_output = optarg;
+				args->histogram_output = strdup(optarg);
 				break;
 			}
 				
 			case '7': {
 				args->histogram_period = atoi(optarg);
+				break;
+			}
+				
+			case '/': {
+				args->hdr_output = strdup(optarg);
 				break;
 			}
 				
@@ -1119,6 +1138,7 @@ main(int argc, char * const * argv)
 	args.latency_histogram = false;
 	args.histogram_output = NULL;
 	args.histogram_period = 1;
+	args.hdr_output = NULL;
 	args.use_shm = false;
 	args.replica = AS_POLICY_REPLICA_SEQUENCE;
 	args.read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;
@@ -1144,7 +1164,7 @@ main(int argc, char * const * argv)
 	as_vector_append(&args.latency_percentiles, &p5);
 
 	int ret = set_args(argc, argv, &args);
-	
+
 	if (ret == 0) {
 		print_args(&args);
 		run_benchmark(&args);
@@ -1152,7 +1172,15 @@ main(int argc, char * const * argv)
 	else if (ret != -1) {
 		blog_line("Run with --help for usage information and flag options.");
 	}
-	
+
+	if (args.hdr_output) {
+		free(args.hdr_output);
+	}
+	if (args.histogram_output) {
+		free(args.histogram_output);
+	}
+	as_vector_destroy(&args.latency_percentiles);
+
 	free(args.hosts);
 	return ret;
 }

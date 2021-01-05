@@ -70,10 +70,10 @@ typedef struct arguments_t {
 	int latency_columns;
 	int latency_shift;
 	as_vector latency_percentiles;
-	const char* hdr_output;
 	bool latency_histogram;
-	const char* histogram_output;
+	char* histogram_output;
 	int histogram_period;
+	char* hdr_output;
 	bool use_shm;
 	as_policy_replica replica;
 	as_policy_read_mode_ap read_mode_ap;
@@ -113,15 +113,19 @@ typedef struct clientdata_t {
 	uint32_t read_error_count;
 	latency read_latency;
 
-	struct hdr_histogram * read_hdr;
-	struct hdr_histogram * write_hdr;
+	struct hdr_histogram* read_hdr;
+	struct hdr_histogram* write_hdr;
 	as_vector latency_percentiles;
-	FILE* hdr_output;
 
 	FILE* histogram_output;
 	int histogram_period;
 	histogram write_histogram;
 	histogram read_histogram;
+
+	FILE* hdr_write_output;
+	FILE* hdr_read_output;
+	struct hdr_histogram* summary_read_hdr;
+	struct hdr_histogram* summary_write_hdr;
 
 	uint32_t tdata_count;
 	uint32_t valid;

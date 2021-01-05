@@ -383,6 +383,9 @@ write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key)
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->write_histogram, end - begin);
 			}
+			if (cdata->hdr_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_write_hdr, end - begin);
+			}
 			return true;
 		}
 	}
@@ -435,6 +438,9 @@ read_record_sync(clientdata* cdata, threaddata* tdata)
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - begin);
+			}
+			if (cdata->hdr_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_read_hdr, end - begin);
 			}
 			as_record_destroy(rec);
 			return status;
@@ -496,6 +502,9 @@ batch_record_sync(clientdata* cdata, threaddata* tdata)
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - begin);
+			}
+			if (cdata->hdr_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_read_hdr, end - begin);
 			}
 			as_batch_read_destroy(records);
 			return status;
@@ -579,6 +588,9 @@ linear_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->write_histogram, end - tdata->begin);
+			}
+			if (cdata->hdr_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_write_hdr, end - tdata->begin);
 			}
 		}
 		as_incr_uint32(&cdata->write_count);
@@ -706,6 +718,9 @@ random_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->write_histogram, end - tdata->begin);
 			}
+			if (cdata->hdr_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_write_hdr, end - tdata->begin);
+			}
 		}
 		as_incr_uint32(&cdata->write_count);
 	}
@@ -742,6 +757,9 @@ random_read_listener(as_error* err, as_record* rec, void* udata, as_event_loop* 
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - tdata->begin);
 			}
+			if (cdata->hdr_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_read_hdr, end - tdata->begin);
+			}
 		}
 		as_incr_uint32(&cdata->read_count);
 	}
@@ -777,6 +795,9 @@ random_batch_listener(as_error* err, as_batch_read_records* records, void* udata
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - tdata->begin);
+			}
+			if (cdata->hdr_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_read_hdr, end - tdata->begin);
 			}
 		}
 		as_incr_uint32(&cdata->read_count);

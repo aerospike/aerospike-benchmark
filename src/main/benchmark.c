@@ -27,6 +27,9 @@
 #include "aerospike/as_log.h"
 #include "aerospike/as_monitor.h"
 #include "aerospike/as_random.h"
+#include "aerospike/as_string_builder.h"
+#include <hdr_histogram/hdr_time.h>
+#include <hdr_histogram/hdr_histogram_log.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -241,6 +244,11 @@ run_benchmark(arguments* args)
 	data.async_max_commands = args->async_max_commands;
 	data.fixed_value = NULL;
 
+	// set to 0 when any step in initialization fails
+	int valid = 1;
+	time_t start_time;
+	hdr_timespec start_timespec;
+
 	if (args->debug) {
 		as_log_set_level(AS_LOG_LEVEL_DEBUG);
 	}
@@ -287,6 +295,12 @@ run_benchmark(arguments* args)
 	
 	if (args->latency_histogram) {
 		data.histogram_output = fopen(args->histogram_output, "a");
+		if (!data.histogram_output) {
+			fprintf(stderr, "Unable to open %s in append mode\n",
+					args->histogram_output);
+			valid = 0;
+			// follow through with initialization, so cleanup won't segfault
+		}
 
 		histogram_init(&data.write_histogram, 3, 100, (rangespec_t[]) {
 				{ .upper_bound = 4000,   .bucket_width = 100  },
@@ -309,26 +323,113 @@ run_benchmark(arguments* args)
 		data.histogram_period = args->histogram_period;
 
 	}
+	
+	if (args->hdr_output) {
+		const static char write_output_prefix[] = "/write_";
+		const static char read_output_prefix[] = "/read_";
+		const static char output_suffix[] = ".hdrhist";
+
+		start_time = time(NULL);
+		const char* utc_time = utc_time_str(start_time);
+
+		size_t prefix_len = strlen(args->hdr_output);
+		size_t write_output_size =
+			prefix_len + (sizeof(write_output_prefix) - 1) +
+			UTC_STR_LEN + (sizeof(output_suffix) - 1) + 1;
+
+		as_string_builder write_output_b;
+		as_string_builder_inita(&write_output_b, write_output_size, false);
+
+		as_string_builder_append(&write_output_b, args->hdr_output);
+		as_string_builder_append(&write_output_b, write_output_prefix);
+		as_string_builder_append(&write_output_b, utc_time);
+		as_string_builder_append(&write_output_b, output_suffix);
+
+		data.hdr_write_output = fopen(write_output_b.data, "a");
+		if (!data.hdr_write_output) {
+			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+					write_output_b.data, strerror(errno));
+			valid = 0;
+		}
+
+		hdr_init(1, 1000000, 3, &data.summary_write_hdr);
+
+		if (! args->init) {
+			size_t read_output_size =
+				prefix_len + (sizeof(read_output_prefix) - 1) +
+				UTC_STR_LEN + (sizeof(output_suffix) - 1) + 1;
+
+			as_string_builder read_output_b;
+			as_string_builder_inita(&read_output_b, read_output_size, false);
+
+			as_string_builder_append(&read_output_b, args->hdr_output);
+			as_string_builder_append(&read_output_b, read_output_prefix);
+			as_string_builder_append(&read_output_b, utc_time);
+			as_string_builder_append(&read_output_b, output_suffix);
+
+			data.hdr_read_output = fopen(read_output_b.data, "a");
+			if (!data.hdr_read_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						read_output_b.data, strerror(errno));
+				valid = 0;
+			}
+
+			hdr_init(1, 1000000, 3, &data.summary_read_hdr);
+		}
+
+		hdr_gettime(&start_timespec);
+	}
 
 	data.key_start = args->start_key;
 	data.key_count = 0;
 
-	if (args->init) {
-		data.n_keys = (uint64_t)((double)args->keys / 100.0 * args->init_pct + 0.5);
-		ret = linear_write(&data);
+	if (valid) {
+		if (args->init) {
+			data.n_keys = (uint64_t)((double)args->keys / 100.0 * args->init_pct + 0.5);
+			ret = linear_write(&data);
+		}
+		else {
+			data.n_keys = args->keys;
+			ret = random_read_write(&data);
+		}
+
+		// now record summary HDR hist if enabled
+		if (args->hdr_output) {
+			hdr_timespec end_timespec;
+			hdr_gettime(&end_timespec);
+
+			struct hdr_log_writer writer;
+			hdr_log_writer_init(&writer);
+
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+			// don't worry, will be initialized (would have to make args const
+			// to suppress)
+			const char* utc_time = utc_time_str(start_time);
+#pragma GCC diagnostic pop
+			hdr_log_write_header(&writer, data.hdr_write_output,
+					utc_time, &start_timespec);
+
+			hdr_log_write(&writer, data.hdr_write_output,
+					&start_timespec, &end_timespec, data.summary_write_hdr);
+			if (! args->init) {
+				hdr_log_write_header(&writer, data.hdr_read_output,
+						utc_time, &start_timespec);
+
+				hdr_log_write(&writer, data.hdr_read_output,
+						&start_timespec, &end_timespec, data.summary_read_hdr);
+			}
+		}
 	}
-	else {
-		data.n_keys = args->keys;
-		ret = random_read_write(&data);
-	}
-	
-	if (! args->random) {
+
+	if (!args->random) {
 		as_val_destroy(data.fixed_value);
 	}
 
 	if (args->latency) {
 		latency_free(&data.write_latency);
 		hdr_close(data.write_hdr);
+
+		as_vector_destroy(&data.latency_percentiles);
 
 		if (! args->init) {
 			latency_free(&data.read_latency);
