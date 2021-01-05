@@ -178,7 +178,7 @@ START_TEST(log_header_timestamp)
 
 	hdr_log_read_header(&reader, tmp_file);
 	ck_assert_float_eq_tol(hdr_timespec_as_double(&start_timespec),
-			hdr_timespec_as_double(&reader.start_timestamp), 0.0001);
+			hdr_timespec_as_double(&reader.start_timestamp), 0.001);
 }
 END_TEST
 
