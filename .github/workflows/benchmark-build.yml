@@ -27,7 +27,7 @@ jobs:
         key: check-0.15.2-${{ runner.os }}
     - name: Build libcheck
       id: build-libcheck
-      if: steps.cache-libcheck.outputs.cache-hit != 'test'
+      if: steps.cache-libcheck.outputs.cache-hit != 'true'
       run: |
         tar xvfz check-0.15.2.tar.gz && cd check-0.15.2
         ./configure
