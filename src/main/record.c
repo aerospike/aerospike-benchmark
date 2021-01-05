@@ -369,7 +369,8 @@ write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key)
 	as_status status;
 	as_error err;
 	
-	if (cdata->latency || cdata->histogram_output != NULL) {
+	if (cdata->latency || cdata->histogram_output != NULL ||
+			cdata->hdr_write_output != NULL) {
 		uint64_t begin = cf_getus();
 		status = aerospike_key_put(&cdata->client, &err, 0, &tdata->key, &tdata->rec);
 		uint64_t end = cf_getus();
@@ -424,7 +425,8 @@ read_record_sync(clientdata* cdata, threaddata* tdata)
 	as_status status;
 	as_error err;
 	
-	if (cdata->latency || cdata->histogram_output != NULL) {
+	if (cdata->latency || cdata->histogram_output != NULL ||
+			cdata->hdr_read_output != NULL) {
 		uint64_t begin = cf_getus();
 		status = aerospike_key_get(&cdata->client, &err, 0, &key, &rec);
 		uint64_t end = cf_getus();
@@ -489,7 +491,8 @@ batch_record_sync(clientdata* cdata, threaddata* tdata)
 	as_status status;
 	as_error err;
 	
-	if (cdata->latency || cdata->histogram_output != NULL) {
+	if (cdata->latency || cdata->histogram_output != NULL ||
+			cdata->hdr_read_output != NULL) {
 		uint64_t begin = cf_getus();
 		status = aerospike_batch_read(&cdata->client, &err, NULL, records);
 		uint64_t end = cf_getus();
@@ -580,7 +583,8 @@ linear_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	clientdata* cdata = tdata->cdata;
 
 	if (!err) {
-		if (cdata->latency || cdata->histogram_output != NULL) {
+		if (cdata->latency || cdata->histogram_output != NULL ||
+				cdata->hdr_write_output != NULL) {
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->write_latency, (end - tdata->begin) / 1000);
@@ -709,7 +713,8 @@ random_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	clientdata* cdata = tdata->cdata;
 	
 	if (!err) {
-		if (cdata->latency || cdata->histogram_output != NULL) {
+		if (cdata->latency || cdata->histogram_output != NULL ||
+				cdata->hdr_write_output != NULL) {
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->write_latency, (end - tdata->begin) / 1000);
@@ -748,7 +753,8 @@ random_read_listener(as_error* err, as_record* rec, void* udata, as_event_loop* 
 	clientdata* cdata = tdata->cdata;
 	
 	if (!err || err->code == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
-		if (cdata->latency || cdata->histogram_output != NULL) {
+		if (cdata->latency || cdata->histogram_output != NULL ||
+				cdata->hdr_read_output != NULL) {
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->read_latency, (end - tdata->begin) / 1000);
@@ -787,7 +793,8 @@ random_batch_listener(as_error* err, as_batch_read_records* records, void* udata
 	clientdata* cdata = tdata->cdata;
 	
 	if (!err) {
-		if (cdata->latency || cdata->histogram_output != NULL) {
+		if (cdata->latency || cdata->histogram_output != NULL ||
+				cdata->hdr_read_output != NULL) {
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->read_latency, (end - tdata->begin) / 1000);

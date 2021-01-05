@@ -352,6 +352,8 @@ run_benchmark(arguments* args)
 			valid = 0;
 		}
 
+		as_string_builder_destroy(&write_output_b);
+
 		hdr_init(1, 1000000, 3, &data.summary_write_hdr);
 
 		if (! args->init) {
@@ -373,6 +375,8 @@ run_benchmark(arguments* args)
 						read_output_b.data, strerror(errno));
 				valid = 0;
 			}
+
+			as_string_builder_destroy(&read_output_b);
 
 			hdr_init(1, 1000000, 3, &data.summary_read_hdr);
 		}
@@ -411,12 +415,16 @@ run_benchmark(arguments* args)
 
 			hdr_log_write(&writer, data.hdr_write_output,
 					&start_timespec, &end_timespec, data.summary_write_hdr);
+			fclose(data.hdr_write_output);
+
 			if (! args->init) {
 				hdr_log_write_header(&writer, data.hdr_read_output,
 						utc_time, &start_timespec);
 
 				hdr_log_write(&writer, data.hdr_read_output,
 						&start_timespec, &end_timespec, data.summary_read_hdr);
+				printf("total num entries: %lu\n", hdr_total_count(data.summary_read_hdr));
+				fclose(data.hdr_read_output);
 			}
 		}
 	}
