@@ -6,6 +6,8 @@
 
 #include "hdr_time.h"
 
+#include <stdint.h>
+
 #if defined(_WIN32) || defined(_WIN64)
 
 #if !defined(WIN32_LEAN_AND_MEAN)
@@ -87,8 +89,8 @@ double hdr_timespec_as_double(const hdr_timespec* t)
 
 void hdr_timespec_from_double(hdr_timespec* t, double value)
 {
-    int seconds = (int) value;
-    int milliseconds = (int) round((value - seconds) * 1000);
+    int64_t seconds = (int64_t) value;
+    int64_t milliseconds = (int64_t) round((value - seconds) * 1000);
 
     t->tv_sec = seconds;
     t->tv_nsec = milliseconds * 1000000;
