@@ -340,7 +340,7 @@ free_histograms(clientdata* data, arguments* args)
 
 		as_vector_destroy(&data->latency_percentiles);
 
-		if (! args->init) {
+		if (!args->init) {
 			latency_free(&data->read_latency);
 			hdr_close(data->read_hdr);
 		}
@@ -349,11 +349,25 @@ free_histograms(clientdata* data, arguments* args)
 	if (args->latency_histogram) {
 		histogram_free(&data->write_histogram);
 		
-		if (! args->init) {
+		if (!args->init) {
 			histogram_free(&data->read_histogram);
 		}
 
 		fclose(data->histogram_output);
+	}
+
+	if (args->hdr_output) {
+		hdr_close(data->summary_write_hdr);
+		if (data->hdr_write_output) {
+			fclose(data->hdr_write_output);
+		}
+
+		if (!args->init) {
+			hdr_close(data->summary_read_hdr);
+			if (data->hdr_read_output) {
+				fclose(data->hdr_read_output);
+			}
+		}
 	}
 }
 
@@ -375,7 +389,6 @@ record_summary_data(clientdata* data, arguments* args, time_t start_time,
 
 		hdr_log_write(&writer, data->hdr_write_output,
 				start_timespec, &end_timespec, data->summary_write_hdr);
-		fclose(data->hdr_write_output);
 
 		if (! args->init) {
 			hdr_log_write_header(&writer, data->hdr_read_output,
@@ -383,7 +396,6 @@ record_summary_data(clientdata* data, arguments* args, time_t start_time,
 
 			hdr_log_write(&writer, data->hdr_read_output,
 					start_timespec, &end_timespec, data->summary_read_hdr);
-			fclose(data->hdr_read_output);
 		}
 	}
 }
