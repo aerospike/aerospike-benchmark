@@ -92,8 +92,8 @@ AR = ar
 MAIN_OBJECT = main.o
 OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o
 HDR_OBJECTS = hdr_histogram.o hdr_histogram_log.o hdr_encoding.o hdr_time.o
-TEST_OBJECTS = hdr_histogram_test.o histogram_test.o latency_test.o sanity.o \
-			   setup.o main.o
+TEST_OBJECTS = hdr_histogram_test.o hdr_histogram_log_test.o histogram_test.o \
+			   latency_test.o sanity.o setup.o main.o
 
 ###############################################################################
 ##  MAIN TARGETS                                                             ##

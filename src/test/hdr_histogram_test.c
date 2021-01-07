@@ -927,6 +927,7 @@ START_TEST(test_recording_concurrently)
 
     ck_assert(compare_histograms(expected_histogram, actual_histogram) == 0);
 }
+END_TEST
 
 
 Suite*
