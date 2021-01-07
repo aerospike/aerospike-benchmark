@@ -45,7 +45,7 @@ START_TEST(test_create)
     ck_assert_msg(h != NULL, "Failed to allocate hdr_histogram");
     ck_assert_msg(h->counts_len == 23552, "Incorrect array length");
 
-    free(h);
+    hdr_close(h);
 }
 END_TEST
 
@@ -184,9 +184,8 @@ basic_setup(void)
 static void
 basic_teardown(void)
 {
-	//histogram_free(&hist);
-	free(raw_histogram);
-	free(cor_histogram);
+	hdr_close(raw_histogram);
+	hdr_close(cor_histogram);
 	raw_histogram = NULL;
 	cor_histogram = NULL;
 }
@@ -458,11 +457,10 @@ scaled_setup(void)
 static void
 scaled_teardown(void)
 {
-	//histogram_free(&hist);
-	free(raw_histogram);
-	free(cor_histogram);
-	free(scaled_raw_histogram);
-	free(scaled_cor_histogram);
+	hdr_close(raw_histogram);
+	hdr_close(cor_histogram);
+	hdr_close(scaled_raw_histogram);
+	hdr_close(scaled_cor_histogram);
 	raw_histogram = NULL;
 	cor_histogram = NULL;
 	scaled_raw_histogram = NULL;
@@ -536,11 +534,10 @@ atomic_setup(void)
 static void
 atomic_teardown(void)
 {
-	//histogram_free(&hist);
-	free(raw_histogram);
-	free(cor_histogram);
-	free(scaled_raw_histogram);
-	free(scaled_cor_histogram);
+	hdr_close(raw_histogram);
+	hdr_close(cor_histogram);
+	hdr_close(scaled_raw_histogram);
+	hdr_close(scaled_cor_histogram);
 	raw_histogram = NULL;
 	cor_histogram = NULL;
 	scaled_raw_histogram = NULL;

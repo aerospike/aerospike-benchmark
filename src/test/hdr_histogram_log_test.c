@@ -167,8 +167,8 @@ encode_setup(void)
 static void
 encode_teardown(void)
 {
-	free(raw_histogram);
-	free(cor_histogram);
+	hdr_close(raw_histogram);
+	hdr_close(cor_histogram);
 }
 
 
@@ -181,8 +181,6 @@ START_TEST(test_encode_and_decode_empty)
 	int rc = 0;
 	size_t encoded_len;
 	size_t decoded_len;
-
-	free(raw_histogram);
 
 	ck_assert_msg(hdr_init(1, 1000000, 1, &raw_histogram) == 0,
 			"allocation should be valid");
@@ -603,7 +601,7 @@ START_TEST(log_reader_aggregates_into_single_histogram)
 
 	fclose(log_file);
 	remove(file_name);
-	free(histogram);
+	hdr_close(histogram);
 }
 END_TEST
 
@@ -649,8 +647,8 @@ START_TEST(test_encode_decode_empty)
 	ck_assert_msg(hdr_log_decode(&hdr_new, data, strlen(data)) == 0,
 			"Failed to decode histogram data");
 	compare_histogram(histogram, hdr_new);
-	free(histogram);
-	free(hdr_new);
+	hdr_close(histogram);
+	hdr_close(hdr_new);
 	free(data);
 }
 END_TEST
@@ -737,7 +735,7 @@ START_TEST(decode_v1_log)
 		dropped = hdr_add(accum, h);
 		ck_assert_msg(dropped == 0, "Dropped events");
 
-		free(h);
+		hdr_close(h);
 		h = NULL;
 	}
 
@@ -787,7 +785,7 @@ START_TEST(decode_v2_log)
 		dropped = hdr_add(accum, h);
 		ck_assert_msg(dropped == 0, "Dropped events");
 
-		free(h);
+		hdr_close(h);
 		h = NULL;
 	}
 
@@ -840,7 +838,7 @@ START_TEST(decode_v3_log)
 		dropped = hdr_add(accum, h);
 		ck_assert_msg(dropped == 0, "Dropped events");
 
-		free(h);
+		hdr_close(h);
 		h = NULL;
 	}
 
@@ -927,7 +925,7 @@ START_TEST(decode_v0_log)
 		dropped = hdr_add(accum, h);
 		ck_assert_msg(dropped == 0, "Dropped events");
 
-		free(h);
+		hdr_close(h);
 		h = NULL;
 	}
 
