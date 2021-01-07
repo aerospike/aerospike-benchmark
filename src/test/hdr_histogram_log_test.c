@@ -944,6 +944,179 @@ START_TEST(decode_v0_log)
 END_TEST
 
 
+START_TEST(test_zz_encode_1_byte)
+{
+	int64_t val, dval;
+	uint8_t buf[9];
+
+	// go through every value that encodes to just 1 byte
+	for (val = ~0x3f; val <= 0x3f; val++) {
+		ck_assert_int_eq(zig_zag_encode_i64(buf, val), 1);
+
+		ck_assert_int_eq(zig_zag_decode_i64(buf, &dval), 1);
+		ck_assert_int_eq(val, dval);
+	}
+}
+
+
+START_TEST(test_zz_encode_2_bytes)
+{
+	int64_t val, dval;
+	uint8_t buf[9];
+
+	// cycle through a bunch of values which encode to 2 bytes, incrementing
+	// by phi*(2^6) to hit many different combinations of first and second byte
+	for (val = ~0x1fff; val <= 0x1fff; val += 0x27) {
+		if (((val ^ (val >> 63)) & 0x1fc0) == 0) {
+			continue;
+		}
+		ck_assert_int_eq(zig_zag_encode_i64(buf, val), 2);
+
+		ck_assert_int_eq(zig_zag_decode_i64(buf, &dval), 2);
+		ck_assert_int_eq(val, dval);
+	}
+}
+
+
+START_TEST(test_zz_encode_3_bytes)
+{
+	int64_t val, dval;
+	uint8_t buf[9];
+
+	// cycle through a bunch of values which encode to 3 bytes, incrementing
+	// by phi*(2^13) to hit many different combinations of first and second byte
+	for (val = ~0xfffff; val <= 0xfffff; val += 0x13c7) {
+		if (((val ^ (val >> 63)) & 0xfe000) == 0) {
+			continue;
+		}
+		ck_assert_int_eq(zig_zag_encode_i64(buf, val), 3);
+
+		ck_assert_int_eq(zig_zag_decode_i64(buf, &dval), 3);
+		ck_assert_int_eq(val, dval);
+	}
+}
+
+
+START_TEST(test_zz_encode_4_bytes)
+{
+	int64_t val, dval;
+	uint8_t buf[9];
+
+	// cycle through a bunch of values which encode to 4 bytes, incrementing
+	// by phi*(2^20) to hit many different combinations of first and second byte
+	for (val = ~0x7ffffff; val <= 0x7ffffff; val += 0x9e377) {
+		if (((val ^ (val >> 63)) & 0x7f00000) == 0) {
+			continue;
+		}
+		ck_assert_int_eq(zig_zag_encode_i64(buf, val), 4);
+
+		ck_assert_int_eq(zig_zag_decode_i64(buf, &dval), 4);
+		ck_assert_int_eq(val, dval);
+	}
+}
+
+
+START_TEST(test_zz_encode_5_bytes)
+{
+	int64_t val, dval;
+	uint8_t buf[9];
+
+	// cycle through a bunch of values which encode to 4 bytes, incrementing
+	// by phi*(2^27) to hit many different combinations of first and second byte
+	for (val = ~0x3ffffffffl; val <= 0x3ffffffffl; val += 0x4f1bbcd) {
+		if (((val ^ (val >> 63)) & 0x3f8000000l) == 0) {
+			continue;
+		}
+		ck_assert_int_eq(zig_zag_encode_i64(buf, val), 5);
+
+		ck_assert_int_eq(zig_zag_decode_i64(buf, &dval), 5);
+		ck_assert_int_eq(val, dval);
+	}
+}
+
+
+START_TEST(test_zz_encode_6_bytes)
+{
+	int64_t val, dval;
+	uint8_t buf[9];
+
+	// cycle through a bunch of values which encode to 4 bytes, incrementing
+	// by phi*(2^34) to hit many different combinations of first and second byte
+	for (val = ~0x1ffffffffffl; val <= 0x1ffffffffffl; val += 0x278dde6e5l) {
+		if (((val ^ (val >> 63)) & 0x1fc00000000l) == 0) {
+			continue;
+		}
+		ck_assert_int_eq(zig_zag_encode_i64(buf, val), 6);
+
+		ck_assert_int_eq(zig_zag_decode_i64(buf, &dval), 6);
+		ck_assert_int_eq(val, dval);
+	}
+}
+
+
+START_TEST(test_zz_encode_7_bytes)
+{
+	int64_t val, dval;
+	uint8_t buf[9];
+
+	// cycle through a bunch of values which encode to 4 bytes, incrementing
+	// by phi*(2^41) to hit many different combinations of first and second byte
+	for (val = ~0xffffffffffffl; val <= 0xffffffffffffl; val += 0x13c6ef372ffl) {
+		if (((val ^ (val >> 63)) & 0xfe0000000000l) == 0) {
+			continue;
+		}
+		ck_assert_int_eq(zig_zag_encode_i64(buf, val), 7);
+
+		ck_assert_int_eq(zig_zag_decode_i64(buf, &dval), 7);
+		ck_assert_int_eq(val, dval);
+	}
+}
+
+
+START_TEST(test_zz_encode_8_bytes)
+{
+	int64_t val, dval;
+	uint8_t buf[9];
+
+	// cycle through a bunch of values which encode to 4 bytes, incrementing
+	// by phi*(2^48) to hit many different combinations of first and second byte
+	for (val = ~0x7fffffffffffffl; val <= 0x7fffffffffffffl; val += 0x9e3779b97f4bl) {
+		if (((val ^ (val >> 63)) & 0x7f000000000000l) == 0) {
+			continue;
+		}
+		ck_assert_int_eq(zig_zag_encode_i64(buf, val), 8);
+
+		ck_assert_int_eq(zig_zag_decode_i64(buf, &dval), 8);
+		ck_assert_int_eq(val, dval);
+	}
+}
+
+
+START_TEST(test_zz_encode_9_bytes)
+{
+	int64_t val, dval;
+	uint8_t buf[9];
+
+	// cycle through a bunch of values which encode to 4 bytes, incrementing
+	// by phi*(2^55) to hit many different combinations of first and second byte
+	for (val = ~0x7fffffffffffffffl; val <= 0x7fffffffffffffffl;) {
+		if (((val ^ (val >> 63)) & 0x7f80000000000000l) != 0) {
+			ck_assert_int_eq(zig_zag_encode_i64(buf, val), 9);
+
+			ck_assert_int_eq(zig_zag_decode_i64(buf, &dval), 9);
+			ck_assert_int_eq(val, dval);
+		}
+
+		int64_t next_val = val + 0x4f1bbcdcbfa53fl;
+		if ((next_val & (~val)) >> 63) {
+			// when next_val overflows (i.e. goes negative), then we are done
+			break;
+		}
+		val = next_val;
+	}
+}
+
+
 Suite*
 hdr_histogram_log_suite(void)
 {
@@ -955,6 +1128,7 @@ hdr_histogram_log_suite(void)
 	TCase* tc_string_encode;
 	TCase* tc_decode_log;
 	TCase* tc_encode_empty;
+	TCase* tc_zz_encode;
 
 	s = suite_create("HDR Histogram Log");
 
@@ -1012,6 +1186,19 @@ hdr_histogram_log_suite(void)
 	tc_encode_empty = tcase_create("Encode/decode empty");
 	tcase_add_test(tc_encode_empty, test_encode_and_decode_empty);
 	suite_add_tcase(s, tc_encode_empty);
+
+	/* zig-zag encode/decode test */
+	tc_zz_encode = tcase_create("Zig-Zag encode/decode");
+	tcase_add_test(tc_zz_encode, test_zz_encode_1_byte);
+	tcase_add_test(tc_zz_encode, test_zz_encode_2_bytes);
+	tcase_add_test(tc_zz_encode, test_zz_encode_3_bytes);
+	tcase_add_test(tc_zz_encode, test_zz_encode_4_bytes);
+	tcase_add_test(tc_zz_encode, test_zz_encode_5_bytes);
+	tcase_add_test(tc_zz_encode, test_zz_encode_6_bytes);
+	tcase_add_test(tc_zz_encode, test_zz_encode_7_bytes);
+	tcase_add_test(tc_zz_encode, test_zz_encode_8_bytes);
+	tcase_add_test(tc_zz_encode, test_zz_encode_9_bytes);
+	suite_add_tcase(s, tc_zz_encode);
 
 	return s;
 }
