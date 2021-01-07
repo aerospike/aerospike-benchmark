@@ -347,7 +347,7 @@ static void assert_base64_encode(const char* input, const char* expected)
 
 	int r = hdr_base64_encode((uint8_t*)input, input_len, output, output_len);
 	ck_assert(r == 0);
-	ck_assert_str_eq(expected, output);
+	ck_assert_mem_eq(expected, output, output_len);
 
 	free(output);
 }
