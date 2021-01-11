@@ -97,8 +97,8 @@ _TEST_OBJECTS = hdr_histogram_test.o hdr_histogram_log_test.o histogram_test.o \
 
 MAIN_OBJECT = $(addprefix target/obj/,$(_MAIN_OBJECT))
 OBJECTS = $(addprefix target/obj/,$(_OBJECTS))
-TEST_OBJECTS = $(addprefix target/obj/,$(_TEST_OBJECTS))
 HDR_OBJECTS = $(addprefix target/obj/hdr_histogram/,$(_HDR_OBJECTS))
+TEST_OBJECTS = $(addprefix test_target/obj/,$(_TEST_OBJECTS)) $(OBJECTS:target/%=test_target/%) $(HDR_OBJECTS:target/%=test_target/%)
 
 MAIN_DEPENDENCIES = $(MAIN_OBJECT:%.o=%.d)
 DEPENDENCIES = $(OBJECTS:%.o=%.d)
