@@ -411,6 +411,7 @@ free_histograms(clientdata* data, arguments* args)
 static void
 record_summary_data(clientdata* data, arguments* args, time_t start_time,
 		hdr_timespec* start_timespec) {
+	static const int32_t ticks_per_half_distance = 5;
 
 	// now record summary HDR hist if enabled
 	if (args->hdr_output) {
@@ -428,7 +429,7 @@ record_summary_data(clientdata* data, arguments* args, time_t start_time,
 				start_timespec, &end_timespec, data->summary_write_hdr);
 
 		hdr_percentiles_print(data->summary_write_hdr, data->hdr_text_write_output,
-				5, 1., CLASSIC);
+				ticks_per_half_distance, 1., CLASSIC);
 
 		if (! args->init) {
 			hdr_log_write_header(&writer, data->hdr_comp_read_output,
@@ -438,7 +439,7 @@ record_summary_data(clientdata* data, arguments* args, time_t start_time,
 					start_timespec, &end_timespec, data->summary_read_hdr);
 
 			hdr_percentiles_print(data->summary_read_hdr, data->hdr_text_read_output,
-					5, 1., CLASSIC);
+					ticks_per_half_distance, 1., CLASSIC);
 		}
 	}
 }
