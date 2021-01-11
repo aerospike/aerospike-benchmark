@@ -122,8 +122,10 @@ typedef struct clientdata_t {
 	histogram write_histogram;
 	histogram read_histogram;
 
-	FILE* hdr_write_output;
-	FILE* hdr_read_output;
+	FILE* hdr_comp_write_output;
+	FILE* hdr_text_write_output;
+	FILE* hdr_comp_read_output;
+	FILE* hdr_text_read_output;
 	struct hdr_histogram* summary_read_hdr;
 	struct hdr_histogram* summary_write_hdr;
 

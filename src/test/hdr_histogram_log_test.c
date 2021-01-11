@@ -1106,7 +1106,7 @@ START_TEST(test_zz_encode_9_bytes)
 		}
 
 		int64_t next_val = val + 0x4f1bbcdcbfa53fl;
-		if ((next_val & (~val)) >> 63) {
+		if ((next_val & (~val)) < 0) {
 			// when next_val overflows (i.e. goes negative), then we are done
 			break;
 		}
