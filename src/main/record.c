@@ -369,7 +369,8 @@ write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key)
 	as_status status;
 	as_error err;
 	
-	if (cdata->latency || cdata->histogram_output != NULL) {
+	if (cdata->latency || cdata->histogram_output != NULL ||
+			cdata->hdr_comp_write_output != NULL) {
 		uint64_t begin = cf_getus();
 		status = aerospike_key_put(&cdata->client, &err, 0, &tdata->key, &tdata->rec);
 		uint64_t end = cf_getus();
@@ -382,6 +383,9 @@ write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key)
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->write_histogram, end - begin);
+			}
+			if (cdata->hdr_comp_write_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_write_hdr, end - begin);
 			}
 			return true;
 		}
@@ -421,7 +425,8 @@ read_record_sync(clientdata* cdata, threaddata* tdata)
 	as_status status;
 	as_error err;
 	
-	if (cdata->latency || cdata->histogram_output != NULL) {
+	if (cdata->latency || cdata->histogram_output != NULL ||
+			cdata->hdr_comp_read_output != NULL) {
 		uint64_t begin = cf_getus();
 		status = aerospike_key_get(&cdata->client, &err, 0, &key, &rec);
 		uint64_t end = cf_getus();
@@ -435,6 +440,9 @@ read_record_sync(clientdata* cdata, threaddata* tdata)
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - begin);
+			}
+			if (cdata->hdr_comp_read_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_read_hdr, end - begin);
 			}
 			as_record_destroy(rec);
 			return status;
@@ -483,7 +491,8 @@ batch_record_sync(clientdata* cdata, threaddata* tdata)
 	as_status status;
 	as_error err;
 	
-	if (cdata->latency || cdata->histogram_output != NULL) {
+	if (cdata->latency || cdata->histogram_output != NULL ||
+			cdata->hdr_comp_read_output != NULL) {
 		uint64_t begin = cf_getus();
 		status = aerospike_batch_read(&cdata->client, &err, NULL, records);
 		uint64_t end = cf_getus();
@@ -496,6 +505,9 @@ batch_record_sync(clientdata* cdata, threaddata* tdata)
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - begin);
+			}
+			if (cdata->hdr_comp_read_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_read_hdr, end - begin);
 			}
 			as_batch_read_destroy(records);
 			return status;
@@ -571,7 +583,8 @@ linear_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	clientdata* cdata = tdata->cdata;
 
 	if (!err) {
-		if (cdata->latency || cdata->histogram_output != NULL) {
+		if (cdata->latency || cdata->histogram_output != NULL ||
+				cdata->hdr_comp_write_output != NULL) {
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->write_latency, (end - tdata->begin) / 1000);
@@ -579,6 +592,9 @@ linear_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->write_histogram, end - tdata->begin);
+			}
+			if (cdata->hdr_comp_write_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_write_hdr, end - tdata->begin);
 			}
 		}
 		as_incr_uint32(&cdata->write_count);
@@ -697,7 +713,8 @@ random_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	clientdata* cdata = tdata->cdata;
 	
 	if (!err) {
-		if (cdata->latency || cdata->histogram_output != NULL) {
+		if (cdata->latency || cdata->histogram_output != NULL ||
+				cdata->hdr_comp_write_output != NULL) {
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->write_latency, (end - tdata->begin) / 1000);
@@ -705,6 +722,9 @@ random_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->write_histogram, end - tdata->begin);
+			}
+			if (cdata->hdr_comp_write_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_write_hdr, end - tdata->begin);
 			}
 		}
 		as_incr_uint32(&cdata->write_count);
@@ -733,7 +753,8 @@ random_read_listener(as_error* err, as_record* rec, void* udata, as_event_loop* 
 	clientdata* cdata = tdata->cdata;
 	
 	if (!err || err->code == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
-		if (cdata->latency || cdata->histogram_output != NULL) {
+		if (cdata->latency || cdata->histogram_output != NULL ||
+				cdata->hdr_comp_read_output != NULL) {
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->read_latency, (end - tdata->begin) / 1000);
@@ -741,6 +762,9 @@ random_read_listener(as_error* err, as_record* rec, void* udata, as_event_loop* 
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - tdata->begin);
+			}
+			if (cdata->hdr_comp_read_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_read_hdr, end - tdata->begin);
 			}
 		}
 		as_incr_uint32(&cdata->read_count);
@@ -769,7 +793,8 @@ random_batch_listener(as_error* err, as_batch_read_records* records, void* udata
 	clientdata* cdata = tdata->cdata;
 	
 	if (!err) {
-		if (cdata->latency || cdata->histogram_output != NULL) {
+		if (cdata->latency || cdata->histogram_output != NULL ||
+				cdata->hdr_comp_read_output != NULL) {
 			uint64_t end = cf_getus();
 			if (cdata->latency) {
 				latency_add(&cdata->read_latency, (end - tdata->begin) / 1000);
@@ -777,6 +802,9 @@ random_batch_listener(as_error* err, as_batch_read_records* records, void* udata
 			}
 			if (cdata->histogram_output != NULL) {
 				histogram_add(&cdata->read_histogram, end - tdata->begin);
+			}
+			if (cdata->hdr_comp_read_output != NULL) {
+				hdr_record_value_atomic(cdata->summary_read_hdr, end - tdata->begin);
 			}
 		}
 		as_incr_uint32(&cdata->read_count);

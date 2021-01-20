@@ -18,7 +18,7 @@ else
 	ARCH = $(shell uname -m)
 endif
 
-CFLAGS = -std=gnu99 -g -Wall -fPIC -O3
+CFLAGS = -std=gnu99 -g -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
@@ -89,11 +89,22 @@ AR = ar
 ##  OBJECTS                                                                  ##
 ###############################################################################
 
-MAIN_OBJECT = main.o
-OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o
-HDR_OBJECTS = hdr_histogram.o
-TEST_OBJECTS = hdr_histogram_test.o histogram_test.o latency_test.o sanity.o \
-			   setup.o main.o
+_MAIN_OBJECT = main.o
+_OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o
+_HDR_OBJECTS = hdr_histogram.o hdr_histogram_log.o hdr_encoding.o hdr_time.o
+_TEST_OBJECTS = hdr_histogram_test.o hdr_histogram_log_test.o histogram_test.o \
+			   latency_test.o sanity.o setup.o main.o
+
+MAIN_OBJECT = $(addprefix target/obj/,$(_MAIN_OBJECT))
+OBJECTS = $(addprefix target/obj/,$(_OBJECTS))
+HDR_OBJECTS = $(addprefix target/obj/hdr_histogram/,$(_HDR_OBJECTS))
+TEST_OBJECTS = $(addprefix test_target/obj/,$(_TEST_OBJECTS)) $(OBJECTS:target/%=test_target/%) $(HDR_OBJECTS:target/%=test_target/%)
+
+MAIN_DEPENDENCIES = $(MAIN_OBJECT:%.o=%.d)
+DEPENDENCIES = $(OBJECTS:%.o=%.d)
+HDR_DEPENDENCIES = $(HDR_OBJECTS:%.o=%.d)
+TEST_DEPENDENCIES = $(TEST_OBJECTS:%.o=%.d) $(DEPENDENCIES:target/%=test_target/%) $(HDR_DEPENDENCIES:target/%=test_target/%)
+
 
 ###############################################################################
 ##  MAIN TARGETS                                                             ##
@@ -135,7 +146,7 @@ build: target/benchmarks
 archive: $(addprefix target/obj/,$(OBJECTS)) target/libbench.a
 
 target/libbench.a: $(addprefix target/obj/,$(OBJECTS))
-	$(AR) -rcs $@ $^
+	$(AR) -rcs $@ $(addprefix target/obj/,$(OBJECTS))
 
 
 .PHONY: clean
@@ -155,13 +166,17 @@ target/bin: | target
 	mkdir $@
 
 target/obj/%.o: src/main/%.c | target/obj
-	$(CC) $(CFLAGS) -o $@ -c $^ $(INCLUDES)
+	$(CC) $(CFLAGS) -o $@ -c $< $(INCLUDES)
 
 target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogram
-	$(CC) $(CFLAGS) -o $@ -c $^ $(INCLUDES)
+	$(CC) $(CFLAGS) -o $@ -c $< $(INCLUDES)
 
-target/benchmarks: $(addprefix target/obj/,$(MAIN_OBJECT)) $(addprefix target/obj/,$(OBJECTS)) $(addprefix target/obj/hdr_histogram/,$(HDR_OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
-	$(CC) -o $@ $^ $(LDFLAGS)
+target/benchmarks: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(LDFLAGS)
+
+-include $(wildcard $(MAIN_DEPENDENCIES))
+-include $(wildcard $(DEPENDENCIES))
+-include $(wildcard $(HDR_DEPENDENCIES))
 
 .PHONY: run
 run: build
@@ -186,16 +201,18 @@ test_target/obj/hdr_histogram: | test_target/obj
 	mkdir $@
 
 test_target/obj/%.o: src/test/%.c | test_target/obj
-	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $^
+	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
 
 test_target/obj/%.o: src/main/%.c | test_target/obj
-	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $^
+	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
 
 test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
-	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $^
+	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
 
-test_target/test: $(addprefix test_target/obj/,$(TEST_OBJECTS)) $(addprefix test_target/obj/,$(OBJECTS)) $(addprefix test_target/obj/hdr_histogram/,$(HDR_OBJECTS)) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $^ $(TEST_LDFLAGS)
+test_target/test: $(TEST_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+
+-include $(wildcard $(TEST_DEPENDENCIES))
 
 # Summary requires the lcov tool to be installed
 .PHONY: coverage

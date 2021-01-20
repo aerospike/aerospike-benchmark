@@ -27,6 +27,9 @@
 #include "aerospike/as_log.h"
 #include "aerospike/as_monitor.h"
 #include "aerospike/as_random.h"
+#include "aerospike/as_string_builder.h"
+#include <hdr_histogram/hdr_time.h>
+#include <hdr_histogram/hdr_histogram_log.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -214,6 +217,233 @@ is_stop_writes(aerospike* client, const char* namespace)
 	return stop_writes;
 }
 
+static int
+initialize_histograms(clientdata* data, arguments* args,
+		time_t* start_time, hdr_timespec* start_timespec) {
+	int valid = 1;
+
+	if (args->latency) {
+		latency_init(&data->write_latency, args->latency_columns, args->latency_shift);
+		hdr_init(1, 1000000, 3, &data->write_hdr);
+		as_vector_init(&data->latency_percentiles, args->latency_percentiles.item_size,
+				args->latency_percentiles.capacity);
+		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
+			as_vector_append(&data->latency_percentiles,
+					as_vector_get(&args->latency_percentiles, i));
+		}
+
+		if (! args->init) {
+			latency_init(&data->read_latency, args->latency_columns, args->latency_shift);
+			hdr_init(1, 1000000, 3, &data->read_hdr);
+		}
+	}
+	
+	if (args->latency_histogram) {
+		data->histogram_output = fopen(args->histogram_output, "a");
+		if (!data->histogram_output) {
+			fprintf(stderr, "Unable to open %s in append mode\n",
+					args->histogram_output);
+			valid = 0;
+			// follow through with initialization, so cleanup won't segfault
+		}
+
+		histogram_init(&data->write_histogram, 3, 100, (rangespec_t[]) {
+				{ .upper_bound = 4000,   .bucket_width = 100  },
+				{ .upper_bound = 64000,  .bucket_width = 1000 },
+				{ .upper_bound = 128000, .bucket_width = 4000 }
+				});
+		histogram_set_name(&data->write_histogram, "write_hist");
+		histogram_print_info(&data->write_histogram, data->histogram_output);
+		
+		if (! args->init) {
+			histogram_init(&data->read_histogram, 3, 100, (rangespec_t[]) {
+					{ .upper_bound = 4000,   .bucket_width = 100  },
+					{ .upper_bound = 64000,  .bucket_width = 1000 },
+					{ .upper_bound = 128000, .bucket_width = 4000 }
+					});
+			histogram_set_name(&data->read_histogram, "read_hist");
+			histogram_print_info(&data->read_histogram, data->histogram_output);
+		}
+
+		data->histogram_period = args->histogram_period;
+
+	}
+	
+	if (args->hdr_output) {
+		const static char write_output_prefix[] = "/write_";
+		const static char read_output_prefix[] = "/read_";
+		const static char compressed_output_suffix[] = ".hdrhist";
+		const static char text_output_suffix[] = ".txt";
+
+		*start_time = time(NULL);
+		const char* utc_time = utc_time_str(*start_time);
+
+		size_t prefix_len = strlen(args->hdr_output);
+		size_t write_output_size =
+			prefix_len + (sizeof(write_output_prefix) - 1) +
+			UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
+
+		as_string_builder cmp_write_output_b;
+		as_string_builder txt_write_output_b;
+		as_string_builder_inita(&cmp_write_output_b, write_output_size, false);
+		as_string_builder_inita(&txt_write_output_b, write_output_size, false);
+
+		as_string_builder_append(&cmp_write_output_b, args->hdr_output);
+		as_string_builder_append(&cmp_write_output_b, write_output_prefix);
+		as_string_builder_append(&cmp_write_output_b, utc_time);
+
+		// duplicate the current buffer into txt (since only the extension differs
+		as_string_builder_append(&txt_write_output_b, cmp_write_output_b.data);
+
+		as_string_builder_append(&cmp_write_output_b, compressed_output_suffix);
+		as_string_builder_append(&txt_write_output_b, text_output_suffix);
+
+		data->hdr_comp_write_output = fopen(cmp_write_output_b.data, "a");
+		if (!data->hdr_comp_write_output) {
+			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+					cmp_write_output_b.data, strerror(errno));
+			valid = 0;
+		}
+
+		data->hdr_text_write_output = fopen(txt_write_output_b.data, "a");
+		if (!data->hdr_text_write_output) {
+			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+					cmp_write_output_b.data, strerror(errno));
+			valid = 0;
+		}
+
+		as_string_builder_destroy(&cmp_write_output_b);
+		as_string_builder_destroy(&txt_write_output_b);
+
+		hdr_init(1, 1000000, 3, &data->summary_write_hdr);
+
+		if (! args->init) {
+			size_t read_output_size =
+				prefix_len + (sizeof(read_output_prefix) - 1) +
+				UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
+
+			as_string_builder cmp_read_output_b;
+			as_string_builder txt_read_output_b;
+			as_string_builder_inita(&cmp_read_output_b, read_output_size, false);
+			as_string_builder_inita(&txt_read_output_b, read_output_size, false);
+
+			as_string_builder_append(&cmp_read_output_b, args->hdr_output);
+			as_string_builder_append(&cmp_read_output_b, read_output_prefix);
+			as_string_builder_append(&cmp_read_output_b, utc_time);
+
+			// duplicate the current buffer into txt (since only the extension differs
+			as_string_builder_append(&txt_read_output_b, cmp_read_output_b.data);
+
+			as_string_builder_append(&cmp_read_output_b, compressed_output_suffix);
+			as_string_builder_append(&txt_read_output_b, text_output_suffix);
+
+			data->hdr_comp_read_output = fopen(cmp_read_output_b.data, "a");
+			if (!data->hdr_comp_read_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_read_output_b.data, strerror(errno));
+				valid = 0;
+			}
+
+			data->hdr_text_read_output = fopen(txt_read_output_b.data, "a");
+			if (!data->hdr_text_read_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_read_output_b.data, strerror(errno));
+				valid = 0;
+			}
+
+			as_string_builder_destroy(&cmp_read_output_b);
+			as_string_builder_destroy(&txt_read_output_b);
+
+			hdr_init(1, 1000000, 3, &data->summary_read_hdr);
+		}
+
+		hdr_gettime(start_timespec);
+	}
+	return valid;
+}
+
+static void
+free_histograms(clientdata* data, arguments* args)
+{
+	if (args->latency) {
+		latency_free(&data->write_latency);
+		hdr_close(data->write_hdr);
+
+		as_vector_destroy(&data->latency_percentiles);
+
+		if (!args->init) {
+			latency_free(&data->read_latency);
+			hdr_close(data->read_hdr);
+		}
+	}
+
+	if (args->latency_histogram) {
+		histogram_free(&data->write_histogram);
+		
+		if (!args->init) {
+			histogram_free(&data->read_histogram);
+		}
+
+		fclose(data->histogram_output);
+	}
+
+	if (args->hdr_output) {
+		hdr_close(data->summary_write_hdr);
+		if (data->hdr_comp_write_output) {
+			fclose(data->hdr_comp_write_output);
+		}
+		if (data->hdr_text_write_output) {
+			fclose(data->hdr_text_write_output);
+		}
+
+		if (!args->init) {
+			hdr_close(data->summary_read_hdr);
+			if (data->hdr_comp_read_output) {
+				fclose(data->hdr_comp_read_output);
+			}
+			if (data->hdr_text_read_output) {
+				fclose(data->hdr_text_read_output);
+			}
+		}
+	}
+}
+
+static void
+record_summary_data(clientdata* data, arguments* args, time_t start_time,
+		hdr_timespec* start_timespec) {
+	static const int32_t ticks_per_half_distance = 5;
+
+	// now record summary HDR hist if enabled
+	if (args->hdr_output) {
+		hdr_timespec end_timespec;
+		hdr_gettime(&end_timespec);
+
+		struct hdr_log_writer writer;
+		hdr_log_writer_init(&writer);
+
+		const char* utc_time = utc_time_str(start_time);
+		hdr_log_write_header(&writer, data->hdr_comp_write_output,
+				utc_time, start_timespec);
+
+		hdr_log_write(&writer, data->hdr_comp_write_output,
+				start_timespec, &end_timespec, data->summary_write_hdr);
+
+		hdr_percentiles_print(data->summary_write_hdr, data->hdr_text_write_output,
+				ticks_per_half_distance, 1., CLASSIC);
+
+		if (! args->init) {
+			hdr_log_write_header(&writer, data->hdr_comp_read_output,
+					utc_time, start_timespec);
+
+			hdr_log_write(&writer, data->hdr_comp_read_output,
+					start_timespec, &end_timespec, data->summary_read_hdr);
+
+			hdr_percentiles_print(data->summary_read_hdr, data->hdr_text_read_output,
+					ticks_per_half_distance, 1., CLASSIC);
+		}
+	}
+}
+
 int
 run_benchmark(arguments* args)
 {
@@ -240,6 +470,11 @@ run_benchmark(arguments* args)
 	data.async = args->async;
 	data.async_max_commands = args->async_max_commands;
 	data.fixed_value = NULL;
+
+	// set to 0 when any step in initialization fails
+	int valid = 1;
+	time_t start_time;
+	hdr_timespec start_timespec;
 
 	if (args->debug) {
 		as_log_set_level(AS_LOG_LEVEL_DEBUG);
@@ -268,83 +503,34 @@ run_benchmark(arguments* args)
 	if (! args->random) {
 		gen_value(args, &data.fixed_value);
 	}
-	
-	if (args->latency) {
-		latency_init(&data.write_latency, args->latency_columns, args->latency_shift);
-		hdr_init(1, 1000000, 3, &data.write_hdr);
-		as_vector_init(&data.latency_percentiles, args->latency_percentiles.item_size,
-				args->latency_percentiles.capacity);
-		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
-			as_vector_append(&data.latency_percentiles,
-					as_vector_get(&args->latency_percentiles, i));
-		}
 
-		if (! args->init) {
-			latency_init(&data.read_latency, args->latency_columns, args->latency_shift);
-			hdr_init(1, 1000000, 3, &data.read_hdr);
-		}
-	}
-	
-	if (args->latency_histogram) {
-		data.histogram_output = fopen(args->histogram_output, "a");
-
-		histogram_init(&data.write_histogram, 3, 100, (rangespec_t[]) {
-				{ .upper_bound = 4000,   .bucket_width = 100  },
-				{ .upper_bound = 64000,  .bucket_width = 1000 },
-				{ .upper_bound = 128000, .bucket_width = 4000 }
-				});
-		histogram_set_name(&data.write_histogram, "write_hist");
-		histogram_print_info(&data.write_histogram, data.histogram_output);
-		
-		if (! args->init) {
-			histogram_init(&data.read_histogram, 3, 100, (rangespec_t[]) {
-					{ .upper_bound = 4000,   .bucket_width = 100  },
-					{ .upper_bound = 64000,  .bucket_width = 1000 },
-					{ .upper_bound = 128000, .bucket_width = 4000 }
-					});
-			histogram_set_name(&data.read_histogram, "read_hist");
-			histogram_print_info(&data.read_histogram, data.histogram_output);
-		}
-
-		data.histogram_period = args->histogram_period;
-
-	}
+	valid = initialize_histograms(&data, args, &start_time, &start_timespec);
 
 	data.key_start = args->start_key;
 	data.key_count = 0;
 
-	if (args->init) {
-		data.n_keys = (uint64_t)((double)args->keys / 100.0 * args->init_pct + 0.5);
-		ret = linear_write(&data);
+	if (valid) {
+		if (args->init) {
+			data.n_keys = (uint64_t)((double)args->keys / 100.0 * args->init_pct + 0.5);
+			ret = linear_write(&data);
+		}
+		else {
+			data.n_keys = args->keys;
+			ret = random_read_write(&data);
+		}
+
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+		// don't worry, will be initialized (would have to make args const
+		// to suppress)
+		record_summary_data(&data, args, start_time, &start_timespec);
+#pragma GCC diagnostic pop
 	}
-	else {
-		data.n_keys = args->keys;
-		ret = random_read_write(&data);
-	}
-	
-	if (! args->random) {
+
+	if (!args->random) {
 		as_val_destroy(data.fixed_value);
 	}
 
-	if (args->latency) {
-		latency_free(&data.write_latency);
-		hdr_close(data.write_hdr);
-
-		if (! args->init) {
-			latency_free(&data.read_latency);
-			hdr_close(data.read_hdr);
-		}
-	}
-
-	if (args->latency_histogram) {
-		histogram_free(&data.write_histogram);
-		
-		if (! args->init) {
-			histogram_free(&data.read_histogram);
-		}
-
-		fclose(data.histogram_output);
-	}
+	free_histograms(&data, args);
 
 	as_error err;
 	aerospike_close(&data.client, &err);

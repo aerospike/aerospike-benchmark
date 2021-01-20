@@ -1,0 +1,3 @@
+[submodule "modules/libcyaml"]
+	path = modules/libcyaml
+	url = https://github.com/aerospike/libcyaml

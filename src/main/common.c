@@ -72,7 +72,7 @@ blog_detail(as_log_level level, const char* fmt, ...)
 
 const char* utc_time_str(time_t t)
 {
-	static char buf[73];
+	static char buf[UTC_STR_LEN + 1];
 	struct tm * utc = gmtime(&t);
 	snprintf(buf, sizeof(buf),
 			"%4d-%02d-%02dT%02d:%02d:%02dZ",
