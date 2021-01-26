@@ -18,12 +18,15 @@ else
 	ARCH = $(shell uname -m)
 endif
 
-CFLAGS = -std=gnu99 -g -Wall -fPIC -O3 -MMD -MP
+CFLAGS = -std=gnu99 -g -Wall -fPIC -O0 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
+TEST_CFLAGS = $(CFLAGS) -D_TEST
+
 DIR_INCLUDE =  $(ROOT)/src/include
 DIR_INCLUDE += $(ROOT)/modules
+DIR_INCLUDE += $(ROOT)/modules/libcyaml/include
 DIR_INCLUDE += $(CLIENT_PATH)/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
@@ -80,7 +83,8 @@ else ifeq ($(OS),FreeBSD)
   LDFLAGS += -lrt
 endif
 
-LDFLAGS += -lm -lz
+LDFLAGS += -Ltarget/lib
+LDFLAGS += -lm -lz -lcyaml -lyaml
 TEST_LDFLAGS = $(LDFLAGS) -lcheck 
 CC = cc
 AR = ar
@@ -90,10 +94,13 @@ AR = ar
 ###############################################################################
 
 _MAIN_OBJECT = main.o
-_OBJECTS = benchmark.o common.o histogram.o latency.o linear.o random.o record.o
+_SRC = $(filter-out src/main/main.c,$(shell find src/main/ -type f -name '*.c'))
+_OBJECTS = $(patsubst src/main/%.c,%.o,$(_SRC))
+
 _HDR_OBJECTS = hdr_histogram.o hdr_histogram_log.o hdr_encoding.o hdr_time.o
-_TEST_OBJECTS = hdr_histogram_test.o hdr_histogram_log_test.o histogram_test.o \
-			   latency_test.o sanity.o setup.o main.o
+
+_TEST_SRC = $(shell find src/test/ -type f -name '*.c')
+_TEST_OBJECTS = $(patsubst src/test/%.c,%.o,$(_TEST_SRC))
 
 MAIN_OBJECT = $(addprefix target/obj/,$(_MAIN_OBJECT))
 OBJECTS = $(addprefix target/obj/,$(_OBJECTS))
@@ -143,15 +150,16 @@ info:
 build: target/benchmarks
 
 .PHONY: archive
-archive: $(addprefix target/obj/,$(OBJECTS)) target/libbench.a
+archive: $(OBJECTS) target/libbench.a
 
-target/libbench.a: $(addprefix target/obj/,$(OBJECTS))
-	$(AR) -rcs $@ $(addprefix target/obj/,$(OBJECTS))
+target/libbench.a: $(OBJECTS)
+	$(AR) -rcs $@ $(OBJECTS)
 
 
 .PHONY: clean
 clean:
-	@rm -rf target test_target
+	rm -rf target test_target
+	$(MAKE) clean -C modules/libcyaml
 
 target:
 	mkdir $@
@@ -159,10 +167,13 @@ target:
 target/obj: | target
 	mkdir $@
 
-target/obj/hdr_histogram: | target/obj
+target/bin: | target
 	mkdir $@
 
-target/bin: | target
+target/lib: | target
+	mkdir $@
+
+target/obj/hdr_histogram: | target/obj
 	mkdir $@
 
 target/obj/%.o: src/main/%.c | target/obj
@@ -171,12 +182,18 @@ target/obj/%.o: src/main/%.c | target/obj
 target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogram
 	$(CC) $(CFLAGS) -o $@ -c $< $(INCLUDES)
 
-target/benchmarks: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
+target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | target/lib
+	cp $< $@
+
+target/benchmarks: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))
 -include $(wildcard $(HDR_DEPENDENCIES))
+
+modules/libcyaml/build/debug/libcyaml.a:
+	$(MAKE) -C modules/libcyaml
 
 .PHONY: run
 run: build
@@ -201,15 +218,15 @@ test_target/obj/hdr_histogram: | test_target/obj
 	mkdir $@
 
 test_target/obj/%.o: src/test/%.c | test_target/obj
-	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -o $@ -c $<
 
 test_target/obj/%.o: src/main/%.c | test_target/obj
-	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
 
 test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
-	$(CC) $(CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
 
-test_target/test: $(TEST_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+test_target/test: $(TEST_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
 	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
 -include $(wildcard $(TEST_DEPENDENCIES))

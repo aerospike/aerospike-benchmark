@@ -1,0 +1,8 @@
+---
+- stage: 1
+  desc: yo
+  duration: 1
+  workload: I
+- stage: 2
+  duration: 2
+  workload: R

@@ -27,6 +27,7 @@
 #include <time.h>
 
 #include "aerospike/as_log.h"
+#include "aerospike/as_random.h"
 #include "aerospike/as_vector.h"
 #include <citrusleaf/alloc.h>
 
@@ -50,6 +51,11 @@ typedef uint64_t ptr_int_t;
 	} while(0)
 
 
+/*
+ * returns the length of the given number were it to be printed in decimal
+ */
+int dec_display_len(size_t number);
+
 
 void blog_line(const char* fmt, ...);
 void blog_detailv(as_log_level leve, const char* fmt, va_list ap);
@@ -63,6 +69,16 @@ void blog_detail(as_log_level level, const char* fmt, ...);
 
 #define UTC_STR_LEN 72
 const char* utc_time_str(time_t t);
+
+/*
+ * generate a random number within the range [0, max)
+ */
+uint32_t gen_rand_range(as_random*, uint32_t max);
+
+/*
+ * same as gen_rand_range, but for 64-bit numbers
+ */
+uint64_t gen_rand_range_64(as_random*, uint64_t max);
 
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 		uint64_t elapsed_s, as_vector* percentiles, FILE *out_file);

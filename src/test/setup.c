@@ -110,6 +110,7 @@ static void
 teardown(void)
 {
 //do some tearing
+	free(args->hosts);
 	free(args);
 	free(data);
 }

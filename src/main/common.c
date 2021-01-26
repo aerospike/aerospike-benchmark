@@ -25,6 +25,43 @@
 
 #include "common.h"
 
+
+/*
+ * algorithm inspired by: https://stackoverflow.com/a/18027868
+ */
+int dec_display_len(size_t number)
+{
+	struct {
+		uint64_t max;
+		int digits;
+	} lookup[] = {
+		{ -1, 1 }, { -1, 1 }, { -1, 1 }, { 9, 1 },
+		{ -1, 2 }, { -1, 2 }, { 99, 2 },
+		{ -1, 3 }, { -1, 3 }, { 999, 3 },
+		{ -1, 4 }, { -1, 4 }, { -1, 4 }, { 9999, 4},
+		{ -1, 5 }, { -1, 5 }, { 99999, 5 },
+		{ -1, 6 }, { -1, 6 }, { 999999, 6 },
+		{ -1, 7 }, { -1, 7 }, { -1, 7 }, { 9999999, 7 },
+		{ -1, 8 }, { -1, 8 }, { 99999999, 8 },
+		{ -1, 9 }, { -1, 9 }, { 999999999, 9 },
+		{ -1, 10 }, { -1, 10 }, { -1, 10 }, { 9999999999, 10 },
+		{ -1, 11 }, { -1, 11 }, { 99999999999, 11 },
+		{ -1, 12 }, { -1, 12 }, { 999999999999, 12 },
+		{ -1, 13 }, { -1, 13 }, { -1, 13 }, { 9999999999999, 13 },
+		{ -1, 14 }, { -1, 14 }, { 99999999999999, 14 },
+		{ -1, 15 }, { -1, 15 }, { 999999999999999, 15 },
+		{ -1, 16 }, { -1, 16 }, { -1, 16 }, { 9999999999999999, 16 },
+		{ -1, 17 }, { -1, 17 }, { 99999999999999999, 17 },
+		{ -1, 18 }, { -1, 18 }, { 999999999999999999, 18 },
+		{ -1, 19 }, { -1, 19 }, { -1, 19 }, { 9999999999999999999U, 19 },
+	};
+
+	uint32_t digits = (8 * sizeof(number) - 1) - __builtin_clzl(number);
+	return number == 0 ? 1 :
+		lookup[digits].digits + (lookup[digits].max < number);
+}
+
+
 void
 blog_line(const char* fmt, ...)
 {
@@ -79,6 +116,44 @@ const char* utc_time_str(time_t t)
 			1900 + utc->tm_year, utc->tm_mon + 1, utc->tm_mday,
 			utc->tm_hour, utc->tm_min, utc->tm_sec);
 	return buf;
+}
+
+uint32_t gen_rand_range(as_random* random, uint32_t max)
+{
+	/*
+	 * To eliminate any statistical bias, we'd want to choose only from a range
+	 * [0, n * max), for some integer n, before modding by max. Since max may
+	 * not be a power of two (and therefore not divide 2^32), the natural range
+	 * of as_random_next_uint32 of [0, 2^32) will be biased towards the smaller
+	 * numbers. To accomodate this, we can choose from the range
+	 * [0, 2^32 - (2^32 % max)), or, equivalently (and cheaper computationally),
+	 * [2^32 % max, 2^32)
+	 *
+	 * calculate 0x100000000LU % max, which is equivalent to
+	 * (0x100000000LU - max) % max = ((uint32_t) -max) % max
+	 *
+	 * doing this with 32-bit numbers is faster than with 64-bit
+	 */
+	uint32_t rem = (-max) % max;
+	uint32_t r;
+
+	do {
+		r = as_random_next_uint32(random);
+	} while (__builtin_expect(r < rem, 0));
+
+	return r % max;
+}
+
+uint64_t gen_rand_range_64(as_random* random, uint64_t max)
+{
+	uint64_t rem = (-max) % max;
+	uint64_t r;
+
+	do {
+		r = as_random_next_uint64(random);
+	} while (__builtin_expect(r < rem, 0));
+
+	return r % max;
 }
 
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,

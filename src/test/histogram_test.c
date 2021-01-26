@@ -1,6 +1,7 @@
 
 #include <check.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 #include "histogram.h"
@@ -25,6 +26,7 @@ START_TEST(initialization_test)
 				{ .upper_bound = 100, .bucket_width = 10 }
 				}) == 0,
 			"Histogram basic initialization failed");
+	histogram_free(&h);
 }
 END_TEST
 
@@ -418,10 +420,12 @@ START_TEST(simple_print_info_size)
 		if (strcasestr(buf, "buckets") != NULL) {
 			ck_assert_msg(strstr(buf, "9") != NULL, "the number of "
 					"buckets is not correct");
+			free(buf);
 			fclose(out_file);
 			return;
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "the number of buckets was not found");
 }
@@ -450,6 +454,7 @@ START_TEST(simple_print_info_range_lowb)
 				strcasestr(buf, "min") != NULL) {
 			ck_assert_msg(strstr(buf, "1us") != NULL, "the lower bound on the "
 					"histogram range is incorrect");
+			free(buf);
 			fclose(out_file);
 			return;
 		}
@@ -459,6 +464,7 @@ START_TEST(simple_print_info_range_lowb)
 					"first bucket range descriptor");
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range lower bound not found");
 }
@@ -487,6 +493,7 @@ START_TEST(simple_print_info_range_upb)
 				strcasestr(buf, "max") != NULL) {
 			ck_assert_msg(strstr(buf, "10us") != NULL, "the upper bound on the "
 					"histogram range is incorrect");
+			free(buf);
 			fclose(out_file);
 			return;
 		}
@@ -496,6 +503,7 @@ START_TEST(simple_print_info_range_upb)
 					"first bucket range descriptor");
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range upper bound not found");
 }
@@ -529,6 +537,8 @@ START_TEST(simple_print_info_range_0_lowb)
 						strcasestr(buf, "min") != NULL) {
 					ck_assert_msg(strstr(buf, "1us") != NULL, "range 0 lower "
 							"bound not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -539,6 +549,7 @@ START_TEST(simple_print_info_range_0_lowb)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 0 lower bound not found");
 }
@@ -572,6 +583,8 @@ START_TEST(simple_print_info_range_0_upb)
 						strcasestr(buf, "max") != NULL) {
 					ck_assert_msg(strstr(buf, "10us") != NULL, "range 0 upper "
 							"bound not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -582,6 +595,7 @@ START_TEST(simple_print_info_range_0_upb)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 0 upper bound not found");
 }
@@ -614,6 +628,8 @@ START_TEST(simple_print_info_range_0_width)
 				if (strcasestr(buf, "width") != NULL) {
 					ck_assert_msg(strstr(buf, "1us") != NULL, "range 0 width "
 							"not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -624,6 +640,7 @@ START_TEST(simple_print_info_range_0_width)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 0 width not found");
 }
@@ -657,6 +674,8 @@ START_TEST(simple_print_info_range_0_n_buckets)
 				if (strcasestr(buf, "buckets") != NULL) {
 					ck_assert_msg(strstr(buf, "9") != NULL, "range 0 num "
 							"buckets not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -667,6 +686,7 @@ START_TEST(simple_print_info_range_0_n_buckets)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 0 num buckets not found");
 }
@@ -819,10 +839,12 @@ START_TEST(default_print_info_size)
 		if (strcasestr(buf, "buckets") != NULL) {
 			ck_assert_msg(strstr(buf, "115") != NULL, "the number of "
 					"buckets is not correct");
+			free(buf);
 			fclose(out_file);
 			return;
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "the number of buckets was not found");
 }
@@ -848,6 +870,7 @@ START_TEST(default_print_info_range_lowb)
 				strcasestr(buf, "min") != NULL) {
 			ck_assert_msg(strstr(buf, "100us") != NULL, "the lower bound on the "
 					"histogram range is incorrect");
+			free(buf);
 			fclose(out_file);
 			return;
 		}
@@ -857,6 +880,7 @@ START_TEST(default_print_info_range_lowb)
 					"first bucket range descriptor");
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range lower bound not found");
 }
@@ -882,6 +906,7 @@ START_TEST(default_print_info_range_upb)
 				strcasestr(buf, "max") != NULL) {
 			ck_assert_msg(strstr(buf, "128000us") != NULL, "the upper bound on the "
 					"histogram range is incorrect");
+			free(buf);
 			fclose(out_file);
 			return;
 		}
@@ -891,6 +916,7 @@ START_TEST(default_print_info_range_upb)
 					"first bucket range descriptor");
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range upper bound not found");
 }
@@ -921,6 +947,8 @@ START_TEST(default_print_info_range_0_lowb)
 						strcasestr(buf, "min") != NULL) {
 					ck_assert_msg(strstr(buf, "100us") != NULL, "range 0 lower "
 							"bound not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -930,6 +958,7 @@ START_TEST(default_print_info_range_0_lowb)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 0 lower bound not found");
 }
@@ -960,6 +989,8 @@ START_TEST(default_print_info_range_1_lowb)
 						strcasestr(buf, "min") != NULL) {
 					ck_assert_msg(strstr(buf, "4000us") != NULL, "range 1 lower "
 							"bound not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -969,6 +1000,7 @@ START_TEST(default_print_info_range_1_lowb)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 1 lower bound not found");
 }
@@ -999,6 +1031,8 @@ START_TEST(default_print_info_range_2_lowb)
 						strcasestr(buf, "min") != NULL) {
 					ck_assert_msg(strstr(buf, "64000us") != NULL, "range 2 lower "
 							"bound not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1008,6 +1042,7 @@ START_TEST(default_print_info_range_2_lowb)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 2 lower bound not found");
 }
@@ -1038,6 +1073,8 @@ START_TEST(default_print_info_range_0_upb)
 						strcasestr(buf, "max") != NULL) {
 					ck_assert_msg(strstr(buf, "4000us") != NULL, "range 0 upper "
 							"bound not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1047,6 +1084,7 @@ START_TEST(default_print_info_range_0_upb)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 0 upper bound not found");
 }
@@ -1077,6 +1115,8 @@ START_TEST(default_print_info_range_1_upb)
 						strcasestr(buf, "max") != NULL) {
 					ck_assert_msg(strstr(buf, "64000us") != NULL, "range 1 upper "
 							"bound not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1086,6 +1126,7 @@ START_TEST(default_print_info_range_1_upb)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 1 upper bound not found");
 }
@@ -1116,6 +1157,8 @@ START_TEST(default_print_info_range_2_upb)
 						strcasestr(buf, "max") != NULL) {
 					ck_assert_msg(strstr(buf, "128000us") != NULL, "range 2 upper "
 							"bound not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1125,6 +1168,7 @@ START_TEST(default_print_info_range_2_upb)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 2 upper bound not found");
 }
@@ -1154,6 +1198,8 @@ START_TEST(default_print_info_range_0_width)
 				if (strcasestr(buf, "width") != NULL) {
 					ck_assert_msg(strstr(buf, "100us") != NULL, "range 0 width "
 							"not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1163,6 +1209,7 @@ START_TEST(default_print_info_range_0_width)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 0 width not found");
 }
@@ -1192,6 +1239,8 @@ START_TEST(default_print_info_range_1_width)
 				if (strcasestr(buf, "width") != NULL) {
 					ck_assert_msg(strstr(buf, "1000us") != NULL, "range 1 width "
 							"not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1201,6 +1250,7 @@ START_TEST(default_print_info_range_1_width)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 1 width not found");
 }
@@ -1230,6 +1280,8 @@ START_TEST(default_print_info_range_2_width)
 				if (strcasestr(buf, "width") != NULL) {
 					ck_assert_msg(strstr(buf, "4000us") != NULL, "range 2 width "
 							"not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1239,6 +1291,7 @@ START_TEST(default_print_info_range_2_width)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 2 width not found");
 }
@@ -1269,6 +1322,8 @@ START_TEST(default_print_info_range_0_n_buckets)
 				if (strcasestr(buf, "buckets") != NULL) {
 					ck_assert_msg(strstr(buf, "39") != NULL, "range 0 num "
 							"buckets not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1279,6 +1334,7 @@ START_TEST(default_print_info_range_0_n_buckets)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 0 num buckets not found");
 }
@@ -1309,6 +1365,8 @@ START_TEST(default_print_info_range_1_n_buckets)
 				if (strcasestr(buf, "buckets") != NULL) {
 					ck_assert_msg(strstr(buf, "60") != NULL, "range 1 num "
 							"buckets not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1319,6 +1377,7 @@ START_TEST(default_print_info_range_1_n_buckets)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 1 num buckets not found");
 }
@@ -1349,6 +1408,8 @@ START_TEST(default_print_info_range_2_n_buckets)
 				if (strcasestr(buf, "buckets") != NULL) {
 					ck_assert_msg(strstr(buf, "16") != NULL, "range 2 num "
 							"buckets not correct");
+					free(buf);
+					fclose(out_file);
 					return;
 				}
 				else if (strcasestr(buf, "bucket") != NULL &&
@@ -1359,6 +1420,7 @@ START_TEST(default_print_info_range_2_n_buckets)
 			}
 		}
 	}
+	free(buf);
 
 	ck_assert_msg(0, "histogram range 2 num buckets not found");
 }
