@@ -8,6 +8,8 @@
 #include <aerospike/as_hashmap.h>
 #include <aerospike/as_integer.h>
 #include <aerospike/as_list.h>
+#include <aerospike/as_hashmap_iterator.h>
+#include <aerospike/as_pair.h>
 #include <aerospike/as_string.h>
 #include <aerospike/as_vector.h>
 #include <citrusleaf/alloc.h>
@@ -1061,6 +1063,52 @@ static void _dbg_validate_double(as_double* as_val)
 	ck_assert_msg(as_val != NULL, "Expected a double, got something else");
 }
 
+/*
+ * forward declare for use in the list/map validation methods
+ */
+static void _dbg_validate_obj_spec(const struct bin_spec* bin_spec,
+		const as_val* val);
+
+static void _dbg_validate_list(const struct bin_spec* bin_spec,
+		const as_list* as_val)
+{
+	ck_assert_msg(as_val != NULL, "Expected a list, got something else");
+	size_t list_len = as_list_size(as_val);
+	ck_assert_int_eq(list_len, bin_spec->list.length);
+
+	for (uint32_t i = 0, cnt = 0; cnt < list_len; i++) {
+		const struct bin_spec* ele_bin = &bin_spec->list.list[i];
+
+		for (uint32_t j = 0; j < ele_bin->n_repeats; j++, cnt++) {
+			_dbg_validate_obj_spec(ele_bin, as_list_get(as_val, cnt));
+		}
+	}
+}
+
+
+static void _dbg_validate_map(const struct bin_spec* bin_spec,
+		const as_map* val)
+{
+	as_hashmap_iterator iter;
+
+	ck_assert_msg(val != NULL, "Expected a map, got something else");
+	uint32_t map_size = as_map_size(val);
+	ck_assert_int_eq(map_size, bin_spec_map_n_entries(bin_spec));
+
+	const struct bin_spec* key_spec = bin_spec_get_key(bin_spec);
+	const struct bin_spec* val_spec = bin_spec->map.val;
+
+	for (as_hashmap_iterator_init(&iter, (as_hashmap*) val);
+			as_hashmap_iterator_has_next(&iter);) {
+		const as_val* kv_pair = as_hashmap_iterator_next(&iter);
+		const as_val* key = as_pair_1((as_pair*) kv_pair);
+		const as_val* val = as_pair_2((as_pair*) kv_pair);
+
+		_dbg_validate_obj_spec(key_spec, key);
+		_dbg_validate_obj_spec(val_spec, val);
+	}
+}
+
 static void _dbg_validate_obj_spec(const struct bin_spec* bin_spec,
 		const as_val* val)
 {
@@ -1078,8 +1126,10 @@ static void _dbg_validate_obj_spec(const struct bin_spec* bin_spec,
 			_dbg_validate_double(as_double_fromval(val));
 			break;
 		case BIN_SPEC_TYPE_LIST:
+			_dbg_validate_list(bin_spec, as_list_fromval((as_val*) val));
 			break;
 		case BIN_SPEC_TYPE_MAP:
+			_dbg_validate_map(bin_spec, as_map_fromval(val));
 			break;
 		default:
 			ck_assert_msg(0, "unknown bin_spec type (%d)",
