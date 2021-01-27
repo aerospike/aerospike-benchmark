@@ -992,9 +992,6 @@ as_val* obj_spec_gen_value(const struct obj_spec* obj_spec, as_random* random)
 }
 
 
-#ifdef _TEST
-
-
 #define sprint(out_str, str_size, ...) \
 	do { \
 		size_t __w = snprintf(*(out_str), str_size, __VA_ARGS__); \
@@ -1043,7 +1040,7 @@ static size_t _sprint_bin(const struct bin_spec* bin, char** out_str,
 	return str_size;
 }
 
-void _dbg_sprint_obj_spec(const struct obj_spec* obj_spec, char* out_str,
+void snprint_obj_spec(const struct obj_spec* obj_spec, char* out_str,
 		size_t str_size)
 {
 	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
@@ -1056,6 +1053,9 @@ void _dbg_sprint_obj_spec(const struct obj_spec* obj_spec, char* out_str,
 		}
 	}
 }
+
+
+#ifdef _TEST
 
 
 // include libcheck so we can ck_assert in the validation methods below

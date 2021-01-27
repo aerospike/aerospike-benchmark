@@ -44,7 +44,7 @@ static struct option long_options[] = {
 	{"set",                  required_argument, 0, 's'},
 	{"startKey",             required_argument, 0, 'K'},
 	{"keys",                 required_argument, 0, 'k'},
-	{"bins",                 required_argument, 0, 'b'},
+	//{"bins",                 required_argument, 0, 'b'},
 	{"objectSpec",           required_argument, 0, 'o'},
 	{"random",               no_argument,       0, 'R'},
 	{"transactions",         required_argument, 0, 't'},
@@ -202,7 +202,7 @@ print_usage(const char* program)
 	blog_line("         {2*S1:[3*I:1]} - ex {\"a\": [1,2,3], \"b\": [6,7,8]}");
 	blog_line("");
 	blog_line("   Example:");
-	blog_line("      -o I2,S12,[3*I1] => b1: 478; b2: \"dfoiu weop g\"; b3: [12, 45, 209]")");
+	blog_line("      -o I2,S12,[3*I1] => b1: 478; b2: \"dfoiu weop g\"; b3: [12, 45, 209])");
 	blog_line("");
 
 	blog_line("-R --random          # Default: static fixed bin values");
@@ -430,10 +430,13 @@ print_args(arguments* args)
 	blog_line("set:                    %s", args->set);
 	blog_line("startKey:               %" PRIu64, args->start_key);
 	blog_line("keys/records:           %" PRIu64, args->keys);
-	blog_line("bins:                   %d", args->numbins);
-	blog("object spec:            ");
+	//blog_line("bins:                   %d", args->numbins);
+
+	char buf[1024];
+	snprint_obj_spec(&args->obj_spec, buf, sizeof(buf));
+	blog_line("object spec:            %s", buf);
 	
-	static const char *units[3] = {"", "b", "k"};
+	/*static const char *units[3] = {"", "b", "k"};
 
 	switch (args->bintype) {
 		case 'I':
@@ -459,7 +462,7 @@ print_args(arguments* args)
 		default:
 			blog_line("");
 			break;
-	}
+	}*/
 	
 	blog_line("random values:          %s", boolstring(args->random));
 
@@ -468,7 +471,8 @@ print_args(arguments* args)
 	if (args->init) {
 		blog_line("initialize %d%% of records", args->init_pct);
 	} else if (args->del_bin) {
-		blog_line("delete %d bins in %d records", args->numbins, args->keys);
+		blog_line("delete %d bins in %d records",
+				obj_spec_n_bins(&args->obj_spec), args->keys);
 	} else if (args->read_pct) {
 		blog_line("read %d%% write %d%%", args->read_pct, 100 - args->read_pct);
 		blog_line("stop after:             %" PRIu64 " transactions", args->transactions_limit);
@@ -626,7 +630,7 @@ validate_args(arguments* args)
 		return 1;
 	}
 	
-	if (args->numbins <= 0) {
+	/*if (args->numbins <= 0) {
 		blog_line("Invalid number of bins: %d  Valid values: [> 0]", args->keys);
 		return 1;
 	}
@@ -648,7 +652,7 @@ validate_args(arguments* args)
 		default:
 			blog_line("Invalid bin type: %c  Valid values: I|B:<size>|S:<size>", args->bintype);
 			return 1;
-	}
+	}*/
 	
 	if (args->init_pct < 0 || args->init_pct > 100) {
 		blog_line("Invalid initialize percent: %d  Valid values: [0-100]", args->init_pct);
@@ -799,9 +803,9 @@ set_args(int argc, char * const * argv, arguments* args)
 				args->keys = strtoull(optarg, NULL, 10);
 				break;
 				
-			case 'b':
+			/*case 'b':
 				args->numbins = atoi(optarg);
-				break;
+				break;*/
 				
 			case 'o': {
 				// free the default obj_spec before making a new one
@@ -1126,7 +1130,7 @@ main(int argc, char * const * argv)
 	args.bintype = 'I';
 	args.binlen = 50;
 	args.binlen_type = LEN_TYPE_COUNT;*/
-	obj_spec_init(&args.obj_spec, "I");
+	obj_spec_parse(&args.obj_spec, "I");
 	args.random = false;
 	args.transactions_limit = 0;
 	args.init = false;
