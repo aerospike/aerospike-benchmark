@@ -1154,6 +1154,7 @@ void _dbg_obj_spec_assert_valid(const struct obj_spec* obj_spec,
 			}
 
 			as_val* val = (as_val*) as_record_get(rec, name);
+			ck_assert_msg(val != NULL, "expected a record in bin \"%s\"", name);
 			_dbg_validate_obj_spec(bin_spec, val);
 		}
 	}

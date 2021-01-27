@@ -46,6 +46,7 @@ START_TEST(test_name ## _valid) \
 	as_record_init(&rec, obj_spec_n_bins(&o)); \
 	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
 				"test"), 0); \
+	_dbg_obj_spec_assert_valid(&o, &rec, "test"); \
 }
 
 #define DEFINE_FAILING_TCASE(test_name, obj_spec_str, msg) \
