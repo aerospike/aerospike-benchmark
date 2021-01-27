@@ -159,7 +159,7 @@ print_usage(const char* program)
 	blog_line("   Number of bins");
 	blog_line("");
 	
-	blog_line("-o --objectSpec I | B:<size> | S:<size> | L:<size> | M:<size> # Default: I");
+	/*blog_line("-o --objectSpec I | B:<size> | S:<size> | L:<size> | M:<size> # Default: I");
 	blog_line("   Bin object specification.");
 	blog_line("   -o I     : Read/write integer bin.");
 	blog_line("   -o B:200 : Read/write byte array bin of length 200.");
@@ -168,6 +168,41 @@ print_usage(const char* program)
 	blog_line("   -o M:50  : Read/write cdt map bin of 50 map entries.");
 	blog_line("   -o M:50B : Read/write cdt map bin of ~50 bytes.");
 	blog_line("   -o M:50K : Read/write cdt map bin of ~50 kilobytes.");
+	blog_line("");*/
+
+	blog_line("-o --objectSpec describes a comma-separated bin specification");
+	blog_line("   Scalar bins:");
+	blog_line("      I<bytes> | B<size> | S<length> | D # Default: I");
+	blog_line("");
+	blog_line("      I) Generate an integer bin or value in a specific byte range");
+	blog_line("            (treat I as I4)");
+	blog_line("         I1 for 0 - 255");
+	blog_line("         I2 for 256 - 65535");
+	blog_line("         I3 for 65536 - 2^24-1");
+	blog_line("         I4 for 2^24 - 2^32-1");
+	blog_line("         I5 for 2^32 - 2^40-1");
+	blog_line("         I6 for 2^40 - 2^48-1");
+	blog_line("         I7 for 2^48 - 2^56-1");
+	blog_line("         I8 for 2^56 - 2^64-1");
+	blog_line("      B) Generate a bytes bin or value with an bytearray of random bytes");
+	blog_line("         B12 - generates a bytearray of 12 random bytes");
+	blog_line("      S) Generate a string bin or value made of space-separated a-z{1,9} words");
+	blog_line("         S16 - a string with a 16 character length. ex: \"uir a mskd poiur\"");
+	blog_line("      D) Generate a Double bin or value (8 byte)");
+	blog_line("");
+	blog_line("   Collection bins:");
+	blog_line("      [] - a list");
+	blog_line("         [3*I2] - ex: [312, 1651, 756]");
+	blog_line("         [I2, S4, I2] - ex: [892, \"sf b\", 8712]");
+	blog_line("         [2*S12, 3*I1] - ex: [\"be lkr sqp s\", \"ndvi qd r fr\", 18, 109, 212]");
+	blog_line("         [3*[I1, I1]] - ex: [[1,11],[123,321],[78,241]]");
+	blog_line("");
+	blog_line("      {} - a map");
+	blog_line("         {5*S1:I1} - ex {\"a\":1, \"b\":2, \"d\":4, \"z\":26, \"e\":5}");
+	blog_line("         {2*S1:[3*I:1]} - ex {\"a\": [1,2,3], \"b\": [6,7,8]}");
+	blog_line("");
+	blog_line("   Example:");
+	blog_line("      -o I2,S12,[3*I1] => b1: 478; b2: \"dfoiu weop g\"; b3: [12, 45, 209]")");
 	blog_line("");
 
 	blog_line("-R --random          # Default: static fixed bin values");
@@ -769,38 +804,15 @@ set_args(int argc, char * const * argv, arguments* args)
 				break;
 				
 			case 'o': {
-				args->bintype = *optarg;
-
-				if (args->bintype == 'B'
-						|| args->bintype == 'S'
-						|| args->bintype == 'L'
-						|| args->bintype == 'M') {
-					char *p = optarg + 1;
-					if (*p == ':') {
-						args->binlen = atoi(p+1);
-						if (args->bintype == 'L' || args->bintype == 'M') {
-							switch (p[strlen(p) - 1]) {
-							case 'b':
-							case 'B':
-								args->binlen_type = LEN_TYPE_BYTES;
-								break;
-							case 'k':
-							case 'K':
-								args->binlen_type = LEN_TYPE_KBYTES;
-								break;
-							default:
-								break;
-							}
-						}
-					}
-					else {
-						blog_line("Unspecified bin size.");
-						return 1;
-					}
+				// free the default obj_spec before making a new one
+				obj_spec_free(&args->obj_spec);
+				int ret = obj_spec_parse(&args->obj_spec, optarg);
+				if (ret != 0) {
+					return ret;
 				}
 				break;
 			}
-
+				
 			case 'R':
 				args->random = true;
 				break;
@@ -1110,10 +1122,11 @@ main(int argc, char * const * argv)
 	args.set = "testset";
 	args.start_key = 1;
 	args.keys = 1000000;
-	args.numbins = 1;
+	/*args.numbins = 1;
 	args.bintype = 'I';
 	args.binlen = 50;
-	args.binlen_type = LEN_TYPE_COUNT;
+	args.binlen_type = LEN_TYPE_COUNT;*/
+	obj_spec_init(&args.obj_spec, "I");
 	args.random = false;
 	args.transactions_limit = 0;
 	args.init = false;
@@ -1173,6 +1186,7 @@ main(int argc, char * const * argv)
 		blog_line("Run with --help for usage information and flag options.");
 	}
 
+	obj_spec_free(&args.obj_spec);
 	if (args.hdr_output) {
 		free(args.hdr_output);
 	}

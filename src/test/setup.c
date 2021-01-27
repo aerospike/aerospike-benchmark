@@ -43,10 +43,10 @@ setup(void)
 	args->set = "testset";
 	args->start_key = 1;
 	args->keys = 1000000;
-	args->numbins = 1;
+	/*args->numbins = 1;
 	args->bintype = 'I';
 	args->binlen = 50;
-	args->binlen_type = LEN_TYPE_COUNT;
+	args->binlen_type = LEN_TYPE_COUNT;*/
 	args->random = false;
 	args->transactions_limit = 0;
 	args->init = false;
@@ -86,10 +86,10 @@ setup(void)
 	data->read_pct = args->read_pct;
 	data->del_bin = args->del_bin;
 	data->compression_ratio = args->compression_ratio;
-	data->bintype = args->bintype;
+	/*data->bintype = args->bintype;
 	data->binlen = args->binlen;
 	data->binlen_type = args->binlen_type;
-	data->numbins = args->numbins;
+	data->numbins = args->numbins;*/
 	data->random = args->random;
 	data->transactions_limit = args->transactions_limit;
 	data->transactions_count = 0;

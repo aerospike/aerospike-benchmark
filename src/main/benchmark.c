@@ -161,7 +161,8 @@ is_single_bin(aerospike* client, const char* namespace)
 		char* p = strstr(res, search);
 		
 		if (p) {
-			// The compiler (with -O3 flag) will know search is a literal and optimize strlen accordingly.
+			// The compiler (with -O3 flag) will know search is a literal and
+			// optimize strlen accordingly.
 			p += strlen(search);
 			char* q = strchr(p, ';');
 			
@@ -457,10 +458,11 @@ run_benchmark(arguments* args)
 	data.read_pct = args->read_pct;
 	data.del_bin = args->del_bin;
 	data.compression_ratio = args->compression_ratio;
-	data.bintype = args->bintype;
+	/*data.bintype = args->bintype;
 	data.binlen = args->binlen;
 	data.binlen_type = args->binlen_type;
-	data.numbins = args->numbins;
+	data.numbins = args->numbins;*/
+	obj_spec_move(&data.obj_spec, &args->obj_spec);
 	data.random = args->random;
 	data.transactions_limit = args->transactions_limit;
 	data.transactions_count = 0;

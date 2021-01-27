@@ -35,14 +35,14 @@
 
 extern as_monitor monitor;
 
-static const char alphanum[] =
+/*static const char alphanum[] =
 	"0123456789"
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	"abcdefghijklmnopqrstuvwxyz";
+	"abcdefghijklmnopqrstuvwxyz";*/
 
-static int alphanum_len = sizeof(alphanum) - 1;
+//static int alphanum_len = sizeof(alphanum) - 1;
 
-static int
+/*static int
 calc_list_or_map_ele_count(char bintype, int binlen, len_type binlen_type, int expected_ele_size)
 {
 	int len = binlen;
@@ -50,7 +50,7 @@ calc_list_or_map_ele_count(char bintype, int binlen, len_type binlen_type, int e
 	switch (binlen_type) {
 	case LEN_TYPE_KBYTES:
 		len *= 1024;
-		/* no break */
+		// no break
 	case LEN_TYPE_BYTES:
 		len /= expected_ele_size;
 		if (bintype == 'M') {
@@ -62,10 +62,10 @@ calc_list_or_map_ele_count(char bintype, int binlen, len_type binlen_type, int e
 	}
 
 	return len;
-}
+}*/
 
 // Expected msgpack size is 9 bytes.
-static as_val *
+/*static as_val *
 random_element_9b(as_random *ran)
 {
 	int type = (int)(as_random_next_uint64(ran) % 2);
@@ -86,12 +86,20 @@ random_element_9b(as_random *ran)
 	buf[len] = 0;
 
 	return (as_val *)as_string_new_strdup((char *)buf);
-}
+}*/
 
 int
 gen_value(arguments* args, as_val** valpp)
 {
-	switch (args->bintype) {
+	as_val* val = obj_spec_gen_value(&args->obj_spec, as_random_instance());
+	if (val == NULL) {
+		return -1;
+	}
+	else {
+		*valpp = val;
+		return 0;
+	}
+	/*switch (args->bintype) {
 		case 'I': {
 			// Generate integer.
 			uint32_t v = as_random_get_uint32();
@@ -161,16 +169,16 @@ gen_value(arguments* args, as_val** valpp)
 			return -1;
 		}
 	}
-	return 0;
+	return 0;*/
 }
 
 threaddata*
 create_threaddata(clientdata* cdata, uint64_t key_start, uint64_t n_keys)
 {
-	int len = 0;
+	//int len = 0;
 	
 	// Only random bin values need a thread local buffer.
-	if (cdata->random) {
+	/*if (cdata->random) {
 		switch (cdata->bintype)
 		{
 			case 'I': {
@@ -200,12 +208,12 @@ create_threaddata(clientdata* cdata, uint64_t key_start, uint64_t n_keys)
 				return 0;
 			}
 		}
-	}
+	}*/
 
 	threaddata* tdata = malloc(sizeof(threaddata));
 	tdata->cdata = cdata;
 	tdata->random = as_random_instance();
-	tdata->buffer = len != 0 ? malloc(len) : NULL;
+	//tdata->buffer = len != 0 ? malloc(len) : NULL;
 	tdata->begin = 0;
 	tdata->key_start = key_start;
 	tdata->key_count = 0;
@@ -213,12 +221,12 @@ create_threaddata(clientdata* cdata, uint64_t key_start, uint64_t n_keys)
 
 	// Initialize a thread local key, record.
 	as_key_init_int64(&tdata->key, cdata->namespace, cdata->set, key_start);
-	as_record_init(&tdata->rec, cdata->numbins);
-	for (int i = 0; i < cdata->numbins; i++) {
+	as_record_init(&tdata->rec, obj_spec_n_bins(&cdata->obj_spec));
+	/*for (int i = 0; i < cdata->numbins; i++) {
 		tdata->rec.bins.entries[i].valuep = NULL;
 		as_val_reserve(cdata->fixed_value);
 	}
-	tdata->rec.bins.size = cdata->numbins;
+	tdata->rec.bins.size = cdata->numbins;*/
 	return tdata;
 }
 
@@ -230,14 +238,14 @@ destroy_threaddata(threaddata* tdata)
 	// Only decrement ref count on null bin entries.
 	// Non-null bin entries references are decremented
 	// in as_record_destroy().
-	clientdata* cdata = tdata->cdata;
-	for (int i = 0; i < cdata->numbins; i++) {
+	//clientdata* cdata = tdata->cdata;
+	/*for (int i = 0; i < cdata->numbins; i++) {
 		if (tdata->rec.bins.entries[i].valuep == NULL) {
 			as_val_destroy(cdata->fixed_value);
 		}
-	}
+	}*/
 	as_record_destroy(&tdata->rec);
-	free(tdata->buffer);
+	//free(tdata->buffer);
 	free(tdata);
 }
 
@@ -245,19 +253,41 @@ static void
 init_write_record(clientdata* cdata, threaddata* tdata)
 {
 	if (cdata->del_bin) {
-		for (int i = 0; i < cdata->numbins; i++) {
+		uint32_t n_bins = obj_spec_n_bins(&cdata->obj_spec);
+		for (int i = 0; i < n_bins; i++) {
 			as_bin* bin = &tdata->rec.bins.entries[i];
 			if (i==0) {
-				strcpy(bin->name, cdata->bin_name);
+				strncpy(bin->name, cdata->bin_name, sizeof(as_bin_name) - 1);
+				bin->name[sizeof(as_bin_name) - 1] = '\0';
 			} else {
-				sprintf(bin->name, "%s_%d", cdata->bin_name, i);
+				snprintf(bin->name, sizeof(as_bin_name), "%s_%d", cdata->bin_name, i);
 			}
 			as_record_set_nil(&tdata->rec, bin->name);
 		}
 		return;
 	}
-	
-	for (int i = 0; i <cdata->numbins; i++) {
+
+	if (cdata->random) {
+		obj_spec_populate_bins(&cdata->obj_spec, &tdata->rec, tdata->random,
+				cdata->bin_name);
+	}
+	else {
+		as_list* list = as_list_fromval(cdata->fixed_value);
+		uint32_t n_objs = as_list_size(list);
+		for (uint32_t i = 0; i < n_objs; i++) {
+			as_val* val = as_list_get(list, i);
+			as_bin* bin = &tdata->rec.bins.entries[i];
+			if (i==0) {
+				strncpy(bin->name, cdata->bin_name, sizeof(as_bin_name) - 1);
+				bin->name[sizeof(as_bin_name) - 1] = '\0';
+			} else {
+				snprintf(bin->name, sizeof(as_bin_name), "%s_%d", cdata->bin_name, i);
+			}
+			as_record_set(&tdata->rec, bin->name, (as_bin_value*) val);
+		}
+	}
+
+	/*for (int i = 0; i <cdata->numbins; i++) {
 		as_bin* bin = &tdata->rec.bins.entries[i];
 		if (i==0) {
 			strcpy(bin->name, cdata->bin_name);
@@ -353,7 +383,7 @@ init_write_record(clientdata* cdata, threaddata* tdata)
 			((as_val*)&bin->value)->type = cdata->fixed_value->type;
 			bin->valuep = (as_bin_value *)cdata->fixed_value;
 		}
-	}
+	}*/
 }
 
 bool

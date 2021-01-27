@@ -29,6 +29,7 @@
 #include "hdr_histogram/hdr_histogram.h"
 #include "histogram.h"
 #include "latency.h"
+#include "object_spec.h"
 
 typedef enum {
 	LEN_TYPE_COUNT,
@@ -45,10 +46,15 @@ typedef struct arguments_t {
 	const char* set;
 	uint64_t start_key;
 	uint64_t keys;
-	char bintype;
+	/*char bintype;
 	int binlen;
 	int numbins;
-	len_type binlen_type;
+	len_type binlen_type;*/
+
+	// the default object spec, in the case that a workload stage isn't defined
+	// with one
+	struct obj_spec obj_spec;
+
 	bool random;
 	bool init;
 	int init_pct;
@@ -137,12 +143,13 @@ typedef struct clientdata_t {
 	int throughput;
 	int batch_size;
 	int read_pct;
-	int binlen;
+	struct obj_spec obj_spec;
+	/*int binlen;
 	int numbins;
-	len_type binlen_type;
+	len_type binlen_type;*/
 	
 	float compression_ratio;
-	char bintype;
+	//char bintype;
 	bool del_bin;
 	bool random;
 	bool latency;
@@ -153,7 +160,7 @@ typedef struct clientdata_t {
 typedef struct threaddata_t {
 	clientdata* cdata;
 	as_random* random;
-	uint8_t* buffer;
+	//uint8_t* buffer;
 	uint64_t begin;
 	uint64_t key_start;
 	uint64_t key_count;

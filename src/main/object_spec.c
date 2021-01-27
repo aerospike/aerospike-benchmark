@@ -719,6 +719,14 @@ void obj_spec_free(struct obj_spec* obj_spec)
 }
 
 
+void obj_spec_move(struct obj_spec* dst, struct obj_spec* src)
+{
+	__builtin_memcpy(dst, src, offsetof(struct obj_spec, valid));
+	dst->valid = true;
+	src->valid = false;
+}
+
+
 uint32_t obj_spec_n_bins(const struct obj_spec* obj_spec)
 {
 	return obj_spec->n_bin_specs;
@@ -970,6 +978,17 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 		}
 	}
 	return 0;
+}
+
+
+as_val* obj_spec_gen_value(const struct obj_spec* obj_spec, as_random* random)
+{
+	struct bin_spec tmp_list;
+	tmp_list.type = BIN_SPEC_TYPE_LIST;
+	tmp_list.list.length = obj_spec->n_bin_specs;
+	tmp_list.list.list = obj_spec->bin_specs;
+
+	return bin_spec_random_val(&tmp_list, random);
 }
 
 

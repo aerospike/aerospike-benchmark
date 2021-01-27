@@ -87,6 +87,13 @@ int obj_spec_parse(struct obj_spec* base_obj, const char* obj_spec_str);
 
 void obj_spec_free(struct obj_spec*);
 
+/*
+ * transfers ownership of the obj_spec from src to dst, so if free is called
+ * on the previous owner it does not free the obj_spec while the new owner is
+ * still using it
+ */
+void obj_spec_move(struct obj_spec* dst, struct obj_spec* src);
+
 
 /*
  * returns the number of bins required to fit all the objects in the obj_spec
@@ -105,6 +112,12 @@ uint32_t obj_spec_n_bins(const struct obj_spec*);
  */
 int obj_spec_populate_bins(const struct obj_spec*, as_record*, as_random*,
 		const char* bin_name_template);
+
+/*
+ * instead of populating a record's bins, returns an as_list of the objects
+ * that would have been placed in the record
+ */
+as_val* obj_spec_gen_value(const struct obj_spec*, as_random*);
 
 
 // define bin printing methods only for testing
