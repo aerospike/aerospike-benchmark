@@ -47,6 +47,8 @@ START_TEST(test_name ## _valid) \
 	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
 				"test"), 0); \
 	_dbg_obj_spec_assert_valid(&o, &rec, "test"); \
+	as_record_destroy(&rec); \
+	obj_spec_free(&o); \
 }
 
 #define DEFINE_FAILING_TCASE(test_name, obj_spec_str, msg) \
@@ -211,6 +213,53 @@ DEFINE_FAILING_TCASE(test_mult_list_too_many_elements, "[3000000000*I4,300000000
 		"more than 2^32 elements in a single list is not allowed");
 
 
+/*
+ * Bin name test cases
+ */
+#define DEFINE_BIN_NAME_OK(test_name, n_bins, bin_name) \
+START_TEST(test_name) \
+{ \
+	struct obj_spec o; \
+	as_random random; \
+	as_record rec; \
+	as_random_init(&random); \
+	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
+	as_record_init(&rec, obj_spec_n_bins(&o)); \
+	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
+				bin_name), 0); \
+	as_record_destroy(&rec); \
+	obj_spec_free(&o); \
+} \
+END_TEST
+
+#define DEFINE_BIN_NAME_TOO_LARGE(test_name, n_bins, bin_name) \
+START_TEST(test_name) \
+{ \
+	struct obj_spec o; \
+	as_random random; \
+	as_record rec; \
+	as_random_init(&random); \
+	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
+	as_record_init(&rec, obj_spec_n_bins(&o)); \
+	ck_assert_int_ne(obj_spec_populate_bins(&o, &rec, &random, \
+				bin_name), 0); \
+	as_record_destroy(&rec); \
+} \
+END_TEST
+
+
+DEFINE_BIN_NAME_OK(bin_name_single_ok, 1, "abcdefghijklmno");
+DEFINE_BIN_NAME_TOO_LARGE(bin_name_single_too_large, 1, "abcdefghijklmnop");
+DEFINE_BIN_NAME_OK(bin_name_1_dig_ok, 3, "abcdefghijklm");
+DEFINE_BIN_NAME_TOO_LARGE(bin_name_1_dig_too_large, 9, "abcdefghijklmn");
+DEFINE_BIN_NAME_OK(bin_name_2_dig_ok, 10, "abcdefghijkl");
+DEFINE_BIN_NAME_TOO_LARGE(bin_name_2_dig_too_large, 99, "abcdefghijklm");
+DEFINE_BIN_NAME_OK(bin_name_3_dig_ok, 123, "abcdefghijl");
+DEFINE_BIN_NAME_TOO_LARGE(bin_name_3_dig_too_large, 909, "abcdefghijkl");
+DEFINE_BIN_NAME_OK(bin_name_4_dig_ok, 1024, "abcdefghij");
+DEFINE_BIN_NAME_TOO_LARGE(bin_name_4_dig_too_large, 8192, "abcdefghijk");
+
+
 Suite*
 obj_spec_suite(void)
 {
@@ -221,6 +270,7 @@ obj_spec_suite(void)
 	TCase* tc_multi_bins;
 	TCase* tc_nested;
 	TCase* tc_multipliers;
+	TCase* tc_bin_names;
 
 	s = suite_create("Object Spec");
 
@@ -414,6 +464,20 @@ obj_spec_suite(void)
 	tcase_add_test(tc_multipliers, test_mult_list_overflow2);
 	tcase_add_test(tc_multipliers, test_mult_list_too_many_elements);
 	suite_add_tcase(s, tc_multipliers);
+
+	tc_bin_names = tcase_create("Bin names");
+	tcase_add_checked_fixture(tc_bin_names, simple_setup, simple_teardown);
+	tcase_add_test(tc_bin_names, bin_name_single_ok);
+	tcase_add_test(tc_bin_names, bin_name_single_too_large);
+	tcase_add_test(tc_bin_names, bin_name_1_dig_ok);
+	tcase_add_test(tc_bin_names, bin_name_1_dig_too_large);
+	tcase_add_test(tc_bin_names, bin_name_2_dig_ok);
+	tcase_add_test(tc_bin_names, bin_name_2_dig_too_large);
+	tcase_add_test(tc_bin_names, bin_name_3_dig_ok);
+	tcase_add_test(tc_bin_names, bin_name_3_dig_too_large);
+	tcase_add_test(tc_bin_names, bin_name_4_dig_ok);
+	tcase_add_test(tc_bin_names, bin_name_4_dig_too_large);
+	suite_add_tcase(s, tc_bin_names);
 
 	return s;
 }
