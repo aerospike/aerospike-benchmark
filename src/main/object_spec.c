@@ -680,6 +680,12 @@ void obj_spec_free(struct obj_spec* obj_spec)
 }
 
 
+uint32_t obj_spec_n_bins(const struct obj_spec* obj_spec)
+{
+	return obj_spec->n_bin_specs;
+}
+
+
 static as_val* _gen_random_int(uint8_t range, as_random* random)
 {
 	as_integer* val;
@@ -803,10 +809,10 @@ static as_val* _gen_random_list(const struct bin_spec* bin_spec,
 
 	// iterate over the list elements and recursively generate their
 	// values
-	for (uint32_t i = 0; i < bin_spec->list.length; i++) {
+	for (uint32_t i = 0, cnt = 0; cnt < bin_spec->list.length; i++) {
 		const struct bin_spec* ele_bin = &bin_spec->list.list[i];
 
-		for (uint32_t j = 0; j < ele_bin->n_repeats; i++, j++) {
+		for (uint32_t j = 0; j < ele_bin->n_repeats; j++, cnt++) {
 			as_val* val = bin_spec_random_val(ele_bin, random);
 
 			if (val) {
@@ -894,6 +900,9 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 			as_val* val = bin_spec_random_val(bin_spec, random);
 
 			if (val == NULL) {
+				char buf[1024];
+				_dbg_sprint_obj_spec(obj_spec, buf, sizeof(buf));
+				printf("%s\n", buf);
 				return -1;
 			}
 
@@ -976,6 +985,126 @@ void _dbg_sprint_obj_spec(const struct obj_spec* obj_spec, char* out_str,
 
 		if (cnt != obj_spec->n_bin_specs && str_size > 0) {
 			sprint(&out_str, str_size, ",");
+		}
+	}
+}
+
+
+// include libcheck so we can ck_assert in the validation methods below
+#include <check.h>
+
+
+static void _dbg_validate_int(uint8_t range, as_integer* as_val)
+{
+	ck_assert_msg(as_val != NULL, "Expected an integer, got something else");
+	ck_assert_msg(range <= 7, "invalid bin_spec integer range (%u)\n", range);
+
+	uint64_t val = (uint64_t) as_integer_get(as_val);
+	switch (range) {
+		case 0:
+			ck_assert_msg(0 <= val && val < 256, "Integer value (%lu) is out "
+					"of range", val);
+			break;
+		case 1:
+			ck_assert_msg(256 <= val && val < 65536, "Integer value (%lu) is "
+					"out of range", val);
+			break;
+		case 2:
+			ck_assert_msg(65536 <= val && val < 0x1000000, "Integer value "
+					"(%lu) is out of range", val);
+			break;
+		case 3:
+			ck_assert_msg(0x1000000 <= val && val < 0x100000000, "Integer "
+					"value (%lu) is out of range", val);
+			break;
+		case 4:
+			ck_assert_msg(0x100000000 <= val && val < 0x10000000000, "Integer "
+					"value (%lu) is out of range", val);
+			break;
+		case 5:
+			ck_assert_msg(0x10000000000 <= val && val < 0x1000000000000,
+					"Integer value (%lu) is out of range", val);
+			break;
+		case 6:
+			ck_assert_msg(0x1000000000000 <= val && val < 0x100000000000000,
+					"Integer value (%lu) is out of range", val);
+			break;
+		case 7:
+			ck_assert_msg(0x100000000000000 <= val,
+					"Integer value (%lu) is out of range", val);
+			break;
+	}
+}
+
+static void _dbg_validate_string(uint32_t length, as_string* as_val)
+{
+	ck_assert_msg(as_val != NULL, "Expected a string, got something else");
+
+	size_t str_len = as_string_len(as_val);
+	ck_assert_int_eq(length, str_len);
+
+	for (uint32_t i = 0; i < str_len; i++) {
+		char c = as_string_get(as_val)[i];
+		ck_assert(('a' <= c && c <= 'z') || c == ' ');
+	}
+}
+
+static void _dbg_validate_bytes(uint32_t length, as_bytes* as_val)
+{
+	ck_assert_msg(as_val != NULL, "Expected a bytes array, got something else");
+
+	ck_assert_int_eq(length, as_bytes_size(as_val));
+}
+
+static void _dbg_validate_double(as_double* as_val)
+{
+	ck_assert_msg(as_val != NULL, "Expected a double, got something else");
+}
+
+static void _dbg_validate_obj_spec(const struct bin_spec* bin_spec,
+		const as_val* val)
+{
+	switch (bin_spec_get_type(bin_spec)) {
+		case BIN_SPEC_TYPE_INT:
+			_dbg_validate_int(bin_spec->integer.range, as_integer_fromval(val));
+			break;
+		case BIN_SPEC_TYPE_STR:
+			_dbg_validate_string(bin_spec->string.length, as_string_fromval(val));
+			break;
+		case BIN_SPEC_TYPE_BYTES:
+			_dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val));
+			break;
+		case BIN_SPEC_TYPE_DOUBLE:
+			_dbg_validate_double(as_double_fromval(val));
+			break;
+		case BIN_SPEC_TYPE_LIST:
+			break;
+		case BIN_SPEC_TYPE_MAP:
+			break;
+		default:
+			ck_assert_msg(0, "unknown bin_spec type (%d)",
+					bin_spec_get_type(bin_spec));
+	}
+}
+
+void _dbg_obj_spec_assert_valid(const struct obj_spec* obj_spec,
+		const as_record* rec, const char* bin_name)
+{
+	as_bin_name name;
+
+	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
+		const struct bin_spec* bin_spec = &obj_spec->bin_specs[i];
+
+		for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
+			if (cnt == 0) {
+				strncpy(name, bin_name, sizeof(name));
+			}
+			else {
+				snprintf(name, sizeof(name), "%s_%d", bin_name, cnt + 1);
+			}
+
+			as_val* val = (as_val*) as_record_get(rec, name);
+			_dbg_validate_obj_spec(bin_spec, val);
 		}
 	}
 }
