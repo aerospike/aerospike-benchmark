@@ -658,20 +658,22 @@ int obj_spec_parse(struct obj_spec* base_obj, const char* obj_spec_str)
 			DEFAULT_LIST_BUILDER_CAPACITY);
 
 	err = _parse_bin_types(&bin_specs, &n_bins, obj_spec_str);
-	if (err) {
-		goto cleanup;
-	}
+	if (!err) {
+		// copy the vector into base_obj before cleaning up
+		base_obj->bin_specs = as_vector_to_array(&bin_specs, &base_obj->n_bin_specs);
 
-	// copy the vector into base_obj before cleaning up
-	base_obj->bin_specs = as_vector_to_array(&bin_specs, &base_obj->n_bin_specs);
-
-	// n_bins is initialized by _parse_bin_types
+		// n_bins is initialized by _parse_bin_types
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-	base_obj->n_bin_specs = n_bins;
+		base_obj->n_bin_specs = n_bins;
 #pragma GCC diagnostic pop
 
-cleanup:
+		base_obj->valid = true;
+	}
+	else {
+		base_obj->valid = false;
+	}
+
 	as_vector_destroy(&bin_specs);
 	return err;
 }
@@ -706,11 +708,14 @@ static void bin_spec_free(struct bin_spec* bin_spec)
 
 void obj_spec_free(struct obj_spec* obj_spec)
 {
-	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
-		cnt += obj_spec->bin_specs[i].n_repeats;
-		bin_spec_free(&obj_spec->bin_specs[i]);
+	if (obj_spec->valid) {
+		for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
+			cnt += obj_spec->bin_specs[i].n_repeats;
+			bin_spec_free(&obj_spec->bin_specs[i]);
+		}
+		cf_free(obj_spec->bin_specs);
+		obj_spec->valid = false;
 	}
-	cf_free(obj_spec->bin_specs);
 }
 
 

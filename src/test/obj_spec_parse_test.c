@@ -24,6 +24,33 @@ simple_teardown(void)
 }
 
 
+/*
+ * Memory test cases
+ */
+START_TEST(test_double_free)
+{
+	struct obj_spec o;
+	obj_spec_parse(&o, "I");
+	obj_spec_free(&o);
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_free_after_failed_init)
+{
+	struct obj_spec o;
+	// technically o can be anything, so let's set it to valid to make sure
+	// that obj_spec_init unsets it if it fails to initialize
+	o.valid = true;
+	obj_spec_parse(&o, "K");
+	obj_spec_free(&o);
+}
+END_TEST
+
+
+/*
+ * test-case definining macros
+ */
 #define DEFINE_TCASE_DIFF(test_name, obj_spec_str, expected_out_str) \
 START_TEST(test_name ## _str_cmp) \
 { \
@@ -267,6 +294,7 @@ Suite*
 obj_spec_suite(void)
 {
 	Suite* s;
+	TCase* tc_memory;
 	TCase* tc_simple;
 	TCase* tc_list;
 	TCase* tc_map;
@@ -276,6 +304,12 @@ obj_spec_suite(void)
 	TCase* tc_bin_names;
 
 	s = suite_create("Object Spec");
+
+	tc_memory = tcase_create("Memory");
+	tcase_add_checked_fixture(tc_memory, simple_setup, simple_teardown);
+	tcase_add_test(tc_memory, test_double_free);
+	tcase_add_test(tc_memory, test_free_after_failed_init);
+	suite_add_tcase(s, tc_memory);
 
 	tc_simple = tcase_create("Simple");
 	tcase_add_checked_fixture(tc_simple, simple_setup, simple_teardown);

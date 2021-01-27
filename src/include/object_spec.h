@@ -34,6 +34,13 @@ struct bin_spec;
 struct obj_spec {
 	struct bin_spec* bin_specs;
 	uint32_t n_bin_specs;
+	/*
+     * when set to true, this is a valid obj_spec, when set to false, this
+	 * obj_spec has already been freed
+	 * note, obviously, this value will be undefined before the object spec
+	 * has first been initialized
+	 */
+	bool valid;
 };
 
 
