@@ -343,7 +343,12 @@ obj_spec_suite(void)
 	as_random_init(&random);
 
 	struct obj_spec o;
-	obj_spec_parse(&o, "I1,I2,[I3,[S10,S20]],B10,D,{10*I3:S5}");
+	obj_spec_parse(&o, "I1,I2,[I3,[S10,S20]],B10,D,{I3:S5}");
+
+	char buf[1024];
+	_dbg_sprint_obj_spec(&o, buf, sizeof(buf));
+	printf("%s\n", buf);
+
 	as_record rec;
 	as_record_init(&rec, 6);
 	int res = obj_spec_populate_bins(&o, &rec, &random, "test");

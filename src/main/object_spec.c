@@ -88,6 +88,10 @@ struct bin_spec {
 			/*
 			 * a list of the types of elements in this list (in the order they
 			 * appear in the list)
+			 *
+			 * note that this is the length of the list accounting for multiples
+			 * of elements, and the true length of the list (as in the number of
+			 * struct bin_spec pointers) is <= this value
 			 */
 			uint32_t length;
 			struct bin_spec* list;
@@ -147,8 +151,13 @@ struct consumer_state {
 	struct consumer_state* parent;
 
 	union {
-		// the vector of bin_specs used to build a list
-		as_vector* list_builder;
+		struct {
+			// the vector of bin_specs used to build a list
+			as_vector* list_builder;
+
+			// the length of the list, accounting for multipliers
+			uint32_t list_len;
+		};
 
 		// the key/value bin_specs used to build a map
 		struct {
@@ -271,7 +280,8 @@ static void _destroy_consumer_states(struct consumer_state* state)
 }
 
 
-static int _parse_bin_types(as_vector* bin_specs, const char* const obj_spec_str)
+static int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+		const char* const obj_spec_str)
 {
 	struct consumer_state begin_state;
 	struct consumer_state* state;
@@ -283,6 +293,7 @@ static int _parse_bin_types(as_vector* bin_specs, const char* const obj_spec_str
 	begin_state.bin_spec = NULL;
 	begin_state.parent = NULL;
 	begin_state.list_builder = bin_specs;
+	begin_state.list_len = 0;
 
 	state = &begin_state;
 	str = obj_spec_str;
@@ -322,6 +333,9 @@ _top:
 						bin_spec->list.list =
 							as_vector_to_array(state->list_builder,
 									&bin_spec->list.length);
+						// the length we'll be storing is the effective length,
+						// so overwrite what was stored by as_vector_to_array
+						bin_spec->list.length = state->list_len;
 						as_vector_destroy(state->list_builder);
 						break;
 					case CONSUMER_TYPE_MAP:
@@ -350,6 +364,11 @@ _top:
 				type = new_state->type;
 				map_state = new_state->state;
 			}
+			else {
+				// this is the root-level list, so commit the effective length
+				// to the n_bins variable passed by the caller
+				*n_bins = state->list_len;
+			}
 			state = new_state;
 		}
 		else {
@@ -361,7 +380,6 @@ _top:
 					bin_spec = (struct bin_spec*) as_vector_reserve(list_builder);
 					break;
 				case CONSUMER_TYPE_MAP:
-					map_state = state->state;
 					bin_spec =
 						(struct bin_spec*) cf_malloc(sizeof(struct bin_spec));
 					assert((((uint64_t) bin_spec) & BIN_SPEC_TYPE_MASK) == 0);
@@ -413,6 +431,9 @@ _top:
 				mult = 1;
 			}
 
+			if (type == CONSUMER_TYPE_LIST) {
+				state->list_len += mult;
+			}
 			bin_spec->n_repeats = mult;
 			switch (*str) {
 				case 'I': {
@@ -489,6 +510,7 @@ _top:
 					list_state->bin_spec = bin_spec;
 					list_state->parent = state;
 					list_state->list_builder = list_builder;
+					list_state->list_len = 0;
 
 					str++;
 					state = list_state;
@@ -585,18 +607,20 @@ int obj_spec_parse(struct obj_spec* base_obj, const char* obj_spec_str)
 	int err;
 	// use as_vector to build the list of bin_specs, as it has dynamic sizing
 	as_vector bin_specs;
+	uint32_t n_bins;
 
 	// begin with a capacity of 8
 	as_vector_inita(&bin_specs, sizeof(struct bin_spec),
 			DEFAULT_LIST_BUILDER_CAPACITY);
 
-	err = _parse_bin_types(&bin_specs, obj_spec_str);
+	err = _parse_bin_types(&bin_specs, &n_bins, obj_spec_str);
 	if (err) {
 		goto cleanup;
 	}
 
 	// copy the vector into base_obj before cleaning up
 	base_obj->bin_specs = as_vector_to_array(&bin_specs, &base_obj->n_bin_specs);
+	base_obj->n_bin_specs = n_bins;
 
 cleanup:
 	as_vector_destroy(&bin_specs);
@@ -615,7 +639,8 @@ static void bin_spec_free(struct bin_spec* bin_spec)
 			// no-op, scalar types use no disjointed memory
 			break;
 		case BIN_SPEC_TYPE_LIST:
-			for (uint32_t i = 0; i < bin_spec->list.length; i++) {
+			for (uint32_t i = 0, cnt = 0; cnt < bin_spec->list.length; i++) {
+				cnt += bin_spec->list.list[i].n_repeats;
 				bin_spec_free(&bin_spec->list.list[i]);
 			}
 			cf_free(bin_spec->list.list);
@@ -632,7 +657,8 @@ static void bin_spec_free(struct bin_spec* bin_spec)
 
 void obj_spec_free(struct obj_spec* obj_spec)
 {
-	for (uint32_t i = 0; i < obj_spec->n_bin_specs; i++) {
+	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
+		cnt += obj_spec->bin_specs[i].n_repeats;
 		bin_spec_free(&obj_spec->bin_specs[i]);
 	}
 	cf_free(obj_spec->bin_specs);
@@ -765,15 +791,16 @@ static as_val* _gen_random_list(const struct bin_spec* bin_spec,
 	for (uint32_t i = 0; i < bin_spec->list.length; i++) {
 		const struct bin_spec* ele_bin = &bin_spec->list.list[i];
 
-		as_val* val = bin_spec_random_val(ele_bin, random);
+		for (uint32_t j = 0; j < ele_bin->n_repeats; i++, j++) {
+			as_val* val = bin_spec_random_val(ele_bin, random);
 
-		if (val) {
-			as_list_append((as_list*) list, val);
-		}
-		else {
-			as_list_destroy((as_list*) list);
-			list = NULL;
-			break;
+			if (val) {
+				as_list_append((as_list*) list, val);
+			}
+			else {
+				as_list_destroy((as_list*) list);
+				return NULL;
+			}
 		}
 	}
 
@@ -848,20 +875,22 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 	for (uint32_t i = 0; i < n_bin_specs; i++) {
 		const struct bin_spec* bin_spec = &obj_spec->bin_specs[i];
 
-		as_val* val = bin_spec_random_val(bin_spec, random);
+		for (uint32_t j = 0; j < bin_spec->n_repeats; i++, j++) {
+			as_val* val = bin_spec_random_val(bin_spec, random);
 
-		if (val == NULL) {
-			return -1;
-		}
+			if (val == NULL) {
+				return -1;
+			}
 
-		as_bin_name name;
-		if (i == 0) {
-			strncpy(name, bin_name, sizeof(name));
+			as_bin_name name;
+			if (i == 0) {
+				strncpy(name, bin_name, sizeof(name));
+			}
+			else {
+				snprintf(name, sizeof(name), "%s_%d", bin_name, i + 1);
+			}
+			as_record_set(rec, name, (as_bin_value*) val);
 		}
-		else {
-			snprintf(name, sizeof(name), "%s_%d", bin_name, i + 1);
-		}
-		as_record_set(rec, name, (as_bin_value*) val);
 	}
 	return 0;
 }
@@ -898,9 +927,10 @@ static size_t _sprint_bin(const struct bin_spec* bin, char** out_str,
 			break;
 		case BIN_SPEC_TYPE_LIST:
 			sprint(out_str, str_size, "[");
-			for (uint32_t i = 0; i < bin->list.length; i++) {
+			for (uint32_t i = 0, cnt = 0; cnt < bin->list.length; i++) {
 				str_size = _sprint_bin(&bin->list.list[i], out_str, str_size);
-				if (i != bin->list.length - 1) {
+				cnt += bin->list.list[i].n_repeats;
+				if (cnt != bin->list.length) {
 					sprint(out_str, str_size, ",");
 				}
 			}
@@ -920,9 +950,12 @@ static size_t _sprint_bin(const struct bin_spec* bin, char** out_str,
 void _dbg_sprint_obj_spec(const struct obj_spec* obj_spec, char* out_str,
 		size_t str_size)
 {
-	for (uint32_t i = 0; i < obj_spec->n_bin_specs; i++) {
+	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
 		str_size = _sprint_bin(&obj_spec->bin_specs[i], &out_str, str_size);
-		if (i != obj_spec->n_bin_specs - 1 && str_size > 0) {
+
+		cnt += obj_spec->bin_specs[i].n_repeats;
+
+		if (cnt != obj_spec->n_bin_specs && str_size > 0) {
 			sprint(&out_str, str_size, ",");
 		}
 	}
