@@ -343,22 +343,23 @@ obj_spec_suite(void)
 	as_random_init(&random);
 
 	struct obj_spec o;
-	obj_spec_parse(&o, "I1,I2,[I3,[S10,S20]],B10,D,{I3:S5}");
+	obj_spec_parse(&o, "I1,I2,[I3,[S10,S20]],2*B10,D,{6*I3:S5}");
 
 	char buf[1024];
 	_dbg_sprint_obj_spec(&o, buf, sizeof(buf));
 	printf("%s\n", buf);
 
 	as_record rec;
-	as_record_init(&rec, 6);
+	as_record_init(&rec, 7);
 	int res = obj_spec_populate_bins(&o, &rec, &random, "test");
 	printf("result: %d\n", res);
 	printf("test:   %lx\n", as_record_get_int64(&rec, "test", 0));
 	printf("test_2: %lx\n", as_record_get_int64(&rec, "test_2", 0));
 	printf("test_3: %s\n", as_val_tostring(as_record_get(&rec, "test_3")));
 	printf("test_4: %s\n", as_val_tostring(as_record_get_bytes(&rec, "test_4")));
-	printf("test_5: %lg\n", as_record_get_double(&rec, "test_5", 0));
-	printf("test_6: %s\n", as_val_tostring(as_record_get(&rec, "test_6")));
+	printf("test_5: %s\n", as_val_tostring(as_record_get_bytes(&rec, "test_5")));
+	printf("test_6: %lg\n", as_record_get_double(&rec, "test_6", 0));
+	printf("test_7: %s\n", as_val_tostring(as_record_get(&rec, "test_7")));
 	obj_spec_free(&o);
 
 	return s;

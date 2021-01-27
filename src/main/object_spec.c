@@ -872,10 +872,10 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 		return -1;
 	}
 
-	for (uint32_t i = 0; i < n_bin_specs;) {
+	for (uint32_t i = 0, cnt = 0; cnt < n_bin_specs; i++) {
 		const struct bin_spec* bin_spec = &obj_spec->bin_specs[i];
 
-		for (uint32_t j = 0; j < bin_spec->n_repeats; i++, j++) {
+		for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
 			as_val* val = bin_spec_random_val(bin_spec, random);
 
 			if (val == NULL) {
@@ -883,11 +883,11 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 			}
 
 			as_bin_name name;
-			if (i == 0) {
+			if (cnt == 0) {
 				strncpy(name, bin_name, sizeof(name));
 			}
 			else {
-				snprintf(name, sizeof(name), "%s_%d", bin_name, i + 1);
+				snprintf(name, sizeof(name), "%s_%d", bin_name, cnt + 1);
 			}
 			as_record_set(rec, name, (as_bin_value*) val);
 		}
