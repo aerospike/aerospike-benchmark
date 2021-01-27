@@ -276,6 +276,7 @@ init_write_record(clientdata* cdata, threaddata* tdata)
 		uint32_t n_objs = as_list_size(list);
 		for (uint32_t i = 0; i < n_objs; i++) {
 			as_val* val = as_list_get(list, i);
+			as_val_reserve(val);
 			as_bin* bin = &tdata->rec.bins.entries[i];
 			if (i==0) {
 				strncpy(bin->name, cdata->bin_name, sizeof(as_bin_name) - 1);

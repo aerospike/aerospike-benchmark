@@ -155,9 +155,9 @@ print_usage(const char* program)
 	blog_line("   '-K' or '--startKey'.");
 	blog_line("");
 	
-	blog_line("-b --bins <count>     # Default: 1");
+	/*blog_line("-b --bins <count>     # Default: 1");
 	blog_line("   Number of bins");
-	blog_line("");
+	blog_line("");*/
 	
 	/*blog_line("-o --objectSpec I | B:<size> | S:<size> | L:<size> | M:<size> # Default: I");
 	blog_line("   Bin object specification.");
