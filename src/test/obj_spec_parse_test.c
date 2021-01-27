@@ -193,6 +193,12 @@ DEFINE_FAILING_TCASE(test_mult_map_val_L, "{I4:7*[S3,B6,D]}",
 		"no multipliers on map values allowed");
 DEFINE_FAILING_TCASE(test_mult_map_val_M, "{I4:7*{B5:I4}}",
 		"no multipliers on map values allowed");
+DEFINE_FAILING_TCASE(test_mult_list_overflow, "[4294967296*I3]",
+		"multiplier >= 2^32 overflows the mult field");
+DEFINE_FAILING_TCASE(test_mult_list_overflow2, "[60000000000000000*I3]",
+		"multiplier >= 2^32 overflows the mult field");
+DEFINE_FAILING_TCASE(test_mult_list_too_many_elements, "[3000000000*I4,3000000000*S10]",
+		"more than 2^32 elements in a single list is not allowed");
 
 
 Suite*
@@ -336,6 +342,9 @@ obj_spec_suite(void)
 	tcase_add_test(tc_multipliers, test_mult_map_val_B);
 	tcase_add_test(tc_multipliers, test_mult_map_val_L);
 	tcase_add_test(tc_multipliers, test_mult_map_val_M);
+	tcase_add_test(tc_multipliers, test_mult_list_overflow);
+	tcase_add_test(tc_multipliers, test_mult_list_overflow2);
+	tcase_add_test(tc_multipliers, test_mult_list_too_many_elements);
 	suite_add_tcase(s, tc_multipliers);
 
 

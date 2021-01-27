@@ -416,6 +416,13 @@ _top:
 					goto _destroy_state;
 				}
 
+				if (((uint32_t) mult) != mult) {
+					_print_parse_error("Multiplier exceeds maximum unsigned "
+							"32-bit integer value",
+							obj_spec_str, str);
+					goto _destroy_state;
+				}
+
 				// a multiplier has been specified, expect a '*' next, followed by
 				// the bin_spec
 				str = endptr;
@@ -432,7 +439,15 @@ _top:
 			}
 
 			if (type == CONSUMER_TYPE_LIST) {
-				state->list_len += mult;
+				uint32_t new_list_len = state->list_len + mult;
+				if (new_list_len < state->list_len) {
+					// we overflowed! That means too many elements were placed
+					// in a single list (> 2^32)
+					_print_parse_error("Too many elements in a list (>= 2^32)",
+							obj_spec_str, str);
+					goto _destroy_state;
+				}
+				state->list_len = new_list_len;
 			}
 			bin_spec->n_repeats = mult;
 			switch (*str) {
@@ -889,7 +904,11 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 			else {
 				snprintf(name, sizeof(name), "%s_%d", bin_name, cnt + 1);
 			}
-			as_record_set(rec, name, (as_bin_value*) val);
+			if (!as_record_set(rec, name, (as_bin_value*) val)) {
+				// failed to set a record, meaning we ran out of space
+				fprintf(stderr, "Not enough free bin slots in record\n");
+				return -1;
+			}
 		}
 	}
 	return 0;
