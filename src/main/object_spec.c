@@ -872,7 +872,7 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 		return -1;
 	}
 
-	for (uint32_t i = 0; i < n_bin_specs; i++) {
+	for (uint32_t i = 0; i < n_bin_specs;) {
 		const struct bin_spec* bin_spec = &obj_spec->bin_specs[i];
 
 		for (uint32_t j = 0; j < bin_spec->n_repeats; i++, j++) {
