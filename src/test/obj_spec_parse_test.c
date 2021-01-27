@@ -188,7 +188,7 @@ DEFINE_TCASE(test_mult_within_map, "30*{I3:[5*S20]}");
 DEFINE_TCASE(test_mult_map_key_I, "{3*I2:S3}");
 DEFINE_TCASE(test_mult_map_key_D, "{5*D:S3}");
 DEFINE_TCASE(test_mult_map_key_S, "{2*S2:S3}");
-DEFINE_TCASE(test_mult_map_key_B, "{7*B5:S3}");
+DEFINE_TCASE(test_mult_map_key_B, "{700*B5:S3}");
 DEFINE_FAILING_TCASE(test_mult_no_star, "3I2", "multipliers must be followed with a '*'");
 DEFINE_FAILING_TCASE(test_mult_map_val_I, "{I1:3*I2}",
 		"no multipliers on map values allowed");
@@ -413,30 +413,6 @@ obj_spec_suite(void)
 	tcase_add_test(tc_multipliers, test_mult_list_overflow2);
 	tcase_add_test(tc_multipliers, test_mult_list_too_many_elements);
 	suite_add_tcase(s, tc_multipliers);
-
-
-	as_random random;
-	as_random_init(&random);
-
-	struct obj_spec o;
-	obj_spec_parse(&o, "I1,I2,[I3,[S10,S20]],2*B10,D,{6*I3:S5}");
-
-	char buf[1024];
-	_dbg_sprint_obj_spec(&o, buf, sizeof(buf));
-	printf("%s\n", buf);
-
-	as_record rec;
-	as_record_init(&rec, 7);
-	int res = obj_spec_populate_bins(&o, &rec, &random, "test");
-	printf("result: %d\n", res);
-	printf("test:   %lx\n", as_record_get_int64(&rec, "test", 0));
-	printf("test_2: %lx\n", as_record_get_int64(&rec, "test_2", 0));
-	printf("test_3: %s\n", as_val_tostring(as_record_get(&rec, "test_3")));
-	printf("test_4: %s\n", as_val_tostring(as_record_get_bytes(&rec, "test_4")));
-	printf("test_5: %s\n", as_val_tostring(as_record_get_bytes(&rec, "test_5")));
-	printf("test_6: %lg\n", as_record_get_double(&rec, "test_6", 0));
-	printf("test_7: %s\n", as_val_tostring(as_record_get(&rec, "test_7")));
-	obj_spec_free(&o);
 
 	return s;
 }
