@@ -32,6 +32,15 @@
 
 
 /*
+ * the maximum int range is "I8", or a range index of 7
+ */
+#define BIN_SPEC_MAX_INT_RANGE 7
+/*
+ * the default int range for an unspecified int value (just "I") is "I4"
+ */
+#define BIN_SPEC_DEFAULT_INT_RANGE 3
+
+/*
  * the maximum length of a word in randomly generated strings
  */
 #define BIN_SPEC_MAX_STR_LEN 9
@@ -470,16 +479,18 @@ _top:
 			bin_spec->n_repeats = mult;
 			switch (*str) {
 				case 'I': {
-					uint8_t next_char = *(str + 1);
-					if (next_char < '1' || next_char > '8') {
-						_print_parse_error("Expect a digit between 1-8 after 'I'",
-								obj_spec_str, str + 1);
-						goto _destroy_state;
+					uint8_t next_char = *(str + 1) - '1';
+					if (next_char > BIN_SPEC_MAX_INT_RANGE) {
+						// default range is 4
+						next_char = BIN_SPEC_DEFAULT_INT_RANGE;
+					}
+					else {
+						str++;
 					}
 					bin_spec->type = BIN_SPEC_TYPE_INT;
-					bin_spec->integer.range = next_char - '1';
+					bin_spec->integer.range = next_char;
 
-					str += 2;
+					str++;
 					break;
 				}
 				case 'S': {

@@ -50,7 +50,7 @@ struct obj_spec {
  *    I) Generate an integer bin or value in a specific byte range (treat I as I4)
  *        I1 for 0 - 255
  *        I2 for 256 - 65535
- *        I3 for 65536 - 2^24
+ *        I3 for 65536 - 2^24-1
  *        I4 for 2^24 - 2^32-1
  *        I5 for 2^32 - 2^40-1
  *        I6 for 2^40 - 2^48-1

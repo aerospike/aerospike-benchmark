@@ -24,15 +24,15 @@ simple_teardown(void)
 }
 
 
-#define DEFINE_TCASE(test_name, obj_spec_str) \
+#define DEFINE_TCASE_DIFF(test_name, obj_spec_str, expected_out_str) \
 START_TEST(test_name ## _str_cmp) \
 { \
 	struct obj_spec o; \
-	char buf[sizeof(obj_spec_str) + 1]; \
+	char buf[sizeof(expected_out_str) + 1]; \
 	ck_assert_int_eq(obj_spec_parse(&o, obj_spec_str), 0); \
 	_dbg_sprint_obj_spec(&o, buf, sizeof(buf)); \
 	\
-	ck_assert_str_eq(buf, obj_spec_str); \
+	ck_assert_str_eq(buf, expected_out_str); \
 	obj_spec_free(&o); \
 } \
 END_TEST \
@@ -50,6 +50,9 @@ START_TEST(test_name ## _valid) \
 	as_record_destroy(&rec); \
 	obj_spec_free(&o); \
 }
+
+#define DEFINE_TCASE(test_name, obj_spec_str) \
+	DEFINE_TCASE_DIFF(test_name, obj_spec_str, obj_spec_str)
 
 #define DEFINE_FAILING_TCASE(test_name, obj_spec_str, msg) \
 START_TEST(test_name) \
@@ -73,7 +76,7 @@ DEFINE_TCASE(test_I5, "I5");
 DEFINE_TCASE(test_I6, "I6");
 DEFINE_TCASE(test_I7, "I7");
 DEFINE_TCASE(test_I8, "I8");
-DEFINE_FAILING_TCASE(test_I_, "I", "I needs a size specifier");
+DEFINE_TCASE_DIFF(test_I, "I", "I4");
 DEFINE_FAILING_TCASE(test_I0, "I0", "I0 is an invalid integer specifier");
 DEFINE_FAILING_TCASE(test_I9, "I9", "I9 is an invalid integer specifier");
 DEFINE_FAILING_TCASE(test_Ia, "Ia", "Ia is an invalid integer specifier");
@@ -284,6 +287,7 @@ obj_spec_suite(void)
 	tcase_add_test(tc_simple, test_I6_str_cmp);
 	tcase_add_test(tc_simple, test_I7_str_cmp);
 	tcase_add_test(tc_simple, test_I8_str_cmp);
+	tcase_add_test(tc_simple, test_I_str_cmp);
 	tcase_add_test(tc_simple, test_I1_valid);
 	tcase_add_test(tc_simple, test_I2_valid);
 	tcase_add_test(tc_simple, test_I3_valid);
@@ -292,7 +296,7 @@ obj_spec_suite(void)
 	tcase_add_test(tc_simple, test_I6_valid);
 	tcase_add_test(tc_simple, test_I7_valid);
 	tcase_add_test(tc_simple, test_I8_valid);
-	tcase_add_test(tc_simple, test_I_);
+	tcase_add_test(tc_simple, test_I_valid);
 	tcase_add_test(tc_simple, test_I0);
 	tcase_add_test(tc_simple, test_I9);
 	tcase_add_test(tc_simple, test_Ia);
