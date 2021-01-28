@@ -30,6 +30,7 @@
 #include "histogram.h"
 #include "latency.h"
 #include "object_spec.h"
+#include "workload.h"
 
 typedef enum {
 	LEN_TYPE_COUNT,
@@ -51,19 +52,19 @@ typedef struct arguments_t {
 	int binlen;
 	int numbins;
 	len_type binlen_type;*/
+	struct stages stages;
 
 	// the default object spec, in the case that a workload stage isn't defined
 	// with one
 	struct obj_spec obj_spec;
 
 	bool random;
-	bool init;
+	/*bool init;
 	int init_pct;
 	int read_pct;
-	bool del_bin;
-	//struct workload workload;
+	bool del_bin;*/
 
-	uint64_t transactions_limit;
+	//uint64_t transactions_limit;
 	int threads;
 	int throughput;
 	int batch_size;
@@ -100,13 +101,14 @@ typedef struct arguments_t {
 typedef struct clientdata_t {
 	const char* namespace;
 	const char* set;
-	const char* bin_name;
+	//const char* bin_name;
+	struct stages stages;
 	
-	uint64_t transactions_limit;
+	//uint64_t transactions_limit;
 	uint64_t transactions_count;
-	uint64_t key_start;
-	uint64_t key_count;
-	uint64_t n_keys;
+	//uint64_t key_start;
+	//uint64_t key_count;
+	//uint64_t n_keys;
 	uint64_t period_begin;
 	
 	aerospike client;

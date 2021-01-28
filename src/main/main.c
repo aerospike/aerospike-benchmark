@@ -19,8 +19,8 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  ******************************************************************************/
-#include "benchmark.h"
-#include "common.h"
+#include <benchmark.h>
+#include <common.h>
 
 #include <limits.h>
 #include <stdio.h>
@@ -463,9 +463,12 @@ print_args(arguments* args)
 			blog_line("");
 			break;
 	}*/
+
+	stages_print(&args->stages);
 	
 	blog_line("random values:          %s", boolstring(args->random));
 
+	/*
 	blog("workload:               ");
 
 	if (args->init) {
@@ -476,16 +479,16 @@ print_args(arguments* args)
 	} else if (args->read_pct) {
 		blog_line("read %d%% write %d%%", args->read_pct, 100 - args->read_pct);
 		blog_line("stop after:             %" PRIu64 " transactions", args->transactions_limit);
-	}
+	}*/
 	
 	blog_line("threads:                %d", args->threads);
 	
-	if (args->throughput > 0) {
+	/*if (args->throughput > 0) {
 		blog_line("max throughput:         %d tps", args->throughput);
 	}
 	else {
 		blog_line("max throughput:         unlimited", args->throughput);
-	}
+	}*/
 
 	blog_line("batch size:             %d", args->batch_size);
 	blog_line("enable compression:     %s", boolstring(args->enable_compression));
@@ -654,6 +657,7 @@ validate_args(arguments* args)
 			return 1;
 	}*/
 	
+	/*
 	if (args->init_pct < 0 || args->init_pct > 100) {
 		blog_line("Invalid initialize percent: %d  Valid values: [0-100]", args->init_pct);
 		return 1;
@@ -662,7 +666,7 @@ validate_args(arguments* args)
 	if (args->read_pct < 0 || args->read_pct > 100) {
 		blog_line("Invalid read percent: %d  Valid values: [0-100]", args->read_pct);
 		return 1;
-	}
+	}*/
 	
 	if (args->threads <= 0 || args->threads > 10000) {
 		blog_line("Invalid number of threads: %d  Valid values: [1-10000]", args->threads);
@@ -758,6 +762,15 @@ validate_args(arguments* args)
 	return 0;
 }
 
+static struct stage* get_or_init_stage(arguments* args)
+{
+	if (args->stages.stages == NULL) {
+		args->stages.stages = (struct stage*) malloc(sizeof(struct stage*));
+		args->stages.n_stages = 1;
+	}
+	return &args->stages.stages[0];
+}
+
 static int
 set_args(int argc, char * const * argv, arguments* args)
 {
@@ -821,12 +834,14 @@ set_args(int argc, char * const * argv, arguments* args)
 				args->random = true;
 				break;
 				
-			case 't':
+			/*case 't':
 				args->transactions_limit = strtoull(optarg, NULL, 10);
-				break;
+				break;*/
 
 			case 'w': {
-				char* tmp = strdup(optarg);
+				struct stage* stage = get_or_init_stage(args);
+				parse_workload_type(&stage->workload, optarg);
+				/*char* tmp = strdup(optarg);
 				char* p = strchr(tmp, ',');
 				
 				if (strncmp(tmp, "I", 1) == 0) {
@@ -845,7 +860,7 @@ set_args(int argc, char * const * argv, arguments* args)
 					args->del_bin = true;
 				}
 
-				free(tmp);
+				free(tmp);*/
 				break;
 			}
 								
@@ -1130,13 +1145,14 @@ main(int argc, char * const * argv)
 	args.bintype = 'I';
 	args.binlen = 50;
 	args.binlen_type = LEN_TYPE_COUNT;*/
+	__builtin_memset(&args.stages, 0, sizeof(struct stages));
 	obj_spec_parse(&args.obj_spec, "I");
 	args.random = false;
-	args.transactions_limit = 0;
+	/*args.transactions_limit = 0;
 	args.init = false;
 	args.init_pct = 100;
 	args.read_pct = 50;
-	args.del_bin = false;
+	args.del_bin = false;*/
 	args.threads = 16;
 	args.throughput = 0;
 	args.batch_size = 0;
