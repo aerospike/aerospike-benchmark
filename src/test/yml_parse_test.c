@@ -5,6 +5,7 @@
 #include <cyaml/cyaml.h>
 
 #include <benchmark.h>
+#include <object_spec.h>
 #include <workload.h>
 
 
@@ -22,8 +23,10 @@ yaml_parse_suite(void)
 	struct arguments_t args;
 	struct stages stages;
 
+	args.bin_name = "testbin";
 	args.start_key = 1;
 	args.keys = 1000000;
+	obj_spec_parse(&args.obj_spec, "I");
 
 	if (parse_workload_config_file("src/test/test.yaml", &stages, &args) != 0) {
 		return s;

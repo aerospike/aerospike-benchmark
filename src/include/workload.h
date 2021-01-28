@@ -77,12 +77,12 @@ struct stage {
 
 	union {
 		char* obj_spec_str;
-		const struct obj_spec* obj_spec;
+		struct obj_spec obj_spec;
 	};
 
 	union {
 		char* read_bins_str;
-		as_vector read_bins;
+		char** read_bins;
 	};
 };
 
@@ -95,6 +95,12 @@ struct stages {
 // forward declare arguments struct from benchmark
 struct arguments_t;
 
+
+/*
+ * given a workload string, populates the workload struct pointed to by the
+ * first argument
+ */
+int parse_workload_type(struct workload*, const char* workload_str);
 
 /*
  * parses the given file into the stages struct

@@ -201,22 +201,6 @@ static uint32_t bin_spec_map_n_entries(const struct bin_spec* b)
 	return bin_spec_get_key(b)->n_repeats;
 }
 
-/*
- * given the length of the key in characters and the number of bins in the
- * obj_spec, determines whether any key will be too large to fit in an
- * as_bin_name buffer
- */
-static bool _obj_spec_key_too_large(size_t key_len, uint32_t n_bins)
-{
-	if (n_bins == 1) {
-		return key_len >= sizeof(as_bin_name);
-	}
-
-	int max_display_len = dec_display_len(n_bins);
-	// key format: <key_name>_<bin_num>
-	return (key_len + 1 + max_display_len) >= sizeof(as_bin_name);
-}
-
 
 static void _print_parse_error(const char* err_msg, const char* obj_spec_str,
 		const char* err_loc)
@@ -721,9 +705,18 @@ void obj_spec_free(struct obj_spec* obj_spec)
 
 void obj_spec_move(struct obj_spec* dst, struct obj_spec* src)
 {
+	// you can only move from a valid src
+	assert(src->valid);
 	__builtin_memcpy(dst, src, offsetof(struct obj_spec, valid));
 	dst->valid = true;
 	src->valid = false;
+}
+
+
+void obj_spec_shallow_copy(struct obj_spec* dst, const struct obj_spec* src)
+{
+	__builtin_memcpy(dst, src, offsetof(struct obj_spec, valid));
+	dst->valid = false;
 }
 
 
@@ -940,7 +933,7 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 		return -1;
 	}
 
-	if (_obj_spec_key_too_large(strlen(bin_name), obj_spec->n_bin_specs)) {
+	if (bin_name_too_large(strlen(bin_name), obj_spec->n_bin_specs)) {
 		// if the key name is too long to fit every key we'll end up generating
 		// in an as_bin_name, return an error
 		fprintf(stderr, "Key name \"%s\" will exceed the maximum number of "
@@ -960,16 +953,7 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 			}
 
 			as_bin_name name;
-			if (cnt == 0) {
-				strncpy(name, bin_name, sizeof(name) - 1);
-				// in case bin_name exactly filled the buffer, add the
-				// null-terminater, since strncpy doesn't do that in this
-				// instance
-				name[sizeof(name) - 1] = '\0';
-			}
-			else {
-				snprintf(name, sizeof(name), "%s_%d", bin_name, cnt + 1);
-			}
+			gen_bin_name(name, bin_name, cnt);
 			if (!as_record_set(rec, name, (as_bin_value*) val)) {
 				// failed to set a record, meaning we ran out of space
 				fprintf(stderr, "Not enough free bin slots in record\n");
@@ -1212,16 +1196,7 @@ void _dbg_obj_spec_assert_valid(const struct obj_spec* obj_spec,
 		const struct bin_spec* bin_spec = &obj_spec->bin_specs[i];
 
 		for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
-			if (cnt == 0) {
-				strncpy(name, bin_name, sizeof(name) - 1);
-				// in case bin_name exactly filled the buffer, add the
-				// null-terminater, since strncpy doesn't do that in this
-				// instance
-				name[sizeof(name) - 1] = '\0';
-			}
-			else {
-				snprintf(name, sizeof(name), "%s_%d", bin_name, cnt + 1);
-			}
+			gen_bin_name(name, bin_name, cnt);
 
 			as_val* val = (as_val*) as_record_get(rec, name);
 			ck_assert_msg(val != NULL, "expected a record in bin \"%s\"", name);

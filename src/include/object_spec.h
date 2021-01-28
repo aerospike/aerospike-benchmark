@@ -94,6 +94,12 @@ void obj_spec_free(struct obj_spec*);
  */
 void obj_spec_move(struct obj_spec* dst, struct obj_spec* src);
 
+/*
+ * copies the obj_spec src into dst without transferring ownership (meaning dst
+ * may become invalid once src is freed)
+ */
+void obj_spec_shallow_copy(struct obj_spec* dst, const struct obj_spec* src);
+
 
 /*
  * returns the number of bins required to fit all the objects in the obj_spec

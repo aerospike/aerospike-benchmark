@@ -156,6 +156,31 @@ uint64_t gen_rand_range_64(as_random* random, uint64_t max)
 	return r % max;
 }
 
+bool bin_name_too_large(size_t name_len, uint32_t n_bins)
+{
+	if (n_bins == 1) {
+		return name_len >= sizeof(as_bin_name);
+	}
+
+	int max_display_len = dec_display_len(n_bins);
+	// key format: <key_name>_<bin_num>
+	return (name_len + 1 + max_display_len) >= sizeof(as_bin_name);
+}
+
+void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_idx)
+{
+	if (bin_idx == 0) {
+		strncpy(name_buf, bin_name, sizeof(as_bin_name) - 1);
+		// in case bin_name exactly filled the buffer, add the
+		// null-terminater, since strncpy doesn't do that in this
+		// instance
+		name_buf[sizeof(as_bin_name) - 1] = '\0';
+	}
+	else {
+		snprintf(name_buf, sizeof(as_bin_name), "%s_%d", bin_name, bin_idx + 1);
+	}
+}
+
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 		uint64_t elapsed_s, as_vector* percentiles, FILE *out_file)
 {

@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "aerospike/as_record.h"
 #include "aerospike/as_log.h"
 #include "aerospike/as_random.h"
 #include "aerospike/as_vector.h"
@@ -79,6 +80,25 @@ uint32_t gen_rand_range(as_random*, uint32_t max);
  * same as gen_rand_range, but for 64-bit numbers
  */
 uint64_t gen_rand_range_64(as_random*, uint64_t max);
+
+
+/*
+ * given the length of the bin base name in characters and the number of bins,
+ * determines whether any key will be too large to fit in an as_bin_name buffer
+ */
+bool bin_name_too_large(size_t name_len, uint32_t n_bins);
+
+/*
+ * given the base name of bins (bin_name) and the bin number (starting from 1),
+ * populate name buf with the name of that bin
+ *
+ * bin name format:
+ * 	1: <bin_name>
+ * 	2: <bin_name>_2
+ * 	3: <bin_name>_3
+ * 	...
+ */
+void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
 
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 		uint64_t elapsed_s, as_vector* percentiles, FILE *out_file);

@@ -44,6 +44,7 @@ typedef struct arguments_t {
 	char password[AS_PASSWORD_SIZE];
 	const char* namespace;
 	const char* set;
+	const char* bin_name;
 	uint64_t start_key;
 	uint64_t keys;
 	/*char bintype;
@@ -60,6 +61,8 @@ typedef struct arguments_t {
 	int init_pct;
 	int read_pct;
 	bool del_bin;
+	//struct workload workload;
+
 	uint64_t transactions_limit;
 	int threads;
 	int throughput;

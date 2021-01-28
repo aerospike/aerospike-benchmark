@@ -64,6 +64,40 @@ START_TEST(test_free_after_move)
 }
 END_TEST
 
+START_TEST(test_shallow_copy)
+{
+	struct obj_spec o;
+	struct obj_spec p;
+	as_record rec;
+
+	obj_spec_parse(&o, "[I,D,{S10:B20}]");
+	obj_spec_shallow_copy(&p, &o);
+
+	as_record_init(&rec, obj_spec_n_bins(&p));
+	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test");
+	_dbg_obj_spec_assert_valid(&p, &rec, "test");
+	obj_spec_free(&p);
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_free_after_shallow_copy)
+{
+	struct obj_spec o;
+	struct obj_spec p;
+	as_record rec;
+
+	obj_spec_parse(&o, "[I,D,{S10:B20}]");
+	obj_spec_shallow_copy(&p, &o);
+	obj_spec_free(&p);
+
+	as_record_init(&rec, obj_spec_n_bins(&o));
+	obj_spec_populate_bins(&o, &rec, as_random_instance(), "test");
+	_dbg_obj_spec_assert_valid(&o, &rec, "test");
+	obj_spec_free(&o);
+}
+END_TEST
+
 
 /*
  * test-case definining macros
@@ -327,6 +361,8 @@ obj_spec_suite(void)
 	tcase_add_test(tc_memory, test_double_free);
 	tcase_add_test(tc_memory, test_free_after_failed_init);
 	tcase_add_test(tc_memory, test_free_after_move);
+	tcase_add_test(tc_memory, test_shallow_copy);
+	tcase_add_test(tc_memory, test_free_after_shallow_copy);
 	suite_add_tcase(s, tc_memory);
 
 	tc_simple = tcase_create("Simple");
