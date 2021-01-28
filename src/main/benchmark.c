@@ -222,6 +222,7 @@ static int
 initialize_histograms(clientdata* data, arguments* args,
 		time_t* start_time, hdr_timespec* start_timespec) {
 	int valid = 1;
+	bool has_reads = stages_contains_reads(&data->stages);
 
 	if (args->latency) {
 		latency_init(&data->write_latency, args->latency_columns, args->latency_shift);
@@ -233,7 +234,7 @@ initialize_histograms(clientdata* data, arguments* args,
 					as_vector_get(&args->latency_percentiles, i));
 		}
 
-		if (! args->init) {
+		if (has_reads) {
 			latency_init(&data->read_latency, args->latency_columns, args->latency_shift);
 			hdr_init(1, 1000000, 3, &data->read_hdr);
 		}
@@ -256,7 +257,7 @@ initialize_histograms(clientdata* data, arguments* args,
 		histogram_set_name(&data->write_histogram, "write_hist");
 		histogram_print_info(&data->write_histogram, data->histogram_output);
 		
-		if (! args->init) {
+		if (has_reads) {
 			histogram_init(&data->read_histogram, 3, 100, (rangespec_t[]) {
 					{ .upper_bound = 4000,   .bucket_width = 100  },
 					{ .upper_bound = 64000,  .bucket_width = 1000 },
@@ -318,7 +319,7 @@ initialize_histograms(clientdata* data, arguments* args,
 
 		hdr_init(1, 1000000, 3, &data->summary_write_hdr);
 
-		if (! args->init) {
+		if (has_reads) {
 			size_t read_output_size =
 				prefix_len + (sizeof(read_output_prefix) - 1) +
 				UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
@@ -366,13 +367,15 @@ initialize_histograms(clientdata* data, arguments* args,
 static void
 free_histograms(clientdata* data, arguments* args)
 {
+	bool has_reads = stages_contains_reads(&data->stages);
+
 	if (args->latency) {
 		latency_free(&data->write_latency);
 		hdr_close(data->write_hdr);
 
 		as_vector_destroy(&data->latency_percentiles);
 
-		if (!args->init) {
+		if (has_reads) {
 			latency_free(&data->read_latency);
 			hdr_close(data->read_hdr);
 		}
@@ -381,7 +384,7 @@ free_histograms(clientdata* data, arguments* args)
 	if (args->latency_histogram) {
 		histogram_free(&data->write_histogram);
 		
-		if (!args->init) {
+		if (has_reads) {
 			histogram_free(&data->read_histogram);
 		}
 
@@ -397,7 +400,7 @@ free_histograms(clientdata* data, arguments* args)
 			fclose(data->hdr_text_write_output);
 		}
 
-		if (!args->init) {
+		if (has_reads) {
 			hdr_close(data->summary_read_hdr);
 			if (data->hdr_comp_read_output) {
 				fclose(data->hdr_comp_read_output);
@@ -413,6 +416,7 @@ static void
 record_summary_data(clientdata* data, arguments* args, time_t start_time,
 		hdr_timespec* start_timespec) {
 	static const int32_t ticks_per_half_distance = 5;
+	bool has_reads = stages_contains_reads(&data->stages);
 
 	// now record summary HDR hist if enabled
 	if (args->hdr_output) {
@@ -432,7 +436,7 @@ record_summary_data(clientdata* data, arguments* args, time_t start_time,
 		hdr_percentiles_print(data->summary_write_hdr, data->hdr_text_write_output,
 				ticks_per_half_distance, 1., CLASSIC);
 
-		if (! args->init) {
+		if (has_reads) {
 			hdr_log_write_header(&writer, data->hdr_comp_read_output,
 					utc_time, start_timespec);
 
@@ -455,16 +459,17 @@ run_benchmark(arguments* args)
 	data.threads = args->threads;
 	data.throughput = args->throughput;
 	data.batch_size = args->batch_size;
-	data.read_pct = args->read_pct;
+	/*data.read_pct = args->read_pct;
 	data.del_bin = args->del_bin;
-	data.compression_ratio = args->compression_ratio;
+	data.compression_ratio = args->compression_ratio;*/
 	/*data.bintype = args->bintype;
 	data.binlen = args->binlen;
 	data.binlen_type = args->binlen_type;
 	data.numbins = args->numbins;*/
+	stages_move(&data.stages, &args->stages);
 	obj_spec_move(&data.obj_spec, &args->obj_spec);
 	data.random = args->random;
-	data.transactions_limit = args->transactions_limit;
+	//data.transactions_limit = args->transactions_limit;
 	data.transactions_count = 0;
 	data.latency = args->latency;
 	data.debug = args->debug;
@@ -475,6 +480,7 @@ run_benchmark(arguments* args)
 
 	// set to 0 when any step in initialization fails
 	int valid = 1;
+	bool has_reads = stages_contains_reads(&data.stages);
 	time_t start_time;
 	hdr_timespec start_timespec;
 
@@ -508,17 +514,17 @@ run_benchmark(arguments* args)
 
 	valid = initialize_histograms(&data, args, &start_time, &start_timespec);
 
-	data.key_start = args->start_key;
-	data.key_count = 0;
+	//data.key_start = args->start_key;
+	//data.key_count = 0;
 
 	if (valid) {
-		if (args->init) {
-			data.n_keys = (uint64_t)((double)args->keys / 100.0 * args->init_pct + 0.5);
-			ret = linear_write(&data);
+		if (has_reads) {
+			//data.n_keys = (uint64_t)((double)args->keys / 100.0 * args->init_pct + 0.5);
+			//ret = linear_write(&data);
 		}
 		else {
-			data.n_keys = args->keys;
-			ret = random_read_write(&data);
+			//data.n_keys = args->keys;
+			//ret = random_read_write(&data);
 		}
 
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"

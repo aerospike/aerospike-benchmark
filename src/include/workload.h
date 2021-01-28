@@ -93,6 +93,13 @@ struct stage {
 struct stages {
 	struct stage* stages;
 	uint32_t n_stages;
+	/*
+     * when set to true, this is a valid stages struct, when set to false, this
+	 * stages struct has already been freed/is owned by another stages struct
+	 * note, obviously, this value will be undefined before the object spec
+	 * has first been initialized
+	 */
+	bool valid;
 };
 
 // forward declare arguments struct from benchmark
@@ -105,7 +112,12 @@ struct arguments_t;
  */
 int parse_workload_type(struct workload*, const char* workload_str);
 
-inline bool workload_is_random(struct workload* workload)
+inline bool workload_is_random(const struct workload* workload)
+{
+	return workload->type == WORKLOAD_TYPE_RANDOM;
+}
+
+inline bool workload_contains_reads(const struct workload* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }
@@ -117,6 +129,24 @@ int parse_workload_config_file(const char* file, struct stages* stages,
 		const struct arguments_t* args);
 
 void free_workload_config(struct stages* stages);
+
+/*
+ * transfers ownership of the stages struct from src to dst, so if free is
+ * called on the previous owner it does not free the stages while the new
+ * owner is still using it
+ */
+void stages_move(struct stages* dst, struct stages* src);
+
+/*
+ * copies the stages struct src into dst without transferring ownership
+ * (meaning dst may become invalid once src is freed)
+ */
+void stages_shallow_copy(struct stages* dst, const struct stages* src);
+
+/*
+ * returns true if any of the stages will perform reads
+ */
+bool stages_contains_reads(const struct stages*);
 
 void stages_print(const struct stages* stages);
 

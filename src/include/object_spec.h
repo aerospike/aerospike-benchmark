@@ -36,7 +36,7 @@ struct obj_spec {
 	uint32_t n_bin_specs;
 	/*
      * when set to true, this is a valid obj_spec, when set to false, this
-	 * obj_spec has already been freed
+	 * obj_spec has already been freed/is owned by another obj_spec
 	 * note, obviously, this value will be undefined before the object spec
 	 * has first been initialized
 	 */

@@ -101,7 +101,7 @@ typedef struct arguments_t {
 typedef struct clientdata_t {
 	const char* namespace;
 	const char* set;
-	//const char* bin_name;
+	const char* bin_name;
 	struct stages stages;
 	
 	//uint64_t transactions_limit;

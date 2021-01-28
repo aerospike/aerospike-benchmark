@@ -301,19 +301,49 @@ int parse_workload_config_file(const char* file, struct stages* stages,
 
 void free_workload_config(struct stages* stages)
 {
-	// first go through and free the parts that aren't part of the yaml struct
-	for (uint32_t i = 0; i < stages->n_stages; i++) {
-		struct stage* stage = &stages->stages[i];
+	if (stages->valid) {
+		// first go through and free the parts that aren't part of the yaml struct
+		for (uint32_t i = 0; i < stages->n_stages; i++) {
+			struct stage* stage = &stages->stages[i];
 
-		// no freeing needed to be done for workload, so just set workload_str
-		// to NULL
-		stage->workload_str = NULL;
+			// no freeing needed to be done for workload, so just set workload_str
+			// to NULL
+			stage->workload_str = NULL;
 
-		obj_spec_free(&stage->obj_spec);
-		// so cyaml_free doesn't try freeing whatever garbage is left here
-		stage->obj_spec_str = NULL;
+			obj_spec_free(&stage->obj_spec);
+			// so cyaml_free doesn't try freeing whatever garbage is left here
+			stage->obj_spec_str = NULL;
+		}
+		cyaml_free(&config, &top_schema, stages->stages, stages->n_stages);
 	}
-	cyaml_free(&config, &top_schema, stages->stages, stages->n_stages);
+}
+
+
+void stages_move(struct stages* dst, struct stages* src)
+{
+	// you can only move from a valid src
+	assert(src->valid);
+	__builtin_memcpy(dst, src, offsetof(struct stages, valid));
+	dst->valid = true;
+	src->valid = false;
+}
+
+
+void stages_shallow_copy(struct stages* dst, const struct stages* src)
+{
+	__builtin_memcpy(dst, src, offsetof(struct stages, valid));
+	dst->valid = false;
+}
+
+
+bool stages_contains_reads(const struct stages* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (workload_contains_read(&stages->stages[i].workload)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 
