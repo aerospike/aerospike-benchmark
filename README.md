@@ -15,7 +15,7 @@ Build instructions:
     make [EVENT_LIB=libev|libuv|libevent]
 
 The EVENT_LIB setting must also match the same setting when building the client itself.
-If an event library is defined, it must be installed separately.  Event libraries usually
+If an event library is defined, it must be installed separately. Event libraries usually
 install into /usr/local/lib.  Most operating systems do not search /usr/local/lib by 
 default.  Therefore, the following LD_LIBRARY_PATH setting may be necessary.
 
