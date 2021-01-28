@@ -4,7 +4,7 @@ Aerospike Benchmark
 ![Build:Main](https://github.com/citrusleaf/aerospike-benchmark/workflows/Build:Main/badge.svg)
 [![codecov](https://codecov.io/gh/aerospike/aerospike-benchmark/branch/main/graph/badge.svg?token=TPGZT8V6AA)](https://codecov.io/gh/aerospike/aerospike-benchmark)
 
-This project contains the files necessary to build C client benchmarks. 
+This project contains the files necessary to build the Aerospike benchmark tool. 
 This program is used to insert data and generate load. 
 
 Build instructions:
