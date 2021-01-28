@@ -21,6 +21,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <aerospike/as_random.h>
 #include <aerospike/as_vector.h>
 
 #include <object_spec.h>
@@ -147,6 +148,11 @@ void stages_shallow_copy(struct stages* dst, const struct stages* src);
  * returns true if any of the stages will perform reads
  */
 bool stages_contains_reads(const struct stages*);
+
+/*
+ * generates a random key for the stage
+ */
+uint64_t stage_gen_random_key(const struct stage*, as_random*);
 
 void stages_print(const struct stages* stages);
 

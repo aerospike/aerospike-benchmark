@@ -347,6 +347,13 @@ bool stages_contains_reads(const struct stages* stages)
 }
 
 
+uint64_t stage_gen_random_key(const struct stage* stage, as_random* random)
+{
+	return gen_rand_range_64(random, stage->key_start) +
+		(stage->key_end - stage->key_start);
+}
+
+
 void stages_print(const struct stages* stages)
 {
 	const static char* workloads[] = {

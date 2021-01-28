@@ -88,7 +88,7 @@ random_element_9b(as_random *ran)
 	return (as_val *)as_string_new_strdup((char *)buf);
 }*/
 
-int
+/*int
 gen_value(arguments* args, as_val** valpp)
 {
 	as_val* val = obj_spec_gen_value(&args->obj_spec, as_random_instance());
@@ -98,7 +98,7 @@ gen_value(arguments* args, as_val** valpp)
 	else {
 		*valpp = val;
 		return 0;
-	}
+	}*/
 	/*switch (args->bintype) {
 		case 'I': {
 			// Generate integer.
@@ -170,7 +170,7 @@ gen_value(arguments* args, as_val** valpp)
 		}
 	}
 	return 0;*/
-}
+//}
 
 threaddata*
 create_threaddata(clientdata* cdata, uint64_t key_start, uint64_t n_keys)
@@ -252,140 +252,37 @@ destroy_threaddata(threaddata* tdata)
 static void
 init_write_record(clientdata* cdata, threaddata* tdata)
 {
-	if (cdata->del_bin) {
-		uint32_t n_bins = obj_spec_n_bins(&cdata->obj_spec);
-		for (int i = 0; i < n_bins; i++) {
-			as_bin* bin = &tdata->rec.bins.entries[i];
-			if (i==0) {
-				strncpy(bin->name, cdata->bin_name, sizeof(as_bin_name) - 1);
-				bin->name[sizeof(as_bin_name) - 1] = '\0';
-			} else {
-				snprintf(bin->name, sizeof(as_bin_name), "%s_%d", cdata->bin_name, i);
+	switch (tdata->workload->type) {
+		case WORKLOAD_TYPE_LINEAR:
+		case WORKLOAD_TYPE_RANDOM: {
+			if (cdata->random) {
+				obj_spec_populate_bins(&cdata->obj_spec, &tdata->rec, tdata->random,
+						cdata->bin_name);
 			}
-			as_record_set_nil(&tdata->rec, bin->name);
+			else {
+				as_list* list = as_list_fromval(cdata->fixed_value);
+				uint32_t n_objs = as_list_size(list);
+				for (uint32_t i = 0; i < n_objs; i++) {
+					as_val* val = as_list_get(list, i);
+					as_val_reserve(val);
+
+					as_bin* bin = &tdata->rec.bins.entries[i];
+					gen_bin_name(bin->name, cdata->bin_name, i + 1);
+					as_record_set(&tdata->rec, bin->name, (as_bin_value*) val);
+				}
+			}
+			break;
 		}
-		return;
-	}
-
-	if (cdata->random) {
-		obj_spec_populate_bins(&cdata->obj_spec, &tdata->rec, tdata->random,
-				cdata->bin_name);
-	}
-	else {
-		as_list* list = as_list_fromval(cdata->fixed_value);
-		uint32_t n_objs = as_list_size(list);
-		for (uint32_t i = 0; i < n_objs; i++) {
-			as_val* val = as_list_get(list, i);
-			as_val_reserve(val);
-
-			as_bin* bin = &tdata->rec.bins.entries[i];
-			if (i==0) {
-				strncpy(bin->name, cdata->bin_name, sizeof(as_bin_name) - 1);
-				bin->name[sizeof(as_bin_name) - 1] = '\0';
-			} else {
-				snprintf(bin->name, sizeof(as_bin_name), "%s_%d", cdata->bin_name, i);
+		case WORKLOAD_TYPE_DELETE: {
+			uint32_t n_bins = obj_spec_n_bins(&cdata->obj_spec);
+			for (int i = 0; i < n_bins; i++) {
+				as_bin* bin = &tdata->rec.bins.entries[i];
+				gen_bin_name(bin->name, cdata->bin_name, i + 1);
+				as_record_set_nil(&tdata->rec, bin->name);
 			}
-			as_record_set(&tdata->rec, bin->name, (as_bin_value*) val);
+			break;
 		}
 	}
-
-	/*for (int i = 0; i <cdata->numbins; i++) {
-		as_bin* bin = &tdata->rec.bins.entries[i];
-		if (i==0) {
-			strcpy(bin->name, cdata->bin_name);
-		} else {
-			sprintf(bin->name, "%s_%d", cdata->bin_name, i);
-		}
-
-		if (cdata->random) {
-			// Generate random value.
-			switch (cdata->bintype)
-			{
-				case 'I': {
-							  // Generate integer.
-							  uint32_t i = as_random_next_uint32(tdata->random);
-							  as_integer_init((as_integer*)&bin->value, i);
-							  bin->valuep = &bin->value;
-							  break;
-						  }
-
-				case 'B': {
-							  // Generate byte array in thread local buffer.
-							  uint8_t* buf = tdata->buffer;
-							  int len = cdata->binlen;
-
-							  if (cdata->compression_ratio != 1.f) {
-								  // if compression is enabled & the desired compression ratio is not
-								  // 1, then only generate (compression_ratio * len) bytes of random
-								  // data and pad the rest with 0
-								  int compressed_len = (int) (len * cdata->compression_ratio);
-								  // sanity check, bad things would happen if this were false
-								  assert(((unsigned) compressed_len) <= len);
-								  as_random_next_bytes(tdata->random, buf, compressed_len);
-								  memset(buf + compressed_len, 0, len - compressed_len);
-							  }
-							  else {
-								  as_random_next_bytes(tdata->random, buf, len);
-							  }
-
-							  as_bytes_init_wrap((as_bytes*)&bin->value, buf, len, false);
-							  bin->valuep = &bin->value;
-							  break;
-						  }
-
-				case 'S': {
-							  // Generate random bytes on stack and convert to alphanumeric string.
-							  uint8_t* buf = tdata->buffer;
-							  int len = cdata->binlen;
-							  as_random_next_bytes(tdata->random, buf, len);
-
-							  for (int i = 0; i < len; i++) {
-								  buf[i] = alphanum[buf[i] % alphanum_len];
-							  }
-							  buf[len] = 0;
-							  as_string_init((as_string *)&bin->value, (char*)buf, false);
-							  bin->valuep = &bin->value;
-							  break;
-						  }
-
-				case 'L': {
-							  int len = calc_list_or_map_ele_count(cdata->bintype, cdata->binlen, cdata->binlen_type, 9);
-							  as_list *list = (as_list *)as_arraylist_new((uint32_t)len, 0);
-
-							  for (int i = 0; i < len; i++) {
-								  as_list_append(list, random_element_9b(tdata->random));
-							  }
-
-							  as_record_set_list(&tdata->rec, cdata->bin_name, list);
-							  break;
-						  }
-
-				case 'M': {
-							  int len = calc_list_or_map_ele_count(cdata->bintype, cdata->binlen, cdata->binlen_type, 9);
-							  as_map *map = (as_map *)as_hashmap_new((uint32_t)len);
-
-							  for (int i = 0; i < len; i++) {
-								  as_val *k = random_element_9b(tdata->random);
-								  as_val *v = random_element_9b(tdata->random);
-								  as_map_set(map, k, v);
-							  }
-
-							  as_record_set_map(&tdata->rec, cdata->bin_name, map);
-							  break;
-						  }
-
-				default: {
-							 blog_error("Unknown type %c", cdata->bintype);
-							 break;
-						 }
-			}
-		}
-		else {
-			// Use fixed value.
-			((as_val*)&bin->value)->type = cdata->fixed_value->type;
-			bin->valuep = (as_bin_value *)cdata->fixed_value;
-		}
-	}*/
 }
 
 bool
@@ -449,14 +346,15 @@ write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key)
 int
 read_record_sync(clientdata* cdata, threaddata* tdata)
 {
-	uint64_t keyval = as_random_next_uint64(tdata->random) % cdata->n_keys + cdata->key_start;
 	as_key key;
+	uint64_t keyval = stage_gen_random_key(tdata->stage, tdata->random);
+
 	as_key_init_int64(&key, cdata->namespace, cdata->set, keyval);
-	
-	as_record* rec = 0;
+
+	as_record* rec;
 	as_status status;
 	as_error err;
-	
+
 	if (cdata->latency || cdata->histogram_output != NULL ||
 			cdata->hdr_comp_read_output != NULL) {
 		uint64_t begin = cf_getus();
@@ -514,7 +412,7 @@ batch_record_sync(clientdata* cdata, threaddata* tdata)
 	as_batch_read_records* records = as_batch_read_create(cdata->batch_size);
 
 	for (int i = 0; i < cdata->batch_size; i++) {
-		int64_t k = (int64_t)as_random_next_uint64(tdata->random) % cdata->n_keys + cdata->key_start;
+		uint64_t k = stage_gen_random_key(tdata->stage, tdata->random);
 		as_batch_read_record* record = as_batch_read_reserve(records);
 		as_key_init_int64(&record->key, cdata->namespace, cdata->set, k);
 		record->read_all_bins = true;
@@ -574,12 +472,13 @@ batch_record_sync(clientdata* cdata, threaddata* tdata)
 }
 
 void
-throttle(clientdata* cdata)
+throttle(const clientdata* cdata, const struct stage* stage)
 {
-	if (cdata->throughput > 0) {
+	// TODO fix this
+	if (stage->tps > 0) {
 		int transactions = cdata->write_count + cdata->read_count;
 
-		if (transactions >= cdata->throughput) {
+		if (transactions >= stage->tps) {
 			int64_t millis = (int64_t)cdata->period_begin + 1000L -
 					(int64_t)cf_getus();
 

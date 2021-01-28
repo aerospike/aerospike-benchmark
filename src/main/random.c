@@ -114,12 +114,18 @@ random_worker(void* udata)
 {
 	clientdata* cdata = (clientdata*)udata;
 	threaddata* tdata = create_threaddata(cdata, cdata->key_start, cdata->n_keys);
-	int read_pct = cdata->read_pct;
-	int die;
+
+	// multiply pct by 2**24 before dividing by 100 and casting to an int,
+	// since floats have 24 bits of precision including the leading 1,
+	// so that read_pct is pct% between 0 and 2**24
+	uint32_t read_pct = (uint32_t) ((0x01000000 * tdata->workload.pct) / 100);
 	
 	while (cdata->valid) {
 		// Roll a percentage die.
-		die = as_random_next_uint32(tdata->random) % 100;
+		uint32_t die = as_random_next_uint32(tdata->random);
+
+		// floats have 24 bits of precision (including implicit leading 1)
+		die &= 0x00ffffff;
 		
 		if (die < read_pct) {
 			if (cdata->batch_size <= 1) {
@@ -130,7 +136,7 @@ random_worker(void* udata)
 			}
 		}
 		else {
-			uint64_t key = as_random_next_uint64(tdata->random) % cdata->n_keys + cdata->key_start;
+			uint64_t key = stage_gen_random_key(tdata->stage, tdata->random);
 			write_record_sync(cdata, tdata, key);
 		}
 		as_incr_uint64(&cdata->transactions_count);
