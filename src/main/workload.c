@@ -64,6 +64,79 @@ static const cyaml_config_t config = {
 
 
 
+int parse_workload_type(struct workload* workload, const char* workload_str)
+{
+	char* endptr;
+
+	switch (*workload_str) {
+		case 'I': {
+			float pct;
+			if (workload_str[1] == '\0') {
+				pct = WORKLOAD_LINEAR_DEFAULT_PCT;
+			}
+			else {
+				if (workload_str[1] != ',') {
+					fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+					return -1;
+				}
+				pct = strtod(workload_str + 2, &endptr);
+				if (workload_str[2] == '\0' || *endptr != '\0') {
+					fprintf(stderr, "\"%s\" not a floating point number\n",
+							workload_str + 2);
+					return -1;
+				}
+				if (pct <= 0 || pct > 100) {
+					fprintf(stderr, "%f not a percentage greater than 0\n",
+							pct);
+					return -1;
+				}
+			}
+			workload->type = WORKLOAD_TYPE_LINEAR;
+			workload->pct = pct;
+			break;
+		}
+		case 'R': {
+			float pct;
+			if (workload_str[1] == 'U' && workload_str[2] == '\0') {
+				pct = WORKLOAD_RANDOM_DEFAULT_PCT;
+			}
+			else {
+				if (workload_str[1] != 'U' || workload_str[2] != ',') {
+					fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+					return -1;
+				}
+				pct = strtod(workload_str + 3, &endptr);
+				if (workload_str[3] == '\0' || *endptr != '\0') {
+					fprintf(stderr, "\"%s\" not a floating point number\n",
+							workload_str + 3);
+					return -1;
+				}
+				if (pct <= 0 || pct > 100) {
+					fprintf(stderr, "%f not a percentage greater than 0\n",
+							pct);
+					return -1;
+				}
+			}
+			workload->type = WORKLOAD_TYPE_RANDOM;
+			workload->pct = pct;
+			break;
+		}
+		case 'D': {
+			if (workload_str[1] != 'B' || workload_str[2] != '\0') {
+				fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+				return -1;
+			}
+			workload->type = WORKLOAD_TYPE_DELETE;
+			break;
+		}
+		default:
+			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+			return -1;
+	}
+	return 0;
+}
+
+
 static void __parse_bins_destroy(as_vector* read_bins)
 {
 
@@ -181,6 +254,12 @@ static int stages_set_defaults_and_parse(struct stages* stages,
 			return -1;
 		}
 
+		char* workload_str = stage->workload_str;
+		if (parse_workload_type(&stage->workload, workload_str) != 0) {
+			return -1;
+		}
+		cf_free(workload_str);
+
 		if (stage->obj_spec_str == NULL) {
 			// inherit obj_spec either from the previous stage or from the
 			// global obj_spec
@@ -226,6 +305,10 @@ void free_workload_config(struct stages* stages)
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		struct stage* stage = &stages->stages[i];
 
+		// no freeing needed to be done for workload, so just set workload_str
+		// to NULL
+		stage->workload_str = NULL;
+
 		obj_spec_free(&stage->obj_spec);
 		// so cyaml_free doesn't try freeing whatever garbage is left here
 		stage->obj_spec_str = NULL;
@@ -236,6 +319,12 @@ void free_workload_config(struct stages* stages)
 
 void stages_print(const struct stages* stages)
 {
+	const static char* workloads[] = {
+		"I",
+		"RU",
+		"DB"
+	};
+
 	char obj_spec_buf[512];
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		const struct stage* stage = &stages->stages[i];
@@ -246,13 +335,23 @@ void stages_print(const struct stages* stages)
 				"  tps: %lu\n"
 				"  key-start: %lu\n"
 				"  key-end: %lu\n"
-				"  pause: %lu\n"
-				"  workload: %s\n"
-				"  stage: %u\n"
-				"  object-spec: %s\n",
+				"  pause: %lu\n",
 				stage->duration, stage->desc, stage->tps, stage->key_start,
-				stage->key_end, stage->pause, stage->workload_str,
+				stage->key_end, stage->pause);
+
+		printf( "  workload: %s",
+				workloads[stage->workload.type]);
+		if (stage->workload.type != WORKLOAD_TYPE_DELETE) {
+			printf(",%g%%\n", stage->workload.pct);
+		}
+		else {
+			printf("\n");
+		}
+
+		printf( "  stage: %u\n"
+				"  object-spec: %s\n",
 				stage->stage_idx, obj_spec_buf);
+
 
 		if (stage->read_bins) {
 			printf( "  read_bins: ");

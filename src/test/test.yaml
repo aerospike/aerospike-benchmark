@@ -5,6 +5,6 @@
   workload: I
 - stage: 2
   duration: 2
-  workload: R
+  workload: RU
   object-spec: I,D,[S10,B20]
   read-bins: 1,2,3
