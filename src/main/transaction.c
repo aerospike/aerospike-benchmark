@@ -1,6 +1,8 @@
 
 #include <transaction.h>
 
+#include <aerospike/as_atomic.h>
+
 #include <benchmark.h>
 #include <workload.h>
 
@@ -15,7 +17,7 @@ struct threaddata* init_tdata(clientdata* cdata, struct thr_coordinator* coord,
 	tdata->coord = coord;
 	tdata->random = as_random_instance();
 	tdata->t_idx = t_idx;
-	tdata->do_work = false;
+	tdata->do_work = true;
 	tdata->finished = false;
 
 	return tdata;
