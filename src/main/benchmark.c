@@ -228,41 +228,52 @@ _run(clientdata* cdata)
 	int ret = 0;
 	struct thr_coordinator coord;
 
-	// first initialize the thread coordinator struct, before spawning any
-	// threads which will be referencing it
-	thr_coordinator_init(&coord);
+	// first figure out how many threads we'll be spawning
+	uint32_t n_threads;
+	void* (*worker_fn)(void*);
 
-	struct threaddata* out_worker_tdata = init_tdata(cdata, &coord, 0);
+	if (cdata->async) {
+		// output thread and worker thread
+		n_threads = 2;
+		worker_fn = transaction_worker_async;
+	}
+	else {
+		// output thread + all the worker threads
+		n_threads = 1 + cdata->threads;
+		worker_fn = transaction_worker;
+	}
+
+	// then initialize the thread coordinator struct, before spawning any
+	// threads which will be referencing it
+	thr_coordinator_init(&coord, n_threads);
+
+	// initialize the list of all thread pointers/data pointers
+	struct threaddata** tdatas =
+		(struct threaddata**) cf_malloc(n_threads * sizeof(struct threaddata*));
+
+	pthread_t* threads = (pthread_t*) cf_malloc(n_threads * sizeof(pthread_t));
 
 	// then initialize periodic output thread
-	pthread_t output_thr;
-	if (pthread_create(&output_thr, NULL, periodic_output_worker,
+	struct threaddata* out_worker_tdata = init_tdata(cdata, &coord, 0);
+	tdatas[0] = out_worker_tdata;
+
+	if (pthread_create(&threads[0], NULL, periodic_output_worker,
 				&out_worker_tdata) != 0) {
 		blog_error("Failed to create output thread");
+		cf_free(threads);
+		cf_free(tdatas);
 		thr_coordinator_free(&coord);
 		return -1;
 	}
 
 	// then create all the worker threads
-	uint32_t n_threads;
-	void* (*worker_fn)(void*);
-
-	if (cdata->async) {
-		n_threads = 1;
-		worker_fn = transaction_worker_async;
-	}
-	else {
-		n_threads = cdata->threads;
-		worker_fn = transaction_worker;
-	}
+	blog_info("Start %d transaction threads", n_threads - 1);
 
 	uint32_t i;
-	pthread_t* threads = alloca(n_threads * sizeof(pthread_t));
-
-	blog_info("Start %d transaction threads", n_threads);
-
-	for (i = 0; i < n_threads; i++) {
-		struct threaddata* tdata = init_tdata(cdata, &coord, i + 1);
+	// since the output worker threaddata is in slot 0, start from index 1
+	for (i = 1; i < n_threads; i++) {
+		struct threaddata* tdata = init_tdata(cdata, &coord, i);
+		tdatas[i] = tdata;
 
 		if (pthread_create(&threads[i], NULL, worker_fn, tdata) != 0) {
 			blog_error("Failed to create transaction worker thread");
@@ -270,16 +281,22 @@ _run(clientdata* cdata)
 
 			// go to clean up the rest of the threads that have already
 			// been spawned
-			i--;
 			break;
 		}
 	}
 
 	if (ret == 0) {
+		struct coordinator_worker_args coord_args = {
+			.coord = &coord,
+			.cdata = cdata,
+			.tdatas = tdatas,
+			.n_threads = n_threads
+		};
 		// and now enter the coordinator funtion
-		coordinator_worker(cdata);
+		coordinator_worker(&coord_args);
 	}
 
+	i--;
 	for (; i < n_threads; i--) {
 		// by this point, if all went well, the coordinator thread should have
 		// already closed all of these threads, but in the case that something
@@ -290,7 +307,10 @@ _run(clientdata* cdata)
 		}
 		pthread_join(threads[i], NULL);
 	}
-	pthread_join(output_thr, NULL);
+
+	cf_free(threads);
+	cf_free(tdatas);
+	thr_coordinator_free(&coord);
 
 	return ret;
 }
@@ -323,9 +343,6 @@ run_benchmark(arguments* args)
 	data.async_max_commands = args->async_max_commands;
 	data.fixed_value = NULL;
 
-	// set to 0 when any step in initialization fails
-	int valid = 1;
-	bool has_reads = stages_contains_reads(&data.stages);
 	time_t start_time;
 	hdr_timespec start_timespec;
 

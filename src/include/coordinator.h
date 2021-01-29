@@ -21,12 +21,16 @@
  ******************************************************************************/
 #pragma once
 
+#include <pthread.h>
+
 #include <benchmark.h>
 
 // forward declare to avoid circular inclusion
 struct threaddata;
 
 struct thr_coordinator {
+	pthread_barrier_t barrier;
+	uint32_t n_threads;
 };
 
 struct coordinator_worker_args {
@@ -41,7 +45,7 @@ struct coordinator_worker_args {
 /*
  * initializes the given thread coordinator struct
  */
-int thr_coordinator_init(struct thr_coordinator*);
+int thr_coordinator_init(struct thr_coordinator*, uint32_t n_threads);
 
 void thr_coordinator_free(struct thr_coordinator*);
 
