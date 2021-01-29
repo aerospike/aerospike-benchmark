@@ -33,6 +33,8 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#if 0
+
 extern as_monitor monitor;
 
 /*static const char alphanum[] =
@@ -252,7 +254,7 @@ destroy_threaddata(threaddata* tdata)
 static void
 init_write_record(clientdata* cdata, threaddata* tdata)
 {
-	switch (tdata->workload->type) {
+	switch (tdata->stage->workload.type) {
 		case WORKLOAD_TYPE_LINEAR:
 		case WORKLOAD_TYPE_RANDOM: {
 			if (cdata->random) {
@@ -547,7 +549,8 @@ linear_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	}
 	
 	// Reuse tdata structures.
-	if (tdata->key_count == tdata->n_keys) {
+	// FIXME
+	/*if (tdata->key_count == tdata->n_keys) {
 		// We have reached max number of records for this command.
 		uint64_t total = as_faa_uint64(&cdata->key_count, tdata->n_keys) + tdata->n_keys;
 		destroy_threaddata(tdata);
@@ -557,7 +560,7 @@ linear_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			as_monitor_notify(&monitor);
 		}
 		return;
-	}
+	}*/
 
 	tdata->key.value.integer.value = tdata->key_start + tdata->key_count;
 	tdata->key.digest.init = false;
@@ -572,7 +575,8 @@ void
 random_read_write_async(clientdata* cdata, threaddata* tdata, as_event_loop* event_loop)
 {
 	// Choose key at random.
-	uint64_t key = as_random_next_uint64(tdata->random) % cdata->n_keys + cdata->key_start;
+	uint64_t key =
+		gen_rand_range_64(tdata->random, cdata->n_keys) + cdata->key_start;
 	tdata->key.value.integer.value = key;
 	tdata->key.digest.init = false;
 	
@@ -757,3 +761,5 @@ random_batch_listener(as_error* err, as_batch_read_records* records, void* udata
 	as_batch_read_destroy(records);
 	random_read_write_next(cdata, tdata, event_loop);
 }
+
+#endif

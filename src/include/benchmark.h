@@ -49,9 +49,9 @@ typedef struct arguments_t {
 	uint64_t start_key;
 	uint64_t keys;
 	/*char bintype;
-	int binlen;
-	int numbins;
-	len_type binlen_type;*/
+	  int binlen;
+	  int numbins;
+	  len_type binlen_type;*/
 	struct stages stages;
 
 	// the default object spec, in the case that a workload stage isn't defined
@@ -60,9 +60,9 @@ typedef struct arguments_t {
 
 	bool random;
 	/*bool init;
-	int init_pct;
-	int read_pct;
-	bool del_bin;*/
+	  int init_pct;
+	  int read_pct;
+	  bool del_bin;*/
 
 	//uint64_t transactions_limit;
 	int threads;
@@ -103,25 +103,23 @@ typedef struct clientdata_t {
 	const char* set;
 	const char* bin_name;
 	struct stages stages;
-	
-	//uint64_t transactions_limit;
+
 	uint64_t transactions_count;
-	//uint64_t key_start;
-	//uint64_t key_count;
-	//uint64_t n_keys;
 	uint64_t period_begin;
-	
+
 	aerospike client;
 	as_val *fixed_value;
-	
-	latency write_latency;
+
+	// TODO make all these counts thread-local to reduce contention
 	uint32_t write_count;
 	uint32_t write_timeout_count;
 	uint32_t write_error_count;
-	
+
 	uint32_t read_count;
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
+
+	latency write_latency;
 	latency read_latency;
 
 	struct hdr_histogram* read_hdr;
@@ -141,53 +139,35 @@ typedef struct clientdata_t {
 	struct hdr_histogram* summary_write_hdr;
 
 	uint32_t tdata_count;
-	uint32_t valid;
-	
+
 	int async_max_commands;
 	int threads;
 	int throughput;
 	int batch_size;
 	int read_pct;
 	struct obj_spec obj_spec;
-	/*int binlen;
-	int numbins;
-	len_type binlen_type;*/
-	
+
 	float compression_ratio;
-	//char bintype;
-	bool del_bin;
+	// when true, random records are generated for every write transaction,
+	// otherwise a single fixed value is set at the beginning and used for
+	// every transaction
 	bool random;
 	bool latency;
 	bool debug;
 	bool async;
-} clientdata;
 
-typedef struct threaddata_t {
-	clientdata* cdata;
-	as_random* random;
-	//uint8_t* buffer;
-	uint64_t begin;
-	uint64_t key_start;
-	uint64_t key_count;
-	uint64_t n_keys;
-	as_key key;
-	as_record rec;
-} threaddata;
+} clientdata;
 
 int run_benchmark(arguments* args);
 int linear_write(clientdata* data);
 int random_read_write(clientdata* data);
 
-threaddata* create_threaddata(clientdata* cdata, uint64_t key_start, uint64_t n_keys);
-void destroy_threaddata(threaddata* tdata);
+//bool write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key);
+//int read_record_sync(clientdata* cdata, threaddata* tdata);
+//int batch_record_sync(clientdata* cdata, threaddata* tdata);
+void throttle(const clientdata* cdata, const struct stage*);
 
-bool write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key);
-int read_record_sync(clientdata* cdata, threaddata* tdata);
-int batch_record_sync(clientdata* cdata, threaddata* tdata);
-void throttle(clientdata* cdata);
+//void linear_write_async(clientdata* cdata, threaddata* tdata, as_event_loop* event_loop);
+//void random_read_write_async(clientdata* cdata, threaddata* tdata, as_event_loop* event_loop);
 
-void linear_write_async(clientdata* cdata, threaddata* tdata, as_event_loop* event_loop);
-void random_read_write_async(clientdata* cdata, threaddata* tdata, as_event_loop* event_loop);
-
-int gen_value(arguments* args, as_val** val);
 bool is_stop_writes(aerospike* client, const char* namespace);

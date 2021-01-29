@@ -95,7 +95,6 @@ setup(void)
 	data->transactions_count = 0;
 	data->latency = args->latency;
 	data->debug = args->debug;
-	data->valid = 1;
 	data->async = args->async;
 	data->async_max_commands = args->async_max_commands;
 	data->fixed_value = NULL;

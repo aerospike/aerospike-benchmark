@@ -113,12 +113,12 @@ struct arguments_t;
  */
 int parse_workload_type(struct workload*, const char* workload_str);
 
-inline bool workload_is_random(const struct workload* workload)
+static inline bool workload_is_random(const struct workload* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }
 
-inline bool workload_contains_reads(const struct workload* workload)
+static inline bool workload_contains_reads(const struct workload* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }

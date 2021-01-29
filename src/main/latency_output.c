@@ -1,0 +1,323 @@
+
+#include <latency_output.h>
+
+#include <errno.h>
+#include <stdlib.h>
+
+#include <aerospike/as_sleep.h>
+#include <aerospike/as_string_builder.h>
+#include <citrusleaf/cf_clock.h>
+
+#include <hdr_histogram/hdr_histogram_log.h>
+
+
+int initialize_histograms(clientdata* data, arguments* args,
+		time_t* start_time, hdr_timespec* start_timespec) {
+	int ret = 0;
+	bool has_reads = stages_contains_reads(&data->stages);
+
+	if (args->latency) {
+		latency_init(&data->write_latency, args->latency_columns, args->latency_shift);
+		hdr_init(1, 1000000, 3, &data->write_hdr);
+		as_vector_init(&data->latency_percentiles, args->latency_percentiles.item_size,
+				args->latency_percentiles.capacity);
+		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
+			as_vector_append(&data->latency_percentiles,
+					as_vector_get(&args->latency_percentiles, i));
+		}
+
+		if (has_reads) {
+			latency_init(&data->read_latency, args->latency_columns, args->latency_shift);
+			hdr_init(1, 1000000, 3, &data->read_hdr);
+		}
+	}
+	
+	if (args->latency_histogram) {
+		data->histogram_output = fopen(args->histogram_output, "a");
+		if (!data->histogram_output) {
+			fprintf(stderr, "Unable to open %s in append mode\n",
+					args->histogram_output);
+			ret = -1;
+			// follow through with initialization, so cleanup won't segfault
+		}
+
+		histogram_init(&data->write_histogram, 3, 100, (rangespec_t[]) {
+				{ .upper_bound = 4000,   .bucket_width = 100  },
+				{ .upper_bound = 64000,  .bucket_width = 1000 },
+				{ .upper_bound = 128000, .bucket_width = 4000 }
+				});
+		histogram_set_name(&data->write_histogram, "write_hist");
+		histogram_print_info(&data->write_histogram, data->histogram_output);
+		
+		if (has_reads) {
+			histogram_init(&data->read_histogram, 3, 100, (rangespec_t[]) {
+					{ .upper_bound = 4000,   .bucket_width = 100  },
+					{ .upper_bound = 64000,  .bucket_width = 1000 },
+					{ .upper_bound = 128000, .bucket_width = 4000 }
+					});
+			histogram_set_name(&data->read_histogram, "read_hist");
+			histogram_print_info(&data->read_histogram, data->histogram_output);
+		}
+
+		data->histogram_period = args->histogram_period;
+
+	}
+	
+	if (args->hdr_output) {
+		const static char write_output_prefix[] = "/write_";
+		const static char read_output_prefix[] = "/read_";
+		const static char compressed_output_suffix[] = ".hdrhist";
+		const static char text_output_suffix[] = ".txt";
+
+		*start_time = time(NULL);
+		const char* utc_time = utc_time_str(*start_time);
+
+		size_t prefix_len = strlen(args->hdr_output);
+		size_t write_output_size =
+			prefix_len + (sizeof(write_output_prefix) - 1) +
+			UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
+
+		as_string_builder cmp_write_output_b;
+		as_string_builder txt_write_output_b;
+		as_string_builder_inita(&cmp_write_output_b, write_output_size, false);
+		as_string_builder_inita(&txt_write_output_b, write_output_size, false);
+
+		as_string_builder_append(&cmp_write_output_b, args->hdr_output);
+		as_string_builder_append(&cmp_write_output_b, write_output_prefix);
+		as_string_builder_append(&cmp_write_output_b, utc_time);
+
+		// duplicate the current buffer into txt (since only the extension differs
+		as_string_builder_append(&txt_write_output_b, cmp_write_output_b.data);
+
+		as_string_builder_append(&cmp_write_output_b, compressed_output_suffix);
+		as_string_builder_append(&txt_write_output_b, text_output_suffix);
+
+		data->hdr_comp_write_output = fopen(cmp_write_output_b.data, "a");
+		if (!data->hdr_comp_write_output) {
+			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+					cmp_write_output_b.data, strerror(errno));
+			ret = -1;
+		}
+
+		data->hdr_text_write_output = fopen(txt_write_output_b.data, "a");
+		if (!data->hdr_text_write_output) {
+			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+					cmp_write_output_b.data, strerror(errno));
+			ret = -1;
+		}
+
+		as_string_builder_destroy(&cmp_write_output_b);
+		as_string_builder_destroy(&txt_write_output_b);
+
+		hdr_init(1, 1000000, 3, &data->summary_write_hdr);
+
+		if (has_reads) {
+			size_t read_output_size =
+				prefix_len + (sizeof(read_output_prefix) - 1) +
+				UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
+
+			as_string_builder cmp_read_output_b;
+			as_string_builder txt_read_output_b;
+			as_string_builder_inita(&cmp_read_output_b, read_output_size, false);
+			as_string_builder_inita(&txt_read_output_b, read_output_size, false);
+
+			as_string_builder_append(&cmp_read_output_b, args->hdr_output);
+			as_string_builder_append(&cmp_read_output_b, read_output_prefix);
+			as_string_builder_append(&cmp_read_output_b, utc_time);
+
+			// duplicate the current buffer into txt (since only the extension differs
+			as_string_builder_append(&txt_read_output_b, cmp_read_output_b.data);
+
+			as_string_builder_append(&cmp_read_output_b, compressed_output_suffix);
+			as_string_builder_append(&txt_read_output_b, text_output_suffix);
+
+			data->hdr_comp_read_output = fopen(cmp_read_output_b.data, "a");
+			if (!data->hdr_comp_read_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_read_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			data->hdr_text_read_output = fopen(txt_read_output_b.data, "a");
+			if (!data->hdr_text_read_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_read_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			as_string_builder_destroy(&cmp_read_output_b);
+			as_string_builder_destroy(&txt_read_output_b);
+
+			hdr_init(1, 1000000, 3, &data->summary_read_hdr);
+		}
+
+		hdr_gettime(start_timespec);
+	}
+	return ret;
+}
+
+
+void free_histograms(clientdata* data, arguments* args)
+{
+	bool has_reads = stages_contains_reads(&data->stages);
+
+	if (args->latency) {
+		latency_free(&data->write_latency);
+		hdr_close(data->write_hdr);
+
+		as_vector_destroy(&data->latency_percentiles);
+
+		if (has_reads) {
+			latency_free(&data->read_latency);
+			hdr_close(data->read_hdr);
+		}
+	}
+
+	if (args->latency_histogram) {
+		histogram_free(&data->write_histogram);
+		
+		if (has_reads) {
+			histogram_free(&data->read_histogram);
+		}
+
+		fclose(data->histogram_output);
+	}
+
+	if (args->hdr_output) {
+		hdr_close(data->summary_write_hdr);
+		if (data->hdr_comp_write_output) {
+			fclose(data->hdr_comp_write_output);
+		}
+		if (data->hdr_text_write_output) {
+			fclose(data->hdr_text_write_output);
+		}
+
+		if (has_reads) {
+			hdr_close(data->summary_read_hdr);
+			if (data->hdr_comp_read_output) {
+				fclose(data->hdr_comp_read_output);
+			}
+			if (data->hdr_text_read_output) {
+				fclose(data->hdr_text_read_output);
+			}
+		}
+	}
+}
+
+
+void record_summary_data(clientdata* data, arguments* args, time_t start_time,
+		hdr_timespec* start_timespec) {
+	static const int32_t ticks_per_half_distance = 5;
+	bool has_reads = stages_contains_reads(&data->stages);
+
+	// now record summary HDR hist if enabled
+	if (args->hdr_output) {
+		hdr_timespec end_timespec;
+		hdr_gettime(&end_timespec);
+
+		struct hdr_log_writer writer;
+		hdr_log_writer_init(&writer);
+
+		const char* utc_time = utc_time_str(start_time);
+		hdr_log_write_header(&writer, data->hdr_comp_write_output,
+				utc_time, start_timespec);
+
+		hdr_log_write(&writer, data->hdr_comp_write_output,
+				start_timespec, &end_timespec, data->summary_write_hdr);
+
+		hdr_percentiles_print(data->summary_write_hdr, data->hdr_text_write_output,
+				ticks_per_half_distance, 1., CLASSIC);
+
+		if (has_reads) {
+			hdr_log_write_header(&writer, data->hdr_comp_read_output,
+					utc_time, start_timespec);
+
+			hdr_log_write(&writer, data->hdr_comp_read_output,
+					start_timespec, &end_timespec, data->summary_read_hdr);
+
+			hdr_percentiles_print(data->summary_read_hdr, data->hdr_text_read_output,
+					ticks_per_half_distance, 1., CLASSIC);
+		}
+	}
+}
+
+
+void* periodic_output_worker(void* udata)
+{
+	clientdata* data = (clientdata*)udata;
+	latency* write_latency = &data->write_latency;
+	latency* read_latency = &data->read_latency;
+	bool latency = data->latency;
+	char latency_header[500];
+	char latency_detail[500];
+	uint64_t gen_count = 0;
+	histogram* write_histogram = &data->write_histogram;
+	histogram* read_histogram = &data->read_histogram;
+	FILE* histogram_output = data->histogram_output;
+	
+	uint64_t start_time = cf_getus();
+	uint64_t prev_time = start_time;
+	data->period_begin = prev_time;
+	
+	if (latency) {
+		latency_set_header(write_latency, latency_header);
+	}
+	as_sleep(1000);
+	
+	while (data->valid) {
+		uint64_t time = cf_getus();
+		int64_t elapsed = time - prev_time;
+		prev_time = time;
+		
+		uint32_t write_current = as_fas_uint32(&data->write_count, 0);
+		uint32_t write_timeout_current = as_fas_uint32(&data->write_timeout_count, 0);
+		uint32_t write_error_current = as_fas_uint32(&data->write_error_count, 0);
+		uint32_t read_current = as_fas_uint32(&data->read_count, 0);
+		uint32_t read_timeout_current = as_fas_uint32(&data->read_timeout_count, 0);
+		uint32_t read_error_current = as_fas_uint32(&data->read_error_count, 0);
+		uint64_t transactions_current = as_load_uint64(&data->transactions_count);
+
+		data->period_begin = time;
+	
+		uint32_t write_tps = (uint32_t)((double)write_current * 1000 / elapsed + 0.5);
+		uint32_t read_tps = (uint32_t)((double)read_current * 1000 / elapsed + 0.5);
+		
+		blog_info("write(tps=%d timeouts=%d errors=%d) read(tps=%d timeouts=%d errors=%d) total(tps=%d timeouts=%d errors=%d)",
+			write_tps, write_timeout_current, write_error_current,
+			read_tps, read_timeout_current, read_error_current,
+			write_tps + read_tps, write_timeout_current + read_timeout_current, write_error_current + read_error_current);
+
+		if (latency) {
+			blog_line("%s", latency_header);
+			latency_print_results(write_latency, "write", latency_detail);
+			blog_line("%s", latency_detail);
+			latency_print_results(read_latency, "read", latency_detail);
+			blog_line("%s", latency_detail);
+
+			uint64_t elapsed_s = (time - start_time) / 1000000;
+			print_hdr_percentiles(data->write_hdr, "write", elapsed_s,
+					&data->latency_percentiles, stdout);
+			print_hdr_percentiles(data->read_hdr,  "read",  elapsed_s,
+					&data->latency_percentiles, stdout);
+		}
+		
+		++gen_count;
+		
+		if ((histogram_output != NULL) && ((gen_count % data->histogram_period) == 0)) {
+			histogram_print_clear(write_histogram, data->histogram_period, histogram_output);
+			histogram_print_clear(read_histogram, data->histogram_period, histogram_output);
+			fflush(histogram_output);
+		}
+
+		// TODO terminating condition
+		/*if ((data->transactions_limit > 0) && (transactions_current > data->transactions_limit)) {
+			blog_line("Performed %" PRIu64 " (> %" PRIu64 ") transactions. Shutting down...", transactions_current, data->transactions_limit);
+			data->valid = false;
+			continue;
+		}*/
+
+		as_sleep(1000);
+	}
+	return 0;
+}
+

@@ -27,6 +27,8 @@
 #include <citrusleaf/cf_clock.h>
 #include <pthread.h>
 
+#if 0
+
 extern as_monitor monitor;
 
 static void*
@@ -194,3 +196,4 @@ linear_write(clientdata* cdata)
 	pthread_join(ticker, 0);
 	return 0;
 }
+#endif

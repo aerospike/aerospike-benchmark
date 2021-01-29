@@ -28,86 +28,9 @@
 #include <citrusleaf/cf_clock.h>
 #include <pthread.h>
 
+#if 0
+
 extern as_monitor monitor;
-
-static void*
-ticker_worker(void* udata)
-{
-	clientdata* data = (clientdata*)udata;
-	latency* write_latency = &data->write_latency;
-	latency* read_latency = &data->read_latency;
-	bool latency = data->latency;
-	char latency_header[500];
-	char latency_detail[500];
-	uint64_t gen_count = 0;
-	histogram* write_histogram = &data->write_histogram;
-	histogram* read_histogram = &data->read_histogram;
-	FILE* histogram_output = data->histogram_output;
-	
-	uint64_t start_time = cf_getus();
-	uint64_t prev_time = start_time;
-	data->period_begin = prev_time;
-	
-	if (latency) {
-		latency_set_header(write_latency, latency_header);
-	}
-	as_sleep(1000);
-	
-	while (data->valid) {
-		uint64_t time = cf_getus();
-		int64_t elapsed = time - prev_time;
-		prev_time = time;
-		
-		uint32_t write_current = as_fas_uint32(&data->write_count, 0);
-		uint32_t write_timeout_current = as_fas_uint32(&data->write_timeout_count, 0);
-		uint32_t write_error_current = as_fas_uint32(&data->write_error_count, 0);
-		uint32_t read_current = as_fas_uint32(&data->read_count, 0);
-		uint32_t read_timeout_current = as_fas_uint32(&data->read_timeout_count, 0);
-		uint32_t read_error_current = as_fas_uint32(&data->read_error_count, 0);
-		uint64_t transactions_current = as_load_uint64(&data->transactions_count);
-
-		data->period_begin = time;
-	
-		uint32_t write_tps = (uint32_t)((double)write_current * 1000 / elapsed + 0.5);
-		uint32_t read_tps = (uint32_t)((double)read_current * 1000 / elapsed + 0.5);
-		
-		blog_info("write(tps=%d timeouts=%d errors=%d) read(tps=%d timeouts=%d errors=%d) total(tps=%d timeouts=%d errors=%d)",
-			write_tps, write_timeout_current, write_error_current,
-			read_tps, read_timeout_current, read_error_current,
-			write_tps + read_tps, write_timeout_current + read_timeout_current, write_error_current + read_error_current);
-
-		if (latency) {
-			blog_line("%s", latency_header);
-			latency_print_results(write_latency, "write", latency_detail);
-			blog_line("%s", latency_detail);
-			latency_print_results(read_latency, "read", latency_detail);
-			blog_line("%s", latency_detail);
-
-			uint64_t elapsed_s = (time - start_time) / 1000000;
-			print_hdr_percentiles(data->write_hdr, "write", elapsed_s,
-					&data->latency_percentiles, stdout);
-			print_hdr_percentiles(data->read_hdr,  "read",  elapsed_s,
-					&data->latency_percentiles, stdout);
-		}
-		
-		++gen_count;
-		
-		if ((histogram_output != NULL) && ((gen_count % data->histogram_period) == 0)) {
-			histogram_print_clear(write_histogram, data->histogram_period, histogram_output);
-			histogram_print_clear(read_histogram, data->histogram_period, histogram_output);
-			fflush(histogram_output);
-		}
-
-		if ((data->transactions_limit > 0) && (transactions_current > data->transactions_limit)) {
-			blog_line("Performed %" PRIu64 " (> %" PRIu64 ") transactions. Shutting down...", transactions_current, data->transactions_limit);
-			data->valid = false;
-			continue;
-		}
-
-		as_sleep(1000);
-	}
-	return 0;
-}
 
 static void*
 random_worker(void* udata)
@@ -207,3 +130,4 @@ random_read_write(clientdata* cdata)
 	pthread_join(ticker, 0);
 	return 0;
 }
+#endif

@@ -1,4 +1,5 @@
 
+#include <assert.h>
 #include <stdio.h>
 
 #include <cyaml/cyaml.h>
@@ -339,7 +340,7 @@ void stages_shallow_copy(struct stages* dst, const struct stages* src)
 bool stages_contains_reads(const struct stages* stages)
 {
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
-		if (workload_contains_read(&stages->stages[i].workload)) {
+		if (workload_contains_reads(&stages->stages[i].workload)) {
 			return true;
 		}
 	}
