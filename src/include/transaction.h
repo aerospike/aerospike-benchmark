@@ -22,8 +22,13 @@
 #pragma once
 
 
+#include <aerospike/as_random.h>
+
+#include <benchmark.h>
+
 struct threaddata {
 	clientdata* cdata;
+	struct thr_coordinator* coord;
 	as_random* random;
 
 	// thread index: [0, n_threads)
@@ -40,7 +45,8 @@ struct threaddata {
 /*
  * allocates and initializes a new threaddata struct, returning a pointer to it
  */
-struct threaddata* init_tdata(clientdata* cdata, uint32_t thread_idx);
+struct threaddata* init_tdata(clientdata* cdata,
+		struct thr_coordinator*, uint32_t thread_idx);
 
 /*
  * destroys a threaddata struct initialized by init_tdata

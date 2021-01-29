@@ -5,12 +5,14 @@
 #include <workload.h>
 
 
-struct threaddata* init_tdata(clientdata* cdata, uint32_t t_idx)
+struct threaddata* init_tdata(clientdata* cdata, struct thr_coordinator* coord,
+		uint32_t t_idx)
 {
 	struct threaddata* tdata =
 		(struct threaddata*) cf_malloc(sizeof(struct threaddata));
 
 	tdata->cdata = cdata;
+	tdata->coord = coord;
 	tdata->random = as_random_instance();
 	tdata->t_idx = t_idx;
 	tdata->do_work = false;
@@ -22,7 +24,7 @@ struct threaddata* init_tdata(clientdata* cdata, uint32_t t_idx)
 
 void* transaction_worker(void* udata)
 {
-	threaddata* tdata = (threaddata*) udata;
+	struct threaddata* tdata = (struct threaddata*) udata;
 	clientdata* cdata = tdata->cdata;
 	struct stage* stage = &cdata->stages.stages[0];
 

@@ -27,6 +27,8 @@
 #include <hdr_histogram/hdr_time.h>
 #include <benchmark.h>
 #include <common.h>
+#include <coordinator.h>
+
 
 /*
  * initialize the histograms in cdata according to the arguments in args,
@@ -52,7 +54,7 @@ void record_summary_data(clientdata* data, arguments* args, time_t start_time,
 /*
  * init function of the worker thread responsible for periodic output
  *
- * udata should be a pointer to a clientdata struct
+ * udata should be a pointer to a threaddata struct
  */
-void* periodic_output_worker(void* cdata);
+void* periodic_output_worker(void* tdata);
 

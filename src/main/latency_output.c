@@ -10,6 +10,8 @@
 
 #include <hdr_histogram/hdr_histogram_log.h>
 
+#include <transaction.h>
+
 
 int initialize_histograms(clientdata* data, arguments* args,
 		time_t* start_time, hdr_timespec* start_timespec) {
@@ -244,7 +246,10 @@ void record_summary_data(clientdata* data, arguments* args, time_t start_time,
 
 void* periodic_output_worker(void* udata)
 {
-	clientdata* data = (clientdata*)udata;
+	struct threaddata* tdata = (struct threaddata*) udata;
+	clientdata* data = tdata->cdata;
+	struct thr_coordinator* coord = tdata->coord;
+
 	latency* write_latency = &data->write_latency;
 	latency* read_latency = &data->read_latency;
 	bool latency = data->latency;

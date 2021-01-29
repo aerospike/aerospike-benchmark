@@ -226,11 +226,20 @@ static int
 _run(clientdata* cdata)
 {
 	int ret = 0;
+	struct thr_coordinator coord;
 
-	// first initialize periodic output thread
+	// first initialize the thread coordinator struct, before spawning any
+	// threads which will be referencing it
+	thr_coordinator_init(&coord);
+
+	struct threaddata* out_worker_tdata = init_tdata(cdata, &coord, 0);
+
+	// then initialize periodic output thread
 	pthread_t output_thr;
-	if (pthread_create(&output_thr, NULL, periodic_output_worker, cdata) != 0) {
+	if (pthread_create(&output_thr, NULL, periodic_output_worker,
+				&out_worker_tdata) != 0) {
 		blog_error("Failed to create output thread");
+		thr_coordinator_free(&coord);
 		return -1;
 	}
 
@@ -253,7 +262,7 @@ _run(clientdata* cdata)
 	blog_info("Start %d transaction threads", n_threads);
 
 	for (i = 0; i < n_threads; i++) {
-		struct threaddata* tdata = init_tdata(cdata, i);
+		struct threaddata* tdata = init_tdata(cdata, &coord, i + 1);
 
 		if (pthread_create(&threads[i], NULL, worker_fn, tdata) != 0) {
 			blog_error("Failed to create transaction worker thread");
@@ -274,8 +283,8 @@ _run(clientdata* cdata)
 	for (; i < n_threads; i--) {
 		// by this point, if all went well, the coordinator thread should have
 		// already closed all of these threads, but in the case that something
-		// went wrong before we started the coordinator, tell each of these
-		// threads to exit
+		// went wrong before we started the coordinator, we need to tell each
+		// of these threads to exit
 		if (ret != 0) {
 			// TODO make thread exit
 		}
@@ -310,7 +319,6 @@ run_benchmark(arguments* args)
 	data.transactions_count = 0;
 	data.latency = args->latency;
 	data.debug = args->debug;
-	data.valid = 1;
 	data.async = args->async;
 	data.async_max_commands = args->async_max_commands;
 	data.fixed_value = NULL;

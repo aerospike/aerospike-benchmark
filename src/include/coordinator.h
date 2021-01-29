@@ -23,13 +23,27 @@
 
 #include <benchmark.h>
 
+// forward declare to avoid circular inclusion
+struct threaddata;
+
+struct thr_coordinator {
+};
+
 struct coordinator_worker_args {
+	struct thr_coordinator* coord;
 	clientdata* cdata;
 
 	// list of thread data pointers
-	threaddata** tdatas;
+	struct threaddata** tdatas;
 	uint32_t n_threads;
 };
+
+/*
+ * initializes the given thread coordinator struct
+ */
+int thr_coordinator_init(struct thr_coordinator*);
+
+void thr_coordinator_free(struct thr_coordinator*);
 
 
 /*
