@@ -51,9 +51,31 @@ void thr_coordinator_free(struct thr_coordinator*);
 
 
 /*
+ * the wait call to be used on initialization, which differs from
+ * thr_coordinator_wait in that the threads are woken by calling
+ * thr_coordinator_finish_init, and thus can be interrupted if initialization
+ * of a thread fails and the program needs to exit before initialization is
+ * complete
+ */
+void thr_coordinator_wait_init(struct thr_coordinator*, struct threaddata*);
+
+/*
+ * release all threads which are waiting in thr_coordinator_wait_init
+ */
+void thr_coordinator_finish_init(struct thr_coordinator*);
+
+/*
+ * causes all threads to wait at a barrier until the coordinator thread
+ * executes some code, after which the thread coordinator will release all
+ * the threads again
+ */
+void thr_coordinator_wait(struct thr_coordinator*);
+
+
+/*
  * init function for the thread coordinator thread
  *
  * should be passed a pointer to a clientdata struct
  */
-void* coordinator_worker(void* udata);
+void* coordinator_worker(void* cdata);
 

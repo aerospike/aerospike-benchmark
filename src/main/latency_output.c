@@ -269,7 +269,18 @@ void* periodic_output_worker(void* udata)
 	}
 	as_sleep(1000);
 	
-	while (data->valid) {
+	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
+		if (!as_load_uint8((uint8_t*) &tdata->do_work)) {
+
+			// we have to check tdata->finished again in case cleanup is being
+			// performed (in which case we'd deadlock if we waited at the
+			// barrier)
+			if (as_load_uint8((uint8_t*) &tdata->finished)) {
+				break;
+			}
+			thr_coordinator_wait(coord);
+			continue;
+		}
 		uint64_t time = cf_getus();
 		int64_t elapsed = time - prev_time;
 		prev_time = time;
@@ -280,7 +291,7 @@ void* periodic_output_worker(void* udata)
 		uint32_t read_current = as_fas_uint32(&data->read_count, 0);
 		uint32_t read_timeout_current = as_fas_uint32(&data->read_timeout_count, 0);
 		uint32_t read_error_current = as_fas_uint32(&data->read_error_count, 0);
-		uint64_t transactions_current = as_load_uint64(&data->transactions_count);
+		//uint64_t transactions_current = as_load_uint64(&data->transactions_count);
 
 		data->period_begin = time;
 	

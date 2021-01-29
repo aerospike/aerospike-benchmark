@@ -33,7 +33,13 @@ struct threaddata {
 
 	// thread index: [0, n_threads)
 	uint32_t t_idx;
+	// which workload stage we're currrently on
+	uint32_t stage_idx;
 
+	/*
+	 * note: to stop threads, tdata->finished must be set before tdata->do_work
+	 * to prevent deadlocking
+	 */
 	// when true, things continue as normal, when set to false, worker
 	// threads will stop doing what they're doing and await orders
 	bool do_work;

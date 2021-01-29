@@ -243,20 +243,22 @@ _run(clientdata* cdata)
 		worker_fn = transaction_worker;
 	}
 
-	// then initialize the thread coordinator struct, before spawning any
-	// threads which will be referencing it
-	thr_coordinator_init(&coord, n_threads);
-
 	// initialize the list of all thread pointers/data pointers
 	struct threaddata** tdatas =
 		(struct threaddata**) cf_malloc(n_threads * sizeof(struct threaddata*));
 
+	for (uint32_t i = 0; i < n_threads; i++) {
+		tdatas[i] = init_tdata(cdata, &coord, i);
+	}
+
+	// then initialize the thread coordinator struct, before spawning any
+	// threads which will be referencing it
+	thr_coordinator_init(&coord, n_threads);
+
 	pthread_t* threads = (pthread_t*) cf_malloc(n_threads * sizeof(pthread_t));
 
 	// then initialize periodic output thread
-	struct threaddata* out_worker_tdata = init_tdata(cdata, &coord, 0);
-	tdatas[0] = out_worker_tdata;
-
+	struct threaddata* out_worker_tdata = tdatas[0];
 	if (pthread_create(&threads[0], NULL, periodic_output_worker,
 				&out_worker_tdata) != 0) {
 		blog_error("Failed to create output thread");
@@ -272,8 +274,7 @@ _run(clientdata* cdata)
 	uint32_t i;
 	// since the output worker threaddata is in slot 0, start from index 1
 	for (i = 1; i < n_threads; i++) {
-		struct threaddata* tdata = init_tdata(cdata, &coord, i);
-		tdatas[i] = tdata;
+		struct threaddata* tdata = tdatas[i];
 
 		if (pthread_create(&threads[i], NULL, worker_fn, tdata) != 0) {
 			blog_error("Failed to create transaction worker thread");
@@ -303,7 +304,11 @@ _run(clientdata* cdata)
 		// went wrong before we started the coordinator, we need to tell each
 		// of these threads to exit
 		if (ret != 0) {
-			// TODO make thread exit
+			// make thread exit
+			// note that we must update finished before do_work, since we don't
+			// want any of the threads to enter the pthread barrier 
+			as_store_uint8((uint8_t*) &tdatas[i]->finished, true);
+			as_store_uint8((uint8_t*) &tdatas[i]->do_work, false);
 		}
 		pthread_join(threads[i], NULL);
 	}
