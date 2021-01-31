@@ -55,6 +55,7 @@ struct workload {
 
 struct stage {
 	// stage duration in seconds
+	// TODO: also allow max num transactions?
 	uint64_t duration;
 
 	// string desctriptor for the stage, printed when the stage begins
@@ -122,6 +123,15 @@ static inline bool workload_contains_reads(const struct workload* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }
+
+/*
+ * reads and parses bins_str, a comma-separated list of bin numbers
+ * (1-based indexed) and populates the read_bins field of stage
+ *
+ * note: this must be done after the obj_spec has already been parsed
+ */
+int parse_bins_selection(struct stage* stage, const char* bins_str,
+		const char* bin_name);
 
 /*
  * parses the given file into the stages struct

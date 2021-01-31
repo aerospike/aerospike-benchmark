@@ -49,6 +49,7 @@ static struct option long_options[] = {
 	{"random",               no_argument,       0, 'R'},
 	{"transactions",         required_argument, 0, 't'},
 	{"workload",             required_argument, 0, 'w'},
+	{"workloadStages",       required_argument, 0, '.'},
 	{"threads",              required_argument, 0, 'z'},
 	{"throughput",           required_argument, 0, 'g'},
 	{"batchSize",            required_argument, 0, '0'},
@@ -833,37 +834,29 @@ set_args(int argc, char * const * argv, arguments* args)
 			case 'R':
 				args->random = true;
 				break;
-				
-			/*case 't':
-				args->transactions_limit = strtoull(optarg, NULL, 10);
-				break;*/
+
+			case 't':
+				if (args->stages.stages != NULL && !args->stages_init_by_file) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the timeout flag");
+					return -1;
+				}
+				struct stage* stage = get_or_init_stage(args);
+				// FIXME add error checking
+				stage->duration = strtoull(optarg, NULL, 10);
+				break;
 
 			case 'w': {
+				if (args->stages.stages != NULL && !args->stages_init_by_file) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the workload flag");
+					return -1;
+				}
 				struct stage* stage = get_or_init_stage(args);
 				parse_workload_type(&stage->workload, optarg);
-				/*char* tmp = strdup(optarg);
-				char* p = strchr(tmp, ',');
-				
-				if (strncmp(tmp, "I", 1) == 0) {
-					args->init = true;
-					if (p) {
-						*p = 0;
-						args->init_pct = atoi(p + 1);
-					}
-				} else if (strncmp(tmp, "RU", 2) == 0) {
-					if (p) {
-						*p = 0;
-						args->read_pct = atoi(p + 1);
-					}
-				} else if (strncmp(tmp, "DB", 2) == 0) {
-					args->init = true;
-					args->del_bin = true;
-				}
-
-				free(tmp);*/
 				break;
 			}
-								
+
 			case 'z':
 				args->threads = atoi(optarg);
 				break;
@@ -1129,74 +1122,100 @@ set_args(int argc, char * const * argv, arguments* args)
 	return validate_args(args);
 }
 
-int
-main(int argc, char * const * argv)
+static void
+_load_defaults(arguments* args)
 {
-	arguments args;
-	args.hosts = strdup("127.0.0.1");
-	args.port = 3000;
-	args.user = 0;
-	args.password[0] = 0;
-	args.namespace = "test";
-	args.set = "testset";
-	args.start_key = 1;
-	args.keys = 1000000;
-	/*args.numbins = 1;
-	args.bintype = 'I';
-	args.binlen = 50;
-	args.binlen_type = LEN_TYPE_COUNT;*/
-	__builtin_memset(&args.stages, 0, sizeof(struct stages));
-	obj_spec_parse(&args.obj_spec, "I");
-	args.random = false;
-	/*args.transactions_limit = 0;
-	args.init = false;
-	args.init_pct = 100;
-	args.read_pct = 50;
-	args.del_bin = false;*/
-	args.threads = 16;
-	args.throughput = 0;
-	args.batch_size = 0;
-	args.enable_compression = false;
-	args.compression_ratio = 1.f;
-	args.read_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
-	args.write_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
-	args.read_total_timeout = AS_POLICY_TOTAL_TIMEOUT_DEFAULT;
-	args.write_total_timeout = AS_POLICY_TOTAL_TIMEOUT_DEFAULT;
-	args.max_retries = 1;
-	args.debug = false;
-	args.latency = false;
-	args.latency_columns = 4;
-	args.latency_shift = 3;
-	as_vector_init(&args.latency_percentiles, sizeof(double), 5);
-	args.latency_histogram = false;
-	args.histogram_output = NULL;
-	args.histogram_period = 1;
-	args.hdr_output = NULL;
-	args.use_shm = false;
-	args.replica = AS_POLICY_REPLICA_SEQUENCE;
-	args.read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;
-	args.read_mode_sc = AS_POLICY_READ_MODE_SC_SESSION;
-	args.write_commit_level = AS_POLICY_COMMIT_LEVEL_ALL;
-	args.durable_deletes = false;
-	args.conn_pools_per_node = 1;
-	args.async = false;
-	args.async_max_commands = 50;
-	args.event_loop_capacity = 1;
-	memset(&args.tls, 0, sizeof(as_config_tls));
-	args.auth_mode = AS_AUTH_INTERNAL;
+	args->hosts = strdup("127.0.0.1");
+	args->port = 3000;
+	args->user = 0;
+	args->password[0] = 0;
+	args->namespace = "test";
+	args->set = "testset";
+	args->start_key = 1;
+	args->keys = 1000000;
+	/*args->numbins = 1;
+	args->bintype = 'I';
+	args->binlen = 50;
+	args->binlen_type = LEN_TYPE_COUNT;*/
+	__builtin_memset(&args->stages, 0, sizeof(struct stages));
+	obj_spec_parse(&args->obj_spec, "I");
+	args->stages_init_by_file = false;
+	args->random = false;
+	/*args->transactions_limit = 0;
+	args->init = false;
+	args->init_pct = 100;
+	args->read_pct = 50;
+	args->del_bin = false;*/
+	args->threads = 16;
+	args->throughput = 0;
+	args->batch_size = 0;
+	args->enable_compression = false;
+	args->compression_ratio = 1.f;
+	args->read_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
+	args->write_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
+	args->read_total_timeout = AS_POLICY_TOTAL_TIMEOUT_DEFAULT;
+	args->write_total_timeout = AS_POLICY_TOTAL_TIMEOUT_DEFAULT;
+	args->max_retries = 1;
+	args->debug = false;
+	args->latency = false;
+	args->latency_columns = 4;
+	args->latency_shift = 3;
+	as_vector_init(&args->latency_percentiles, sizeof(double), 5);
+	args->latency_histogram = false;
+	args->histogram_output = NULL;
+	args->histogram_period = 1;
+	args->hdr_output = NULL;
+	args->use_shm = false;
+	args->replica = AS_POLICY_REPLICA_SEQUENCE;
+	args->read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;
+	args->read_mode_sc = AS_POLICY_READ_MODE_SC_SESSION;
+	args->write_commit_level = AS_POLICY_COMMIT_LEVEL_ALL;
+	args->durable_deletes = false;
+	args->conn_pools_per_node = 1;
+	args->async = false;
+	args->async_max_commands = 50;
+	args->event_loop_capacity = 1;
+	memset(&args->tls, 0, sizeof(as_config_tls));
+	args->auth_mode = AS_AUTH_INTERNAL;
 
 	double p1 = 50.,
 		   p2 = 90.,
 		   p3 = 99.,
 		   p4 = 99.9,
 		   p5 = 99.99;
-	as_vector_append(&args.latency_percentiles, &p1);
-	as_vector_append(&args.latency_percentiles, &p2);
-	as_vector_append(&args.latency_percentiles, &p3);
-	as_vector_append(&args.latency_percentiles, &p4);
-	as_vector_append(&args.latency_percentiles, &p5);
+	as_vector_append(&args->latency_percentiles, &p1);
+	as_vector_append(&args->latency_percentiles, &p2);
+	as_vector_append(&args->latency_percentiles, &p3);
+	as_vector_append(&args->latency_percentiles, &p4);
+	as_vector_append(&args->latency_percentiles, &p5);
+}
+
+static void
+_load_defaults_post(arguments* args)
+{
+	if (args->stages.stages == NULL) {
+		struct stage* stage = get_or_init_stage(args);
+		stage->duration = 10;
+		stage->desc = "default stage";
+		stage->tps = 0;
+		stage->key_start = 1;
+		stage->key_end = 100000;
+		stage->pause = 0;
+		parse_workload_type(&stage->workload, "RU,50");
+		obj_spec_parse(&stage->obj_spec, "I");
+		parse_bins_selection(stage, "1", "testbin");
+	}
+}
+
+int
+main(int argc, char * const * argv)
+{
+	arguments args;
+	_load_defaults(&args);
 
 	int ret = set_args(argc, argv, &args);
+
+	_load_defaults_post(&args);
 
 	if (ret == 0) {
 		print_args(&args);

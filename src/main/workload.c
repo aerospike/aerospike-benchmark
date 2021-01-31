@@ -138,7 +138,7 @@ int parse_workload_type(struct workload* workload, const char* workload_str)
 }
 
 
-static void __parse_bins_destroy(as_vector* read_bins)
+static void _parse_bins_destroy(as_vector* read_bins)
 {
 
 	// free all the as_bin_names reserved so far
@@ -153,14 +153,14 @@ static void __parse_bins_destroy(as_vector* read_bins)
 /*
  * note: this must be done after the obj_spec has already been parsed
  */
-static int _parse_bins_selection(struct stage* stage,
-		const struct arguments_t* args)
+int parse_bins_selection(struct stage* stage, const char* bins_str,
+		const char* stage_bin_name)
 {
-	if (stage->read_bins_str == NULL) {
+	if (bins_str == NULL) {
 		return 0;
 	}
 
-	char* read_bins_str = stage->read_bins_str;
+	const char* read_bins_str = bins_str;
 	as_vector read_bins;
 	as_vector_init(&read_bins, sizeof(char*), 8);
 
@@ -170,28 +170,26 @@ static int _parse_bins_selection(struct stage* stage,
 		if ((*endptr != '\0' && *endptr != ',') || (endptr == read_bins_str)) {
 			fprintf(stderr, "Element %u of read-bins list not a positive "
 					"number\n", read_bins.size + 1);
-			__parse_bins_destroy(&read_bins);
+			_parse_bins_destroy(&read_bins);
 			return -1;
 		}
 
 		if (bin_num == 0) {
 			fprintf(stderr, "Invalid bin number: 0\n");
-			__parse_bins_destroy(&read_bins);
+			_parse_bins_destroy(&read_bins);
 			return -1;
 		}
 
 		// form bin name
 		char** bin_name = (char**) as_vector_reserve(&read_bins);
 		*bin_name = (char*) malloc(sizeof(as_bin_name));
-		gen_bin_name(*bin_name, args->bin_name, bin_num - 1);
+		gen_bin_name(*bin_name, stage_bin_name, bin_num - 1);
 
 		read_bins_str = endptr;
 		if (*read_bins_str == ',') {
 			read_bins_str++;
 		}
 	}
-
-	cf_free(stage->read_bins_str);
 	
 	// this will append one last slot to the vector and zero that slot out
 	// (null-terminating the list)
@@ -275,9 +273,15 @@ static int stages_set_defaults_and_parse(struct stages* stages,
 			prev_obj_spec = &stage->obj_spec;
 		}
 
-		if (_parse_bins_selection(stage, args) != 0) {
+		// since bins_str will be overwritten when the read_bins field of stage
+		// is populated, save the pointer value here and free it after
+		char* bins_str = stage->read_bins_str;
+		if (parse_bins_selection(stage, bins_str, args->bin_name) != 0) {
+			// don't free bins_str here since stage->read_bins won't be touched
+			// if the method fails
 			return -1;
 		}
+		cf_free(bins_str);
 	}
 
 	return 0;
