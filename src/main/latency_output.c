@@ -259,22 +259,22 @@ void* periodic_output_worker(void* udata)
 	histogram* write_histogram = &data->write_histogram;
 	histogram* read_histogram = &data->read_histogram;
 	FILE* histogram_output = data->histogram_output;
-	
+
 	uint64_t start_time = cf_getus();
 	uint64_t prev_time = start_time;
 	data->period_begin = prev_time;
-	
+
 	if (latency) {
 		latency_set_header(write_latency, latency_header);
 	}
 	as_sleep(1000);
-	
+
 	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
 		if (!as_load_uint8((uint8_t*) &tdata->do_work)) {
 
 			// we have to check tdata->finished again in case cleanup is being
-			// performed (in which case we'd deadlock if we waited at the
-			// barrier)
+			// performed, since tdata->finished is set after tdata->do_work
+			// (we can deadlock if we waited at the barrier)
 			if (as_load_uint8((uint8_t*) &tdata->finished)) {
 				break;
 			}

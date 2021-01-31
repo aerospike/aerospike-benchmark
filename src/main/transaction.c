@@ -7,23 +7,6 @@
 #include <workload.h>
 
 
-struct threaddata* init_tdata(clientdata* cdata, struct thr_coordinator* coord,
-		uint32_t t_idx)
-{
-	struct threaddata* tdata =
-		(struct threaddata*) cf_malloc(sizeof(struct threaddata));
-
-	tdata->cdata = cdata;
-	tdata->coord = coord;
-	tdata->random = as_random_instance();
-	tdata->t_idx = t_idx;
-	tdata->do_work = true;
-	tdata->finished = false;
-
-	return tdata;
-}
-
-
 static void linear_writes(struct threaddata* tdata,
 		clientdata* cdata, struct stage* stage)
 {

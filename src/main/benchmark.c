@@ -222,6 +222,30 @@ is_stop_writes(aerospike* client, const char* namespace)
 	return stop_writes;
 }
 
+
+/*
+ * allocates and initializes a new threaddata struct, returning a pointer to it
+ */
+static struct threaddata*
+init_tdata(clientdata* cdata, struct thr_coordinator* coord,
+		uint32_t t_idx)
+{
+	struct threaddata* tdata =
+		(struct threaddata*) cf_malloc(sizeof(struct threaddata));
+
+	tdata->cdata = cdata;
+	tdata->coord = coord;
+	tdata->random = as_random_instance();
+	tdata->t_idx = t_idx;
+	// always start on the first stage
+	tdata->stage_idx = 0;
+	tdata->do_work = true;
+	tdata->finished = false;
+
+	return tdata;
+}
+
+
 static int
 _run(clientdata* cdata)
 {
@@ -239,7 +263,7 @@ _run(clientdata* cdata)
 	}
 	else {
 		// output thread + all the worker threads
-		n_threads = 1 + cdata->threads;
+		n_threads = 1 + cdata->transaction_worker_threads;
 		worker_fn = transaction_worker;
 	}
 
@@ -260,7 +284,7 @@ _run(clientdata* cdata)
 	// then initialize periodic output thread
 	struct threaddata* out_worker_tdata = tdatas[0];
 	if (pthread_create(&threads[0], NULL, periodic_output_worker,
-				&out_worker_tdata) != 0) {
+				out_worker_tdata) != 0) {
 		blog_error("Failed to create output thread");
 		cf_free(threads);
 		cf_free(tdatas);
@@ -327,12 +351,12 @@ run_benchmark(arguments* args)
 	memset(&data, 0, sizeof(clientdata));
 	data.namespace = args->namespace;
 	data.set = args->set;
-	data.threads = args->threads;
+	data.transaction_worker_threads = args->transaction_worker_threads;
 	data.throughput = args->throughput;
 	data.batch_size = args->batch_size;
 	/*data.read_pct = args->read_pct;
-	data.del_bin = args->del_bin;
-	data.compression_ratio = args->compression_ratio;*/
+	data.del_bin = args->del_bin;*/
+	data.compression_ratio = args->compression_ratio;
 	/*data.bintype = args->bintype;
 	data.binlen = args->binlen;
 	data.binlen_type = args->binlen_type;

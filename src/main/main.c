@@ -482,7 +482,7 @@ print_args(arguments* args)
 		blog_line("stop after:             %" PRIu64 " transactions", args->transactions_limit);
 	}*/
 	
-	blog_line("threads:                %d", args->threads);
+	blog_line("threads:                %d", args->transaction_worker_threads);
 	
 	/*if (args->throughput > 0) {
 		blog_line("max throughput:         %d tps", args->throughput);
@@ -669,8 +669,9 @@ validate_args(arguments* args)
 		return 1;
 	}*/
 	
-	if (args->threads <= 0 || args->threads > 10000) {
-		blog_line("Invalid number of threads: %d  Valid values: [1-10000]", args->threads);
+	if (args->transaction_worker_threads <= 0 || args->transaction_worker_threads > 10000) {
+		blog_line("Invalid number of threads: %d  Valid values: [1-10000]",
+				args->transaction_worker_threads);
 		return 1;
 	}
 
@@ -766,8 +767,9 @@ validate_args(arguments* args)
 static struct stage* get_or_init_stage(arguments* args)
 {
 	if (args->stages.stages == NULL) {
-		args->stages.stages = (struct stage*) malloc(sizeof(struct stage*));
+		args->stages.stages = (struct stage*) cf_calloc(1, sizeof(struct stage));
 		args->stages.n_stages = 1;
+		args->stages.valid = true;
 	}
 	return &args->stages.stages[0];
 }
@@ -858,7 +860,7 @@ set_args(int argc, char * const * argv, arguments* args)
 			}
 
 			case 'z':
-				args->threads = atoi(optarg);
+				args->transaction_worker_threads = atoi(optarg);
 				break;
 				
 			case 'g':
@@ -1146,7 +1148,7 @@ _load_defaults(arguments* args)
 	args->init_pct = 100;
 	args->read_pct = 50;
 	args->del_bin = false;*/
-	args->threads = 16;
+	args->transaction_worker_threads = 16;
 	args->throughput = 0;
 	args->batch_size = 0;
 	args->enable_compression = false;
@@ -1201,7 +1203,7 @@ _load_defaults_post(arguments* args)
 		stage->key_start = 1;
 		stage->key_end = 100000;
 		stage->pause = 0;
-		parse_workload_type(&stage->workload, "RU,50");
+		parse_workload_type(&stage->workload, "I");
 		obj_spec_parse(&stage->obj_spec, "I");
 		parse_bins_selection(stage, "1", "testbin");
 	}

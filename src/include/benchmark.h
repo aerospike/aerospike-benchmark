@@ -67,7 +67,7 @@ typedef struct arguments_t {
 	  bool del_bin;*/
 
 	//uint64_t transactions_limit;
-	int threads;
+	int transaction_worker_threads;
 	int throughput;
 	int batch_size;
 	bool enable_compression;
@@ -143,7 +143,7 @@ typedef struct clientdata_t {
 	uint32_t tdata_count;
 
 	int async_max_commands;
-	int threads;
+	int transaction_worker_threads;
 	int throughput;
 	int batch_size;
 	int read_pct;
@@ -159,6 +159,28 @@ typedef struct clientdata_t {
 	bool async;
 
 } clientdata;
+
+struct threaddata {
+	clientdata* cdata;
+	struct thr_coordinator* coord;
+	as_random* random;
+
+	// thread index: [0, n_threads)
+	uint32_t t_idx;
+	// which workload stage we're currrently on
+	uint32_t stage_idx;
+
+	/*
+	 * note: to stop threads, tdata->finished must be set before tdata->do_work
+	 * to prevent deadlocking
+	 */
+	// when true, things continue as normal, when set to false, worker
+	// threads will stop doing what they're doing and await orders
+	bool do_work;
+	// when true, all threads will stop doing work and close (note that do_work
+	// must also be set to false for this to work)
+	bool finished;
+};
 
 int run_benchmark(arguments* args);
 int linear_write(clientdata* data);

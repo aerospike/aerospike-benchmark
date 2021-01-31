@@ -98,8 +98,9 @@ struct stages {
 	/*
      * when set to true, this is a valid stages struct, when set to false, this
 	 * stages struct has already been freed/is owned by another stages struct
-	 * note, obviously, this value will be undefined before the object spec
-	 * has first been initialized
+	 *
+	 * note: this can still be used even if it's invalid, so long as the owner
+	 * hasn't been freed yet
 	 */
 	bool valid;
 };

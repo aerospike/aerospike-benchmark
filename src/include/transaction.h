@@ -26,34 +26,6 @@
 
 #include <benchmark.h>
 
-struct threaddata {
-	clientdata* cdata;
-	struct thr_coordinator* coord;
-	as_random* random;
-
-	// thread index: [0, n_threads)
-	uint32_t t_idx;
-	// which workload stage we're currrently on
-	uint32_t stage_idx;
-
-	/*
-	 * note: to stop threads, tdata->finished must be set before tdata->do_work
-	 * to prevent deadlocking
-	 */
-	// when true, things continue as normal, when set to false, worker
-	// threads will stop doing what they're doing and await orders
-	bool do_work;
-	// when true, all threads will stop doing work and close (note that do_work
-	// must also be set to false for this to work)
-	bool finished;
-};
-
-/*
- * allocates and initializes a new threaddata struct, returning a pointer to it
- */
-struct threaddata* init_tdata(clientdata* cdata,
-		struct thr_coordinator*, uint32_t thread_idx);
-
 /*
  * destroys a threaddata struct initialized by init_tdata
  */

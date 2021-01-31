@@ -84,6 +84,11 @@ void* coordinator_worker(void* udata)
 	printf("yo we got there!!\n");
 	_release_threads(coord, tdatas, n_threads);
 
+	printf("ok back in business, now time to shut down\n");
+	_halt_threads(coord, tdatas, n_threads);
+	printf("yo we got there!!\n");
+	_terminate_threads(coord, tdatas, n_threads);
+
 
 	return NULL;
 }
