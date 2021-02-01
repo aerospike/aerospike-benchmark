@@ -144,6 +144,25 @@ static void _release_threads(struct thr_coordinator* coord,
 }
 
 
+/*
+ * to be called by the coordinator thread just after returning from the sleep
+ * call (i.e. once the required sleep duration has passed). this will decrement
+ * the count of unfinished threads and wait on the condition variable until
+ * all threads have finished their required tasks
+ */
+static void _finish_req_duration(struct thr_coordinator* coord)
+{
+	pthread_mutex_lock(&coord->c_lock);
+
+	uint32_t rem_threads = as_aaf_uint32(&coord->unfinished_threads, -1U);
+	while (rem_threads != 0) {
+		pthread_cond_wait(&coord->complete, &coord->c_lock);
+		rem_threads = as_load_uint32(&coord->unfinished_threads);
+	}
+	pthread_mutex_unlock(&coord->c_lock);
+}
+
+
 void* coordinator_worker(void* udata)
 {
 	struct coordinator_worker_args* args =
@@ -163,8 +182,9 @@ void* coordinator_worker(void* udata)
 			// first sleep the minimum duration of the stage
 			as_sleep(stage->duration * 1000);
 		}
-		// TODO
+		_finish_req_duration(coord);
 
+		// at this point, all threads have completed their required tasks, so
 		// halt threads, increment stage indices, then continue
 		_halt_threads(coord, tdatas, n_threads);
 		stage_idx++;
