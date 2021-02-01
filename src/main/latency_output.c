@@ -286,6 +286,18 @@ void* periodic_output_worker(void* udata)
 	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
 		if (status == COORD_SLEEP_INTERRUPTED) {
 			thr_coordinator_wait(coord);
+
+			// check to make sure we're not finished before resetting everything
+			if (!as_load_uint8((uint8_t*) &tdata->finished)) {
+				// first indicate that this thread has no required work to do
+				thr_coordinator_complete(coord);
+				// so the logger doesn't immediately go back to waiting again
+				status = COORD_SLEEP_TIMEOUT;
+			}
+			else {
+				// no need to check again
+				break;
+			}
 			continue;
 		}
 		/*if (!as_load_uint8((uint8_t*) &tdata->do_work)) {
