@@ -26,6 +26,21 @@
 #include <benchmark.h>
 
 
+#define COORD_CLOCK CLOCK_MONOTONIC
+
+
+/*
+ * returned by thr_coordinator_sleep to indicate that the requested sleep
+ * duration has passed
+ */
+#define COORD_SLEEP_TIMEOUT     0
+/*
+ * returned by the_coordinator_sleep to indicate that the sleep was interrupted
+ * because all threads have finished their required work
+ */
+#define COORD_SLEEP_INTERRUPTED 1
+
+
 // forward declare to avoid circular inclusion
 struct threaddata;
 
@@ -68,6 +83,9 @@ void thr_coordinator_free(struct thr_coordinator*);
  * causes all threads to wait at a barrier until the coordinator thread
  * executes some code, after which the thread coordinator will release all
  * the threads again
+ *
+ * this is safe to call whenever during a stage, even before every other thread
+ * has called thr_coordinator_complete
  */
 void thr_coordinator_wait(struct thr_coordinator*);
 
@@ -88,13 +106,13 @@ void thr_coordinator_complete(struct thr_coordinator*);
  * puts the calling thread to sleep until the given wakeup time, either
  * returning when that time has been reached, or when the workload has completed
  *
- * note: if the sleep is interrupted, this method will call
- * thr_coordinator_wait, meaning the stage of the workload may change during a
- * call to this
+ * returns either (see definitions above):
+ * 	COORD_SLEEP_TIMEOUT
+ * 	COORD_SLEEP_INTERRUPTED
  *
  * wakeup_time must be given by the CLOCK_MONOTONIC clock
  */
-void thr_coordinator_sleep(struct thr_coordinator*,
+int thr_coordinator_sleep(struct thr_coordinator*,
 		const struct timespec* wakeup_time);
 
 

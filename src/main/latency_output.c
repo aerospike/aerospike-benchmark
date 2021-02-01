@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include <aerospike/as_sleep.h>
 #include <aerospike/as_string_builder.h>
@@ -264,13 +265,30 @@ void* periodic_output_worker(void* udata)
 	uint64_t prev_time = start_time;
 	data->period_begin = prev_time;
 
+	// first indicate that this thread has no required work to do
+	thr_coordinator_complete(coord);
+
 	if (latency) {
 		latency_set_header(write_latency, latency_header);
 	}
-	as_sleep(1000);
+
+	// when status is COORD_SLEEP_INTERRUPTED, that means it's time to halt this
+	// stage and move onto the next one, but we want the logger to still print
+	// out the last bit of latency data before moving onto the next stage, so
+	// we always check the status at the beginning of the loop and update it
+	// right after that
+
+	// to make sure we don't immmediately try blocking until the stage is
+	// updated by the coordinator, status should be initialized to
+	// COORD_SLEEP_TIMEOUT, which indicates there are still unfinished threads
+	int status = COORD_SLEEP_TIMEOUT;
 
 	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
-		if (!as_load_uint8((uint8_t*) &tdata->do_work)) {
+		if (status == COORD_SLEEP_INTERRUPTED) {
+			thr_coordinator_wait(coord);
+			continue;
+		}
+		/*if (!as_load_uint8((uint8_t*) &tdata->do_work)) {
 
 			// we have to check tdata->finished again in case cleanup is being
 			// performed, since tdata->finished is set after tdata->do_work
@@ -280,7 +298,15 @@ void* periodic_output_worker(void* udata)
 			}
 			thr_coordinator_wait(coord);
 			continue;
-		}
+		}*/
+
+		struct timespec wake_up;
+		clock_gettime(COORD_CLOCK, &wake_up);
+		// sleep for 1 second
+		wake_up.tv_sec += 1;
+		status = thr_coordinator_sleep(coord, &wake_up);
+
+		// TODO use wake_up instead?
 		uint64_t time = cf_getus();
 		int64_t elapsed = time - prev_time;
 		prev_time = time;
@@ -332,7 +358,7 @@ void* periodic_output_worker(void* udata)
 			continue;
 		}*/
 
-		as_sleep(1000);
+		//as_sleep(1000);
 	}
 	return 0;
 }

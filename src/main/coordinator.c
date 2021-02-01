@@ -26,7 +26,7 @@ int thr_coordinator_init(struct thr_coordinator* coord, uint32_t n_threads)
 	pthread_barrier_init(&coord->barrier, NULL, n_threads + 1);
 	coord->n_threads = n_threads;
 	// unfinished threads includes this thread
-	coord->unfinished_threads = n_threads;
+	coord->unfinished_threads = n_threads + 1;
 
 	return 0;
 }
@@ -55,7 +55,8 @@ void thr_coordinator_complete(struct thr_coordinator* coord)
 	pthread_mutex_lock(&coord->c_lock);
 
 	uint32_t rem_threads = coord->unfinished_threads - 1;
-	coord->n_threads = rem_threads;
+	coord->unfinished_threads = rem_threads;
+	printf("complete, only %d left\n", rem_threads);
 	// commit this write before signaling the condition variable and releasing
 	// the lock, since it was not atomic
 	as_fence_memory();
@@ -79,7 +80,7 @@ static int _has_not_happened(const struct timespec* time)
 }
 
 
-void thr_coordinator_sleep(struct thr_coordinator* coord,
+int thr_coordinator_sleep(struct thr_coordinator* coord,
 		const struct timespec* wakeup_time)
 {
 	uint32_t rem_threads;
@@ -96,11 +97,7 @@ void thr_coordinator_sleep(struct thr_coordinator* coord,
 	}
 	pthread_mutex_unlock(&coord->c_lock);
 
-	// if there are no threads left which still have required work, it's time
-	// for the stage to end
-	if (rem_threads == 0) {
-		thr_coordinator_wait(coord);
-	}
+	return rem_threads == 0 ? COORD_SLEEP_INTERRUPTED : COORD_SLEEP_TIMEOUT;
 }
 
 
@@ -200,7 +197,7 @@ void* coordinator_worker(void* udata)
 				tdatas[t_idx]->stage_idx = stage_idx;
 			}
 			// reset unfinished_threads count
-			as_store_uint32(&coord->unfinished_threads, n_threads);
+			as_store_uint32(&coord->unfinished_threads, n_threads + 1);
 
 			_release_threads(coord, tdatas, n_threads);
 		}

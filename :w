@@ -12,25 +12,11 @@ static void linear_writes(struct threaddata* tdata,
 		clientdata* cdata, struct thr_coordinator* coord,
 		struct stage* stage)
 {
-	uint32_t cnt = 0;
-	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
-		cnt++;
-		if (cnt > 100000) {
-			break;
-		}
-	}
-	thr_coordinator_complete(coord);
-}
-
-
-static void random_read_write(struct threaddata* tdata,
-		clientdata* cdata, struct thr_coordinator* coord,
-		struct stage* stage)
-{
 
 	thr_coordinator_complete(coord);
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 	}
+	thr_coordinator_wait(coord);
 }
 
 
@@ -48,7 +34,6 @@ void* transaction_worker(void* udata)
 				linear_writes(tdata, cdata, coord, stage);
 				break;
 			case WORKLOAD_TYPE_RANDOM:
-				random_read_write(tdata, cdata, coord, stage);
 				break;
 			case WORKLOAD_TYPE_DELETE:
 				break;
