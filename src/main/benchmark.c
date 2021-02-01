@@ -282,8 +282,8 @@ _run(clientdata* cdata)
 	pthread_t* threads = (pthread_t*) cf_malloc(n_threads * sizeof(pthread_t));
 
 	// then initialize periodic output thread
-	struct threaddata* out_worker_tdata = tdatas[0];
-	if (pthread_create(&threads[0], NULL, periodic_output_worker,
+	struct threaddata* out_worker_tdata = tdatas[n_threads - 1];
+	if (pthread_create(&threads[n_threads - 1], NULL, periodic_output_worker,
 				out_worker_tdata) != 0) {
 		blog_error("Failed to create output thread");
 		cf_free(threads);
@@ -296,8 +296,8 @@ _run(clientdata* cdata)
 	blog_info("Start %d transaction threads", n_threads - 1);
 
 	uint32_t i;
-	// since the output worker threaddata is in slot 0, start from index 1
-	for (i = 1; i < n_threads; i++) {
+	// since the output worker threaddata is in slot 0
+	for (i = 0; i < n_threads - 1; i++) {
 		struct threaddata* tdata = tdatas[i];
 
 		if (pthread_create(&threads[i], NULL, worker_fn, tdata) != 0) {

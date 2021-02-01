@@ -70,7 +70,7 @@ _write_record_sync(as_key* key, as_record* rec, clientdata* cdata)
 int
 _read_record_sync(as_key* key, clientdata* cdata)
 {
-	as_record* rec;
+	as_record* rec = NULL;
 	as_status status;
 	as_error err;
 
@@ -233,6 +233,10 @@ static void linear_writes(struct threaddata* tdata,
 
 		// write this record to the database
 		_write_record_sync(&key, &rec, cdata);
+
+		as_record_destroy(&rec);
+		as_key_destroy(&key);
+
 		key_val++;
 	}
 	printf("thread %d wrote keys (%lu - %lu)\n", t_idx,
@@ -280,7 +284,10 @@ static void random_read_write(struct threaddata* tdata,
 
 			// write this record to the database
 			_write_record_sync(&key, &rec, cdata);
+
+			as_record_destroy(&rec);
 		}
+		as_key_destroy(&key);
 	}
 }
 
@@ -311,6 +318,10 @@ static void linear_deletes(struct threaddata* tdata,
 
 		// delete this record from the database
 		_write_record_sync(&key, &rec, cdata);
+
+		as_record_destroy(&rec);
+		as_key_destroy(&key);
+
 		key_val++;
 	}
 
