@@ -300,17 +300,6 @@ void* periodic_output_worker(void* udata)
 			}
 			continue;
 		}
-		/*if (!as_load_uint8((uint8_t*) &tdata->do_work)) {
-
-			// we have to check tdata->finished again in case cleanup is being
-			// performed, since tdata->finished is set after tdata->do_work
-			// (we can deadlock if we waited at the barrier)
-			if (as_load_uint8((uint8_t*) &tdata->finished)) {
-				break;
-			}
-			thr_coordinator_wait(coord);
-			continue;
-		}*/
 
 		struct timespec wake_up;
 		clock_gettime(COORD_CLOCK, &wake_up);
