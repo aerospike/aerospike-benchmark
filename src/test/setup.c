@@ -53,7 +53,7 @@ setup(void)
 	//args->init_pct = 100;
 	//args->read_pct = 50;
 	//args->del_bin = false;
-	args->threads = 16;
+	args->transaction_worker_threads = 16;
 	//args->throughput = 0;
 	args->batch_size = 0;
 	args->enable_compression = false;
@@ -80,7 +80,7 @@ setup(void)
 	data = cf_malloc(sizeof(clientdata));
 	data->namespace = args->namespace;
 	data->set = args->set;
-	data->threads = args->threads;
+	data->transaction_worker_threads = args->transaction_worker_threads;
 	//data->throughput = args->throughput;
 	data->batch_size = args->batch_size;
 	//data->read_pct = args->read_pct;

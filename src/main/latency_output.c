@@ -322,13 +322,16 @@ void* periodic_output_worker(void* udata)
 
 		data->period_begin = time;
 	
-		uint32_t write_tps = (uint32_t)((double)write_current * 1000 / elapsed + 0.5);
-		uint32_t read_tps = (uint32_t)((double)read_current * 1000 / elapsed + 0.5);
-		
-		blog_info("write(tps=%d timeouts=%d errors=%d) read(tps=%d timeouts=%d errors=%d) total(tps=%d timeouts=%d errors=%d)",
+		uint32_t write_tps = (uint32_t)((double)write_current * 1000000 / elapsed + 0.5);
+		uint32_t read_tps = (uint32_t)((double)read_current * 1000000 / elapsed + 0.5);
+
+		blog_info("write(tps=%d timeouts=%d errors=%d) "
+				"read(tps=%d timeouts=%d errors=%d) "
+				"total(tps=%d timeouts=%d errors=%d)",
 			write_tps, write_timeout_current, write_error_current,
 			read_tps, read_timeout_current, read_error_current,
-			write_tps + read_tps, write_timeout_current + read_timeout_current, write_error_current + read_error_current);
+			write_tps + read_tps, write_timeout_current + read_timeout_current,
+			write_error_current + read_error_current);
 
 		if (latency) {
 			blog_line("%s", latency_header);
@@ -351,15 +354,6 @@ void* periodic_output_worker(void* udata)
 			histogram_print_clear(read_histogram, data->histogram_period, histogram_output);
 			fflush(histogram_output);
 		}
-
-		// TODO terminating condition
-		/*if ((data->transactions_limit > 0) && (transactions_current > data->transactions_limit)) {
-			blog_line("Performed %" PRIu64 " (> %" PRIu64 ") transactions. Shutting down...", transactions_current, data->transactions_limit);
-			data->valid = false;
-			continue;
-		}*/
-
-		//as_sleep(1000);
 	}
 	return 0;
 }
