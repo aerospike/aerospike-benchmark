@@ -4,6 +4,7 @@
 #include <aerospike/as_atomic.h>
 
 #include <benchmark.h>
+#include <coordinator.h>
 #include <workload.h>
 
 

@@ -25,12 +25,26 @@
 
 #include <benchmark.h>
 
+
 // forward declare to avoid circular inclusion
 struct threaddata;
 
 struct thr_coordinator {
+	/*
+	 * condition variable that the coordinator thread waits on after the stage
+	 * duration has elapsed but not all threads have completed their alloted
+	 * workload
+	 */
+	pthread_cond_t complete;
+	pthread_mutex_t c_lock;
+
 	pthread_barrier_t barrier;
 	uint32_t n_threads;
+	// number of threads which have yet to call thr_coordinator_complete this
+	// stage, plus this thread (which decrements this variable after returning
+	// from the as_sleep call, i.e. once the minimum required duration of the
+	// stage has elapsed)
+	uint32_t unfinished_threads;
 };
 
 struct coordinator_worker_args {
@@ -51,25 +65,37 @@ void thr_coordinator_free(struct thr_coordinator*);
 
 
 /*
- * the wait call to be used on initialization, which differs from
- * thr_coordinator_wait in that the threads are woken by calling
- * thr_coordinator_finish_init, and thus can be interrupted if initialization
- * of a thread fails and the program needs to exit before initialization is
- * complete
- */
-void thr_coordinator_wait_init(struct thr_coordinator*, struct threaddata*);
-
-/*
- * release all threads which are waiting in thr_coordinator_wait_init
- */
-void thr_coordinator_finish_init(struct thr_coordinator*);
-
-/*
  * causes all threads to wait at a barrier until the coordinator thread
  * executes some code, after which the thread coordinator will release all
  * the threads again
  */
 void thr_coordinator_wait(struct thr_coordinator*);
+
+/*
+ * notifies the thread coordinator that this thread has completed its task.
+ * once both the last thread has notified the thread coordinator that it's
+ * complete and the minimum stage duration has elapsed, the coordinator will
+ * complete the stage
+ *
+ * this call is non-blocking, and it may be called at the very beginning of a
+ * stage if a thread doesn't have any specific task to complete and may be
+ * stopped at any point (like the logging thread, or the transaction threads
+ * performing a read/update workload)
+ */
+void thr_coordinator_complete(struct thr_coordinator*);
+
+/*
+ * puts the calling thread to sleep until the given wakeup time, either
+ * returning when that time has been reached, or when the workload has completed
+ *
+ * note: if the sleep is interrupted, this method will call
+ * thr_coordinator_wait, meaning the stage of the workload may change during a
+ * call to this
+ *
+ * wakeup_time must be given by the CLOCK_MONOTONIC clock
+ */
+void thr_coordinator_sleep(struct thr_coordinator*,
+		const struct timespec* wakeup_time);
 
 
 /*

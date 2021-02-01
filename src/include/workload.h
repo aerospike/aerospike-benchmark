@@ -54,8 +54,7 @@ struct workload {
 
 
 struct stage {
-	// stage duration in seconds
-	// TODO: also allow max num transactions?
+	// minimum stage duration in seconds
 	uint64_t duration;
 
 	// string desctriptor for the stage, printed when the stage begins

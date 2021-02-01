@@ -21,16 +21,20 @@
  ******************************************************************************/
 #pragma once
 
-#include "aerospike/aerospike.h"
-#include "aerospike/as_event.h"
-#include "aerospike/as_password.h"
-#include "aerospike/as_random.h"
-#include "aerospike/as_record.h"
-#include "hdr_histogram/hdr_histogram.h"
-#include "histogram.h"
-#include "latency.h"
-#include "object_spec.h"
-#include "workload.h"
+#include <aerospike/aerospike.h>
+#include <aerospike/as_event.h>
+#include <aerospike/as_password.h>
+#include <aerospike/as_random.h>
+#include <aerospike/as_record.h>
+
+#include <hdr_histogram/hdr_histogram.h>
+#include <histogram.h>
+#include <latency.h>
+#include <object_spec.h>
+#include <workload.h>
+
+// forward declare thr_coordinator for use in threaddata
+struct thr_coordinator;
 
 typedef enum {
 	LEN_TYPE_COUNT,

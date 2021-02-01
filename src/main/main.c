@@ -1196,16 +1196,31 @@ static void
 _load_defaults_post(arguments* args)
 {
 	if (args->stages.stages == NULL) {
-		struct stage* stage = get_or_init_stage(args);
-		stage->duration = 10;
-		stage->desc = "default stage";
-		stage->tps = 0;
-		stage->key_start = 1;
-		stage->key_end = 100000;
-		stage->pause = 0;
-		parse_workload_type(&stage->workload, "I");
-		obj_spec_parse(&stage->obj_spec, "I");
-		parse_bins_selection(stage, "1", "testbin");
+		args->stages.stages = (struct stage*) cf_malloc(2 * sizeof(struct stage));
+		args->stages.n_stages = 2;
+		args->stages.valid = true;
+
+		struct stage* stage1 = &args->stages.stages[0];
+		stage1->duration = 1;
+		stage1->desc = "initialization";
+		stage1->tps = 0;
+		stage1->key_start = 1;
+		stage1->key_end = 100000;
+		stage1->pause = 0;
+		parse_workload_type(&stage1->workload, "I");
+		obj_spec_parse(&stage1->obj_spec, "I");
+		parse_bins_selection(stage1, "1", "testbin");
+
+		struct stage* stage2 = &args->stages.stages[1];
+		stage2->duration = 5;
+		stage2->desc = "random read/write";
+		stage2->tps = 0;
+		stage2->key_start = 1;
+		stage2->key_end = 100000;
+		stage2->pause = 0;
+		parse_workload_type(&stage2->workload, "RU");
+		obj_spec_parse(&stage2->obj_spec, "I");
+		parse_bins_selection(stage2, "1", "testbin");
 	}
 }
 
