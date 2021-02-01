@@ -182,7 +182,7 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
 
 		// form bin name
 		char** bin_name = (char**) as_vector_reserve(&read_bins);
-		*bin_name = (char*) malloc(sizeof(as_bin_name));
+		*bin_name = (char*) cf_malloc(sizeof(as_bin_name));
 		gen_bin_name(*bin_name, stage_bin_name, bin_num - 1);
 
 		read_bins_str = endptr;
@@ -190,7 +190,7 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
 			read_bins_str++;
 		}
 	}
-	
+
 	// this will append one last slot to the vector and zero that slot out
 	// (null-terminating the list)
 	as_vector_reserve(&read_bins);
@@ -202,6 +202,15 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
 
 	as_vector_destroy(&read_bins);
 	return 0;
+}
+
+void free_bins_selection(struct stage* stage)
+{
+	char** read_bins = stage->read_bins;
+	for (uint64_t i = 0; read_bins[i] != NULL; i++) {
+		cf_free(read_bins[i]);
+	}
+	cf_free(read_bins);
 }
 
 
@@ -318,6 +327,9 @@ void free_workload_config(struct stages* stages)
 			obj_spec_free(&stage->obj_spec);
 			// so cyaml_free doesn't try freeing whatever garbage is left here
 			stage->obj_spec_str = NULL;
+
+			free_bins_selection(stage);
+			stage->read_bins_str = NULL;
 		}
 		cyaml_free(&config, &top_schema, stages->stages, stages->n_stages);
 	}

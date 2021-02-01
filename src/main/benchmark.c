@@ -322,7 +322,12 @@ _run(clientdata* cdata)
 	}
 
 	i--;
-	for (; i < n_threads; i--) {
+	for (;;) {
+		if (i >= n_threads) {
+			// go back and free the logger thread
+			i = n_threads - 1;
+		}
+
 		// by this point, if all went well, the coordinator thread should have
 		// already closed all of these threads, but in the case that something
 		// went wrong before we started the coordinator, we need to tell each
@@ -335,6 +340,12 @@ _run(clientdata* cdata)
 			as_store_uint8((uint8_t*) &tdatas[i]->do_work, false);
 		}
 		pthread_join(threads[i], NULL);
+		cf_free(tdatas[i]);
+
+		if (i == n_threads - 1) {
+			break;
+		}
+		i--;
 	}
 
 	cf_free(threads);
@@ -424,6 +435,8 @@ run_benchmark(arguments* args)
 	if (!args->random) {
 		as_val_destroy(data.fixed_value);
 	}
+	obj_spec_free(&data.obj_spec);
+	free_workload_config(&data.stages);
 
 	as_error err;
 	aerospike_close(&data.client, &err);

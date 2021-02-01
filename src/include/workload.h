@@ -134,6 +134,11 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
 		const char* bin_name);
 
 /*
+ * frees the bins selection array created from parse_bins_selection
+ */
+void free_bins_selection(struct stage* stage);
+
+/*
  * parses the given file into the stages struct
  */
 int parse_workload_config_file(const char* file, struct stages* stages,

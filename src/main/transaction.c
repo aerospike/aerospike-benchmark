@@ -143,8 +143,8 @@ _calculate_subrange(uint64_t key_start, uint64_t key_end,
 		uint64_t* t_start, uint64_t* t_end)
 {
 	uint64_t n_keys = key_end - key_start;
-	*t_start = n_keys + ((n_keys * t_idx) / n_threads);
-	*t_end   = n_keys + ((n_keys * (t_idx + 1)) / n_threads);
+	*t_start = key_start + ((n_keys * t_idx) / n_threads);
+	*t_end   = key_start + ((n_keys * (t_idx + 1)) / n_threads);
 }
 
 

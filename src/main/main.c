@@ -1202,7 +1202,7 @@ _load_defaults_post(arguments* args)
 
 		struct stage* stage1 = &args->stages.stages[0];
 		stage1->duration = 0;
-		stage1->desc = "initialization";
+		stage1->desc = strdup("initialization");
 		stage1->tps = 0;
 		stage1->key_start = 1;
 		stage1->key_end = 100000;
@@ -1213,7 +1213,7 @@ _load_defaults_post(arguments* args)
 
 		struct stage* stage2 = &args->stages.stages[1];
 		stage2->duration = 5;
-		stage2->desc = "random read/write";
+		stage2->desc = strdup("random read/write");
 		stage2->tps = 0;
 		stage2->key_start = 1;
 		stage2->key_end = 100000;
@@ -1242,6 +1242,7 @@ main(int argc, char * const * argv)
 		blog_line("Run with --help for usage information and flag options.");
 	}
 
+	free_workload_config(&args.stages);
 	obj_spec_free(&args.obj_spec);
 	if (args.hdr_output) {
 		free(args.hdr_output);
