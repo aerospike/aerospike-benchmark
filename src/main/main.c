@@ -1201,7 +1201,7 @@ _load_defaults_post(arguments* args)
 		args->stages.valid = true;
 
 		struct stage* stage1 = &args->stages.stages[0];
-		stage1->duration = 1;
+		stage1->duration = 0;
 		stage1->desc = "initialization";
 		stage1->tps = 0;
 		stage1->key_start = 1;

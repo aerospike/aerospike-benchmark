@@ -94,7 +94,7 @@ _read_record_sync(as_key* key, clientdata* cdata)
 				hdr_record_value_atomic(cdata->summary_read_hdr, end - begin);
 			}
 			as_record_destroy(rec);
-			return 0;
+			return status;
 		}
 	}
 	else {
@@ -104,7 +104,7 @@ _read_record_sync(as_key* key, clientdata* cdata)
 		if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
 			as_incr_uint32(&cdata->read_count);
 			as_record_destroy(rec);
-			return 0;
+			return status;
 		}
 	}
 
@@ -162,12 +162,17 @@ static void
 _gen_record(as_record* rec, as_random* random, const clientdata* cdata)
 {
 	if (cdata->random) {
+		uint32_t n_objs = obj_spec_n_bins(&cdata->obj_spec);
+		as_record_init(rec, n_objs);
+
 		obj_spec_populate_bins(&cdata->obj_spec, rec, random,
 				cdata->bin_name);
 	}
 	else {
 		as_list* list = as_list_fromval(cdata->fixed_value);
 		uint32_t n_objs = as_list_size(list);
+		as_record_init(rec, n_objs);
+
 		for (uint32_t i = 0; i < n_objs; i++) {
 			as_val* val = as_list_get(list, i);
 			// TODO this will be highly contentious, put this in tdata
@@ -177,6 +182,23 @@ _gen_record(as_record* rec, as_random* random, const clientdata* cdata)
 			gen_bin_name(bin->name, cdata->bin_name, i + 1);
 			as_record_set(rec, bin->name, (as_bin_value*) val);
 		}
+	}
+}
+
+
+/*
+ * generates a record with all nil bins (used to remove records)
+ */
+static void
+_gen_nil_record(as_record* rec, const clientdata* cdata)
+{
+	uint32_t n_objs = obj_spec_n_bins(&cdata->obj_spec);
+	as_record_init(rec, n_objs);
+
+	for (uint32_t i = 0; i < n_objs; i++) {
+		as_bin* bin = &rec->bins.entries[i];
+		gen_bin_name(bin->name, cdata->bin_name, i + 1);
+		as_record_set_nil(rec, bin->name);
 	}
 }
 
@@ -196,6 +218,8 @@ static void linear_writes(struct threaddata* tdata,
 	as_key key;
 	as_record rec;
 
+	// each worker thread takes a subrange of the total set of keys being
+	// inserted, all approximately equal in size
 	_calculate_subrange(stage->key_start, stage->key_end, t_idx,
 			cdata->transaction_worker_threads, &start_key, &end_key);
 
@@ -211,6 +235,8 @@ static void linear_writes(struct threaddata* tdata,
 		_write_record_sync(&key, &rec, cdata);
 		key_val++;
 	}
+	printf("thread %d wrote keys (%lu - %lu)\n", t_idx,
+			start_key, end_key - 1);
 
 	// once we've written everything, there's nothing left to do, so tell
 	// coord we're done and exit
@@ -259,6 +285,41 @@ static void random_read_write(struct threaddata* tdata,
 }
 
 
+static void linear_deletes(struct threaddata* tdata,
+		clientdata* cdata, struct thr_coordinator* coord,
+		struct stage* stage)
+{
+	uint32_t t_idx = tdata->t_idx;
+	uint64_t start_key, end_key;
+	uint64_t key_val;
+
+	as_key key;
+	as_record rec;
+
+	// each worker thread takes a subrange of the total set of keys being
+	// inserted, all approximately equal in size
+	_calculate_subrange(stage->key_start, stage->key_end, t_idx,
+			cdata->transaction_worker_threads, &start_key, &end_key);
+
+	key_val = start_key;
+	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
+			key_val < end_key) {
+
+		// create a record with given key
+		_gen_key(key_val, &key, cdata);
+		_gen_nil_record(&rec, cdata);
+
+		// delete this record from the database
+		_write_record_sync(&key, &rec, cdata);
+		key_val++;
+	}
+
+	// once we've written everything, there's nothing left to do, so tell
+	// coord we're done and exit
+	thr_coordinator_complete(coord);
+}
+
+
 void* transaction_worker(void* udata)
 {
 	struct threaddata* tdata = (struct threaddata*) udata;
@@ -276,6 +337,7 @@ void* transaction_worker(void* udata)
 				random_read_write(tdata, cdata, coord, stage);
 				break;
 			case WORKLOAD_TYPE_DELETE:
+				linear_deletes(tdata, cdata, coord, stage);
 				break;
 		}
 		// check tdata->finished before locking
