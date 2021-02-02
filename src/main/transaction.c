@@ -576,11 +576,7 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 				struct async_data* adata = &adatas[idx];
 				adata->cdata = cdata;
 				adata->parent_tdata = tdata;
-				adata->op = write;
-				adata->next_op_cb = _linear_writes_cb;
-				_calculate_subrange(stage->key_start, stage->key_end, idx,
-						cdata->async_max_commands, &adata->next_key,
-						&adata->end_key);
+				adata->next_op_cb = _random_read_write_cb;
 
 				_random_read_write_cb(adata, cdata);
 			}
@@ -590,8 +586,8 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 				struct async_data* adata = &adatas[idx];
 				adata->cdata = cdata;
 				adata->parent_tdata = tdata;
-				adata->op = write;
-				adata->next_op_cb = _linear_writes_cb;
+				adata->op = delete;
+				adata->next_op_cb = _linear_deletes_cb;
 				_calculate_subrange(stage->key_start, stage->key_end, idx,
 						cdata->async_max_commands, &adata->next_key,
 						&adata->end_key);
