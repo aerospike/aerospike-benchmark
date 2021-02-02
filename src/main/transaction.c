@@ -480,7 +480,25 @@ _async_read_listener(as_error* err, as_record* rec, void* udata,
 		return;
 	}*/
 
-	adata->next_op_cb(adata, cdata);
+	struct threaddata* tdata = adata->parent_tdata;
+	if (as_load_uint8((uint8_t*) &tdata->do_work)) {
+		adata->next_op_cb(adata, cdata);
+	}
+	else {
+		// we're done, so terminate the chain and notify our parent that we're
+		// finished
+
+		// we have to acquire the lock on the do_work condition variable since
+		// the parent thread can't atomically check outstanding_async_chains
+		// and then wait on the condition variable
+		pthread_mutex_lock(&tdata->c_lock);
+		if (as_aaf_uint32(&tdata->outstanding_async_chains, -1U) == 0) {
+			// this is the last outstanding async chain, so wake up the parent
+			// thread
+			pthread_cond_signal(&tdata->do_work_cond);
+		}
+		pthread_mutex_unlock(&tdata->c_lock);
+	}
 }
 
 static void
@@ -539,6 +557,15 @@ static void do_sync_workload(struct threaddata* tdata, clientdata* cdata,
 	}
 }
 
+static void _wait_til_threads_reaped(struct threaddata* tdata)
+{
+	pthread_mutex_lock(&tdata->c_lock);
+	while (as_load_uint32(&tdata->outstanding_async_chains) > 0) {
+		pthread_cond_wait(&tdata->do_work_cond, &tdata->c_lock);
+	}
+	pthread_mutex_unlock(&tdata->c_lock);
+}
+
 static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 		struct thr_coordinator* coord, struct stage* stage)
 {
@@ -551,7 +578,9 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 	// async calls being made
 	_calculate_subrange(0, cdata->async_max_commands, t_idx,
 			cdata->transaction_worker_threads, &start_idx, &end_idx);
+
 	n_adatas = end_idx - start_idx;
+	tdata->outstanding_async_chains = n_adatas;
 
 	adatas =
 		(struct async_data*) cf_malloc(n_adatas * sizeof(struct async_data));
@@ -569,6 +598,11 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 						&adata->end_key);
 
 				_linear_writes_cb(adata, cdata);
+
+				// wait until the chains complete their required workload before
+				// notifying the coordinator that we are ready to be reaped
+				_wait_til_threads_reaped(tdata);
+				thr_coordinator_complete(coord);
 			}
 			break;
 		case WORKLOAD_TYPE_RANDOM:
@@ -579,6 +613,13 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 				adata->next_op_cb = _random_read_write_cb;
 
 				_random_read_write_cb(adata, cdata);
+
+				// since this workload has no target number of transactions to
+				// be made, we are always ready to be reaped, and so we notify
+				// the coordinator that we are finished with our required tasks
+				// and can be stopped whenever
+				thr_coordinator_complete(coord);
+				_wait_til_threads_reaped(tdata);
 			}
 			break;
 		case WORKLOAD_TYPE_DELETE:
@@ -593,13 +634,14 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 						&adata->end_key);
 
 				_linear_deletes_cb(adata, cdata);
+
+				// wait until the chains complete their required workload before
+				// notifying the coordinator that we are ready to be reaped
+				_wait_til_threads_reaped(tdata);
+				thr_coordinator_complete(coord);
 			}
 			break;
 	}
-
-	// once we've written everything, there's nothing left to do, so tell
-	// coord we're done and exit
-	thr_coordinator_complete(coord);
 }
 
 void* transaction_worker(void* udata)

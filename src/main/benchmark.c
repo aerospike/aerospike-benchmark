@@ -239,10 +239,19 @@ init_tdata(clientdata* cdata, struct thr_coordinator* coord,
 	tdata->t_idx = t_idx;
 	// always start on the first stage
 	tdata->stage_idx = 0;
+
+	pthread_cond_init(&tdata->do_work_cond, NULL);
+	pthread_mutex_init(&tdata->c_lock, NULL);
 	tdata->do_work = true;
 	tdata->finished = false;
 
 	return tdata;
+}
+
+void destroy_tdata(struct threaddata* tdata)
+{
+	pthread_mutex_destroy(&tdata->c_lock);
+	pthread_cond_destroy(&tdata->do_work_cond);
 }
 
 
@@ -333,6 +342,7 @@ _run(clientdata* cdata)
 			as_store_uint8((uint8_t*) &tdatas[i]->do_work, false);
 		}
 		pthread_join(threads[i], NULL);
+		destroy_tdata(tdatas[i]);
 		cf_free(tdatas[i]);
 
 		if (i == n_threads - 1) {
