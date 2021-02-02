@@ -259,7 +259,8 @@ _run(clientdata* cdata)
 	// output thread + all the worker threads
 	n_threads = 1 + cdata->transaction_worker_threads;
 	// allocate enough tdata structs for all possible async loop threads too
-	n_tdatas  = 1 + MAX(cdata->transaction_worker_threads, cdata->async_max_commands);
+	n_tdatas  = 1 + MAX(cdata->transaction_worker_threads,
+			cdata->async_max_commands);
 	worker_fn = transaction_worker;
 
 	cdata->tdata_count = n_tdatas;

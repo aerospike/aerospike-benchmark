@@ -53,7 +53,7 @@ static void _record_write(clientdata* cdata, uint64_t dt_us)
 
 
 /******************************************************************************
- * Read/Write singular/batch synchronous/asynchronous operations
+ * Read/Write singular/batch synchronous operations
  *****************************************************************************/
 
 static int
@@ -63,7 +63,7 @@ _write_record_sync(as_key* key, as_record* rec, clientdata* cdata)
 	as_error err;
 
 	uint64_t start = cf_getus();
-	status = aerospike_key_put(&cdata->client, &err, 0, key, rec);
+	status = aerospike_key_put(&cdata->client, &err, NULL, key, rec);
 	uint64_t end = cf_getus();
 
 	if (status == AEROSPIKE_OK) {
@@ -94,7 +94,7 @@ _read_record_sync(as_key* key, clientdata* cdata)
 	as_error err;
 
 	uint64_t start = cf_getus();
-	status = aerospike_key_get(&cdata->client, &err, 0, key, &rec);
+	status = aerospike_key_get(&cdata->client, &err, NULL, key, &rec);
 	uint64_t end = cf_getus();
 
 	if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
@@ -119,6 +119,88 @@ _read_record_sync(as_key* key, clientdata* cdata)
 	}
 
 	as_record_destroy(rec);
+	return status;
+}
+
+
+/******************************************************************************
+ * Read/Write singular/batch asynchronous operations
+ *****************************************************************************/
+
+struct async_listener_args;
+
+typedef void (*async_op_t)(struct async_listener_args*, clientdata*,
+		struct threaddata*);
+
+struct async_listener_args {
+	clientdata* cdata;
+	struct threaddata* tdata;
+	// the time at which the async call was made
+	uint64_t start_time;
+
+	// the key to be used in the async calls
+	as_key key;
+
+	// the callback to be made after each async_call_listener return
+	async_op_t next_op_cb;
+
+	// what type of operation is being performed
+	enum {
+		read,
+		write,
+		delete
+	} op;
+
+	// the next key to be written for linear writers/deleters
+	uint64_t next_key;
+	// the key to stop on for linear writers/deleters
+	uint64_t end_key;
+};
+
+/*
+ * forward declared for use in read/write record async
+ */
+static void
+_async_read_listener(as_error* err, as_record*, void* udata, as_event_loop*);
+static void
+_async_write_listener(as_error* err, void* udata, as_event_loop*);
+
+
+static int
+_write_record_async(as_key* key, as_record* rec,
+		struct async_listener_args* args, clientdata* cdata)
+{
+	as_status status;
+	as_error err;
+
+	args->start_time = cf_getus();
+	status = aerospike_key_put_async(&cdata->client, &err, NULL, key, rec,
+			_async_write_listener, args, NULL, NULL);
+
+	if (status != AEROSPIKE_OK) {
+		// if the async call failed for any reason, call the callback directly
+		_async_write_listener(&err, args, NULL);
+	}
+
+	return status;
+}
+
+int
+_read_record_async(as_key* key, struct async_listener_args* args,
+		clientdata* cdata)
+{
+	as_status status;
+	as_error err;
+
+	args->start_time = cf_getus();
+	status = aerospike_key_get_async(&cdata->client, &err, 0, key,
+			_async_read_listener, args, NULL, NULL);
+
+	if (status != AEROSPIKE_OK) {
+		// if the async call failed for any reason, call the callback directly
+		_async_read_listener(&err, NULL, args, NULL);
+	}
+
 	return status;
 }
 
@@ -333,39 +415,10 @@ static void linear_deletes(struct threaddata* tdata,
  * Asynchronous query methods
  *****************************************************************************/
 
-struct async_listener_args;
-
-typedef void (*async_op_t)(struct async_listener_args*, clientdata*,
-		struct threaddata*);
-
-struct async_listener_args {
-	clientdata* cdata;
-	struct threaddata* tdata;
-	// the time at which the async call was made
-	uint64_t start_time;
-
-	// the key to be used in the async calls
-	as_key key;
-
-	// the callback to be made after each async_call_listener return
-	async_op_t next_op_cb;
-
-	// what type of operation is being performed
-	enum {
-		read,
-		write,
-		delete
-	} op;
-
-	// the next key to be written for linear writers/deleters
-	uint64_t next_key;
-	// the key to stop on for linear writers/deleters
-	uint64_t end_key;
-};
-
 
 static void
-_async_call_listener(as_error* err, void* udata, as_event_loop* event_loop)
+_async_read_listener(as_error* err, as_record* rec, void* udata,
+		as_event_loop* event_loop)
 {
 	struct async_listener_args* args = (struct async_listener_args*) udata;
 
@@ -405,11 +458,11 @@ _async_call_listener(as_error* err, void* udata, as_event_loop* event_loop)
 					"Write",
 					"Delete"
 				};
-				/*blog_error("%s error: ns=%s set=%s key=%d bin=%s code=%d "
+				blog_error("%s error: ns=%s set=%s key=%d bin=%s code=%d "
 						   "message=%s",
 						   op_strs[args->op], cdata->namespace, cdata->set,
-						   tdata->key.value.integer.value, cdata->bin_name,
-						   err->code, err->message);*/
+						   args->key.value.integer.value, cdata->bin_name,
+						   err->code, err->message);
 			}
 		}
 	}
@@ -428,10 +481,13 @@ _async_call_listener(as_error* err, void* udata, as_event_loop* event_loop)
 		return;
 	}*/
 
-	/*tdata->key.value.integer.value = tdata->key_start + tdata->key_count;
-	tdata->key.digest.init = false;
-	linear_write_async(cdata, tdata, event_loop);*/
 	args->next_op_cb(args, cdata, tdata);
+}
+
+static void
+_async_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
+{
+	_async_read_listener(err, NULL, udata, event_loop);
 }
 
 
@@ -466,15 +522,24 @@ static void init_async_chain(struct threaddata* tdata,
 static void _linear_writes_cb(struct async_listener_args* args,
 		clientdata* cdata, struct threaddata* tdata)
 {
-	args->start_time;
-	args->key;
-	args->op;
+	as_record rec;
+
+	if (args->next_key != args->end_key) {
+		_gen_key(args->next_key, &args->key, cdata);
+		_gen_record(&rec, tdata->random, cdata);
+		args->next_key++;
+		// since the next async call may be processed by a different thread
+		as_fence_memory();
+
+		_write_record_async(&args->key, &rec, args, cdata);
+		as_record_destroy(&rec);
+	}
 }
 
 static void _init_async_linear_writes(struct async_listener_args* args,
 		clientdata* cdata, struct threaddata* tdata)
 {
-	uint64_t start_key, end_key;
+	args->op = write;
 	args->next_op_cb = _linear_writes_cb;
 	struct stage* stage = &cdata->stages.stages[tdata->stage_idx];
 
@@ -509,7 +574,12 @@ static void _linear_deletes_cb(struct async_listener_args* args,
 static void _init_async_linear_deletes(struct async_listener_args* args,
 		clientdata* cdata, struct threaddata* tdata)
 {
+	args->op = delete;
 	args->next_op_cb = _linear_deletes_cb;
+	struct stage* stage = &cdata->stages.stages[tdata->stage_idx];
+
+	_calculate_subrange(stage->key_start, stage->key_end, tdata->t_idx,
+			cdata->tdata_count, &args->next_key, &args->end_key);
 
 	_linear_deletes_cb(args, cdata, tdata);
 }
@@ -533,13 +603,13 @@ void* transaction_worker(void* udata)
 		if (cdata->async) {
 			switch (stage->workload.type) {
 				case WORKLOAD_TYPE_LINEAR:
-					init_async_chain(tdata, cdata, coord, _linear_writes_cb);
+					init_async_chain(tdata, cdata, coord, _init_async_linear_writes);
 					break;
 				case WORKLOAD_TYPE_RANDOM:
-					init_async_chain(tdata, cdata, coord, _random_read_write_cb);
+					init_async_chain(tdata, cdata, coord, _init_async_rand_read_write);
 					break;
 				case WORKLOAD_TYPE_DELETE:
-					init_async_chain(tdata, cdata, coord, _linear_deletes_cb);
+					init_async_chain(tdata, cdata, coord, _init_async_linear_deletes);
 					break;
 			}
 		}
