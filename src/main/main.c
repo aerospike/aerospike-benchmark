@@ -1196,8 +1196,8 @@ static void
 _load_defaults_post(arguments* args)
 {
 	if (args->stages.stages == NULL) {
-		args->stages.stages = (struct stage*) cf_malloc(2 * sizeof(struct stage));
-		args->stages.n_stages = 2;
+		args->stages.stages = (struct stage*) cf_malloc(3 * sizeof(struct stage));
+		args->stages.n_stages = 3;
 		args->stages.valid = true;
 
 		struct stage* stage1 = &args->stages.stages[0];
@@ -1221,6 +1221,17 @@ _load_defaults_post(arguments* args)
 		parse_workload_type(&stage2->workload, "RU");
 		obj_spec_parse(&stage2->obj_spec, "I");
 		parse_bins_selection(stage2, "1", "testbin");
+
+		struct stage* stage3 = &args->stages.stages[2];
+		stage3->duration = 0;
+		stage3->desc = strdup("delete");
+		stage3->tps = 0;
+		stage3->key_start = 1;
+		stage3->key_end = 100000;
+		stage3->pause = 0;
+		parse_workload_type(&stage3->workload, "DB");
+		obj_spec_parse(&stage3->obj_spec, "I");
+		parse_bins_selection(stage3, "1", "testbin");
 	}
 }
 

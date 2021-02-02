@@ -11,10 +11,50 @@
 #include <workload.h>
 
 
+/******************************************************************************
+ * Latency recording helpers
+ *****************************************************************************/
 
-/*
+static void _record_read(clientdata* cdata, uint64_t dt_us)
+{
+	if (cdata->latency || cdata->histogram_output != NULL ||
+			cdata->hdr_comp_write_output != NULL) {
+		if (cdata->latency) {
+			latency_add(&cdata->read_latency, dt_us / 1000);
+			hdr_record_value_atomic(cdata->read_hdr, dt_us);
+		}
+		if (cdata->histogram_output != NULL) {
+			histogram_add(&cdata->read_histogram, dt_us);
+		}
+		if (cdata->hdr_comp_write_output != NULL) {
+			hdr_record_value_atomic(cdata->summary_read_hdr, dt_us);
+		}
+	}
+	as_incr_uint32(&cdata->read_count);
+}
+
+static void _record_write(clientdata* cdata, uint64_t dt_us)
+{
+	if (cdata->latency || cdata->histogram_output != NULL ||
+			cdata->hdr_comp_write_output != NULL) {
+		if (cdata->latency) {
+			latency_add(&cdata->write_latency, dt_us / 1000);
+			hdr_record_value_atomic(cdata->write_hdr, dt_us);
+		}
+		if (cdata->histogram_output != NULL) {
+			histogram_add(&cdata->write_histogram, dt_us);
+		}
+		if (cdata->hdr_comp_write_output != NULL) {
+			hdr_record_value_atomic(cdata->summary_write_hdr, dt_us);
+		}
+	}
+	as_incr_uint32(&cdata->write_count);
+}
+
+
+/******************************************************************************
  * Read/Write singular/batch synchronous/asynchronous operations
- */
+ *****************************************************************************/
 
 static int
 _write_record_sync(as_key* key, as_record* rec, clientdata* cdata)
@@ -22,34 +62,13 @@ _write_record_sync(as_key* key, as_record* rec, clientdata* cdata)
 	as_status status;
 	as_error err;
 
-	if (cdata->latency || cdata->histogram_output != NULL ||
-			cdata->hdr_comp_write_output != NULL) {
-		uint64_t begin = cf_getus();
-		status = aerospike_key_put(&cdata->client, &err, 0, key, rec);
-		uint64_t end = cf_getus();
+	uint64_t start = cf_getus();
+	status = aerospike_key_put(&cdata->client, &err, 0, key, rec);
+	uint64_t end = cf_getus();
 
-		if (status == AEROSPIKE_OK) {
-			as_incr_uint32(&cdata->write_count);
-			if (cdata->latency) {
-				latency_add(&cdata->write_latency, (end - begin) / 1000);
-				hdr_record_value_atomic(cdata->write_hdr, end - begin);
-			}
-			if (cdata->histogram_output != NULL) {
-				histogram_add(&cdata->write_histogram, end - begin);
-			}
-			if (cdata->hdr_comp_write_output != NULL) {
-				hdr_record_value_atomic(cdata->summary_write_hdr, end - begin);
-			}
-			return 0;
-		}
-	}
-	else {
-		status = aerospike_key_put(&cdata->client, &err, 0, key, rec);
-
-		if (status == AEROSPIKE_OK) {
-			as_incr_uint32(&cdata->write_count);
-			return 0;
-		}
+	if (status == AEROSPIKE_OK) {
+		_record_write(cdata, end - start);
+		return 0;
 	}
 
 	// Handle error conditions.
@@ -74,38 +93,14 @@ _read_record_sync(as_key* key, clientdata* cdata)
 	as_status status;
 	as_error err;
 
-	if (cdata->latency || cdata->histogram_output != NULL ||
-			cdata->hdr_comp_read_output != NULL) {
-		uint64_t begin = cf_getus();
-		status = aerospike_key_get(&cdata->client, &err, 0, key, &rec);
-		uint64_t end = cf_getus();
+	uint64_t start = cf_getus();
+	status = aerospike_key_get(&cdata->client, &err, 0, key, &rec);
+	uint64_t end = cf_getus();
 
-		// Record may not have been initialized, so not found is ok.
-		if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
-			as_incr_uint32(&cdata->read_count);
-			if (cdata->latency) {
-				latency_add(&cdata->read_latency, (end - begin) / 1000);
-				hdr_record_value_atomic(cdata->read_hdr, end - begin);
-			}
-			if (cdata->histogram_output != NULL) {
-				histogram_add(&cdata->read_histogram, end - begin);
-			}
-			if (cdata->hdr_comp_read_output != NULL) {
-				hdr_record_value_atomic(cdata->summary_read_hdr, end - begin);
-			}
-			as_record_destroy(rec);
-			return status;
-		}
-	}
-	else {
-		status = aerospike_key_get(&cdata->client, &err, 0, key, &rec);
-
-		// Record may not have been initialized, so not found is ok.
-		if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
-			as_incr_uint32(&cdata->read_count);
-			as_record_destroy(rec);
-			return status;
-		}
+	if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+		_record_read(cdata, end - start);
+		as_record_destroy(rec);
+		return status;
 	}
 
 	// Handle error conditions.
@@ -128,10 +123,9 @@ _read_record_sync(as_key* key, clientdata* cdata)
 }
 
 
-
-/*
- * Thread worker methods:
- */
+/******************************************************************************
+ * Thread worker helper methods
+ *****************************************************************************/
 
 /*
  * calculates the subrange of keys that the given thread should operate on,
@@ -202,6 +196,10 @@ _gen_nil_record(as_record* rec, const clientdata* cdata)
 	}
 }
 
+
+/******************************************************************************
+ * Synchronous query methods
+ *****************************************************************************/
 
 /*
  * TODO add work queue that threads can pull batches of keys from, rather than
@@ -331,6 +329,122 @@ static void linear_deletes(struct threaddata* tdata,
 }
 
 
+/******************************************************************************
+ * Asynchronous query methods
+ *****************************************************************************/
+
+struct async_listener_args {
+	clientdata* cdata;
+	struct threaddata* tdata;
+	// the time at which the async call was made
+	uint64_t start_time;
+
+	// what type of operation is being performed
+	enum {
+		read,
+		write,
+		delete
+	} op;
+};
+
+
+static void
+_async_call_listener(as_error* err, void* udata, as_event_loop* event_loop)
+{
+	struct async_listener_args* args = (struct async_listener_args*) udata;
+
+	clientdata* cdata = args->cdata;
+	struct threaddata* tdata = args->tdata;
+
+	if (!err) {
+		uint64_t end = cf_getus();
+		if (args->op == read) {
+			_record_read(cdata, end - args->start_time);
+		}
+		else {
+			_record_write(cdata, end - args->start_time);
+		}
+		//tdata->key_count++;
+	}
+	else {
+		if (err->code == AEROSPIKE_ERR_TIMEOUT) {
+			if (args->op == read) {
+				as_incr_uint32(&cdata->read_timeout_count);
+			}
+			else {
+				as_incr_uint32(&cdata->write_timeout_count);
+			}
+		}
+		else {
+			if (args->op == read) {
+				as_incr_uint32(&cdata->read_error_count);
+			}
+			else {
+				as_incr_uint32(&cdata->write_error_count);
+			}
+
+			if (cdata->debug) {
+				const static char* op_strs[] = {
+					"Read",
+					"Write",
+					"Delete"
+				};
+				/*blog_error("%s error: ns=%s set=%s key=%d bin=%s code=%d "
+						   "message=%s",
+						   op_strs[args->op], cdata->namespace, cdata->set,
+						   tdata->key.value.integer.value, cdata->bin_name,
+						   err->code, err->message);*/
+			}
+		}
+	}
+
+	// Reuse tdata structures.
+	// FIXME
+	/*if (tdata->key_count == tdata->n_keys) {
+		// We have reached max number of records for this command.
+		uint64_t total = as_faa_uint64(&cdata->key_count, tdata->n_keys) + tdata->n_keys;
+		destroy_threaddata(tdata);
+
+		if (total >= cdata->n_keys) {
+			// All commands have been written.
+			as_monitor_notify(&monitor);
+		}
+		return;
+	}*/
+
+	/*tdata->key.value.integer.value = tdata->key_start + tdata->key_count;
+	tdata->key.digest.init = false;
+	linear_write_async(cdata, tdata, event_loop);*/
+}
+
+
+static void linear_writes_async(struct threaddata* tdata,
+		clientdata* cdata, struct thr_coordinator* coord,
+		struct stage* stage)
+{
+	uint32_t t_idx = tdata->t_idx;
+	uint64_t start_idx, end_idx;
+	uint64_t idx;
+
+	// each worker thread takes a subrange of the total set of simultaneous
+	// async calls being made
+	_calculate_subrange(0, cdata->async_max_commands, t_idx,
+			cdata->transaction_worker_threads, &start_idx, &end_idx);
+
+	for (idx = start_idx; idx < end_idx; idx++) {
+		// make an async call with the 
+	}
+
+	// once we've written everything, there's nothing left to do, so tell
+	// coord we're done and exit
+	thr_coordinator_complete(coord);
+}
+
+
+/******************************************************************************
+ * Main worker thread loop
+ *****************************************************************************/
+
 void* transaction_worker(void* udata)
 {
 	struct threaddata* tdata = (struct threaddata*) udata;
@@ -340,16 +454,33 @@ void* transaction_worker(void* udata)
 	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
 		uint32_t stage_idx = as_load_uint32(&tdata->stage_idx);
 		struct stage* stage = &cdata->stages.stages[stage_idx];
-		switch (stage->workload.type) {
-			case WORKLOAD_TYPE_LINEAR:
-				linear_writes(tdata, cdata, coord, stage);
-				break;
-			case WORKLOAD_TYPE_RANDOM:
-				random_read_write(tdata, cdata, coord, stage);
-				break;
-			case WORKLOAD_TYPE_DELETE:
-				linear_deletes(tdata, cdata, coord, stage);
-				break;
+
+//		if (stage->async) {
+		if (cdata->async) {
+			switch (stage->workload.type) {
+				case WORKLOAD_TYPE_LINEAR:
+					//linear_writes_async(tdata, cdata, coord, stage);
+					break;
+				case WORKLOAD_TYPE_RANDOM:
+					//random_read_write_async(tdata, cdata, coord, stage);
+					break;
+				case WORKLOAD_TYPE_DELETE:
+					//linear_deletes_async(tdata, cdata, coord, stage);
+					break;
+			}
+		}
+		else {
+			switch (stage->workload.type) {
+				case WORKLOAD_TYPE_LINEAR:
+					linear_writes(tdata, cdata, coord, stage);
+					break;
+				case WORKLOAD_TYPE_RANDOM:
+					random_read_write(tdata, cdata, coord, stage);
+					break;
+				case WORKLOAD_TYPE_DELETE:
+					linear_deletes(tdata, cdata, coord, stage);
+					break;
+			}
 		}
 		// check tdata->finished before locking
 		if (as_load_uint8((uint8_t*) &tdata->finished)) {
