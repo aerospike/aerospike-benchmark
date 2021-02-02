@@ -133,8 +133,9 @@ typedef void (*async_op_t)(struct async_data*, clientdata*);
 
 struct async_data {
 	clientdata* cdata;
-	as_random* random;
+	as_random random;
 	struct threaddata* parent_tdata;
+	struct stage* stage;
 
 	// the time at which the async call was made
 	uint64_t start_time;
@@ -418,6 +419,22 @@ static void linear_deletes(struct threaddata* tdata,
 
 
 static void
+_async_chain_terminate(struct threaddata* tdata)
+{
+	// we have to acquire the lock on the do_work condition variable since
+	// the parent thread can't atomically check outstanding_async_chains
+	// and then wait on the condition variable
+	pthread_mutex_lock(&tdata->c_lock);
+	if (as_aaf_uint32(&tdata->outstanding_async_chains, -1U) == 0) {
+		// this is the last outstanding async chain, so wake up the parent
+		// thread
+		pthread_cond_signal(&tdata->do_work_cond);
+	}
+	pthread_mutex_unlock(&tdata->c_lock);
+}
+
+
+static void
 _async_read_listener(as_error* err, as_record* rec, void* udata,
 		as_event_loop* event_loop)
 {
@@ -466,20 +483,6 @@ _async_read_listener(as_error* err, as_record* rec, void* udata,
 		}
 	}
 
-	// Reuse tdata structures.
-	// FIXME
-	/*if (tdata->key_count == tdata->n_keys) {
-		// We have reached max number of records for this command.
-		uint64_t total = as_faa_uint64(&cdata->key_count, tdata->n_keys) + tdata->n_keys;
-		destroy_threaddata(tdata);
-
-		if (total >= cdata->n_keys) {
-			// All commands have been written.
-			as_monitor_notify(&monitor);
-		}
-		return;
-	}*/
-
 	struct threaddata* tdata = adata->parent_tdata;
 	if (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		adata->next_op_cb(adata, cdata);
@@ -487,17 +490,7 @@ _async_read_listener(as_error* err, as_record* rec, void* udata,
 	else {
 		// we're done, so terminate the chain and notify our parent that we're
 		// finished
-
-		// we have to acquire the lock on the do_work condition variable since
-		// the parent thread can't atomically check outstanding_async_chains
-		// and then wait on the condition variable
-		pthread_mutex_lock(&tdata->c_lock);
-		if (as_aaf_uint32(&tdata->outstanding_async_chains, -1U) == 0) {
-			// this is the last outstanding async chain, so wake up the parent
-			// thread
-			pthread_cond_signal(&tdata->do_work_cond);
-		}
-		pthread_mutex_unlock(&tdata->c_lock);
+		_async_chain_terminate(tdata);
 	}
 }
 
@@ -513,8 +506,70 @@ static void _linear_writes_cb(struct async_data* adata, clientdata* cdata)
 	as_record rec;
 
 	if (adata->next_key != adata->end_key) {
+		// destroy the previous key before generating a new one
+		as_key_destroy(&adata->key);
 		_gen_key(adata->next_key, &adata->key, cdata);
-		_gen_record(&rec, adata->random, cdata);
+		_gen_record(&rec, &adata->random, cdata);
+		adata->next_key++;
+		// since the next async call may be processed by a different thread
+		as_fence_memory();
+
+		_write_record_async(&adata->key, &rec, adata, cdata);
+		as_record_destroy(&rec);
+		as_key_destroy(&adata->key);
+	}
+	else {
+		_async_chain_terminate(adata->parent_tdata);
+	}
+}
+
+
+static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
+{
+	as_record rec;
+	struct stage* stage = adata->stage;
+
+	// multiply pct by 2**24 before dividing by 100 and casting to an int,
+	// since floats have 24 bits of precision including the leading 1,
+	// so that read_pct is pct% between 0 and 2**24
+	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.pct) / 100);
+
+	// roll the die
+	uint32_t die = as_random_next_uint32(&adata->random);
+	// floats have 24 bits of precision (including implicit leading 1)
+	die &= 0x00ffffff;
+
+	// generate a random key
+	uint64_t key_val = stage_gen_random_key(stage, &adata->random);
+
+	// destroy the previous key before generating a new one
+	as_key_destroy(&adata->key);
+	_gen_key(key_val, &adata->key, cdata);
+
+	if (die < read_pct) {
+		_read_record_async(&adata->key, adata, cdata);
+	}
+	else {
+		// create a record
+		_gen_record(&rec, &adata->random, cdata);
+
+		// write this record to the database
+		_write_record_async(&adata->key, &rec, adata, cdata);
+
+		as_record_destroy(&rec);
+	}
+}
+
+
+static void _linear_deletes_cb(struct async_data* adata, clientdata* cdata)
+{
+	as_record rec;
+
+	if (adata->next_key != adata->end_key) {
+		// destroy the previous key before generating a new one
+		as_key_destroy(&adata->key);
+		_gen_key(adata->next_key, &adata->key, cdata);
+		_gen_nil_record(&rec, cdata);
 		adata->next_key++;
 		// since the next async call may be processed by a different thread
 		as_fence_memory();
@@ -522,18 +577,9 @@ static void _linear_writes_cb(struct async_data* adata, clientdata* cdata)
 		_write_record_async(&adata->key, &rec, adata, cdata);
 		as_record_destroy(&rec);
 	}
-}
-
-
-static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
-{
-
-}
-
-
-static void _linear_deletes_cb(struct async_data* adata, clientdata* cdata)
-{
-
+	else {
+		_async_chain_terminate(adata->parent_tdata);
+	}
 }
 
 
@@ -588,9 +634,12 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 	switch (stage->workload.type) {
 		case WORKLOAD_TYPE_LINEAR:
 			for (idx = start_idx; idx < end_idx; idx++) {
-				struct async_data* adata = &adatas[idx];
+				struct async_data* adata = &adatas[idx - start_idx];
 				adata->cdata = cdata;
+				as_random_init(&adata->random);
 				adata->parent_tdata = tdata;
+				adata->stage = stage;
+				as_key_init_int64(&adata->key, cdata->namespace, cdata->set, 0);
 				adata->op = write;
 				adata->next_op_cb = _linear_writes_cb;
 				_calculate_subrange(stage->key_start, stage->key_end, idx,
@@ -607,9 +656,12 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 			break;
 		case WORKLOAD_TYPE_RANDOM:
 			for (idx = start_idx; idx < end_idx; idx++) {
-				struct async_data* adata = &adatas[idx];
+				struct async_data* adata = &adatas[idx - start_idx];
 				adata->cdata = cdata;
+				as_random_init(&adata->random);
 				adata->parent_tdata = tdata;
+				adata->stage = stage;
+				as_key_init_int64(&adata->key, cdata->namespace, cdata->set, 0);
 				adata->next_op_cb = _random_read_write_cb;
 
 				_random_read_write_cb(adata, cdata);
@@ -624,9 +676,12 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 			break;
 		case WORKLOAD_TYPE_DELETE:
 			for (idx = start_idx; idx < end_idx; idx++) {
-				struct async_data* adata = &adatas[idx];
+				struct async_data* adata = &adatas[idx - start_idx];
 				adata->cdata = cdata;
+				as_random_init(&adata->random);
 				adata->parent_tdata = tdata;
+				adata->stage = stage;
+				as_key_init_int64(&adata->key, cdata->namespace, cdata->set, 0);
 				adata->op = delete;
 				adata->next_op_cb = _linear_deletes_cb;
 				_calculate_subrange(stage->key_start, stage->key_end, idx,
@@ -642,6 +697,13 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 			}
 			break;
 	}
+
+	// free the async_data structs
+	for (uint32_t i = 0; i < n_adatas; i++) {
+		struct async_data* adata = &adatas[i];
+		as_key_destroy(&adata->key);
+	}
+	cf_free(adatas);
 }
 
 void* transaction_worker(void* udata)
