@@ -39,11 +39,3 @@ void destroy_tdata(struct threaddata*);
  */
 void* transaction_worker(void* tdata);
 
-/*
- * init function for worker threads that will be handling asynchronous
- * transactions
- *
- * udata should be a pointer to a threaddata struct
- */
-void* transaction_worker_async(void* tdata);
-

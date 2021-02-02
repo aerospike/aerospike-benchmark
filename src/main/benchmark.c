@@ -253,23 +253,18 @@ _run(clientdata* cdata)
 	struct thr_coordinator coord;
 
 	// first figure out how many threads we'll be spawning
-	uint32_t n_threads, n_tdatas;
+	uint32_t n_threads;
 	void* (*worker_fn)(void*);
 
 	// output thread + all the worker threads
 	n_threads = 1 + cdata->transaction_worker_threads;
-	// allocate enough tdata structs for all possible async loop threads too
-	n_tdatas  = 1 + MAX(cdata->transaction_worker_threads,
-			cdata->async_max_commands);
 	worker_fn = transaction_worker;
-
-	cdata->tdata_count = n_tdatas;
 
 	// initialize the list of all thread pointers/data pointers
 	struct threaddata** tdatas =
-		(struct threaddata**) cf_malloc(n_tdatas * sizeof(struct threaddata*));
+		(struct threaddata**) cf_malloc(n_threads * sizeof(struct threaddata*));
 
-	for (uint32_t i = 0; i < n_tdatas; i++) {
+	for (uint32_t i = 0; i < n_threads; i++) {
 		tdatas[i] = init_tdata(cdata, &coord, i);
 	}
 
@@ -280,8 +275,8 @@ _run(clientdata* cdata)
 	pthread_t* threads = (pthread_t*) cf_malloc(n_threads * sizeof(pthread_t));
 
 	// then initialize periodic output thread
-	struct threaddata* out_worker_tdata = tdatas[n_tdatas - 1];
-	if (pthread_create(&threads[n_tdatas - 1], NULL, periodic_output_worker,
+	struct threaddata* out_worker_tdata = tdatas[n_threads - 1];
+	if (pthread_create(&threads[n_threads - 1], NULL, periodic_output_worker,
 				out_worker_tdata) != 0) {
 		blog_error("Failed to create output thread");
 		cf_free(threads);
@@ -321,9 +316,9 @@ _run(clientdata* cdata)
 
 	i--;
 	for (;;) {
-		if (i >= n_tdatas) {
+		if (i >= n_threads) {
 			// go back and free the logger thread
-			i = n_tdatas - 1;
+			i = n_threads - 1;
 		}
 
 		// by this point, if all went well, the coordinator thread should have

@@ -127,14 +127,15 @@ _read_record_sync(as_key* key, clientdata* cdata)
  * Read/Write singular/batch asynchronous operations
  *****************************************************************************/
 
-struct async_listener_args;
+struct async_data;
 
-typedef void (*async_op_t)(struct async_listener_args*, clientdata*,
-		struct threaddata*);
+typedef void (*async_op_t)(struct async_data*, clientdata*);
 
-struct async_listener_args {
+struct async_data {
 	clientdata* cdata;
-	struct threaddata* tdata;
+	as_random* random;
+	struct threaddata* parent_tdata;
+
 	// the time at which the async call was made
 	uint64_t start_time;
 
@@ -168,37 +169,37 @@ _async_write_listener(as_error* err, void* udata, as_event_loop*);
 
 static int
 _write_record_async(as_key* key, as_record* rec,
-		struct async_listener_args* args, clientdata* cdata)
+		struct async_data* adata, clientdata* cdata)
 {
 	as_status status;
 	as_error err;
 
-	args->start_time = cf_getus();
+	adata->start_time = cf_getus();
 	status = aerospike_key_put_async(&cdata->client, &err, NULL, key, rec,
-			_async_write_listener, args, NULL, NULL);
+			_async_write_listener, adata, NULL, NULL);
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
-		_async_write_listener(&err, args, NULL);
+		_async_write_listener(&err, adata, NULL);
 	}
 
 	return status;
 }
 
 int
-_read_record_async(as_key* key, struct async_listener_args* args,
+_read_record_async(as_key* key, struct async_data* adata,
 		clientdata* cdata)
 {
 	as_status status;
 	as_error err;
 
-	args->start_time = cf_getus();
+	adata->start_time = cf_getus();
 	status = aerospike_key_get_async(&cdata->client, &err, 0, key,
-			_async_read_listener, args, NULL, NULL);
+			_async_read_listener, adata, NULL, NULL);
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
-		_async_read_listener(&err, NULL, args, NULL);
+		_async_read_listener(&err, NULL, adata, NULL);
 	}
 
 	return status;
@@ -420,24 +421,22 @@ static void
 _async_read_listener(as_error* err, as_record* rec, void* udata,
 		as_event_loop* event_loop)
 {
-	struct async_listener_args* args = (struct async_listener_args*) udata;
+	struct async_data* adata = (struct async_data*) udata;
 
-	clientdata* cdata = args->cdata;
-	struct threaddata* tdata = args->tdata;
+	clientdata* cdata = adata->cdata;
 
 	if (!err) {
 		uint64_t end = cf_getus();
-		if (args->op == read) {
-			_record_read(cdata, end - args->start_time);
+		if (adata->op == read) {
+			_record_read(cdata, end - adata->start_time);
 		}
 		else {
-			_record_write(cdata, end - args->start_time);
+			_record_write(cdata, end - adata->start_time);
 		}
-		//tdata->key_count++;
 	}
 	else {
 		if (err->code == AEROSPIKE_ERR_TIMEOUT) {
-			if (args->op == read) {
+			if (adata->op == read) {
 				as_incr_uint32(&cdata->read_timeout_count);
 			}
 			else {
@@ -445,7 +444,7 @@ _async_read_listener(as_error* err, as_record* rec, void* udata,
 			}
 		}
 		else {
-			if (args->op == read) {
+			if (adata->op == read) {
 				as_incr_uint32(&cdata->read_error_count);
 			}
 			else {
@@ -460,8 +459,8 @@ _async_read_listener(as_error* err, as_record* rec, void* udata,
 				};
 				blog_error("%s error: ns=%s set=%s key=%d bin=%s code=%d "
 						   "message=%s",
-						   op_strs[args->op], cdata->namespace, cdata->set,
-						   args->key.value.integer.value, cdata->bin_name,
+						   op_strs[adata->op], cdata->namespace, cdata->set,
+						   adata->key.value.integer.value, cdata->bin_name,
 						   err->code, err->message);
 			}
 		}
@@ -481,7 +480,7 @@ _async_read_listener(as_error* err, as_record* rec, void* udata,
 		return;
 	}*/
 
-	args->next_op_cb(args, cdata, tdata);
+	adata->next_op_cb(adata, cdata);
 }
 
 static void
@@ -491,103 +490,121 @@ _async_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 }
 
 
-static void init_async_chain(struct threaddata* tdata,
-		clientdata* cdata, struct thr_coordinator* coord,
-		async_op_t init_cb)
-{
-	uint32_t t_idx = tdata->t_idx;
-	uint64_t start_idx, end_idx;
-	uint64_t idx;
-
-	// each worker thread takes a subrange of the total set of simultaneous
-	// async calls being made
-	_calculate_subrange(0, cdata->async_max_commands, t_idx,
-			cdata->transaction_worker_threads, &start_idx, &end_idx);
-
-	for (idx = start_idx; idx < end_idx; idx++) {
-		struct async_listener_args* args = (struct async_listener_args*)
-			cf_malloc(sizeof(struct async_listener_args));
-		args->cdata = cdata;
-		args->tdata = tdata;
-
-		init_cb(args, cdata, tdata);
-	}
-
-	// once we've written everything, there's nothing left to do, so tell
-	// coord we're done and exit
-	thr_coordinator_complete(coord);
-}
-
-
-static void _linear_writes_cb(struct async_listener_args* args,
-		clientdata* cdata, struct threaddata* tdata)
+static void _linear_writes_cb(struct async_data* adata, clientdata* cdata)
 {
 	as_record rec;
 
-	if (args->next_key != args->end_key) {
-		_gen_key(args->next_key, &args->key, cdata);
-		_gen_record(&rec, tdata->random, cdata);
-		args->next_key++;
+	if (adata->next_key != adata->end_key) {
+		_gen_key(adata->next_key, &adata->key, cdata);
+		_gen_record(&rec, adata->random, cdata);
+		adata->next_key++;
 		// since the next async call may be processed by a different thread
 		as_fence_memory();
 
-		_write_record_async(&args->key, &rec, args, cdata);
+		_write_record_async(&adata->key, &rec, adata, cdata);
 		as_record_destroy(&rec);
 	}
 }
 
-static void _init_async_linear_writes(struct async_listener_args* args,
-		clientdata* cdata, struct threaddata* tdata)
-{
-	args->op = write;
-	args->next_op_cb = _linear_writes_cb;
-	struct stage* stage = &cdata->stages.stages[tdata->stage_idx];
 
-	_calculate_subrange(stage->key_start, stage->key_end, tdata->t_idx,
-			cdata->tdata_count, &args->next_key, &args->end_key);
-
-	_linear_writes_cb(args, cdata, tdata);
-}
-
-
-static void _random_read_write_cb(struct async_listener_args* args,
-		clientdata* cdata, struct threaddata* tdata)
+static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
 {
 
 }
 
-static void _init_async_rand_read_write(struct async_listener_args* args,
-		clientdata* cdata, struct threaddata* tdata)
-{
-	args->next_op_cb = _random_read_write_cb;
 
-	_random_read_write_cb(args, cdata, tdata);
-}
-
-
-static void _linear_deletes_cb(struct async_listener_args* args,
-		clientdata* cdata, struct threaddata* tdata)
+static void _linear_deletes_cb(struct async_data* adata, clientdata* cdata)
 {
 
-}
-
-static void _init_async_linear_deletes(struct async_listener_args* args,
-		clientdata* cdata, struct threaddata* tdata)
-{
-	args->op = delete;
-	args->next_op_cb = _linear_deletes_cb;
-	struct stage* stage = &cdata->stages.stages[tdata->stage_idx];
-
-	_calculate_subrange(stage->key_start, stage->key_end, tdata->t_idx,
-			cdata->tdata_count, &args->next_key, &args->end_key);
-
-	_linear_deletes_cb(args, cdata, tdata);
 }
 
 
 /******************************************************************************
  * Main worker thread loop
  *****************************************************************************/
+
+static void do_sync_workload(struct threaddata* tdata, clientdata* cdata,
+		struct thr_coordinator* coord, struct stage* stage)
+{
+	switch (stage->workload.type) {
+		case WORKLOAD_TYPE_LINEAR:
+			linear_writes(tdata, cdata, coord, stage);
+			break;
+		case WORKLOAD_TYPE_RANDOM:
+			random_read_write(tdata, cdata, coord, stage);
+			break;
+		case WORKLOAD_TYPE_DELETE:
+			linear_deletes(tdata, cdata, coord, stage);
+			break;
+	}
+}
+
+static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
+		struct thr_coordinator* coord, struct stage* stage)
+{
+	struct async_data* adatas;
+	uint32_t t_idx = tdata->t_idx;
+	uint64_t start_idx, end_idx, n_adatas;
+	uint64_t idx;
+
+	// each worker thread takes a subrange of the total set of simultaneous
+	// async calls being made
+	_calculate_subrange(0, cdata->async_max_commands, t_idx,
+			cdata->transaction_worker_threads, &start_idx, &end_idx);
+	n_adatas = end_idx - start_idx;
+
+	adatas =
+		(struct async_data*) cf_malloc(n_adatas * sizeof(struct async_data));
+
+	switch (stage->workload.type) {
+		case WORKLOAD_TYPE_LINEAR:
+			for (idx = start_idx; idx < end_idx; idx++) {
+				struct async_data* adata = &adatas[idx];
+				adata->cdata = cdata;
+				adata->parent_tdata = tdata;
+				adata->op = write;
+				adata->next_op_cb = _linear_writes_cb;
+				_calculate_subrange(stage->key_start, stage->key_end, idx,
+						cdata->async_max_commands, &adata->next_key,
+						&adata->end_key);
+
+				_linear_writes_cb(adata, cdata);
+			}
+			break;
+		case WORKLOAD_TYPE_RANDOM:
+			for (idx = start_idx; idx < end_idx; idx++) {
+				struct async_data* adata = &adatas[idx];
+				adata->cdata = cdata;
+				adata->parent_tdata = tdata;
+				adata->op = write;
+				adata->next_op_cb = _linear_writes_cb;
+				_calculate_subrange(stage->key_start, stage->key_end, idx,
+						cdata->async_max_commands, &adata->next_key,
+						&adata->end_key);
+
+				_random_read_write_cb(adata, cdata);
+			}
+			break;
+		case WORKLOAD_TYPE_DELETE:
+			for (idx = start_idx; idx < end_idx; idx++) {
+				struct async_data* adata = &adatas[idx];
+				adata->cdata = cdata;
+				adata->parent_tdata = tdata;
+				adata->op = write;
+				adata->next_op_cb = _linear_writes_cb;
+				_calculate_subrange(stage->key_start, stage->key_end, idx,
+						cdata->async_max_commands, &adata->next_key,
+						&adata->end_key);
+
+				_linear_deletes_cb(adata, cdata);
+			}
+			break;
+	}
+
+	// once we've written everything, there's nothing left to do, so tell
+	// coord we're done and exit
+	thr_coordinator_complete(coord);
+}
 
 void* transaction_worker(void* udata)
 {
@@ -601,30 +618,10 @@ void* transaction_worker(void* udata)
 
 //		if (stage->async) {
 		if (cdata->async) {
-			switch (stage->workload.type) {
-				case WORKLOAD_TYPE_LINEAR:
-					init_async_chain(tdata, cdata, coord, _init_async_linear_writes);
-					break;
-				case WORKLOAD_TYPE_RANDOM:
-					init_async_chain(tdata, cdata, coord, _init_async_rand_read_write);
-					break;
-				case WORKLOAD_TYPE_DELETE:
-					init_async_chain(tdata, cdata, coord, _init_async_linear_deletes);
-					break;
-			}
+			do_async_workload(tdata, cdata, coord, stage);
 		}
 		else {
-			switch (stage->workload.type) {
-				case WORKLOAD_TYPE_LINEAR:
-					linear_writes(tdata, cdata, coord, stage);
-					break;
-				case WORKLOAD_TYPE_RANDOM:
-					random_read_write(tdata, cdata, coord, stage);
-					break;
-				case WORKLOAD_TYPE_DELETE:
-					linear_deletes(tdata, cdata, coord, stage);
-					break;
-			}
+			do_sync_workload(tdata, cdata, coord, stage);
 		}
 		// check tdata->finished before locking
 		if (as_load_uint8((uint8_t*) &tdata->finished)) {
@@ -633,11 +630,6 @@ void* transaction_worker(void* udata)
 		thr_coordinator_wait(coord);
 	}
 
-	return NULL;
-}
-
-void* transaction_worker_async(void* udata)
-{
 	return NULL;
 }
 
