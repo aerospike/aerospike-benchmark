@@ -333,11 +333,22 @@ static void linear_deletes(struct threaddata* tdata,
  * Asynchronous query methods
  *****************************************************************************/
 
+struct async_listener_args;
+
+typedef void (*async_op_t)(struct async_listener_args*, clientdata*,
+		struct threaddata*);
+
 struct async_listener_args {
 	clientdata* cdata;
 	struct threaddata* tdata;
 	// the time at which the async call was made
 	uint64_t start_time;
+
+	// the key to be used in the async calls
+	as_key key;
+
+	// the callback to be made after each async_call_listener return
+	async_op_t next_op_cb;
 
 	// what type of operation is being performed
 	enum {
@@ -345,6 +356,11 @@ struct async_listener_args {
 		write,
 		delete
 	} op;
+
+	// the next key to be written for linear writers/deleters
+	uint64_t next_key;
+	// the key to stop on for linear writers/deleters
+	uint64_t end_key;
 };
 
 
@@ -415,12 +431,13 @@ _async_call_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	/*tdata->key.value.integer.value = tdata->key_start + tdata->key_count;
 	tdata->key.digest.init = false;
 	linear_write_async(cdata, tdata, event_loop);*/
+	args->next_op_cb(args, cdata, tdata);
 }
 
 
-static void linear_writes_async(struct threaddata* tdata,
+static void init_async_chain(struct threaddata* tdata,
 		clientdata* cdata, struct thr_coordinator* coord,
-		struct stage* stage)
+		async_op_t init_cb)
 {
 	uint32_t t_idx = tdata->t_idx;
 	uint64_t start_idx, end_idx;
@@ -432,12 +449,69 @@ static void linear_writes_async(struct threaddata* tdata,
 			cdata->transaction_worker_threads, &start_idx, &end_idx);
 
 	for (idx = start_idx; idx < end_idx; idx++) {
-		// make an async call with the 
+		struct async_listener_args* args = (struct async_listener_args*)
+			cf_malloc(sizeof(struct async_listener_args));
+		args->cdata = cdata;
+		args->tdata = tdata;
+
+		init_cb(args, cdata, tdata);
 	}
 
 	// once we've written everything, there's nothing left to do, so tell
 	// coord we're done and exit
 	thr_coordinator_complete(coord);
+}
+
+
+static void _linear_writes_cb(struct async_listener_args* args,
+		clientdata* cdata, struct threaddata* tdata)
+{
+	args->start_time;
+	args->key;
+	args->op;
+}
+
+static void _init_async_linear_writes(struct async_listener_args* args,
+		clientdata* cdata, struct threaddata* tdata)
+{
+	uint64_t start_key, end_key;
+	args->next_op_cb = _linear_writes_cb;
+	struct stage* stage = &cdata->stages.stages[tdata->stage_idx];
+
+	_calculate_subrange(stage->key_start, stage->key_end, tdata->t_idx,
+			cdata->tdata_count, &args->next_key, &args->end_key);
+
+	_linear_writes_cb(args, cdata, tdata);
+}
+
+
+static void _random_read_write_cb(struct async_listener_args* args,
+		clientdata* cdata, struct threaddata* tdata)
+{
+
+}
+
+static void _init_async_rand_read_write(struct async_listener_args* args,
+		clientdata* cdata, struct threaddata* tdata)
+{
+	args->next_op_cb = _random_read_write_cb;
+
+	_random_read_write_cb(args, cdata, tdata);
+}
+
+
+static void _linear_deletes_cb(struct async_listener_args* args,
+		clientdata* cdata, struct threaddata* tdata)
+{
+
+}
+
+static void _init_async_linear_deletes(struct async_listener_args* args,
+		clientdata* cdata, struct threaddata* tdata)
+{
+	args->next_op_cb = _linear_deletes_cb;
+
+	_linear_deletes_cb(args, cdata, tdata);
 }
 
 
@@ -459,13 +533,13 @@ void* transaction_worker(void* udata)
 		if (cdata->async) {
 			switch (stage->workload.type) {
 				case WORKLOAD_TYPE_LINEAR:
-					//linear_writes_async(tdata, cdata, coord, stage);
+					init_async_chain(tdata, cdata, coord, _linear_writes_cb);
 					break;
 				case WORKLOAD_TYPE_RANDOM:
-					//random_read_write_async(tdata, cdata, coord, stage);
+					init_async_chain(tdata, cdata, coord, _random_read_write_cb);
 					break;
 				case WORKLOAD_TYPE_DELETE:
-					//linear_deletes_async(tdata, cdata, coord, stage);
+					init_async_chain(tdata, cdata, coord, _linear_deletes_cb);
 					break;
 			}
 		}

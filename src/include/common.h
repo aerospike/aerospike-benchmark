@@ -52,6 +52,10 @@ typedef uint64_t ptr_int_t;
 	} while(0)
 
 
+#define MIN(a, b) ((a) > (b) ? (b) : (a))
+#define MAX(a, b) ((a) < (b) ? (b) : (a))
+
+
 /*
  * returns the length of the given number were it to be printed in decimal
  */
