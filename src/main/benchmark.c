@@ -410,7 +410,7 @@ run_benchmark(arguments* args)
 		data.bin_name = "";
 	}
 	else {
-		data.bin_name = "testbin";
+		data.bin_name = args->bin_name;
 	}
 
 	if (!args->random) {

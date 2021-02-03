@@ -18,7 +18,7 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			struct stage, desc,
 			0, CYAML_UNLIMITED),
 	CYAML_FIELD_UINT("duration", 0,
-			struct stage, stage_idx),
+			struct stage, duration),
 	CYAML_FIELD_STRING_PTR("workload", 0,
 			struct stage, workload_str,
 			0, CYAML_UNLIMITED),
@@ -207,10 +207,12 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
 void free_bins_selection(struct stage* stage)
 {
 	char** read_bins = stage->read_bins;
-	for (uint64_t i = 0; read_bins[i] != NULL; i++) {
-		cf_free(read_bins[i]);
+	if (read_bins != NULL) {
+		for (uint64_t i = 0; read_bins[i] != NULL; i++) {
+			cf_free(read_bins[i]);
+		}
+		cf_free(read_bins);
 	}
-	cf_free(read_bins);
 }
 
 
@@ -259,7 +261,7 @@ static int stages_set_defaults_and_parse(struct stages* stages,
 			fprintf(stderr,
 					"Stage %d is marked with index %d\n",
 					i + 1, stage->stage_idx);
-			return -1;
+			//return -1;
 		}
 
 		char* workload_str = stage->workload_str;
@@ -309,6 +311,7 @@ int parse_workload_config_file(const char* file, struct stages* stages,
 		fprintf(stderr, "ERROR: %s\n", cyaml_strerror(err));
 		return -1;
 	}
+	stages->valid = true;
 
 	return stages_set_defaults_and_parse(stages, args);
 }
@@ -366,8 +369,8 @@ bool stages_contains_reads(const struct stages* stages)
 
 uint64_t stage_gen_random_key(const struct stage* stage, as_random* random)
 {
-	return gen_rand_range_64(random, stage->key_start) +
-		(stage->key_end - stage->key_start);
+	return gen_rand_range_64(random, stage->key_end - stage->key_start) +
+		stage->key_start;
 }
 
 

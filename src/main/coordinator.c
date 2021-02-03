@@ -3,6 +3,7 @@
 
 #include <aerospike/as_sleep.h>
 
+#include <common.h>
 #include <transaction.h>
 
 
@@ -56,7 +57,6 @@ void thr_coordinator_complete(struct thr_coordinator* coord)
 
 	uint32_t rem_threads = coord->unfinished_threads - 1;
 	coord->unfinished_threads = rem_threads;
-	printf("complete, only %d left\n", rem_threads);
 	fflush(stdout);
 	// commit this write before signaling the condition variable and releasing
 	// the lock, since it was not atomic
@@ -174,7 +174,7 @@ void* coordinator_worker(void* udata)
 	uint32_t stage_idx = 0;
 	for (;;) {
 		struct stage* stage = &cdata->stages.stages[stage_idx];
-		printf("Stage %d: %s\n", stage_idx + 1, stage->desc);
+		blog_line("Stage %d: %s", stage_idx + 1, stage->desc);
 
 		if (stage->duration > 0) {
 			// first sleep the minimum duration of the stage

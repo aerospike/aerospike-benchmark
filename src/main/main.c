@@ -779,7 +779,7 @@ set_args(int argc, char * const * argv, arguments* args)
 {
 	int option_index = 0;
 	int c;
-	
+
 	while ((c = getopt_long(argc, argv, short_options, long_options, &option_index)) != -1) {
 		switch (c) {
 			case '9':
@@ -838,7 +838,7 @@ set_args(int argc, char * const * argv, arguments* args)
 				break;
 
 			case 't':
-				if (args->stages.stages != NULL && !args->stages_init_by_file) {
+				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the timeout flag");
 					return -1;
@@ -849,13 +849,23 @@ set_args(int argc, char * const * argv, arguments* args)
 				break;
 
 			case 'w': {
-				if (args->stages.stages != NULL && !args->stages_init_by_file) {
+				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the workload flag");
 					return -1;
 				}
 				struct stage* stage = get_or_init_stage(args);
 				parse_workload_type(&stage->workload, optarg);
+				break;
+			}
+
+			case '.': {
+				if (args->stages.stages != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the workload flag");
+					return -1;
+				}
+				args->workload_stages_file = strdup(optarg);
 				break;
 			}
 
@@ -1133,6 +1143,7 @@ _load_defaults(arguments* args)
 	args->password[0] = 0;
 	args->namespace = "test";
 	args->set = "testset";
+	args->bin_name = "testbin";
 	args->start_key = 1;
 	args->keys = 1000000;
 	/*args->numbins = 1;
@@ -1140,8 +1151,8 @@ _load_defaults(arguments* args)
 	args->binlen = 50;
 	args->binlen_type = LEN_TYPE_COUNT;*/
 	__builtin_memset(&args->stages, 0, sizeof(struct stages));
+	args->workload_stages_file = NULL;
 	obj_spec_parse(&args->obj_spec, "I");
-	args->stages_init_by_file = false;
 	args->random = false;
 	/*args->transactions_limit = 0;
 	args->init = false;
@@ -1192,9 +1203,23 @@ _load_defaults(arguments* args)
 	as_vector_append(&args->latency_percentiles, &p5);
 }
 
-static void
+static int
 _load_defaults_post(arguments* args)
 {
+	int res = 0;
+
+	if (args->workload_stages_file != NULL) {
+		res = parse_workload_config_file(args->workload_stages_file,
+				&args->stages, args);
+	}
+	else if (args->stages.stages == NULL) {
+		// TODO load default
+		abort();
+	}
+
+	return res;
+	/*
+	uint64_t n_keys = 1000000;
 	if (args->stages.stages == NULL) {
 		args->stages.stages = (struct stage*) cf_malloc(3 * sizeof(struct stage));
 		args->stages.n_stages = 3;
@@ -1205,7 +1230,7 @@ _load_defaults_post(arguments* args)
 		stage1->desc = strdup("initialization");
 		stage1->tps = 0;
 		stage1->key_start = 1;
-		stage1->key_end = 100000;
+		stage1->key_end = n_keys;
 		stage1->pause = 0;
 		parse_workload_type(&stage1->workload, "I");
 		obj_spec_parse(&stage1->obj_spec, "I");
@@ -1216,7 +1241,7 @@ _load_defaults_post(arguments* args)
 		stage2->desc = strdup("random read/write");
 		stage2->tps = 0;
 		stage2->key_start = 1;
-		stage2->key_end = 100000;
+		stage2->key_end = n_keys;
 		stage2->pause = 0;
 		parse_workload_type(&stage2->workload, "RU");
 		obj_spec_parse(&stage2->obj_spec, "I");
@@ -1227,12 +1252,12 @@ _load_defaults_post(arguments* args)
 		stage3->desc = strdup("delete");
 		stage3->tps = 0;
 		stage3->key_start = 1;
-		stage3->key_end = 100000;
+		stage3->key_end = n_keys;
 		stage3->pause = 0;
 		parse_workload_type(&stage3->workload, "DB");
 		obj_spec_parse(&stage3->obj_spec, "I");
 		parse_bins_selection(stage3, "1", "testbin");
-	}
+	}*/
 }
 
 int
@@ -1243,7 +1268,9 @@ main(int argc, char * const * argv)
 
 	int ret = set_args(argc, argv, &args);
 
-	_load_defaults_post(&args);
+	if (ret == 0) {
+		ret = _load_defaults_post(&args);
+	}
 
 	if (ret == 0) {
 		print_args(&args);
@@ -1255,11 +1282,14 @@ main(int argc, char * const * argv)
 
 	free_workload_config(&args.stages);
 	obj_spec_free(&args.obj_spec);
+	if (args.workload_stages_file) {
+		cf_free(args.workload_stages_file);
+	}
 	if (args.hdr_output) {
-		free(args.hdr_output);
+		cf_free(args.hdr_output);
 	}
 	if (args.histogram_output) {
-		free(args.histogram_output);
+		cf_free(args.histogram_output);
 	}
 	as_vector_destroy(&args.latency_percentiles);
 

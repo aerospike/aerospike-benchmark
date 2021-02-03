@@ -57,12 +57,11 @@ typedef struct arguments_t {
 	  int numbins;
 	  len_type binlen_type;*/
 	struct stages stages;
+	char* workload_stages_file;
 
 	// the default object spec, in the case that a workload stage isn't defined
 	// with one
 	struct obj_spec obj_spec;
-	// set to true when stages have been initialized by a yaml file
-	bool stages_init_by_file;
 
 	bool random;
 	/*bool init;

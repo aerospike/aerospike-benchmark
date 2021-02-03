@@ -332,6 +332,7 @@ _gen_nil_record(as_record* rec, const clientdata* cdata)
 	for (uint32_t i = 0; i < n_objs; i++) {
 		as_bin* bin = &rec->bins.entries[i];
 		gen_bin_name(bin->name, cdata->bin_name, i + 1);
+		// FIXME this does an extra strcpy
 		as_record_set_nil(rec, bin->name);
 	}
 }
@@ -419,6 +420,7 @@ static void random_read_write(struct threaddata* tdata,
 				_gen_key(key_val, &key, cdata);
 
 				_read_record_sync(&key, cdata);
+				as_key_destroy(&key);
 			}
 			else {
 				// generate a batch of random keys
@@ -447,8 +449,8 @@ static void random_read_write(struct threaddata* tdata,
 			_write_record_sync(&key, &rec, cdata);
 
 			as_record_destroy(&rec);
+			as_key_destroy(&key);
 		}
-		as_key_destroy(&key);
 	}
 }
 
