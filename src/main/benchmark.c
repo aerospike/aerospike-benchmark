@@ -408,6 +408,11 @@ run_benchmark(arguments* args)
 	
 	if (single_bin) {
 		data.bin_name = "";
+
+		if (obj_spec_n_bins(&args->obj_spec) > 1) {
+			fprintf(stderr, "Single bin database, but obj_spec has > 1 bin\n");
+			ret = -1;
+		}
 	}
 	else {
 		data.bin_name = args->bin_name;
@@ -418,7 +423,9 @@ run_benchmark(arguments* args)
 				as_random_instance());
 	}
 
-	ret = initialize_histograms(&data, args, &start_time, &start_timespec);
+	if (ret == 0) {
+		ret = initialize_histograms(&data, args, &start_time, &start_timespec);
+	}
 
 	//data.key_start = args->start_key;
 	//data.key_count = 0;

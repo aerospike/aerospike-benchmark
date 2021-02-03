@@ -1217,7 +1217,7 @@ _load_defaults_post(arguments* args)
 				&args->stages, args);
 	}
 	else {
-		struct stage* stage = get_or_init_stage(args);;
+		struct stage* stage = get_or_init_stage(args);
 
 		stage->desc = strdup("default config (specify your own with --workload "
 				"or --workloadStages)");

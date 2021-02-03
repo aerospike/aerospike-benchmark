@@ -200,5 +200,4 @@ struct threaddata {
 
 int run_benchmark(arguments* args);
 
-void throttle(const clientdata* cdata, const struct stage*);
 bool is_stop_writes(aerospike* client, const char* namespace);

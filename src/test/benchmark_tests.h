@@ -4,6 +4,7 @@
 
 Suite* setup_suite(void);
 Suite* common_suite(void);
+Suite* dyn_throttle_suite(void);
 Suite* sanity_suite(void);
 Suite* hdr_histogram_suite(void);
 Suite* hdr_histogram_log_suite(void);

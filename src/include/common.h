@@ -55,6 +55,14 @@ typedef uint64_t ptr_int_t;
 #define MIN(a, b) ((a) > (b) ? (b) : (a))
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
 
+/*
+ * returns a if a is positive and 0 if a is negative
+ */
+static inline uint64_t ramp(uint64_t a)
+{
+	return (~(((int64_t) a) >> 63)) & a;
+}
+
 
 /*
  * returns the length of the given number were it to be printed in decimal
