@@ -859,7 +859,7 @@ set_args(int argc, char * const * argv, arguments* args)
 					return -1;
 				}
 				struct stage* stage = get_or_init_stage(args);
-				parse_workload_type(&stage->workload, optarg);
+				stage->workload_str = strdup(optarg);
 				break;
 			}
 
@@ -1221,26 +1221,12 @@ _load_defaults_post(arguments* args)
 
 		stage->desc = strdup("default config (specify your own with --workload "
 				"or --workloadStages)");
-		if (stage->duration == -1LU) {
-			if (workload_is_infinite(&stage->workload)) {
-				stage->duration = 10;
-			}
+
+		if (stage->workload_str == NULL) {
+			stage->workload_str = strdup("RU");
 		}
-		if (stage->key_start == -1LU) {
-			stage->key_start = 0;
-		}
-		if (stage->key_end == -1LU) {
-			stage->key_end = 100000;
-		}
-		if (!workload_is_initialized(&stage->workload)) {
-			parse_workload_type(&stage->workload, "I");
-		}
-		if (!stage->obj_spec.valid) {
-			obj_spec_parse(&stage->obj_spec, "I");
-		}
-		if (stage->read_bins == NULL) {
-			parse_bins_selection(stage, "1", args->bin_name);
-		}
+
+		stages_set_defaults_and_parse(&args->stages, args);
 	}
 
 	return res;

@@ -34,6 +34,9 @@
 #define WORKLOAD_LINEAR_DEFAULT_PCT 100.f
 #define WORKLOAD_RANDOM_DEFAULT_PCT 50.f
 
+// the default number of seconds an infinite workload will run if not specified
+#define DEFAULT_RANDOM_DURATION 10
+
 struct workload {
 	/*
 	 * one of:
@@ -151,6 +154,12 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
  * frees the bins selection array created from parse_bins_selection
  */
 void free_bins_selection(struct stage* stage);
+
+/*
+ * set stages struct to default values if they were not supplied
+ */
+int stages_set_defaults_and_parse(struct stages* stages,
+		const struct arguments_t* args);
 
 /*
  * parses the given file into the stages struct

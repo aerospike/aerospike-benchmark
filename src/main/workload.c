@@ -216,10 +216,7 @@ void free_bins_selection(struct stage* stage)
 }
 
 
-/*
- * set stages struct to default values if they were not supplied
- */
-static int stages_set_defaults_and_parse(struct stages* stages,
+int stages_set_defaults_and_parse(struct stages* stages,
 		const struct arguments_t* args)
 {
 	uint32_t n_stages = stages->n_stages;
@@ -269,6 +266,15 @@ static int stages_set_defaults_and_parse(struct stages* stages,
 			return -1;
 		}
 		cf_free(workload_str);
+
+		if (stage->duration == -1LU) {
+			if (workload_is_infinite(&stage->workload)) {
+				stage->duration = DEFAULT_RANDOM_DURATION;
+			}
+			else {
+				stage->duration = 0;
+			}
+		}
 
 		if (stage->obj_spec_str == NULL) {
 			// inherit obj_spec either from the previous stage or from the
