@@ -200,6 +200,9 @@ static void
 _async_read_listener(as_error* err, as_record*, void* udata, as_event_loop*);
 static void
 _async_write_listener(as_error* err, void* udata, as_event_loop*);
+static void
+_async_batch_read_listener(as_error* err, as_batch_read_records* records,
+		void* udata, as_event_loop* event_loop);
 
 
 static int
@@ -221,7 +224,7 @@ _write_record_async(as_key* key, as_record* rec,
 	return status;
 }
 
-int
+static int
 _read_record_async(as_key* key, struct async_data* adata,
 		clientdata* cdata)
 {
@@ -235,6 +238,25 @@ _read_record_async(as_key* key, struct async_data* adata,
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
 		_async_read_listener(&err, NULL, adata, NULL);
+	}
+
+	return status;
+}
+
+static int
+_batch_read_record_async(as_batch_read_records* keys,
+		struct async_data* adata, clientdata* cdata)
+{
+	as_status status;
+	as_error err;
+
+	adata->start_time = cf_getus();
+	status = aerospike_batch_read_async(&cdata->client, &err, 0, keys,
+			_async_batch_read_listener, adata, NULL);
+
+	if (status != AEROSPIKE_OK) {
+		// if the async call failed for any reason, call the callback directly
+		_async_batch_read_listener(&err, NULL, adata, NULL);
 	}
 
 	return status;
@@ -401,7 +423,7 @@ static void random_read_write(struct threaddata* tdata,
 			else {
 				// generate a batch of random keys
 				as_batch_read_records* keys = as_batch_read_create(batch_size);
-				for (uint32_t i = 0; i < cdata->batch_size; i++) {
+				for (uint32_t i = 0; i < batch_size; i++) {
 					uint64_t key_val =
 						stage_gen_random_key(stage, tdata->random);
 					as_batch_read_record* key = as_batch_read_reserve(keys);
@@ -492,8 +514,7 @@ _async_chain_terminate(struct threaddata* tdata)
 
 
 static void
-_async_read_listener(as_error* err, as_record* rec, void* udata,
-		as_event_loop* event_loop)
+_async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 {
 	struct async_data* adata = (struct async_data*) udata;
 
@@ -552,9 +573,26 @@ _async_read_listener(as_error* err, as_record* rec, void* udata,
 }
 
 static void
+_async_read_listener(as_error* err, as_record* rec, void* udata,
+		as_event_loop* event_loop)
+{
+	_async_listener(err, udata, event_loop);
+}
+
+static void
 _async_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 {
-	_async_read_listener(err, NULL, udata, event_loop);
+	_async_listener(err, udata, event_loop);
+}
+
+static void
+_async_batch_read_listener(as_error* err, as_batch_read_records* records,
+		void* udata, as_event_loop* event_loop)
+{
+	_async_listener(err, udata, event_loop);
+	if (records != NULL) {
+		as_batch_read_destroy(records);
+	}
 }
 
 
@@ -585,6 +623,7 @@ static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
 {
 	as_record rec;
 	struct stage* stage = adata->stage;
+	uint32_t batch_size = cdata->batch_size;
 
 	// multiply pct by 2**24 before dividing by 100 and casting to an int,
 	// since floats have 24 bits of precision including the leading 1,
@@ -596,17 +635,37 @@ static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
 	// floats have 24 bits of precision (including implicit leading 1)
 	die &= 0x00ffffff;
 
-	// generate a random key
-	uint64_t key_val = stage_gen_random_key(stage, &adata->random);
-
-	// destroy the previous key before generating a new one
-	as_key_destroy(&adata->key);
-	_gen_key(key_val, &adata->key, cdata);
-
 	if (die < read_pct) {
-		_read_record_async(&adata->key, adata, cdata);
+		if (batch_size <= 1) {
+			// generate a random key
+			uint64_t key_val = stage_gen_random_key(stage, &adata->random);
+
+			// destroy the previous key before generating a new one
+			as_key_destroy(&adata->key);
+			_gen_key(key_val, &adata->key, cdata);
+			_read_record_async(&adata->key, adata, cdata);
+		}
+		else {
+			// generate a batch of random keys
+			as_batch_read_records* keys = as_batch_read_create(batch_size);
+			for (uint32_t i = 0; i < batch_size; i++) {
+				uint64_t key_val = stage_gen_random_key(stage, &adata->random);
+				as_batch_read_record* key = as_batch_read_reserve(keys);
+				_gen_key(key_val, &key->key, cdata);
+				key->read_all_bins = true;
+			}
+
+			_batch_read_record_async(keys, adata, cdata);
+		}
 	}
 	else {
+		// generate a random key
+		uint64_t key_val = stage_gen_random_key(stage, &adata->random);
+
+		// destroy the previous key before generating a new one
+		as_key_destroy(&adata->key);
+		_gen_key(key_val, &adata->key, cdata);
+
 		// create a record
 		_gen_record(&rec, &adata->random, cdata);
 
