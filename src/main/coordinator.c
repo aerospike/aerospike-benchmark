@@ -57,6 +57,7 @@ void thr_coordinator_complete(struct thr_coordinator* coord)
 	uint32_t rem_threads = coord->unfinished_threads - 1;
 	coord->unfinished_threads = rem_threads;
 	printf("complete, only %d left\n", rem_threads);
+	fflush(stdout);
 	// commit this write before signaling the condition variable and releasing
 	// the lock, since it was not atomic
 	as_fence_memory();
