@@ -647,12 +647,14 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 						&adata->end_key);
 
 				_linear_writes_cb(adata, cdata);
-
-				// wait until the chains complete their required workload before
-				// notifying the coordinator that we are ready to be reaped
-				_wait_til_threads_reaped(tdata);
-				thr_coordinator_complete(coord);
 			}
+
+			// wait until the chains complete their required workload before
+			// notifying the coordinator that we are ready to be reaped
+			if (n_adatas > 0) {
+				_wait_til_threads_reaped(tdata);
+			}
+			thr_coordinator_complete(coord);
 			break;
 		case WORKLOAD_TYPE_RANDOM:
 			for (idx = start_idx; idx < end_idx; idx++) {
@@ -665,12 +667,14 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 				adata->next_op_cb = _random_read_write_cb;
 
 				_random_read_write_cb(adata, cdata);
+			}
 
-				// since this workload has no target number of transactions to
-				// be made, we are always ready to be reaped, and so we notify
-				// the coordinator that we are finished with our required tasks
-				// and can be stopped whenever
-				thr_coordinator_complete(coord);
+			// since this workload has no target number of transactions to
+			// be made, we are always ready to be reaped, and so we notify
+			// the coordinator that we are finished with our required tasks
+			// and can be stopped whenever
+			thr_coordinator_complete(coord);
+			if (n_adatas > 0) {
 				_wait_til_threads_reaped(tdata);
 			}
 			break;
@@ -689,12 +693,14 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 						&adata->end_key);
 
 				_linear_deletes_cb(adata, cdata);
-
-				// wait until the chains complete their required workload before
-				// notifying the coordinator that we are ready to be reaped
-				_wait_til_threads_reaped(tdata);
-				thr_coordinator_complete(coord);
 			}
+
+			// wait until the chains complete their required workload before
+			// notifying the coordinator that we are ready to be reaped
+			if (n_adatas > 0) {
+				_wait_til_threads_reaped(tdata);
+			}
+			thr_coordinator_complete(coord);
 			break;
 	}
 
