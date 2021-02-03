@@ -2,6 +2,7 @@
 #include <transaction.h>
 
 #include <aerospike/as_atomic.h>
+#include <aerospike/aerospike_batch.h>
 #include <aerospike/aerospike_key.h>
 #include <citrusleaf/cf_clock.h>
 
@@ -119,6 +120,39 @@ _read_record_sync(as_key* key, clientdata* cdata)
 	}
 
 	as_record_destroy(rec);
+	return status;
+}
+
+int
+_batch_read_record_sync(as_batch_read_records* records, clientdata* cdata)
+{
+	as_status status;
+	as_error err;
+
+	uint64_t start = cf_getus();
+	status = aerospike_batch_read(&cdata->client, &err, NULL, records);
+	uint64_t end = cf_getus();
+
+	if (status == AEROSPIKE_OK) {
+		_record_read(cdata, end - start);
+		return status;
+	}
+
+	// Handle error conditions.
+	if (status == AEROSPIKE_ERR_TIMEOUT) {
+		as_incr_uint32(&cdata->read_timeout_count);
+	}
+	else {
+		as_incr_uint32(&cdata->read_error_count);
+
+		if (cdata->debug) {
+			blog_error("Batch read error: ns=%s set=%s bin=%s code=%d "
+					"message=%s",
+					cdata->namespace, cdata->set, cdata->bin_name, status,
+					err.message);
+		}
+	}
+
 	return status;
 }
 
@@ -282,7 +316,7 @@ _gen_nil_record(as_record* rec, const clientdata* cdata)
 
 
 /******************************************************************************
- * Synchronous query methods
+ * Synchronous workload methods
  *****************************************************************************/
 
 /*
@@ -336,6 +370,7 @@ static void random_read_write(struct threaddata* tdata,
 {
 	as_key key;
 	as_record rec;
+	uint32_t batch_size;
 
 	// multiply pct by 2**24 before dividing by 100 and casting to an int,
 	// since floats have 24 bits of precision including the leading 1,
@@ -347,20 +382,42 @@ static void random_read_write(struct threaddata* tdata,
 	// to finish as soon as the timer runs out
 	thr_coordinator_complete(coord);
 
+	batch_size = cdata->batch_size;
+
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		// roll the die
 		uint32_t die = as_random_next_uint32(tdata->random);
 		// floats have 24 bits of precision (including implicit leading 1)
 		die &= 0x00ffffff;
 
-		// generate a random key
-		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-		_gen_key(key_val, &key, cdata);
-
 		if (die < read_pct) {
-			_read_record_sync(&key, cdata);
+			if (batch_size <= 1) {
+				// generate a random key
+				uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+				_gen_key(key_val, &key, cdata);
+
+				_read_record_sync(&key, cdata);
+			}
+			else {
+				// generate a batch of random keys
+				as_batch_read_records* keys = as_batch_read_create(batch_size);
+				for (uint32_t i = 0; i < cdata->batch_size; i++) {
+					uint64_t key_val =
+						stage_gen_random_key(stage, tdata->random);
+					as_batch_read_record* key = as_batch_read_reserve(keys);
+					_gen_key(key_val, &key->key, cdata);
+					key->read_all_bins = true;
+				}
+
+				_batch_read_record_sync(keys, cdata);
+				as_batch_read_destroy(keys);
+			}
 		}
 		else {
+			// generate a random key
+			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+			_gen_key(key_val, &key, cdata);
+
 			// create a record
 			_gen_record(&rec, tdata->random, cdata);
 
@@ -414,7 +471,7 @@ static void linear_deletes(struct threaddata* tdata,
 
 
 /******************************************************************************
- * Asynchronous query methods
+ * Asynchronous workload methods
  *****************************************************************************/
 
 
