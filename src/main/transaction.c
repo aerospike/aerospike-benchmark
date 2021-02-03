@@ -636,6 +636,7 @@ static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
 	die &= 0x00ffffff;
 
 	if (die < read_pct) {
+		adata->op = read;
 		if (batch_size <= 1) {
 			// generate a random key
 			uint64_t key_val = stage_gen_random_key(stage, &adata->random);
@@ -659,6 +660,7 @@ static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
 		}
 	}
 	else {
+		adata->op = write;
 		// generate a random key
 		uint64_t key_val = stage_gen_random_key(stage, &adata->random);
 
