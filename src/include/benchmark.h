@@ -199,15 +199,6 @@ struct threaddata {
 };
 
 int run_benchmark(arguments* args);
-//int linear_write(clientdata* data);
-//int random_read_write(clientdata* data);
 
-//bool write_record_sync(clientdata* cdata, threaddata* tdata, uint64_t key);
-//int read_record_sync(clientdata* cdata, threaddata* tdata);
-//int batch_record_sync(clientdata* cdata, threaddata* tdata);
 void throttle(const clientdata* cdata, const struct stage*);
-
-//void linear_write_async(clientdata* cdata, threaddata* tdata, as_event_loop* event_loop);
-//void random_read_write_async(clientdata* cdata, threaddata* tdata, as_event_loop* event_loop);
-
 bool is_stop_writes(aerospike* client, const char* namespace);

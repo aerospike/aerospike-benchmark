@@ -770,6 +770,10 @@ static struct stage* get_or_init_stage(arguments* args)
 		args->stages.stages = (struct stage*) cf_calloc(1, sizeof(struct stage));
 		args->stages.n_stages = 1;
 		args->stages.valid = true;
+
+		args->stages.stages[0].duration = -1LU;
+		args->stages.stages[0].key_start = -1LU;
+		args->stages.stages[0].key_end = -1LU;
 	}
 	return &args->stages.stages[0];
 }
@@ -1212,52 +1216,34 @@ _load_defaults_post(arguments* args)
 		res = parse_workload_config_file(args->workload_stages_file,
 				&args->stages, args);
 	}
-	else if (args->stages.stages == NULL) {
-		// TODO load default
-		abort();
+	else {
+		struct stage* stage = get_or_init_stage(args);;
+
+		stage->desc = strdup("default config (specify your own with --workload "
+				"or --workloadStages)");
+		if (stage->duration == -1LU) {
+			if (workload_is_infinite(&stage->workload)) {
+				stage->duration = 10;
+			}
+		}
+		if (stage->key_start == -1LU) {
+			stage->key_start = 0;
+		}
+		if (stage->key_end == -1LU) {
+			stage->key_end = 100000;
+		}
+		if (!workload_is_initialized(&stage->workload)) {
+			parse_workload_type(&stage->workload, "I");
+		}
+		if (!stage->obj_spec.valid) {
+			obj_spec_parse(&stage->obj_spec, "I");
+		}
+		if (stage->read_bins == NULL) {
+			parse_bins_selection(stage, "1", args->bin_name);
+		}
 	}
 
 	return res;
-	/*
-	uint64_t n_keys = 1000000;
-	if (args->stages.stages == NULL) {
-		args->stages.stages = (struct stage*) cf_malloc(3 * sizeof(struct stage));
-		args->stages.n_stages = 3;
-		args->stages.valid = true;
-
-		struct stage* stage1 = &args->stages.stages[0];
-		stage1->duration = 0;
-		stage1->desc = strdup("initialization");
-		stage1->tps = 0;
-		stage1->key_start = 1;
-		stage1->key_end = n_keys;
-		stage1->pause = 0;
-		parse_workload_type(&stage1->workload, "I");
-		obj_spec_parse(&stage1->obj_spec, "I");
-		parse_bins_selection(stage1, "1", "testbin");
-
-		struct stage* stage2 = &args->stages.stages[1];
-		stage2->duration = 5;
-		stage2->desc = strdup("random read/write");
-		stage2->tps = 0;
-		stage2->key_start = 1;
-		stage2->key_end = n_keys;
-		stage2->pause = 0;
-		parse_workload_type(&stage2->workload, "RU");
-		obj_spec_parse(&stage2->obj_spec, "I");
-		parse_bins_selection(stage2, "1", "testbin");
-
-		struct stage* stage3 = &args->stages.stages[2];
-		stage3->duration = 0;
-		stage3->desc = strdup("delete");
-		stage3->tps = 0;
-		stage3->key_start = 1;
-		stage3->key_end = n_keys;
-		stage3->pause = 0;
-		parse_workload_type(&stage3->workload, "DB");
-		obj_spec_parse(&stage3->obj_spec, "I");
-		parse_bins_selection(stage3, "1", "testbin");
-	}*/
 }
 
 int

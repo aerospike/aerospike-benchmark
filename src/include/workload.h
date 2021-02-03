@@ -27,9 +27,9 @@
 #include <object_spec.h>
 
 
-#define WORKLOAD_TYPE_LINEAR 0x0
-#define WORKLOAD_TYPE_RANDOM 0x1
-#define WORKLOAD_TYPE_DELETE 0x2
+#define WORKLOAD_TYPE_LINEAR 0x1
+#define WORKLOAD_TYPE_RANDOM 0x2
+#define WORKLOAD_TYPE_DELETE 0x3
 
 #define WORKLOAD_LINEAR_DEFAULT_PCT 100.f
 #define WORKLOAD_RANDOM_DEFAULT_PCT 50.f
@@ -114,12 +114,26 @@ struct arguments_t;
  */
 int parse_workload_type(struct workload*, const char* workload_str);
 
+static inline bool workload_is_initialized(const struct workload* workload)
+{
+	return workload->type != 0;
+}
+
 static inline bool workload_is_random(const struct workload* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }
 
 static inline bool workload_contains_reads(const struct workload* workload)
+{
+	return workload->type == WORKLOAD_TYPE_RANDOM;
+}
+
+/*
+ * returns true if the workload has no fixed amount of work to do (i.e. could
+ * run forever, and will not run at all if duration is set to 0)
+ */
+static inline bool workload_is_infinite(const struct workload* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }
