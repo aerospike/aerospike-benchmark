@@ -869,6 +869,13 @@ static as_val* _gen_random_list(const struct bin_spec* bin_spec,
 }
 
 
+/*
+ * the maximum number of times we'll try regenerating a new key for keys that
+ * already exist in the map before giving up and just inserting whatever key
+ * is made
+ */
+#define MAX_KEY_ENTRY_RETRIES 1000
+
 static as_val* _gen_random_map(const struct bin_spec* bin_spec,
 		as_random* random)
 {
@@ -877,11 +884,17 @@ static as_val* _gen_random_map(const struct bin_spec* bin_spec,
 	uint32_t n_entries = bin_spec_map_n_entries(bin_spec);
 
 	map = as_hashmap_new(2 * n_entries);
+	uint32_t retry_count = 0;
 
 	for (uint32_t i = 0; i < n_entries; i++) {
-		as_val* key = bin_spec_random_val(bin_spec_get_key(bin_spec), random);
-		as_val* val = bin_spec_random_val(bin_spec->map.val, random);
+		as_val* key;
+		do {
+			key = bin_spec_random_val(bin_spec_get_key(bin_spec), random);
+		} while (as_hashmap_get(map, key) != NULL &&
+				++retry_count < MAX_KEY_ENTRY_RETRIES);
 
+		as_val* val = bin_spec_random_val(bin_spec->map.val, random);
+		
 		as_hashmap_set(map, key, val);
 	}
 
