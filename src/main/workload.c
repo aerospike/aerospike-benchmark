@@ -294,6 +294,14 @@ int stages_set_defaults_and_parse(struct stages* stages,
 		// since bins_str will be overwritten when the read_bins field of stage
 		// is populated, save the pointer value here and free it after
 		char* bins_str = stage->read_bins_str;
+		if (stage->read_bins_str != NULL &&
+				!workload_contains_reads(&stage->workload)) {
+			fprintf(stderr, "Stage %d: cannot specify read-bins on workload "
+					"without reads\n",
+					i + 1);
+			return -1;
+		}
+		// FIXME ambiguous when bins_str is bins_str vs list of initialized bins
 		if (parse_bins_selection(stage, bins_str, args->bin_name) != 0) {
 			// don't free bins_str here since stage->read_bins won't be touched
 			// if the method fails

@@ -95,15 +95,24 @@ _write_record_sync(struct threaddata* tdata, clientdata* cdata,
 
 int
 _read_record_sync(struct threaddata* tdata, clientdata* cdata,
-		struct thr_coordinator* coord, as_key* key)
+		struct thr_coordinator* coord, struct stage* stage, as_key* key)
 {
 	as_record* rec = NULL;
 	as_status status;
 	as_error err;
 
-	uint64_t start = cf_getus();
-	status = aerospike_key_get(&cdata->client, &err, NULL, key, &rec);
-	uint64_t end = cf_getus();
+	uint64_t start, end;
+	if (stage->read_bins) {
+		start = cf_getus();
+		status = aerospike_key_select(&cdata->client, &err, NULL, key,
+				(const char**) stage->read_bins, &rec);
+		end = cf_getus();
+	}
+	else {
+		start = cf_getus();
+		status = aerospike_key_get(&cdata->client, &err, NULL, key, &rec);
+		end = cf_getus();
+	}
 
 	if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
 		_record_read(cdata, end - start);
@@ -238,14 +247,22 @@ _write_record_async(as_key* key, as_record* rec,
 
 static int
 _read_record_async(as_key* key, struct async_data* adata,
-		clientdata* cdata)
+		clientdata* cdata, struct stage* stage)
 {
 	as_status status;
 	as_error err;
 
-	adata->start_time = cf_getus();
-	status = aerospike_key_get_async(&cdata->client, &err, 0, key,
-			_async_read_listener, adata, NULL, NULL);
+	if (stage->read_bins) {
+		adata->start_time = cf_getus();
+		status = aerospike_key_select_async(&cdata->client, &err, 0, key,
+				(const char**) stage->read_bins, _async_read_listener, adata,
+				NULL, NULL);
+	}
+	else {
+		adata->start_time = cf_getus();
+		status = aerospike_key_get_async(&cdata->client, &err, 0, key,
+				_async_read_listener, adata, NULL, NULL);
+	}
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
@@ -305,13 +322,14 @@ _gen_key(uint64_t key_val, as_key* key, const clientdata* cdata)
  * generates a record with given key following the obj_spec in cdata
  */
 static void
-_gen_record(as_record* rec, as_random* random, const clientdata* cdata)
+_gen_record(as_record* rec, as_random* random, const clientdata* cdata,
+		struct stage* stage)
 {
 	if (cdata->random) {
-		uint32_t n_objs = obj_spec_n_bins(&cdata->obj_spec);
+		uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
 		as_record_init(rec, n_objs);
 
-		obj_spec_populate_bins(&cdata->obj_spec, rec, random,
+		obj_spec_populate_bins(&stage->obj_spec, rec, random,
 				cdata->bin_name);
 	}
 	else {
@@ -395,7 +413,7 @@ static void linear_writes(struct threaddata* tdata,
 
 		// create a record with given key
 		_gen_key(key_val, &key, cdata);
-		_gen_record(&rec, tdata->random, cdata);
+		_gen_record(&rec, tdata->random, cdata, stage);
 
 		// write this record to the database
 		_write_record_sync(tdata, cdata, coord, &key, &rec);
@@ -446,7 +464,7 @@ static void random_read_write(struct threaddata* tdata,
 				uint64_t key_val = stage_gen_random_key(stage, tdata->random);
 				_gen_key(key_val, &key, cdata);
 
-				_read_record_sync(tdata, cdata, coord, &key);
+				_read_record_sync(tdata, cdata, coord, stage, &key);
 				as_key_destroy(&key);
 			}
 			else {
@@ -470,7 +488,7 @@ static void random_read_write(struct threaddata* tdata,
 			_gen_key(key_val, &key, cdata);
 
 			// create a record
-			_gen_record(&rec, tdata->random, cdata);
+			_gen_record(&rec, tdata->random, cdata, stage);
 
 			// write this record to the database
 			_write_record_sync(tdata, cdata, coord, &key, &rec);
@@ -635,7 +653,7 @@ static void _linear_writes_cb(struct async_data* adata, clientdata* cdata)
 		// destroy the previous key before generating a new one
 		as_key_destroy(&adata->key);
 		_gen_key(adata->next_key, &adata->key, cdata);
-		_gen_record(&rec, &adata->random, cdata);
+		_gen_record(&rec, &adata->random, cdata, adata->stage);
 		adata->next_key++;
 		// since the next async call may be processed by a different thread
 		as_fence_memory();
@@ -675,7 +693,7 @@ static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
 			// destroy the previous key before generating a new one
 			as_key_destroy(&adata->key);
 			_gen_key(key_val, &adata->key, cdata);
-			_read_record_async(&adata->key, adata, cdata);
+			_read_record_async(&adata->key, adata, cdata, stage);
 		}
 		else {
 			// generate a batch of random keys
@@ -700,7 +718,7 @@ static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
 		_gen_key(key_val, &adata->key, cdata);
 
 		// create a record
-		_gen_record(&rec, &adata->random, cdata);
+		_gen_record(&rec, &adata->random, cdata, stage);
 
 		// write this record to the database
 		_write_record_async(&adata->key, &rec, adata, cdata);

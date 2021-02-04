@@ -1153,7 +1153,7 @@ _load_defaults(arguments* args)
 	__builtin_memset(&args->stages, 0, sizeof(struct stages));
 	args->workload_stages_file = NULL;
 	obj_spec_parse(&args->obj_spec, "I");
-	args->random = false;
+	args->random = true;
 	/*args->transactions_limit = 0;
 	args->init = false;
 	args->init_pct = 100;
