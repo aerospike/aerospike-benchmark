@@ -268,6 +268,9 @@ void* periodic_output_worker(void* udata)
 	// first indicate that this thread has no required work to do
 	thr_coordinator_complete(coord);
 
+	// throttle this thread to 1 event per second (1M microseconds)
+	dyn_throttle_init(&tdata->dyn_throttle, 1000000);
+
 	if (latency) {
 		latency_set_header(write_latency, latency_header);
 	}
@@ -293,6 +296,10 @@ void* periodic_output_worker(void* udata)
 				thr_coordinator_complete(coord);
 				// so the logger doesn't immediately go back to waiting again
 				status = COORD_SLEEP_TIMEOUT;
+
+				// and lastly reset the throttler (since we don't want the time
+				// spent at the synchronization barrier to mess with it)
+				dyn_throttle_reset(&tdata->dyn_throttle);
 			}
 			else {
 				// no need to check again
@@ -303,8 +310,10 @@ void* periodic_output_worker(void* udata)
 
 		struct timespec wake_up;
 		clock_gettime(COORD_CLOCK, &wake_up);
-		// sleep for 1 second
-		wake_up.tv_sec += 1;
+		// sleep for 1 secondi
+		uint64_t pause_us = dyn_throttle_pause_for(&tdata->dyn_throttle,
+				timespec_to_us(&wake_up));
+		timespec_add_us(&wake_up, pause_us);
 		status = thr_coordinator_sleep(coord, &wake_up);
 
 		// TODO use wake_up instead?

@@ -64,6 +64,20 @@ static inline uint64_t ramp(uint64_t a)
 }
 
 
+static inline uint64_t timespec_to_us(const struct timespec* ts)
+{
+	return (ts->tv_sec * 1000000LU) + (ts->tv_nsec / 1000);
+}
+
+static inline void timespec_add_us(struct timespec* ts, uint64_t us)
+{
+	uint64_t nsec = ts->tv_nsec;
+	nsec += us * 1000;
+	ts->tv_sec += nsec / 1000000000LU;
+	ts->tv_nsec = nsec % 1000000000LU;
+}
+
+
 /*
  * returns the length of the given number were it to be printed in decimal
  */

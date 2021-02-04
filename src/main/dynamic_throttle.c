@@ -15,6 +15,12 @@ int dyn_throttle_init(dyn_throttle_t* thr, float target_period)
 	return 0;
 }
 
+void dyn_throttle_reset(dyn_throttle_t* thr)
+{
+	thr->avg_fn_delay = 0;
+	thr->n_records = 0;
+}
+
 uint64_t dyn_throttle_pause_for(dyn_throttle_t* dt, uint64_t rec)
 {
 	uint64_t pause_for;

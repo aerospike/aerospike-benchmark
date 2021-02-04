@@ -47,7 +47,7 @@ static struct option long_options[] = {
 	//{"bins",                 required_argument, 0, 'b'},
 	{"objectSpec",           required_argument, 0, 'o'},
 	{"random",               no_argument,       0, 'R'},
-	{"transactions",         required_argument, 0, 't'},
+	{"duration",             required_argument, 0, 't'},
 	{"workload",             required_argument, 0, 'w'},
 	{"workloadStages",       required_argument, 0, '.'},
 	{"threads",              required_argument, 0, 'z'},
@@ -155,20 +155,9 @@ print_usage(const char* program)
 	blog_line("   startKey and startKey + num_keys.  startKey can be set using");
 	blog_line("   '-K' or '--startKey'.");
 	blog_line("");
-	
+
 	/*blog_line("-b --bins <count>     # Default: 1");
 	blog_line("   Number of bins");
-	blog_line("");*/
-	
-	/*blog_line("-o --objectSpec I | B:<size> | S:<size> | L:<size> | M:<size> # Default: I");
-	blog_line("   Bin object specification.");
-	blog_line("   -o I     : Read/write integer bin.");
-	blog_line("   -o B:200 : Read/write byte array bin of length 200.");
-	blog_line("   -o S:50  : Read/write string bin of length 50.");
-	blog_line("   -o L:50  : Read/write cdt list bin of 50 elements.");
-	blog_line("   -o M:50  : Read/write cdt map bin of 50 map entries.");
-	blog_line("   -o M:50B : Read/write cdt map bin of ~50 bytes.");
-	blog_line("   -o M:50K : Read/write cdt map bin of ~50 kilobytes.");
 	blog_line("");*/
 
 	blog_line("-o --objectSpec describes a comma-separated bin specification");
@@ -210,8 +199,8 @@ print_usage(const char* program)
 	blog_line("   Use dynamically generated random bin values instead of default static fixed bin values.");
 	blog_line("");
 	
-	blog_line("-t --transactions       # Default: -1 (unlimited)");
-	blog_line("    Stop approximately after number of transaction performed in random read/write mode.");
+	blog_line("-t --duration        # Default: 10s (for random read/write workload)");
+	blog_line("    Specifies the minimum amount of time the benchmark will run for.");
 	blog_line("");
 
 	blog_line("-w --workload I,<percent> | RU,<read percent> | DB  # Default: RU,50");
@@ -844,7 +833,7 @@ set_args(int argc, char * const * argv, arguments* args)
 			case 't':
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
-							"file and the timeout flag");
+							"file and the duration flag");
 					return -1;
 				}
 				struct stage* stage = get_or_init_stage(args);

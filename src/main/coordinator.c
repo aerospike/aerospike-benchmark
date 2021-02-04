@@ -57,7 +57,6 @@ void thr_coordinator_complete(struct thr_coordinator* coord)
 
 	uint32_t rem_threads = coord->unfinished_threads - 1;
 	coord->unfinished_threads = rem_threads;
-	fflush(stdout);
 	// commit this write before signaling the condition variable and releasing
 	// the lock, since it was not atomic
 	as_fence_memory();
@@ -152,7 +151,19 @@ static void _finish_req_duration(struct thr_coordinator* coord)
 {
 	pthread_mutex_lock(&coord->c_lock);
 
-	uint32_t rem_threads = as_aaf_uint32(&coord->unfinished_threads, -1U);
+	uint32_t rem_threads = coord->unfinished_threads - 1;
+	coord->unfinished_threads = rem_threads;
+	// commit this write before signaling the condition variable and releasing
+	// the lock, since it was not atomic
+	as_fence_memory();
+
+	// if we're the last thread finishing, notify any threads waiting on the
+	// complete condition variable
+	if (rem_threads == 0) {
+		pthread_cond_broadcast(&coord->complete);
+	}
+
+	// wait for the rest of the threads to complete
 	while (rem_threads != 0) {
 		pthread_cond_wait(&coord->complete, &coord->c_lock);
 		rem_threads = as_load_uint32(&coord->unfinished_threads);
@@ -174,7 +185,7 @@ void* coordinator_worker(void* udata)
 	uint32_t stage_idx = 0;
 	for (;;) {
 		struct stage* stage = &cdata->stages.stages[stage_idx];
-		blog_line("Stage %d: %s", stage_idx + 1, stage->desc);
+		printf("Stage %d: %s\n", stage_idx + 1, stage->desc);
 
 		if (stage->duration > 0) {
 			// first sleep the minimum duration of the stage

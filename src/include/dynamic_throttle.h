@@ -52,6 +52,11 @@ int dyn_throttle_init(dyn_throttle_t*, float target_period);
 #define dyn_throttle_free(thr)
 
 /*
+ * resets the throttler to its initial state
+ */
+void dyn_throttle_reset(dyn_throttle_t*);
+
+/*
  * records the time "rec" in the time history table and returns the amount of
  * time to pause for (in the same units as rec)
  */
