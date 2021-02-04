@@ -57,8 +57,12 @@ static void _record_write(clientdata* cdata, uint64_t dt_us)
  * Read/Write singular/batch synchronous operations
  *****************************************************************************/
 
+static void
+throttle(struct threaddata* tdata, struct thr_coordinator* coord);
+
 static int
-_write_record_sync(as_key* key, as_record* rec, clientdata* cdata)
+_write_record_sync(struct threaddata* tdata, clientdata* cdata,
+		struct thr_coordinator* coord, as_key* key, as_record* rec)
 {
 	as_status status;
 	as_error err;
@@ -69,6 +73,7 @@ _write_record_sync(as_key* key, as_record* rec, clientdata* cdata)
 
 	if (status == AEROSPIKE_OK) {
 		_record_write(cdata, end - start);
+		throttle(tdata, coord);
 		return 0;
 	}
 
@@ -84,11 +89,13 @@ _write_record_sync(as_key* key, as_record* rec, clientdata* cdata)
 					cdata->namespace, cdata->set, key, cdata->bin_name, status, err.message);
 		}
 	}
+	throttle(tdata, coord);
 	return -1;
 }
 
 int
-_read_record_sync(as_key* key, clientdata* cdata)
+_read_record_sync(struct threaddata* tdata, clientdata* cdata,
+		struct thr_coordinator* coord, as_key* key)
 {
 	as_record* rec = NULL;
 	as_status status;
@@ -101,6 +108,7 @@ _read_record_sync(as_key* key, clientdata* cdata)
 	if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
 		_record_read(cdata, end - start);
 		as_record_destroy(rec);
+		throttle(tdata, coord);
 		return status;
 	}
 
@@ -120,11 +128,13 @@ _read_record_sync(as_key* key, clientdata* cdata)
 	}
 
 	as_record_destroy(rec);
+	throttle(tdata, coord);
 	return status;
 }
 
 int
-_batch_read_record_sync(as_batch_read_records* records, clientdata* cdata)
+_batch_read_record_sync(struct threaddata* tdata, clientdata* cdata,
+		struct thr_coordinator* coord, as_batch_read_records* records)
 {
 	as_status status;
 	as_error err;
@@ -135,6 +145,7 @@ _batch_read_record_sync(as_batch_read_records* records, clientdata* cdata)
 
 	if (status == AEROSPIKE_OK) {
 		_record_read(cdata, end - start);
+		throttle(tdata, coord);
 		return status;
 	}
 
@@ -153,6 +164,7 @@ _batch_read_record_sync(as_batch_read_records* records, clientdata* cdata)
 		}
 	}
 
+	throttle(tdata, coord);
 	return status;
 }
 
@@ -337,6 +349,21 @@ _gen_nil_record(as_record* rec, const clientdata* cdata)
 	}
 }
 
+/*
+ * throttler to be called between every transaction
+ */
+static void
+throttle(struct threaddata* tdata, struct thr_coordinator* coord)
+{
+	struct timespec wake_up;
+	clock_gettime(COORD_CLOCK, &wake_up);
+
+	uint64_t pause_for = dyn_throttle_pause_for(&tdata->dyn_throttle,
+			timespec_to_us(&wake_up));
+	timespec_add_us(&wake_up, pause_for);
+	thr_coordinator_sleep(coord, &wake_up);
+}
+
 
 /******************************************************************************
  * Synchronous workload methods
@@ -371,7 +398,7 @@ static void linear_writes(struct threaddata* tdata,
 		_gen_record(&rec, tdata->random, cdata);
 
 		// write this record to the database
-		_write_record_sync(&key, &rec, cdata);
+		_write_record_sync(tdata, cdata, coord, &key, &rec);
 
 		as_record_destroy(&rec);
 		as_key_destroy(&key);
@@ -419,7 +446,7 @@ static void random_read_write(struct threaddata* tdata,
 				uint64_t key_val = stage_gen_random_key(stage, tdata->random);
 				_gen_key(key_val, &key, cdata);
 
-				_read_record_sync(&key, cdata);
+				_read_record_sync(tdata, cdata, coord, &key);
 				as_key_destroy(&key);
 			}
 			else {
@@ -433,7 +460,7 @@ static void random_read_write(struct threaddata* tdata,
 					key->read_all_bins = true;
 				}
 
-				_batch_read_record_sync(keys, cdata);
+				_batch_read_record_sync(tdata, cdata, coord, keys);
 				as_batch_read_destroy(keys);
 			}
 		}
@@ -446,7 +473,7 @@ static void random_read_write(struct threaddata* tdata,
 			_gen_record(&rec, tdata->random, cdata);
 
 			// write this record to the database
-			_write_record_sync(&key, &rec, cdata);
+			_write_record_sync(tdata, cdata, coord, &key, &rec);
 
 			as_record_destroy(&rec);
 			as_key_destroy(&key);
@@ -480,7 +507,7 @@ static void linear_deletes(struct threaddata* tdata,
 		_gen_nil_record(&rec, cdata);
 
 		// delete this record from the database
-		_write_record_sync(&key, &rec, cdata);
+		_write_record_sync(tdata, cdata, coord, &key, &rec);
 
 		as_record_destroy(&rec);
 		as_key_destroy(&key);
@@ -564,6 +591,8 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	}
 
 	struct threaddata* tdata = adata->parent_tdata;
+	throttle(tdata, tdata->coord);
+
 	if (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		adata->next_op_cb(adata, cdata);
 	}
@@ -832,6 +861,30 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 	cf_free(adatas);
 }
 
+static void init_stage(const clientdata* cdata, struct threaddata* tdata,
+		struct stage* stage)
+{
+	if (stage->tps == 0) {
+		// tps = 0 means no throttling
+		dyn_throttle_init(&tdata->dyn_throttle, 0);
+	}
+	else {
+		// dyn_throttle uses a target delay between consecutive events, so
+		// calculate the target delay given the requested transactions per
+		// second and the number of concurrent transactions (i.e. num threads)
+		uint32_t n_threads = cdata->async ? cdata->async_max_commands :
+			cdata->transaction_worker_threads;
+		dyn_throttle_init(&tdata->dyn_throttle,
+				(1000000.f * n_threads) / stage->tps);
+	}
+}
+
+static void terminate_stage(const clientdata* cdata, struct threaddata* tdata,
+		struct stage* stage)
+{
+	dyn_throttle_free(&tdata->dyn_throttle);
+}
+
 void* transaction_worker(void* udata)
 {
 	struct threaddata* tdata = (struct threaddata*) udata;
@@ -841,6 +894,8 @@ void* transaction_worker(void* udata)
 	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
 		uint32_t stage_idx = as_load_uint32(&tdata->stage_idx);
 		struct stage* stage = &cdata->stages.stages[stage_idx];
+
+		init_stage(cdata, tdata, stage);
 
 //		if (stage->async) {
 		if (cdata->async) {
@@ -853,6 +908,7 @@ void* transaction_worker(void* udata)
 		if (as_load_uint8((uint8_t*) &tdata->finished)) {
 			break;
 		}
+		terminate_stage(cdata, tdata, stage);
 		thr_coordinator_wait(coord);
 	}
 
