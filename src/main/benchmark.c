@@ -366,7 +366,6 @@ run_benchmark(arguments* args)
 	data.namespace = args->namespace;
 	data.set = args->set;
 	data.transaction_worker_threads = args->transaction_worker_threads;
-	data.throughput = args->throughput;
 	data.batch_size = args->batch_size;
 	/*data.read_pct = args->read_pct;
 	data.del_bin = args->del_bin;*/

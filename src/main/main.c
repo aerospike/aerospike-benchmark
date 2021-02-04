@@ -877,9 +877,16 @@ set_args(int argc, char * const * argv, arguments* args)
 				args->transaction_worker_threads = atoi(optarg);
 				break;
 				
-			case 'g':
-				args->throughput = atoi(optarg);
+			case 'g': {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the throughput flag");
+					return -1;
+				}
+				struct stage* stage = get_or_init_stage(args);
+				stage->tps = atoi(optarg);
 				break;
+			}
 
 			case '0':
 				args->batch_size = atoi(optarg);
@@ -1164,7 +1171,6 @@ _load_defaults(arguments* args)
 	args->read_pct = 50;
 	args->del_bin = false;*/
 	args->transaction_worker_threads = 16;
-	args->throughput = 0;
 	args->batch_size = 0;
 	args->enable_compression = false;
 	args->compression_ratio = 1.f;
@@ -1219,8 +1225,8 @@ _load_defaults_post(arguments* args)
 	else {
 		struct stage* stage = get_or_init_stage(args);
 
-		stage->desc = strdup("default config (specify your own with --workload "
-				"or --workloadStages)");
+		stage->desc = strdup("default config (specify your own with "
+				"--workloadStages)");
 
 		if (stage->workload_str == NULL) {
 			stage->workload_str = strdup("RU");

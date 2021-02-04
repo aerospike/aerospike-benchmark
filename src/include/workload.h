@@ -27,9 +27,9 @@
 #include <object_spec.h>
 
 
-#define WORKLOAD_TYPE_LINEAR 0x1
-#define WORKLOAD_TYPE_RANDOM 0x2
-#define WORKLOAD_TYPE_DELETE 0x3
+#define WORKLOAD_TYPE_LINEAR 0x0
+#define WORKLOAD_TYPE_RANDOM 0x1
+#define WORKLOAD_TYPE_DELETE 0x2
 
 #define WORKLOAD_LINEAR_DEFAULT_PCT 100.f
 #define WORKLOAD_RANDOM_DEFAULT_PCT 50.f
@@ -116,11 +116,6 @@ struct arguments_t;
  * first argument
  */
 int parse_workload_type(struct workload*, const char* workload_str);
-
-static inline bool workload_is_initialized(const struct workload* workload)
-{
-	return workload->type != 0;
-}
 
 static inline bool workload_is_random(const struct workload* workload)
 {

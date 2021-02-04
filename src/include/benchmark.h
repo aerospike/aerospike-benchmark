@@ -28,6 +28,7 @@
 #include <aerospike/as_record.h>
 
 #include <hdr_histogram/hdr_histogram.h>
+#include <dynamic_throttle.h>
 #include <histogram.h>
 #include <latency.h>
 #include <object_spec.h>
@@ -71,7 +72,6 @@ typedef struct arguments_t {
 
 	//uint64_t transactions_limit;
 	int transaction_worker_threads;
-	int throughput;
 	int batch_size;
 	bool enable_compression;
 	float compression_ratio;
@@ -147,7 +147,6 @@ typedef struct clientdata_t {
 
 	int async_max_commands;
 	int transaction_worker_threads;
-	int throughput;
 	int batch_size;
 	int read_pct;
 	struct obj_spec obj_spec;
@@ -167,6 +166,7 @@ struct threaddata {
 	clientdata* cdata;
 	struct thr_coordinator* coord;
 	as_random* random;
+	dyn_throttle_t dyn_throttle;
 
 	// thread index: [0, n_threads)
 	uint32_t t_idx;
