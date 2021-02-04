@@ -277,6 +277,10 @@ _run(clientdata* cdata)
 		tdatas[i] = init_tdata(cdata, &coord, i);
 	}
 
+	// pause before the first workload stage (using the logger thread's
+	// as_random)
+	stage_random_pause(tdatas[n_threads - 1]->random, &cdata->stages.stages[0]);
+
 	// then initialize the thread coordinator struct, before spawning any
 	// threads which will be referencing it
 	thr_coordinator_init(&coord, n_threads);

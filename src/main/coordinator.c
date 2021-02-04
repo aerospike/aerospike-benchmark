@@ -180,12 +180,16 @@ void* coordinator_worker(void* udata)
 	clientdata* cdata = args->cdata;
 	struct threaddata** tdatas = args->tdatas;
 	uint32_t n_threads = args->n_threads;
+	as_random random;
 
 	uint32_t n_stages = cdata->stages.n_stages;
 	uint32_t stage_idx = 0;
+
+	as_random_init(&random);
+
 	for (;;) {
 		struct stage* stage = &cdata->stages.stages[stage_idx];
-		printf("Stage %d: %s\n", stage_idx + 1, stage->desc);
+		blog_line("Stage %d: %s", stage_idx + 1, stage->desc);
 
 		if (stage->duration > 0) {
 			// first sleep the minimum duration of the stage
@@ -208,6 +212,9 @@ void* coordinator_worker(void* udata)
 			for (uint32_t t_idx = 0; t_idx < n_threads; t_idx++) {
 				tdatas[t_idx]->stage_idx = stage_idx;
 			}
+
+			stage_random_pause(&random, &cdata->stages.stages[stage_idx]);
+
 			// reset unfinished_threads count
 			as_store_uint32(&coord->unfinished_threads, n_threads + 1);
 

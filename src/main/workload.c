@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include <aerospike/as_sleep.h>
 #include <cyaml/cyaml.h>
 
 #include <benchmark.h>
@@ -377,6 +378,19 @@ uint64_t stage_gen_random_key(const struct stage* stage, as_random* random)
 {
 	return gen_rand_range_64(random, stage->key_end - stage->key_start) +
 		stage->key_start;
+}
+
+
+void stage_random_pause(as_random* random, const struct stage* stage)
+{
+	uint32_t pause = stage->pause;
+	if (pause != 0) {
+		// generate a random pause amount between 1 and the specified pause
+		// amount
+		pause = gen_rand_range(random, pause) + 1;
+		blog_line("Pause for %u seconds", pause);
+		as_sleep(pause * 1000LU);
+	}
 }
 
 

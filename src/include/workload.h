@@ -187,5 +187,10 @@ bool stages_contains_reads(const struct stages*);
  */
 uint64_t stage_gen_random_key(const struct stage*, as_random*);
 
+/*
+ * pauses for a random amount of time, to be called before the stage begins
+ */
+void stage_random_pause(as_random* random, const struct stage* stage);
+
 void stages_print(const struct stages* stages);
 
