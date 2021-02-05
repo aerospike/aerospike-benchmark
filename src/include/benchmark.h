@@ -165,19 +165,6 @@ struct threaddata {
 	uint32_t stage_idx;
 
 	/*
-	 * condition variable on the do_work state, which is used by threads which
-	 * offload work to the event loop thread pool and don't need to wake until
-	 * the offloaded work is complete
-	 */
-	pthread_cond_t do_work_cond;
-	pthread_mutex_t c_lock;
-
-	// used by the transaction worker threads when offloading work to async
-	// calls, is a count of the number of outstanding call chains which have
-	// yet to terminate
-	uint32_t outstanding_async_chains;
-
-	/*
 	 * note: to stop threads, tdata->finished must be set before tdata->do_work
 	 * to prevent deadlocking
 	 */

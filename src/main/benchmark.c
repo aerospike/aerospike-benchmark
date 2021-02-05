@@ -240,8 +240,6 @@ init_tdata(clientdata* cdata, struct thr_coordinator* coord,
 	// always start on the first stage
 	tdata->stage_idx = 0;
 
-	pthread_cond_init(&tdata->do_work_cond, NULL);
-	pthread_mutex_init(&tdata->c_lock, NULL);
 	tdata->do_work = true;
 	tdata->finished = false;
 
@@ -250,8 +248,6 @@ init_tdata(clientdata* cdata, struct thr_coordinator* coord,
 
 void destroy_tdata(struct threaddata* tdata)
 {
-	pthread_mutex_destroy(&tdata->c_lock);
-	pthread_cond_destroy(&tdata->do_work_cond);
 }
 
 
