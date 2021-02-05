@@ -26,11 +26,6 @@
 
 #include <benchmark.h>
 
-/*
- * destroys a threaddata struct initialized by init_tdata
- */
-void destroy_tdata(struct threaddata*);
-
 
 /*
  * init function for worker threads that will be handling transactions

@@ -235,9 +235,9 @@ test_target/test: $(TEST_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(P
 .PHONY: coverage
 coverage: coverage-init do-test
 	@echo
-	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark.info
-	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark.info
-	@lcov --summary test_target/aerospike-benchmark.info
+	lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark.info
+	lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark.info
+	lcov --summary test_target/aerospike-benchmark.info
 
 .PHONY: coverage-init
 coverage-init:
