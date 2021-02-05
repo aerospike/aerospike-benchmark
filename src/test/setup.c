@@ -41,20 +41,7 @@ setup(void)
 	args->password[0] = 0;
 	args->namespace = "test";
 	args->set = "testset";
-	//args->start_key = 1;
-	//args->keys = 1000000;
-	/*args->numbins = 1;
-	args->bintype = 'I';
-	args->binlen = 50;
-	args->binlen_type = LEN_TYPE_COUNT;*/
-	//args->random = false;
-	//args->transactions_limit = 0;
-	//args->init = false;
-	//args->init_pct = 100;
-	//args->read_pct = 50;
-	//args->del_bin = false;
 	args->transaction_worker_threads = 16;
-	//args->throughput = 0;
 	args->batch_size = 0;
 	args->enable_compression = false;
 	args->compression_ratio = 1.f;
@@ -81,23 +68,13 @@ setup(void)
 	data->namespace = args->namespace;
 	data->set = args->set;
 	data->transaction_worker_threads = args->transaction_worker_threads;
-	//data->throughput = args->throughput;
 	data->batch_size = args->batch_size;
-	//data->read_pct = args->read_pct;
-	//data->del_bin = args->del_bin;
 	data->compression_ratio = args->compression_ratio;
-	/*data->bintype = args->bintype;
-	data->binlen = args->binlen;
-	data->binlen_type = args->binlen_type;
-	data->numbins = args->numbins;*/
-	//data->random = args->random;
-	//data->transactions_limit = args->transactions_limit;
 	data->transactions_count = 0;
 	data->latency = args->latency;
 	data->debug = args->debug;
 	data->async = args->async;
 	data->async_max_commands = args->async_max_commands;
-	data->fixed_value = NULL;
 }
 
 /**

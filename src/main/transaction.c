@@ -339,7 +339,6 @@ _gen_record(as_record* rec, as_random* random, const clientdata* cdata,
 
 		for (uint32_t i = 0; i < n_objs; i++) {
 			as_val* val = as_list_get(list, i);
-			// TODO this will be highly contentious, put this in tdata
 			as_val_reserve(val);
 
 			as_bin* bin = &rec->bins.entries[i];
@@ -423,8 +422,6 @@ static void linear_writes(struct threaddata* tdata,
 
 		key_val++;
 	}
-	printf("thread %d wrote keys (%lu - %lu)\n", t_idx,
-			start_key, end_key - 1);
 
 	// once we've written everything, there's nothing left to do, so tell
 	// coord we're done and exit

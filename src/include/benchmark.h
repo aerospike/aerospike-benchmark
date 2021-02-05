@@ -53,10 +53,6 @@ typedef struct arguments_t {
 	const char* bin_name;
 	uint64_t start_key;
 	uint64_t keys;
-	/*char bintype;
-	  int binlen;
-	  int numbins;
-	  len_type binlen_type;*/
 	struct stages stages;
 	char* workload_stages_file;
 
@@ -65,16 +61,11 @@ typedef struct arguments_t {
 	struct obj_spec obj_spec;
 
 	bool random;
-	/*bool init;
-	  int init_pct;
-	  int read_pct;
-	  bool del_bin;*/
-
-	//uint64_t transactions_limit;
 	int transaction_worker_threads;
 	int batch_size;
 	bool enable_compression;
 	float compression_ratio;
+
 	int read_socket_timeout;
 	int write_socket_timeout;
 	int read_total_timeout;

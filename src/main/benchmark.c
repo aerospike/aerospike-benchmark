@@ -190,7 +190,7 @@ bool
 is_stop_writes(aerospike* client, const char* namespace)
 {
 	char filter[256];
-	sprintf(filter, "namespace/%s", namespace);
+	snprintf(filter, sizeof(filter), "namespace/%s", namespace);
 	
 	char* res = 0;
 	as_error err;
@@ -372,14 +372,9 @@ run_benchmark(arguments* args)
 	data.transaction_worker_threads = args->transaction_worker_threads;
 	data.batch_size = args->batch_size;
 	data.compression_ratio = args->compression_ratio;
-	/*data.bintype = args->bintype;
-	data.binlen = args->binlen;
-	data.binlen_type = args->binlen_type;
-	data.numbins = args->numbins;*/
 	stages_move(&data.stages, &args->stages);
 	obj_spec_move(&data.obj_spec, &args->obj_spec);
 	data.random = args->random;
-	//data.transactions_limit = args->transactions_limit;
 	data.transactions_count = 0;
 	data.latency = args->latency;
 	data.debug = args->debug;
@@ -421,9 +416,6 @@ run_benchmark(arguments* args)
 	if (ret == 0) {
 		ret = initialize_histograms(&data, args, &start_time, &start_timespec);
 	}
-
-	//data.key_start = args->start_key;
-	//data.key_count = 0;
 
 	if (ret == 0) {
 		ret = _run(&data);
