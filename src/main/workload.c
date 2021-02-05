@@ -226,6 +226,8 @@ int stages_set_defaults_and_parse(struct stages* stages,
 	// with the first stage inheriting from the global obj_spec
 	const struct obj_spec* prev_obj_spec = &args->obj_spec;
 
+	int ret = 0;
+
 	for (uint32_t i = 0; i < n_stages; i++) {
 		struct stage* stage = &stages->stages[i];
 
@@ -252,19 +254,19 @@ int stages_set_defaults_and_parse(struct stages* stages,
 			fprintf(stderr,
 					"key_start (%lu) must be less than key_end (%lu)\n",
 					stage->key_start, stage->key_end);
-			return -1;
+			ret = -1;
 		}
 
 		if (stage->stage_idx != i + 1) {
 			fprintf(stderr,
 					"Stage %d is marked with index %d\n",
 					i + 1, stage->stage_idx);
-			//return -1;
+			ret = -1;
 		}
 
 		char* workload_str = stage->workload_str;
 		if (parse_workload_type(&stage->workload, workload_str) != 0) {
-			return -1;
+			ret = -1;
 		}
 		cf_free(workload_str);
 
@@ -285,10 +287,16 @@ int stages_set_defaults_and_parse(struct stages* stages,
 		else {
 			// parse the given obj_spec string
 			char* obj_spec_str = stage->obj_spec_str;
-			obj_spec_parse(&stage->obj_spec, obj_spec_str);
+			ret = obj_spec_parse(&stage->obj_spec, obj_spec_str);
 
 			cf_free(obj_spec_str);
-			prev_obj_spec = &stage->obj_spec;
+			if (ret == 0) {
+				prev_obj_spec = &stage->obj_spec;
+			}
+			else {
+				// mark the obj_spec as invalid so it isn't freed
+				stage->obj_spec.valid = false;
+			}
 		}
 
 		// since bins_str will be overwritten when the read_bins field of stage
@@ -299,18 +307,18 @@ int stages_set_defaults_and_parse(struct stages* stages,
 			fprintf(stderr, "Stage %d: cannot specify read-bins on workload "
 					"without reads\n",
 					i + 1);
-			return -1;
+			stage->read_bins_str = NULL;
+			ret = -1;
 		}
-		// FIXME ambiguous when bins_str is bins_str vs list of initialized bins
-		if (parse_bins_selection(stage, bins_str, args->bin_name) != 0) {
-			// don't free bins_str here since stage->read_bins won't be touched
-			// if the method fails
-			return -1;
+		else if (parse_bins_selection(stage, bins_str, args->bin_name) != 0) {
+			cf_free(bins_str);
+			stage->read_bins_str = NULL;
+			ret = -1;
 		}
 		cf_free(bins_str);
 	}
 
-	return 0;
+	return ret;
 }
 
 
@@ -328,7 +336,11 @@ int parse_workload_config_file(const char* file, struct stages* stages,
 	}
 	stages->valid = true;
 
-	return stages_set_defaults_and_parse(stages, args);
+	int ret = stages_set_defaults_and_parse(stages, args);
+	if (ret != 0) {
+		free_workload_config(stages);
+	}
+	return ret;
 }
 
 void free_workload_config(struct stages* stages)

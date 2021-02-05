@@ -53,6 +53,7 @@ typedef struct arguments_t {
 	const char* bin_name;
 	uint64_t start_key;
 	uint64_t keys;
+
 	struct stages stages;
 	char* workload_stages_file;
 
