@@ -171,6 +171,26 @@ static void _finish_req_duration(struct thr_coordinator* coord)
 	pthread_mutex_unlock(&coord->c_lock);
 }
 
+/*
+ * clear the transaction history in case some stragglers in RU workloads did
+ * an extra transaction after the latency_output thread had already printed its
+ * last status report
+ *
+ * note: this is not thread safe, only call this when all other threads are
+ * halted
+ */
+static void clear_cdata_counts(clientdata* cdata)
+{
+	cdata->write_count = 0;
+	cdata->write_timeout_count = 0;
+	cdata->write_error_count = 0;
+	cdata->read_count = 0;
+	cdata->read_timeout_count = 0;
+	cdata->read_error_count = 0;
+
+	as_fence_memory();
+}
+
 
 void* coordinator_worker(void* udata)
 {
@@ -201,6 +221,8 @@ void* coordinator_worker(void* udata)
 		// halt threads, increment stage indices, then continue
 		_halt_threads(coord, tdatas, n_threads);
 		stage_idx++;
+
+		clear_cdata_counts(cdata);
 
 		if (stage_idx == n_stages) {
 			// all done, terminate threads and exit

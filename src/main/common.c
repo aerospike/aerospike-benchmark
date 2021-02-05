@@ -81,13 +81,18 @@ blog_line(const char* fmt, ...)
 void
 blog_detailv(as_log_level level, const char* fmt, va_list ap)
 {
-	// Write message all at once so messages generated from multiple threads have less of a chance
-	// of getting garbled.
+	// Write message all at once so messages generated from multiple threads
+	// have less of a chance of getting garbled.
 	char fmtbuf[1024];
-	time_t now = time(NULL);
-	struct tm* t = localtime(&now);
-	int len = sprintf(fmtbuf, "%d-%02d-%02d %02d:%02d:%02d %s ",
-		t->tm_year+1900, t->tm_mon+1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec, as_log_level_tostring(level));
+	struct timespec now;
+	clock_gettime(CLOCK_REALTIME, &now);
+
+	struct tm* t = localtime(&now.tv_sec);
+	uint64_t msecs = now.tv_nsec / 1000000;
+	int len = sprintf(fmtbuf, "%d-%02d-%02d %02d:%02d:%02d.%03lu %s ",
+		t->tm_year+1900, t->tm_mon+1, t->tm_mday, t->tm_hour, t->tm_min,
+		t->tm_sec, msecs, as_log_level_tostring(level));
+
 	size_t len2 = strlen(fmt);
 	char* p = fmtbuf + len;
 	memcpy(p, fmt, len2);
