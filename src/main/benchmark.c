@@ -385,7 +385,6 @@ run_benchmark(arguments* args)
 	data.debug = args->debug;
 	data.async = args->async;
 	data.async_max_commands = args->async_max_commands;
-	data.fixed_value = NULL;
 
 	time_t start_time;
 	hdr_timespec start_timespec;
@@ -419,11 +418,6 @@ run_benchmark(arguments* args)
 		data.bin_name = args->bin_name;
 	}
 
-	if (!args->random) {
-		data.fixed_value = obj_spec_gen_value(&args->obj_spec,
-				as_random_instance());
-	}
-
 	if (ret == 0) {
 		ret = initialize_histograms(&data, args, &start_time, &start_timespec);
 	}
@@ -443,9 +437,6 @@ run_benchmark(arguments* args)
 		free_histograms(&data, args);
 	}
 
-	if (!args->random) {
-		as_val_destroy(data.fixed_value);
-	}
 	obj_spec_free(&data.obj_spec);
 	free_workload_config(&data.stages);
 

@@ -323,7 +323,7 @@ _gen_key(uint64_t key_val, as_key* key, const clientdata* cdata)
  */
 static void
 _gen_record(as_record* rec, as_random* random, const clientdata* cdata,
-		struct stage* stage)
+		struct threaddata* tdata, struct stage* stage)
 {
 	if (cdata->random) {
 		uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
@@ -333,7 +333,7 @@ _gen_record(as_record* rec, as_random* random, const clientdata* cdata,
 				cdata->bin_name);
 	}
 	else {
-		as_list* list = as_list_fromval(cdata->fixed_value);
+		as_list* list = as_list_fromval(tdata->fixed_value);
 		uint32_t n_objs = as_list_size(list);
 		as_record_init(rec, n_objs);
 
@@ -413,7 +413,7 @@ static void linear_writes(struct threaddata* tdata,
 
 		// create a record with given key
 		_gen_key(key_val, &key, cdata);
-		_gen_record(&rec, tdata->random, cdata, stage);
+		_gen_record(&rec, tdata->random, cdata, tdata, stage);
 
 		// write this record to the database
 		_write_record_sync(tdata, cdata, coord, &key, &rec);
@@ -488,7 +488,7 @@ static void random_read_write(struct threaddata* tdata,
 			_gen_key(key_val, &key, cdata);
 
 			// create a record
-			_gen_record(&rec, tdata->random, cdata, stage);
+			_gen_record(&rec, tdata->random, cdata, tdata, stage);
 
 			// write this record to the database
 			_write_record_sync(tdata, cdata, coord, &key, &rec);
@@ -653,7 +653,8 @@ static void _linear_writes_cb(struct async_data* adata, clientdata* cdata)
 		// destroy the previous key before generating a new one
 		as_key_destroy(&adata->key);
 		_gen_key(adata->next_key, &adata->key, cdata);
-		_gen_record(&rec, &adata->random, cdata, adata->stage);
+		_gen_record(&rec, &adata->random, cdata, adata->parent_tdata,
+				adata->stage);
 		adata->next_key++;
 		// since the next async call may be processed by a different thread
 		as_fence_memory();
@@ -718,7 +719,7 @@ static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
 		_gen_key(key_val, &adata->key, cdata);
 
 		// create a record
-		_gen_record(&rec, &adata->random, cdata, stage);
+		_gen_record(&rec, &adata->random, cdata, adata->parent_tdata, stage);
 
 		// write this record to the database
 		_write_record_async(&adata->key, &rec, adata, cdata);
@@ -895,12 +896,21 @@ static void init_stage(const clientdata* cdata, struct threaddata* tdata,
 		dyn_throttle_init(&tdata->dyn_throttle,
 				(1000000.f * n_threads) / stage->tps);
 	}
+
+	if (!cdata->random) {
+		tdata->fixed_value = obj_spec_gen_value(&stage->obj_spec,
+				tdata->random);
+	}
 }
 
 static void terminate_stage(const clientdata* cdata, struct threaddata* tdata,
 		struct stage* stage)
 {
 	dyn_throttle_free(&tdata->dyn_throttle);
+
+	if (!cdata->random) {
+		as_val_destroy(tdata->fixed_value);
+	}
 }
 
 void* transaction_worker(void* udata)

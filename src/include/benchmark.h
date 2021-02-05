@@ -113,7 +113,6 @@ typedef struct clientdata_t {
 	uint64_t period_begin;
 
 	aerospike client;
-	as_val *fixed_value;
 
 	// TODO make all these counts thread-local to reduce contention
 	uint32_t write_count;
@@ -196,6 +195,8 @@ struct threaddata {
 	// when true, all threads will stop doing work and close (note that do_work
 	// must also be set to false for this to work)
 	bool finished;
+
+	as_val* fixed_value;
 };
 
 int run_benchmark(arguments* args);
