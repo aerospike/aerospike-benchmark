@@ -44,7 +44,6 @@ static struct option long_options[] = {
 	{"set",                  required_argument, 0, 's'},
 	{"startKey",             required_argument, 0, 'K'},
 	{"keys",                 required_argument, 0, 'k'},
-	//{"bins",                 required_argument, 0, 'b'},
 	{"objectSpec",           required_argument, 0, 'o'},
 	{"random",               no_argument,       0, 'R'},
 	{"duration",             required_argument, 0, 't'},
@@ -101,11 +100,11 @@ print_usage(const char* program)
 	blog_line("Usage: %s <options>", program);
 	blog_line("options:");
 	blog_line("");
-	
+
 	blog_line("   --help");
 	blog_line("   Prints this message");
 	blog_line("");
-	
+
 	blog_line("-h --hosts <host1>[:<tlsname1>][:<port1>],...  # Default: localhost");
 	blog_line("   Server seed hostnames or IP addresses.");
 	blog_line("   The tlsname is only used when connecting with a secure TLS enabled server.");
@@ -115,11 +114,11 @@ print_usage(const char* program)
 	blog_line("   host1:3000,host2:3000");
 	blog_line("   192.168.1.10:cert1:3000,192.168.1.20:cert2:3000");
 	blog_line("");
-	
+
 	blog_line("-p --port <port> # Default: 3000");
 	blog_line("   Server default port.");
 	blog_line("");
-	
+
 	blog_line("-U --user <user name> # Default: empty");
 	blog_line("   User name for Aerospike servers that require authentication.");
 	blog_line("");
@@ -135,11 +134,11 @@ print_usage(const char* program)
 	blog_line("-n --namespace <ns>   # Default: test");
 	blog_line("   Aerospike namespace.");
 	blog_line("");
-	
+
 	blog_line("-s --set <set name>   # Default: testset");
 	blog_line("   Aerospike set name.");
 	blog_line("");
-	
+
 	blog_line("-K --startKey <start> # Default: 0");
 	blog_line("   Set the starting value of the working set of keys. If using an");
 	blog_line("   'insert' workload, the start_value indicates the first value to");
@@ -155,10 +154,6 @@ print_usage(const char* program)
 	blog_line("   startKey and startKey + num_keys.  startKey can be set using");
 	blog_line("   '-K' or '--startKey'.");
 	blog_line("");
-
-	/*blog_line("-b --bins <count>     # Default: 1");
-	blog_line("   Number of bins");
-	blog_line("");*/
 
 	blog_line("-o --objectSpec describes a comma-separated bin specification");
 	blog_line("   Scalar bins:");
@@ -198,7 +193,7 @@ print_usage(const char* program)
 	blog_line("-R --random          # Default: static fixed bin values");
 	blog_line("   Use dynamically generated random bin values instead of default static fixed bin values.");
 	blog_line("");
-	
+
 	blog_line("-t --duration        # Default: 10s (for random read/write workload)");
 	blog_line("    Specifies the minimum amount of time the benchmark will run for.");
 	blog_line("");
@@ -209,11 +204,11 @@ print_usage(const char* program)
 	blog_line("   -w RU,80 : Random read/update workload with 80%% reads and 20%% writes.");
 	blog_line("   -w DB    : Bin delete workload.");
 	blog_line("");
-	
+
 	blog_line("-z --threads <count> # Default: 16");
 	blog_line("   Load generating thread count.");
 	blog_line("");
-	
+
 	blog_line("-g --throughput <tps> # Default: 0");
 	blog_line("   Throttle transactions per second to a maximum value.");
 	blog_line("   If tps is zero, do not throttle throughput.");
@@ -238,11 +233,11 @@ print_usage(const char* program)
 	blog_line("   --socketTimeout <ms> # Default: 30000");
 	blog_line("   Read/Write socket timeout in milliseconds.");
 	blog_line("");
-	
+
 	blog_line("   --readSocketTimeout <ms> # Default: 30000");
 	blog_line("   Read socket timeout in milliseconds.");
 	blog_line("");
-	
+
 	blog_line("   --writeSocketTimeout <ms> # Default: 30000");
 	blog_line("   Write socket timeout in milliseconds.");
 	blog_line("");
@@ -250,23 +245,19 @@ print_usage(const char* program)
 	blog_line("-T --timeout <ms>    # Default: 0");
 	blog_line("   Read/Write total timeout in milliseconds.");
 	blog_line("");
-	
+
 	blog_line("   --readTimeout <ms> # Default: 0");
 	blog_line("   Read total timeout in milliseconds.");
 	blog_line("");
-	
+
 	blog_line("   --writeTimeout <ms> # Default: 0");
 	blog_line("   Write total timeout in milliseconds.");
 	blog_line("");
-	
+
 	blog_line("   --maxRetries <number> # Default: 1");
 	blog_line("   Maximum number of retries before aborting the current transaction.");
 	blog_line("");
-	
-    //blog_line("   --sleepBetweenRetries <count>");
-	//blog_line("   Milliseconds to sleep between retries if a transaction fails and the timeout was not exceeded.");
-	//blog_line("");
-	
+
 	blog_line("-d --debug           # Default: debug mode is false.");
 	blog_line("   Run benchmarks in debug mode.");
 	blog_line("");
@@ -298,7 +289,7 @@ print_usage(const char* program)
 	blog_line("   Enables the cumulative HDR histogram and specifies the directory to");
 	blog_line("   dump the cumulative HDR histogram summary.");
 	blog_line("");
-	
+
 	blog_line("-S --shared          # Default: false");
 	blog_line("   Use shared memory cluster tending.");
 	blog_line("");
@@ -332,7 +323,7 @@ print_usage(const char* program)
 	blog_line("-a --async # Default: synchronous mode");
 	blog_line("   Enable asynchronous mode.");
 	blog_line("");
-	
+
 	blog_line("-c --asyncMaxCommands <command count> # Default: 50");
 	blog_line("   Maximum number of concurrent asynchronous commands that are active at any point");
 	blog_line("   in time.");
@@ -420,65 +411,16 @@ print_args(arguments* args)
 	blog_line("set:                    %s", args->set);
 	blog_line("startKey:               %" PRIu64, args->start_key);
 	blog_line("keys/records:           %" PRIu64, args->keys);
-	//blog_line("bins:                   %d", args->numbins);
 
 	char buf[1024];
 	snprint_obj_spec(&args->obj_spec, buf, sizeof(buf));
 	blog_line("object spec:            %s", buf);
-	
-	/*static const char *units[3] = {"", "b", "k"};
-
-	switch (args->bintype) {
-		case 'I':
-			blog_line("int");
-			break;
-
-		case 'B':
-			blog_line("byte[%d]", args->binlen);
-			break;
-
-		case 'S':
-			blog_line("UTF8 string[%d]", args->binlen);
-			break;
-
-		case 'L':
-			blog_line("list[%d%s]", args->binlen, units[(int)args->binlen_type]);
-			break;
-
-		case 'M':
-			blog_line("map[%d%s]", args->binlen, units[(int)args->binlen_type]);
-			break;
-
-		default:
-			blog_line("");
-			break;
-	}*/
 
 	stages_print(&args->stages);
-	
+
 	blog_line("random values:          %s", boolstring(args->random));
 
-	/*
-	blog("workload:               ");
-
-	if (args->init) {
-		blog_line("initialize %d%% of records", args->init_pct);
-	} else if (args->del_bin) {
-		blog_line("delete %d bins in %d records",
-				obj_spec_n_bins(&args->obj_spec), args->keys);
-	} else if (args->read_pct) {
-		blog_line("read %d%% write %d%%", args->read_pct, 100 - args->read_pct);
-		blog_line("stop after:             %" PRIu64 " transactions", args->transactions_limit);
-	}*/
-	
 	blog_line("threads:                %d", args->transaction_worker_threads);
-	
-	/*if (args->throughput > 0) {
-		blog_line("max throughput:         %d tps", args->throughput);
-	}
-	else {
-		blog_line("max throughput:         unlimited", args->throughput);
-	}*/
 
 	blog_line("batch size:             %d", args->batch_size);
 	blog_line("enable compression:     %s", boolstring(args->enable_compression));
@@ -489,7 +431,7 @@ print_args(arguments* args)
 	blog_line("write total timeout:    %d ms", args->write_total_timeout);
 	blog_line("max retries:            %d", args->max_retries);
 	blog_line("debug:                  %s", boolstring(args->debug));
-	
+
 	if (args->latency) {
 		blog_line("latency:                %d columns, shift exponent %d",
 				args->latency_columns, args->latency_shift);
@@ -498,10 +440,12 @@ print_args(arguments* args)
 				"min-latency, max-latency, ");
 		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
 			if (i == 0) {
-				blog("%g%%", *(double*) as_vector_get(&args->latency_percentiles, i));
+				blog("%g%%",
+						*(double*) as_vector_get(&args->latency_percentiles, i));
 			}
 			else {
-				blog(",%g%%", *(double*) as_vector_get(&args->latency_percentiles, i));
+				blog(",%g%%",
+						*(double*) as_vector_get(&args->latency_percentiles, i));
 			}
 		}
 		blog_line("");
@@ -527,7 +471,7 @@ print_args(arguments* args)
 	else {
 		blog_line("cumulative HDR hist:    false");
 	}
-	
+
 	blog_line("shared memory:          %s", boolstring(args->use_shm));
 
 	const char* str;
@@ -547,7 +491,8 @@ print_args(arguments* args)
 	}
 
 	blog_line("read replica:           %s", str);
-	blog_line("read mode AP:           %s", (AS_POLICY_READ_MODE_AP_ONE == args->read_mode_ap ? "one" : "all"));
+	blog_line("read mode AP:           %s",
+			(AS_POLICY_READ_MODE_AP_ONE == args->read_mode_ap ? "one" : "all"));
 
 	switch (args->read_mode_sc) {
 		case AS_POLICY_READ_MODE_SC_SESSION:
@@ -568,7 +513,9 @@ print_args(arguments* args)
 	}
 
 	blog_line("read mode SC:           %s", str);
-	blog_line("write commit level:     %s", (AS_POLICY_COMMIT_LEVEL_ALL == args->write_commit_level ? "all" : "master"));
+	blog_line("write commit level:     %s",
+			(AS_POLICY_COMMIT_LEVEL_ALL == args->write_commit_level ?
+			 "all" : "master"));
 	blog_line("conn pools per node:    %d", args->conn_pools_per_node);
 	blog_line("asynchronous mode:      %s", args->async ? "on" : "off");
 
@@ -622,50 +569,17 @@ validate_args(arguments* args)
 		blog_line("Invalid number of keys: %" PRIu64, args->keys);
 		return 1;
 	}
-	
-	/*if (args->numbins <= 0) {
-		blog_line("Invalid number of bins: %d  Valid values: [> 0]", args->keys);
-		return 1;
-	}
-	
-	switch (args->bintype) {
-		case 'I':
-			break;
-			
-		case 'L':
-		case 'M':
-		case 'B':
-		case 'S':
-			if (args->binlen <= 0 || args->binlen > 1000000) {
-				blog_line("Invalid bin length: %d  Valid values: [1-1000000]", args->binlen);
-				return 1;
-			}
-			break;
-			
-		default:
-			blog_line("Invalid bin type: %c  Valid values: I|B:<size>|S:<size>", args->bintype);
-			return 1;
-	}*/
-	
-	/*
-	if (args->init_pct < 0 || args->init_pct > 100) {
-		blog_line("Invalid initialize percent: %d  Valid values: [0-100]", args->init_pct);
-		return 1;
-	}
-	
-	if (args->read_pct < 0 || args->read_pct > 100) {
-		blog_line("Invalid read percent: %d  Valid values: [0-100]", args->read_pct);
-		return 1;
-	}*/
-	
-	if (args->transaction_worker_threads <= 0 || args->transaction_worker_threads > 10000) {
+
+	if (args->transaction_worker_threads <= 0 ||
+			args->transaction_worker_threads > 10000) {
 		blog_line("Invalid number of threads: %d  Valid values: [1-10000]",
 				args->transaction_worker_threads);
 		return 1;
 	}
 
 	if (!args->enable_compression && args->compression_ratio != 1.f) {
-		blog_line("Compression ratio specified without enabling compression, add the --compress option when running");
+		blog_line("Compression ratio specified without enabling compression, "
+				"add the --compress option when running");
 		return 1;
 	}
 
@@ -675,41 +589,47 @@ validate_args(arguments* args)
 	}
 
 	if (args->read_socket_timeout < 0) {
-		blog_line("Invalid read socket timeout: %d  Valid values: [>= 0]", args->read_socket_timeout);
+		blog_line("Invalid read socket timeout: %d  Valid values: [>= 0]",
+				args->read_socket_timeout);
 		return 1;
 	}
-	
+
 	if (args->write_socket_timeout < 0) {
-		blog_line("Invalid write socket timeout: %d  Valid values: [>= 0]", args->write_socket_timeout);
+		blog_line("Invalid write socket timeout: %d  Valid values: [>= 0]",
+				args->write_socket_timeout);
 		return 1;
 	}
 
 	if (args->read_total_timeout < 0) {
-		blog_line("Invalid read total timeout: %d  Valid values: [>= 0]", args->read_total_timeout);
+		blog_line("Invalid read total timeout: %d  Valid values: [>= 0]",
+				args->read_total_timeout);
 		return 1;
 	}
-	
+
 	if (args->write_total_timeout < 0) {
-		blog_line("Invalid write total timeout: %d  Valid values: [>= 0]", args->write_total_timeout);
+		blog_line("Invalid write total timeout: %d  Valid values: [>= 0]",
+				args->write_total_timeout);
 		return 1;
 	}
 
 	if (args->latency_columns < 0 || args->latency_columns > 16) {
-		blog_line("Invalid latency columns: %d  Valid values: [1-16]", args->latency_columns);
+		blog_line("Invalid latency columns: %d  Valid values: [1-16]",
+				args->latency_columns);
 		return 1;
 	}
 
 	if (args->latency_shift < 0 || args->latency_shift > 5) {
-		blog_line("Invalid latency shift: %d  Valid values: [1-5]", args->latency_shift);
+		blog_line("Invalid latency shift: %d  Valid values: [1-5]",
+				args->latency_shift);
 		return 1;
 	}
 
 	if (args->latency) {
 		as_vector * perc = &args->latency_percentiles;
 		if (perc->size == 0) {
-			// silently fail, this can only happen if the user typed in something
-			// invalid as the argument to --percentiles, which would have already
-			// printed an error message
+			// silently fail, this can only happen if the user typed in
+			// something invalid as the argument to --percentiles, which would
+			// have already printed an error message
 			return 1;
 		}
 		for (uint32_t i = 0; i < perc->size; i++) {
@@ -733,20 +653,23 @@ validate_args(arguments* args)
 		blog_line("Invalid histogram period: %ds", args->histogram_period);
 		return 1;
 	}
-	
+
 	if (args->conn_pools_per_node <= 0 || args->conn_pools_per_node > 1000) {
-		blog_line("Invalid connPoolsPerNode: %d  Valid values: [1-1000]", args->conn_pools_per_node);
+		blog_line("Invalid connPoolsPerNode: %d  Valid values: [1-1000]",
+				args->conn_pools_per_node);
 		return 1;
 	}
 
 	if (args->async) {
 		if (args->async_max_commands <= 0 || args->async_max_commands > 5000) {
-			blog_line("Invalid asyncMaxCommands: %d  Valid values: [1-5000]", args->async_max_commands);
+			blog_line("Invalid asyncMaxCommands: %d  Valid values: [1-5000]",
+					args->async_max_commands);
 			return 1;
 		}
-		
+
 		if (args->event_loop_capacity <= 0 || args->event_loop_capacity > 1000) {
-			blog_line("Invalid eventLoops: %d  Valid values: [1-1000]", args->event_loop_capacity);
+			blog_line("Invalid eventLoops: %d  Valid values: [1-1000]",
+					args->event_loop_capacity);
 			return 1;
 		}
 	}
@@ -773,7 +696,8 @@ set_args(int argc, char * const * argv, arguments* args)
 	int option_index = 0;
 	int c;
 
-	while ((c = getopt_long(argc, argv, short_options, long_options, &option_index)) != -1) {
+	while ((c = getopt_long(argc, argv, short_options, long_options,
+					&option_index)) != -1) {
 		switch (c) {
 			case '9':
 				print_usage(argv[0]);
@@ -783,15 +707,15 @@ set_args(int argc, char * const * argv, arguments* args)
 				args->hosts = strdup(optarg);
 				break;
 			}
-				
+
 			case 'p':
 				args->port = atoi(optarg);
 				break;
-				
+
 			case 'U':
 				args->user = optarg;
 				break;
-			
+
 			case 'P':
 				as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
 				break;
@@ -799,11 +723,11 @@ set_args(int argc, char * const * argv, arguments* args)
 			case 'n':
 				args->namespace = optarg;
 				break;
-				
+
 			case 's':
 				args->set = optarg;
 				break;
-				
+
 			case 'K':
 				args->start_key = strtoull(optarg, NULL, 10);
 				break;
@@ -811,11 +735,7 @@ set_args(int argc, char * const * argv, arguments* args)
 			case 'k':
 				args->keys = strtoull(optarg, NULL, 10);
 				break;
-				
-			/*case 'b':
-				args->numbins = atoi(optarg);
-				break;*/
-				
+
 			case 'o': {
 				// free the default obj_spec before making a new one
 				obj_spec_free(&args->obj_spec);
@@ -825,21 +745,27 @@ set_args(int argc, char * const * argv, arguments* args)
 				}
 				break;
 			}
-				
+
 			case 'R':
 				args->random = true;
 				break;
 
-			case 't':
+			case 't': {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the duration flag");
 					return -1;
 				}
 				struct stage* stage = get_or_init_stage(args);
-				// FIXME add error checking
-				stage->duration = strtoull(optarg, NULL, 10);
+				char* endptr;
+				stage->duration = strtoull(optarg, &endptr, 10);
+				if (*optarg == '\0' || *endptr != '\0') {
+					blog_line("string \"%s\" is not a decimal point number",
+							optarg);
+					return -1;
+				}
 				break;
+			}
 
 			case 'w': {
 				if (args->workload_stages_file != NULL) {
@@ -865,7 +791,7 @@ set_args(int argc, char * const * argv, arguments* args)
 			case 'z':
 				args->transaction_worker_threads = atoi(optarg);
 				break;
-				
+
 			case 'g': {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
@@ -906,11 +832,11 @@ set_args(int argc, char * const * argv, arguments* args)
 				args->read_total_timeout = atoi(optarg);
 				args->write_total_timeout = args->read_total_timeout;
 				break;
-				
+
 			case 'X':
 				args->read_total_timeout = atoi(optarg);
 				break;
-				
+
 			case 'V':
 				args->write_total_timeout = atoi(optarg);
 				break;
@@ -922,7 +848,7 @@ set_args(int argc, char * const * argv, arguments* args)
 			case 'd':
 				args->debug = true;
 				break;
-				
+
 			case 'L': {
 				args->latency = true;
 				char* tmp = strdup(optarg);
@@ -969,23 +895,23 @@ set_args(int argc, char * const * argv, arguments* args)
 				free(_tmp);
 				break;
 			}
-				
+
 			case '6': {
 				args->latency_histogram = true;
 				args->histogram_output = strdup(optarg);
 				break;
 			}
-				
+
 			case '7': {
 				args->histogram_period = atoi(optarg);
 				break;
 			}
-				
+
 			case '/': {
 				args->hdr_output = strdup(optarg);
 				break;
 			}
-				
+
 			case 'S':
 				args->use_shm = true;
 				break;
@@ -1033,7 +959,8 @@ set_args(int argc, char * const * argv, arguments* args)
 					args->read_mode_sc = AS_POLICY_READ_MODE_SC_ALLOW_UNAVAILABLE;
 				}
 				else {
-					blog_line("readModeSC must be session | linearize | allowReplica | allowUnavailable");
+					blog_line("readModeSC must be session | linearize | "
+							"allowReplica | allowUnavailable");
 					return 1;
 				}
 				break;
@@ -1146,19 +1073,10 @@ _load_defaults(arguments* args)
 	args->bin_name = "testbin";
 	args->start_key = 1;
 	args->keys = 1000000;
-	/*args->numbins = 1;
-	args->bintype = 'I';
-	args->binlen = 50;
-	args->binlen_type = LEN_TYPE_COUNT;*/
 	__builtin_memset(&args->stages, 0, sizeof(struct stages));
 	args->workload_stages_file = NULL;
 	obj_spec_parse(&args->obj_spec, "I");
 	args->random = false;
-	/*args->transactions_limit = 0;
-	args->init = false;
-	args->init_pct = 100;
-	args->read_pct = 50;
-	args->del_bin = false;*/
 	args->transaction_worker_threads = 16;
 	args->batch_size = 0;
 	args->enable_compression = false;
