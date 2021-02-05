@@ -31,7 +31,7 @@ uint64_t dyn_throttle_pause_for(dyn_throttle_t* dt, uint64_t rec)
 	// the second case
 	if (__builtin_expect(n_records < DYN_THROTTLE_N, 0)) {
 		if (n_records == 0) {
-			pause_for = 0;
+			pause_for = (uint64_t) nearbyintf(dt->target_period);
 		}
 		else {
 			float alpha = 1.f / n_records;

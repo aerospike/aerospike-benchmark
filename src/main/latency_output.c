@@ -261,9 +261,13 @@ void* periodic_output_worker(void* udata)
 	histogram* read_histogram = &data->read_histogram;
 	FILE* histogram_output = data->histogram_output;
 
-	uint64_t start_time = cf_getus();
+	struct timespec wake_up;
+	clock_gettime(COORD_CLOCK, &wake_up);
+
+	uint64_t start_time = timespec_to_us(&wake_up);
+	uint64_t time = start_time;
 	uint64_t prev_time = start_time;
-	data->period_begin = prev_time;
+	uint64_t pause_us;
 
 	// first indicate that this thread has no required work to do
 	thr_coordinator_complete(coord);
@@ -280,55 +284,18 @@ void* periodic_output_worker(void* udata)
 	// out the last bit of latency data before moving onto the next stage, so
 	// we always check the status at the beginning of the loop and update it
 	// right after that
+	int status;
 
-	// to make sure we don't immmediately try blocking until the stage is
-	// updated by the coordinator, status should be initialized to
-	// COORD_SLEEP_TIMEOUT, which indicates there are still unfinished threads
-	int status = COORD_SLEEP_TIMEOUT;
+	goto do_sleep;
 
 	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
-		struct timespec wake_up;
-		uint64_t time;
 
-		if (status == COORD_SLEEP_INTERRUPTED) {
-			thr_coordinator_wait(coord);
-
-			// check to make sure we're not finished before resetting everything
-			if (!as_load_uint8((uint8_t*) &tdata->finished)) {
-				// first indicate that this thread has no required work to do
-				thr_coordinator_complete(coord);
-				// so the logger doesn't immediately go back to waiting again
-				status = COORD_SLEEP_TIMEOUT;
-
-				// and lastly set the throttler to think it was called one
-				// second ago (since we don't want the time spent at the
-				// synchronization barrier to mess with it)
-				clock_gettime(COORD_CLOCK, &wake_up);
-				time = timespec_to_us(&wake_up);
-				dyn_throttle_reset_time(&tdata->dyn_throttle, time);
-			}
-			else {
-				// no need to check again
-				break;
-			}
-			if (as_load_uint8((uint8_t*) &tdata->finished)) {
-				break;
-			}
-		}
-		else {
-			clock_gettime(COORD_CLOCK, &wake_up);
-			time = timespec_to_us(&wake_up);
-		}
-
-		// sleep for 1 second
-		uint64_t pause_us = dyn_throttle_pause_for(&tdata->dyn_throttle, time);
-		timespec_add_us(&wake_up, pause_us);
-		printf("pausing for %f\n", pause_us / 1000000.f);
-		status = thr_coordinator_sleep(coord, &wake_up);
+		clock_gettime(COORD_CLOCK, &wake_up);
+		time = timespec_to_us(&wake_up);
 
 		int64_t elapsed = time - prev_time;
 		prev_time = time;
-		
+
 		uint32_t write_current = as_fas_uint32(&data->write_count, 0);
 		uint32_t write_timeout_current = as_fas_uint32(&data->write_timeout_count, 0);
 		uint32_t write_error_current = as_fas_uint32(&data->write_error_count, 0);
@@ -338,7 +305,7 @@ void* periodic_output_worker(void* udata)
 		//uint64_t transactions_current = as_load_uint64(&data->transactions_count);
 
 		data->period_begin = time;
-	
+
 		uint32_t write_tps = (uint32_t)((double)write_current * 1000000 / elapsed + 0.5);
 		uint32_t read_tps = (uint32_t)((double)read_current * 1000000 / elapsed + 0.5);
 
@@ -363,14 +330,43 @@ void* periodic_output_worker(void* udata)
 			print_hdr_percentiles(data->read_hdr,  "read",  elapsed_s,
 					&data->latency_percentiles, stdout);
 		}
-		
+
 		++gen_count;
-		
+
 		if ((histogram_output != NULL) && ((gen_count % data->histogram_period) == 0)) {
 			histogram_print_clear(write_histogram, data->histogram_period, histogram_output);
 			histogram_print_clear(read_histogram, data->histogram_period, histogram_output);
 			fflush(histogram_output);
 		}
+
+		if (status == COORD_SLEEP_INTERRUPTED) {
+			thr_coordinator_wait(coord);
+
+			// check to make sure we're not finished before resetting everything
+			if (!as_load_uint8((uint8_t*) &tdata->finished)) {
+				// first indicate that this thread has no required work to do
+				thr_coordinator_complete(coord);
+				// so the logger doesn't immediately go back to waiting again
+				status = COORD_SLEEP_TIMEOUT;
+
+				// and lastly set the throttler to think it was called one
+				// second ago (since we don't want the time spent at the
+				// synchronization barrier to mess with it)
+				clock_gettime(COORD_CLOCK, &wake_up);
+				time = timespec_to_us(&wake_up);
+				dyn_throttle_reset_time(&tdata->dyn_throttle, time);
+			}
+			else {
+				// no need to check again
+				break;
+			}
+		}
+
+do_sleep:
+		// sleep for 1 second
+		pause_us = dyn_throttle_pause_for(&tdata->dyn_throttle, time);
+		timespec_add_us(&wake_up, pause_us);
+		status = thr_coordinator_sleep(coord, &wake_up);
 	}
 	return 0;
 }
