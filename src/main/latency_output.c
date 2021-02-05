@@ -287,6 +287,9 @@ void* periodic_output_worker(void* udata)
 	int status = COORD_SLEEP_TIMEOUT;
 
 	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
+		struct timespec wake_up;
+		uint64_t time;
+
 		if (status == COORD_SLEEP_INTERRUPTED) {
 			thr_coordinator_wait(coord);
 
@@ -297,27 +300,32 @@ void* periodic_output_worker(void* udata)
 				// so the logger doesn't immediately go back to waiting again
 				status = COORD_SLEEP_TIMEOUT;
 
-				// and lastly reset the throttler (since we don't want the time
-				// spent at the synchronization barrier to mess with it)
-				dyn_throttle_reset(&tdata->dyn_throttle);
+				// and lastly set the throttler to think it was called one
+				// second ago (since we don't want the time spent at the
+				// synchronization barrier to mess with it)
+				clock_gettime(COORD_CLOCK, &wake_up);
+				time = timespec_to_us(&wake_up);
+				dyn_throttle_reset_time(&tdata->dyn_throttle, time);
 			}
 			else {
 				// no need to check again
 				break;
 			}
-			continue;
+			if (as_load_uint8((uint8_t*) &tdata->finished)) {
+				break;
+			}
+		}
+		else {
+			clock_gettime(COORD_CLOCK, &wake_up);
+			time = timespec_to_us(&wake_up);
 		}
 
-		struct timespec wake_up;
-		clock_gettime(COORD_CLOCK, &wake_up);
-		// sleep for 1 secondi
-		uint64_t pause_us = dyn_throttle_pause_for(&tdata->dyn_throttle,
-				timespec_to_us(&wake_up));
+		// sleep for 1 second
+		uint64_t pause_us = dyn_throttle_pause_for(&tdata->dyn_throttle, time);
 		timespec_add_us(&wake_up, pause_us);
+		printf("pausing for %f\n", pause_us / 1000000.f);
 		status = thr_coordinator_sleep(coord, &wake_up);
 
-		// TODO use wake_up instead?
-		uint64_t time = cf_getus();
 		int64_t elapsed = time - prev_time;
 		prev_time = time;
 		

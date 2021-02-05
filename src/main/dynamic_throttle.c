@@ -15,10 +15,10 @@ int dyn_throttle_init(dyn_throttle_t* thr, float target_period)
 	return 0;
 }
 
-void dyn_throttle_reset(dyn_throttle_t* thr)
+void dyn_throttle_reset_time(dyn_throttle_t* thr, uint64_t new_rec)
 {
-	thr->avg_fn_delay = 0;
-	thr->n_records = 0;
+	thr->last_rec = new_rec - ((int64_t) nearbyintf(thr->avg_fn_delay));
+	thr->n_records = ramp(thr->n_records - 1);
 }
 
 uint64_t dyn_throttle_pause_for(dyn_throttle_t* dt, uint64_t rec)

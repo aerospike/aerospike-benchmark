@@ -34,7 +34,7 @@ typedef struct dyn_throttle {
 	// the number of records that have been recorded
 	uint64_t n_records;
 
-	// the last record that was recorded
+	// the last record that was recorded + the sleep time returned
 	uint64_t last_rec;
 
 	// the target period (i.e. average units of time between records)
@@ -52,9 +52,10 @@ int dyn_throttle_init(dyn_throttle_t*, float target_period);
 #define dyn_throttle_free(thr)
 
 /*
- * resets the throttler to its initial state
+ * sets the throttler last_rec such that the next call to dyn_throttle_pause_for
+ * with parameter "next_rec" won't affect the learned avg_fn_delay
  */
-void dyn_throttle_reset(dyn_throttle_t*);
+void dyn_throttle_reset_time(dyn_throttle_t*, uint64_t next_rec);
 
 /*
  * records the time "rec" in the time history table and returns the amount of
