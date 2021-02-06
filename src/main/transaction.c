@@ -640,6 +640,8 @@ static void linear_writes_async(struct threaddata* tdata, clientdata* cdata,
 
 		_write_record_async(&adata->key, &rec, adata, cdata);
 
+		as_record_destroy(&rec);
+
 		uint64_t pause_for =
 			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
 		timespec_add_us(&wake_time, pause_for);
@@ -712,29 +714,142 @@ static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
 		as_record_destroy(&rec);
 	}
 }
-
-
-static void _linear_deletes_cb(struct async_data* adata, clientdata* cdata)
+*/
+static void rand_read_write_async(struct threaddata* tdata, clientdata* cdata,
+	   struct thr_coordinator* coord, struct stage* stage, queue_t* adata_q)
 {
-	as_record rec;
+	struct async_data* adata;
 
-	if (adata->next_key != adata->end_key) {
-		// destroy the previous key before generating a new one
-		as_key_destroy(&adata->key);
-		_gen_key(adata->next_key, &adata->key, cdata);
+	struct timespec wake_time;
+	uint64_t start_time;
+	uint32_t batch_size = cdata->batch_size;
+
+	// multiply pct by 2**24 before dividing by 100 and casting to an int,
+	// since floats have 24 bits of precision including the leading 1,
+	// so that read_pct is pct% between 0 and 2**24
+	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.pct) / 100);
+
+	// since this workload has no target number of transactions to be made, we
+	// are always ready to be reaped, and so we notify the coordinator that we
+	// are finished with our required tasks and can be stopped whenever
+	thr_coordinator_complete(coord);
+
+	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+
+		while (1) {
+			adata = queue_pop(adata_q);
+			if (adata == NULL) {
+				pthread_yield();
+				continue;
+			}
+			break;
+		}
+
+		clock_gettime(COORD_CLOCK, &wake_time);
+		start_time = timespec_to_us(&wake_time);
+		adata->start_time = start_time;
+
+		// roll the die
+		uint32_t die = as_random_next_uint32(tdata->random);
+		// floats have 24 bits of precision (including implicit leading 1)
+		die &= 0x00ffffff;
+
+		if (die < read_pct) {
+			adata->op = read;
+			if (batch_size <= 1) {
+				// generate a random key
+				uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+
+				_gen_key(key_val, &adata->key, cdata);
+				_read_record_async(&adata->key, adata, cdata, stage);
+			}
+			else {
+				// generate a batch of random keys
+				as_batch_read_records* keys = as_batch_read_create(batch_size);
+				for (uint32_t i = 0; i < batch_size; i++) {
+					uint64_t key_val =
+						stage_gen_random_key(stage, tdata->random);
+					as_batch_read_record* key = as_batch_read_reserve(keys);
+					_gen_key(key_val, &key->key, cdata);
+					key->read_all_bins = true;
+				}
+
+				_batch_read_record_async(keys, adata, cdata);
+			}
+		}
+		else {
+			as_record rec;
+			// generate a random key
+			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+
+			_gen_key(key_val, &adata->key, cdata);
+			_gen_record(&rec, tdata->random, cdata, tdata, stage);
+			adata->op = write;
+
+			_write_record_async(&adata->key, &rec, adata, cdata);
+
+			as_record_destroy(&rec);
+		}
+
+		uint64_t pause_for =
+			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
+		timespec_add_us(&wake_time, pause_for);
+		thr_coordinator_sleep(coord, &wake_time);
+	}
+
+	// once we've written everything, there's nothing left to do, so tell
+	// coord we're done and exit
+	thr_coordinator_complete(coord);
+}
+
+static void linear_deletes_async(struct threaddata* tdata, clientdata* cdata,
+	   struct thr_coordinator* coord, struct stage* stage, queue_t* adata_q)
+{
+	uint64_t key_val, end_key;
+	struct async_data* adata;
+
+	struct timespec wake_time;
+	uint64_t start_time;
+
+	key_val = stage->key_start;
+	end_key = stage->key_end;
+	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
+			key_val < end_key) {
+
+		while (1) {
+			adata = queue_pop(adata_q);
+			if (adata == NULL) {
+				pthread_yield();
+				continue;
+			}
+			break;
+		}
+
+		clock_gettime(COORD_CLOCK, &wake_time);
+		start_time = timespec_to_us(&wake_time);
+		adata->start_time = start_time;
+
+		as_record rec;
+		_gen_key(key_val, &adata->key, cdata);
 		_gen_nil_record(&rec, cdata);
-		adata->next_key++;
-		// since the next async call may be processed by a different thread
-		as_fence_memory();
+		adata->op = delete;
 
 		_write_record_async(&adata->key, &rec, adata, cdata);
+
 		as_record_destroy(&rec);
+
+		uint64_t pause_for =
+			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
+		timespec_add_us(&wake_time, pause_for);
+		thr_coordinator_sleep(coord, &wake_time);
+
+		key_val++;
 	}
-	else {
-		_async_chain_terminate(adata->parent_tdata);
-	}
+
+	// once we've written everything, there's nothing left to do, so tell
+	// coord we're done and exit
+	thr_coordinator_complete(coord);
 }
-*/
 
 /******************************************************************************
  * Main worker thread loop
@@ -792,36 +907,21 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 			linear_writes_async(tdata, cdata, coord, stage, &adata_q);
 			break;
 		case WORKLOAD_TYPE_RANDOM:
-			// since this workload has no target number of transactions to
-			// be made, we are always ready to be reaped, and so we notify
-			// the coordinator that we are finished with our required tasks
-			// and can be stopped whenever
-			thr_coordinator_complete(coord);
+			rand_read_write_async(tdata, cdata, coord, stage, &adata_q);
 			break;
 		case WORKLOAD_TYPE_DELETE:
-			/*for (idx = start_idx; idx < end_idx; idx++) {
-				struct async_data* adata = &adatas[idx - start_idx];
-				adata->cdata = cdata;
-				as_random_init(&adata->random);
-				adata->parent_tdata = tdata;
-				adata->stage = stage;
-				as_key_init_int64(&adata->key, cdata->namespace, cdata->set, 0);
-				adata->op = delete;
-				adata->next_op_cb = _linear_deletes_cb;
-				_calculate_subrange(stage->key_start, stage->key_end, idx,
-						cdata->async_max_commands, &adata->next_key,
-						&adata->end_key);
-
-				_linear_deletes_cb(adata, cdata);
-			}
-
-			// wait until the chains complete their required workload before
-			// notifying the coordinator that we are ready to be reaped
-			if (n_adatas > 0) {
-				_wait_til_threads_reaped(tdata);
-			}
-			thr_coordinator_complete(coord);*/
+			linear_deletes_async(tdata, cdata, coord, stage, &adata_q);
 			break;
+	}
+
+	// wait for all the async calls to finish
+	for (uint32_t i = 0; i < n_adatas;) {
+		struct async_data* adata = queue_pop(&adata_q);
+		if (adata == NULL) {
+			pthread_yield();
+			continue;
+		}
+		i++;
 	}
 
 	// free the async_data structs
