@@ -655,66 +655,6 @@ static void linear_writes_async(struct threaddata* tdata, clientdata* cdata,
 	thr_coordinator_complete(coord);
 }
 
-/*
-static void _random_read_write_cb(struct async_data* adata, clientdata* cdata)
-{
-	as_record rec;
-	struct stage* stage = adata->stage;
-	uint32_t batch_size = cdata->batch_size;
-
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.pct) / 100);
-
-	// roll the die
-	uint32_t die = as_random_next_uint32(&adata->random);
-	// floats have 24 bits of precision (including implicit leading 1)
-	die &= 0x00ffffff;
-
-	if (die < read_pct) {
-		adata->op = read;
-		if (batch_size <= 1) {
-			// generate a random key
-			uint64_t key_val = stage_gen_random_key(stage, &adata->random);
-
-			// destroy the previous key before generating a new one
-			as_key_destroy(&adata->key);
-			_gen_key(key_val, &adata->key, cdata);
-			_read_record_async(&adata->key, adata, cdata, stage);
-		}
-		else {
-			// generate a batch of random keys
-			as_batch_read_records* keys = as_batch_read_create(batch_size);
-			for (uint32_t i = 0; i < batch_size; i++) {
-				uint64_t key_val = stage_gen_random_key(stage, &adata->random);
-				as_batch_read_record* key = as_batch_read_reserve(keys);
-				_gen_key(key_val, &key->key, cdata);
-				key->read_all_bins = true;
-			}
-
-			_batch_read_record_async(keys, adata, cdata);
-		}
-	}
-	else {
-		adata->op = write;
-		// generate a random key
-		uint64_t key_val = stage_gen_random_key(stage, &adata->random);
-
-		// destroy the previous key before generating a new one
-		as_key_destroy(&adata->key);
-		_gen_key(key_val, &adata->key, cdata);
-
-		// create a record
-		_gen_record(&rec, &adata->random, cdata, adata->parent_tdata, stage);
-
-		// write this record to the database
-		_write_record_async(&adata->key, &rec, adata, cdata);
-
-		as_record_destroy(&rec);
-	}
-}
-*/
 static void rand_read_write_async(struct threaddata* tdata, clientdata* cdata,
 	   struct thr_coordinator* coord, struct stage* stage, queue_t* adata_q)
 {
@@ -796,10 +736,6 @@ static void rand_read_write_async(struct threaddata* tdata, clientdata* cdata,
 		timespec_add_us(&wake_time, pause_for);
 		thr_coordinator_sleep(coord, &wake_time);
 	}
-
-	// once we've written everything, there's nothing left to do, so tell
-	// coord we're done and exit
-	thr_coordinator_complete(coord);
 }
 
 static void linear_deletes_async(struct threaddata* tdata, clientdata* cdata,
