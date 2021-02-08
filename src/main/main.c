@@ -898,7 +898,9 @@ set_args(int argc, char * const * argv, arguments* args)
 
 			case '6': {
 				args->latency_histogram = true;
-				args->histogram_output = strdup(optarg);
+				if (strcmp(optarg, "stdout") != 0) {
+					args->histogram_output = strdup(optarg);
+				}
 				break;
 			}
 

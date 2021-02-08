@@ -36,12 +36,17 @@ int initialize_histograms(clientdata* data, arguments* args,
 	}
 	
 	if (args->latency_histogram) {
-		data->histogram_output = fopen(args->histogram_output, "a");
-		if (!data->histogram_output) {
-			fprintf(stderr, "Unable to open %s in append mode\n",
-					args->histogram_output);
-			ret = -1;
-			// follow through with initialization, so cleanup won't segfault
+		if (args->histogram_output) {
+			data->histogram_output = fopen(args->histogram_output, "a");
+			if (!data->histogram_output) {
+				fprintf(stderr, "Unable to open %s in append mode\n",
+						args->histogram_output);
+				ret = -1;
+				// follow through with initialization, so cleanup won't segfault
+			}
+		}
+		else {
+			data->histogram_output = stdout;
 		}
 
 		histogram_init(&data->write_histogram, 3, 100, (rangespec_t[]) {
@@ -183,7 +188,9 @@ void free_histograms(clientdata* data, arguments* args)
 			histogram_free(&data->read_histogram);
 		}
 
-		fclose(data->histogram_output);
+		if (args->histogram_output) {
+			fclose(data->histogram_output);
+		}
 	}
 
 	if (args->hdr_output) {
