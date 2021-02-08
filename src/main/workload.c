@@ -39,6 +39,12 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			0, CYAML_UNLIMITED),
 	CYAML_FIELD_UINT("pause", CYAML_FLAG_OPTIONAL,
 			struct stage, pause),
+	CYAML_FIELD_UINT("batch-size", CYAML_FLAG_OPTIONAL,
+			struct stage, batch_size),
+	CYAML_FIELD_BOOL("async", CYAML_FLAG_OPTIONAL,
+			struct stage, async),
+	CYAML_FIELD_BOOL("random", CYAML_FLAG_OPTIONAL,
+			struct stage, random),
 	CYAML_FIELD_END
 };
 
@@ -257,6 +263,11 @@ int stages_set_defaults_and_parse(struct stages* stages,
 			ret = -1;
 		}
 
+		// batch_size = 0 probably means it wasn't set, so set it to 1
+		if (stage->batch_size == 0) {
+			stage->batch_size = 1;
+		}
+
 		if (stage->stage_idx != i + 1) {
 			fprintf(stderr,
 					"Stage %d is marked with index %d\n",
@@ -432,9 +443,13 @@ void stages_print(const struct stages* stages)
 				"  tps: %lu\n"
 				"  key-start: %lu\n"
 				"  key-end: %lu\n"
-				"  pause: %lu\n",
+				"  pause: %lu\n"
+				"  batch-size: %u\n"
+				"  async: %s\n"
+				"  random: %s\n",
 				stage->duration, stage->desc, stage->tps, stage->key_start,
-				stage->key_end, stage->pause);
+				stage->key_end, stage->pause, stage->batch_size,
+				boolstring(stage->async), boolstring(stage->random));
 
 		printf( "  workload: %s",
 				workloads[stage->workload.type]);

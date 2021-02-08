@@ -52,7 +52,7 @@ as_client_log_callback(as_log_level level, const char * func, const char * file,
 static int
 connect_to_server(arguments* args, aerospike* client)
 {
-	if (args->async) {
+	if (stages_contain_async(&args->stages)) {
 		as_monitor_init(&monitor);
 
 #if AS_EVENT_LIB_DEFINED
@@ -366,15 +366,12 @@ run_benchmark(arguments* args)
 	data.namespace = args->namespace;
 	data.set = args->set;
 	data.transaction_worker_threads = args->transaction_worker_threads;
-	data.batch_size = args->batch_size;
 	data.compression_ratio = args->compression_ratio;
 	stages_move(&data.stages, &args->stages);
 	obj_spec_move(&data.obj_spec, &args->obj_spec);
-	data.random = args->random;
 	data.transactions_count = 0;
 	data.latency = args->latency;
 	data.debug = args->debug;
-	data.async = args->async;
 	data.async_max_commands = args->async_max_commands;
 
 	time_t start_time;
@@ -425,17 +422,17 @@ run_benchmark(arguments* args)
 		free_histograms(&data, args);
 	}
 
-	obj_spec_free(&data.obj_spec);
-	free_workload_config(&data.stages);
-
 	as_error err;
 	aerospike_close(&data.client, &err);
 	aerospike_destroy(&data.client);
 	
-	if (args->async) {
+	if (stages_contain_async(&args->stages)) {
 		as_event_close_loops();
 		as_monitor_destroy(&monitor);
 	}
+
+	obj_spec_free(&data.obj_spec);
+	free_workload_config(&data.stages);
 	
 	return ret;
 }

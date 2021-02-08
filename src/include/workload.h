@@ -73,6 +73,14 @@ struct stage {
 	// between 1 and pause
 	uint64_t pause;
 
+	// batch size of reads to use
+	uint32_t batch_size;
+	// whether or not this stage should be run in async mode
+	bool async;
+	// whether or not random objects should be created for each write op (as
+	// opposed to using a single fixed object over and over)
+	bool random;
+
 	union {
 		struct {
 			char* workload_str;
@@ -128,6 +136,26 @@ static inline bool workload_is_random(const struct workload* workload)
 static inline bool workload_contains_reads(const struct workload* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
+}
+
+static inline bool stages_contain_async(const struct stages* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (stages->stages[i].async) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static inline bool stages_contain_random(const struct stages* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (stages->stages[i].random) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /*

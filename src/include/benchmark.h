@@ -61,9 +61,7 @@ typedef struct arguments_t {
 	// with one
 	struct obj_spec obj_spec;
 
-	bool random;
 	int transaction_worker_threads;
-	int batch_size;
 	bool enable_compression;
 	float compression_ratio;
 
@@ -88,7 +86,6 @@ typedef struct arguments_t {
 	as_policy_commit_level write_commit_level;
 	int conn_pools_per_node;
 	bool durable_deletes;
-	bool async;
 	int async_max_commands;
 	int event_loop_capacity;
 	as_config_tls tls;
@@ -138,7 +135,6 @@ typedef struct clientdata_t {
 
 	int async_max_commands;
 	int transaction_worker_threads;
-	int batch_size;
 	int read_pct;
 	struct obj_spec obj_spec;
 
@@ -146,10 +142,8 @@ typedef struct clientdata_t {
 	// when true, random records are generated for every write transaction,
 	// otherwise a single fixed value is set at the beginning and used for
 	// every transaction
-	bool random;
 	bool latency;
 	bool debug;
-	bool async;
 
 } clientdata;
 

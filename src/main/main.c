@@ -390,17 +390,6 @@ print_usage(const char* program)
 	blog_line("");
 }
 
-static const char*
-boolstring(bool val)
-{
-	if (val) {
-		return "true";
-	}
-	else {
-		return "false";
-	}
-}
-
 static void
 print_args(arguments* args)
 {
@@ -418,11 +407,8 @@ print_args(arguments* args)
 
 	stages_print(&args->stages);
 
-	blog_line("random values:          %s", boolstring(args->random));
-
 	blog_line("threads:                %d", args->transaction_worker_threads);
 
-	blog_line("batch size:             %d", args->batch_size);
 	blog_line("enable compression:     %s", boolstring(args->enable_compression));
 	blog_line("compression ratio:      %f", args->compression_ratio);
 	blog_line("read socket timeout:    %d ms", args->read_socket_timeout);
@@ -517,12 +503,9 @@ print_args(arguments* args)
 			(AS_POLICY_COMMIT_LEVEL_ALL == args->write_commit_level ?
 			 "all" : "master"));
 	blog_line("conn pools per node:    %d", args->conn_pools_per_node);
-	blog_line("asynchronous mode:      %s", args->async ? "on" : "off");
 
-	if (args->async) {
-		blog_line("async max commands:     %d", args->async_max_commands);
-		blog_line("event loops:            %d", args->event_loop_capacity);
-	}
+	blog_line("async max commands:     %d", args->async_max_commands);
+	blog_line("event loops:            %d", args->event_loop_capacity);
 
 	if (args->tls.enable) {
 		blog_line("TLS:                    enabled");
@@ -660,18 +643,16 @@ validate_args(arguments* args)
 		return 1;
 	}
 
-	if (args->async) {
-		if (args->async_max_commands <= 0 || args->async_max_commands > 5000) {
-			blog_line("Invalid asyncMaxCommands: %d  Valid values: [1-5000]",
-					args->async_max_commands);
-			return 1;
-		}
+	if (args->async_max_commands <= 0 || args->async_max_commands > 5000) {
+		blog_line("Invalid asyncMaxCommands: %d  Valid values: [1-5000]",
+				args->async_max_commands);
+		return 1;
+	}
 
-		if (args->event_loop_capacity <= 0 || args->event_loop_capacity > 1000) {
-			blog_line("Invalid eventLoops: %d  Valid values: [1-1000]",
-					args->event_loop_capacity);
-			return 1;
-		}
+	if (args->event_loop_capacity <= 0 || args->event_loop_capacity > 1000) {
+		blog_line("Invalid eventLoops: %d  Valid values: [1-1000]",
+				args->event_loop_capacity);
+		return 1;
 	}
 	return 0;
 }
@@ -747,13 +728,19 @@ set_args(int argc, char * const * argv, arguments* args)
 			}
 
 			case 'R':
-				args->random = true;
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the random flag\n");
+					return -1;
+				}
+				struct stage* stage = get_or_init_stage(args);
+				stage->random = true;
 				break;
 
 			case 't': {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
-							"file and the duration flag");
+							"file and the duration flag\n");
 					return -1;
 				}
 				struct stage* stage = get_or_init_stage(args);
@@ -770,7 +757,7 @@ set_args(int argc, char * const * argv, arguments* args)
 			case 'w': {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
-							"file and the workload flag");
+							"file and the workload flag\n");
 					return -1;
 				}
 				struct stage* stage = get_or_init_stage(args);
@@ -781,7 +768,7 @@ set_args(int argc, char * const * argv, arguments* args)
 			case '.': {
 				if (args->stages.stages != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
-							"file and the workload flag");
+							"file and the workload flag\n");
 					return -1;
 				}
 				args->workload_stages_file = strdup(optarg);
@@ -795,7 +782,7 @@ set_args(int argc, char * const * argv, arguments* args)
 			case 'g': {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
-							"file and the throughput flag");
+							"file and the throughput flag\n");
 					return -1;
 				}
 				struct stage* stage = get_or_init_stage(args);
@@ -803,9 +790,16 @@ set_args(int argc, char * const * argv, arguments* args)
 				break;
 			}
 
-			case '0':
-				args->batch_size = atoi(optarg);
+			case '0': {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the workload flag\n");
+					return -1;
+				}
+				struct stage* stage = get_or_init_stage(args);
+				stage->batch_size = atoi(optarg);
 				break;
+			}
 
 			case '4':
 				args->enable_compression = true;
@@ -988,9 +982,16 @@ set_args(int argc, char * const * argv, arguments* args)
 				args->durable_deletes = true;
 				break;
 
-			case 'a':
-				args->async = true;
+			case 'a': {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the async flag\n");
+					return -1;
+				}
+				struct stage* stage = get_or_init_stage(args);
+				stage->async = true;
 				break;
+			}
 
 			case 'c':
 				args->async_max_commands = atoi(optarg);
@@ -1078,9 +1079,7 @@ _load_defaults(arguments* args)
 	__builtin_memset(&args->stages, 0, sizeof(struct stages));
 	args->workload_stages_file = NULL;
 	obj_spec_parse(&args->obj_spec, "I");
-	args->random = false;
 	args->transaction_worker_threads = 16;
-	args->batch_size = 0;
 	args->enable_compression = false;
 	args->compression_ratio = 1.f;
 	args->read_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
@@ -1104,7 +1103,6 @@ _load_defaults(arguments* args)
 	args->write_commit_level = AS_POLICY_COMMIT_LEVEL_ALL;
 	args->durable_deletes = false;
 	args->conn_pools_per_node = 1;
-	args->async = false;
 	args->async_max_commands = 50;
 	args->event_loop_capacity = 1;
 	memset(&args->tls, 0, sizeof(as_config_tls));

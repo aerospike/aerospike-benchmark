@@ -93,6 +93,17 @@ void blog_detail(as_log_level level, const char* fmt, ...);
 #define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
 #define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }
 
+static inline const char*
+boolstring(bool val)
+{
+	if (val) {
+		return "true";
+	}
+	else {
+		return "false";
+	}
+}
+
 
 #define UTC_STR_LEN 72
 const char* utc_time_str(time_t t);

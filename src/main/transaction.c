@@ -314,7 +314,7 @@ static void
 _gen_record(as_record* rec, as_random* random, const clientdata* cdata,
 		struct threaddata* tdata, struct stage* stage)
 {
-	if (cdata->random) {
+	if (stage->random) {
 		uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
 		as_record_init(rec, n_objs);
 
@@ -436,7 +436,7 @@ static void random_read_write(struct threaddata* tdata,
 	// to finish as soon as the timer runs out
 	thr_coordinator_complete(coord);
 
-	batch_size = cdata->batch_size;
+	batch_size = stage->batch_size;
 
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		// roll the die
@@ -669,7 +669,7 @@ static void rand_read_write_async(struct threaddata* tdata, clientdata* cdata,
 
 	struct timespec wake_time;
 	uint64_t start_time;
-	uint32_t batch_size = cdata->batch_size;
+	uint32_t batch_size = stage->batch_size;
 
 	// multiply pct by 2**24 before dividing by 100 and casting to an int,
 	// since floats have 24 bits of precision including the leading 1,
@@ -889,13 +889,13 @@ static void init_stage(const clientdata* cdata, struct threaddata* tdata,
 		// dyn_throttle uses a target delay between consecutive events, so
 		// calculate the target delay given the requested transactions per
 		// second and the number of concurrent transactions (i.e. num threads)
-		uint32_t n_threads = cdata->async ? 1 :
+		uint32_t n_threads = stage->async ? 1 :
 			cdata->transaction_worker_threads;
 		dyn_throttle_init(&tdata->dyn_throttle,
 				(1000000.f * n_threads) / stage->tps);
 	}
 
-	if (!cdata->random) {
+	if (!stage->random) {
 		tdata->fixed_value = obj_spec_gen_value(&stage->obj_spec,
 				tdata->random);
 	}
@@ -906,7 +906,7 @@ static void terminate_stage(const clientdata* cdata, struct threaddata* tdata,
 {
 	dyn_throttle_free(&tdata->dyn_throttle);
 
-	if (!cdata->random) {
+	if (!stage->random) {
 		as_val_destroy(tdata->fixed_value);
 	}
 }
@@ -923,8 +923,7 @@ void* transaction_worker(void* udata)
 
 		init_stage(cdata, tdata, stage);
 
-//		if (stage->async) {
-		if (cdata->async) {
+		if (stage->async) {
 			do_async_workload(tdata, cdata, coord, stage);
 		}
 		else {
