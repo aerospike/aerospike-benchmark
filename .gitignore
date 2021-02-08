@@ -45,6 +45,7 @@ client_test-valgrind
 *.sqlite
 vgcore.*
 hdr_output
+tmp
 
 # OS generated files #
 ######################

@@ -89,7 +89,10 @@ struct stage {
 
 	union {
 		char* read_bins_str;
-		char** read_bins;
+		struct {
+			char** read_bins;
+			uint32_t n_read_bins;
+		};
 	};
 };
 

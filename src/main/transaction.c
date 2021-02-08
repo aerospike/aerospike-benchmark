@@ -461,7 +461,14 @@ static void random_read_write(struct threaddata* tdata,
 						stage_gen_random_key(stage, tdata->random);
 					as_batch_read_record* key = as_batch_read_reserve(keys);
 					_gen_key(key_val, &key->key, cdata);
-					key->read_all_bins = true;
+					if (stage->read_bins) {
+						key->read_all_bins = false;
+						key->bin_names = stage->read_bins;
+						key->n_bin_names = stage->n_read_bins;
+					}
+					else {
+						key->read_all_bins = true;
+					}
 				}
 
 				_batch_read_record_sync(tdata, cdata, coord, keys);
@@ -711,7 +718,14 @@ static void rand_read_write_async(struct threaddata* tdata, clientdata* cdata,
 						stage_gen_random_key(stage, tdata->random);
 					as_batch_read_record* key = as_batch_read_reserve(keys);
 					_gen_key(key_val, &key->key, cdata);
-					key->read_all_bins = true;
+					if (stage->read_bins) {
+						key->read_all_bins = false;
+						key->bin_names = stage->read_bins;
+						key->n_bin_names = stage->n_read_bins;
+					}
+					else {
+						key->read_all_bins = true;
+					}
 				}
 
 				_batch_read_record_async(keys, adata, cdata);

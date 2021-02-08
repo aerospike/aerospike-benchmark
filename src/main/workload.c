@@ -197,9 +197,9 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
 	as_vector_reserve(&read_bins);
 
 	// and now copy the vector to read_bins
-	// since we don't actually need the size, make a temporary variable for it
-	uint32_t size;
-	stage->read_bins = (char**) as_vector_to_array(&read_bins, &size);
+	stage->read_bins = (char**) as_vector_to_array(&read_bins, &stage->n_read_bins);
+	// don't count the null-terminating pointer
+	stage->n_read_bins--;
 
 	as_vector_destroy(&read_bins);
 	return 0;

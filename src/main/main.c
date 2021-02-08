@@ -269,7 +269,7 @@ print_usage(const char* program)
 	blog_line("");
 
 	blog_line("   --percentiles <p1>[,<p2>[,<p3>...]] # Default: \"50,90,99,99.9,99.99\".");
-	blog_line("   Specified the latency percentiles to display in the cumulative latency");
+	blog_line("   Specifies the latency percentiles to display in the cumulative latency");
 	blog_line("   histogram.");
 	blog_line("");
 
