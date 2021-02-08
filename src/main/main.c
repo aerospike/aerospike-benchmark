@@ -1160,12 +1160,13 @@ main(int argc, char * const * argv)
 	if (ret == 0) {
 		print_args(&args);
 		run_benchmark(&args);
+
+		free_workload_config(&args.stages);
 	}
 	else if (ret != -1) {
 		blog_line("Run with --help for usage information and flag options.");
 	}
 
-	free_workload_config(&args.stages);
 	obj_spec_free(&args.obj_spec);
 	if (args.workload_stages_file) {
 		cf_free(args.workload_stages_file);

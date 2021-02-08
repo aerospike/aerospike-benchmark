@@ -50,9 +50,10 @@ void* queue_pop(queue_t* q)
 	uint32_t pos = as_load_uint32(&q->pos);
 
 	if (((head ^ pos) & q->len_mask)) {
-		item = as_load_ptr(&q->items[head & q->len_mask]);
+		item = (void*) as_fas_uint64((uint64_t*) &q->items[head & q->len_mask],
+				(uint64_t) NULL);
 		// can be non-atomic since this thread is the only modifier of head
-		q->head++;
+		q->head += (item != NULL);
 		return item;
 	}
 	return NULL;

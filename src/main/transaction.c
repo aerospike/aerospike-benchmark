@@ -189,6 +189,10 @@ struct async_data {
 	// queue to place this item back on once the callback has finished
 	queue_t* adata_q;
 
+	// keep each async_data in the same event loop to prevent the possibility
+	// of overflowing an event loop due to bad scheduling
+	as_event_loop* ev_loop;
+
 	// the time at which the async call was made
 	uint64_t start_time;
 
@@ -224,11 +228,11 @@ _write_record_async(as_key* key, as_record* rec,
 
 	adata->start_time = cf_getus();
 	status = aerospike_key_put_async(&cdata->client, &err, NULL, key, rec,
-			_async_write_listener, adata, NULL, NULL);
+			_async_write_listener, adata, adata->ev_loop, NULL);
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
-		_async_write_listener(&err, adata, NULL);
+		_async_write_listener(&err, adata, adata->ev_loop);
 	}
 
 	return status;
@@ -245,17 +249,17 @@ _read_record_async(as_key* key, struct async_data* adata,
 		adata->start_time = cf_getus();
 		status = aerospike_key_select_async(&cdata->client, &err, 0, key,
 				(const char**) stage->read_bins, _async_read_listener, adata,
-				NULL, NULL);
+				adata->ev_loop, NULL);
 	}
 	else {
 		adata->start_time = cf_getus();
 		status = aerospike_key_get_async(&cdata->client, &err, 0, key,
-				_async_read_listener, adata, NULL, NULL);
+				_async_read_listener, adata, adata->ev_loop, NULL);
 	}
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
-		_async_read_listener(&err, NULL, adata, NULL);
+		_async_read_listener(&err, NULL, adata, adata->ev_loop);
 	}
 
 	return status;
@@ -270,11 +274,11 @@ _batch_read_record_async(as_batch_read_records* keys,
 
 	adata->start_time = cf_getus();
 	status = aerospike_batch_read_async(&cdata->client, &err, 0, keys,
-			_async_batch_read_listener, adata, NULL);
+			_async_batch_read_listener, adata, adata->ev_loop);
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
-		_async_batch_read_listener(&err, NULL, adata, NULL);
+		_async_batch_read_listener(&err, NULL, adata, adata->ev_loop);
 	}
 
 	return status;
@@ -552,6 +556,10 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 		else {
 			_record_write(cdata, end - adata->start_time);
 		}
+
+		// set the event loop (only effective the first time around but let's avoid
+		// conditional logic)
+		adata->ev_loop = event_loop;
 	}
 	else {
 		if (err->code == AEROSPIKE_ERR_TIMEOUT) {
@@ -582,6 +590,11 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 						   adata->key.value.integer.value, cdata->bin_name,
 						   err->code, err->message);
 			}
+		}
+
+		if (err->code == AEROSPIKE_ERR_NO_MORE_CONNECTIONS) {
+			// this event loop is full, try another
+			adata->ev_loop = NULL;
 		}
 	}
 
@@ -627,13 +640,10 @@ static void linear_writes_async(struct threaddata* tdata, clientdata* cdata,
 	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
 			key_val < end_key) {
 
-		while (1) {
-			adata = queue_pop(adata_q);
-			if (adata == NULL) {
-				pthread_yield();
-				continue;
-			}
-			break;
+		adata = queue_pop(adata_q);
+		if (adata == NULL) {
+			//pthread_yield();
+			continue;
 		}
 
 		clock_gettime(COORD_CLOCK, &wake_time);
@@ -683,13 +693,10 @@ static void rand_read_write_async(struct threaddata* tdata, clientdata* cdata,
 
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 
-		while (1) {
-			adata = queue_pop(adata_q);
-			if (adata == NULL) {
-				pthread_yield();
-				continue;
-			}
-			break;
+		adata = queue_pop(adata_q);
+		if (adata == NULL) {
+			//pthread_yield();
+			continue;
 		}
 
 		clock_gettime(COORD_CLOCK, &wake_time);
@@ -766,13 +773,10 @@ static void linear_deletes_async(struct threaddata* tdata, clientdata* cdata,
 	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
 			key_val < end_key) {
 
-		while (1) {
-			adata = queue_pop(adata_q);
-			if (adata == NULL) {
-				pthread_yield();
-				continue;
-			}
-			break;
+		adata = queue_pop(adata_q);
+		if (adata == NULL) {
+			//pthread_yield();
+			continue;
 		}
 
 		clock_gettime(COORD_CLOCK, &wake_time);
@@ -848,6 +852,7 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 		adata->cdata = cdata;
 		adata->stage = stage;
 		adata->adata_q = &adata_q;
+		adata->ev_loop = NULL;
 
 		queue_push(&adata_q, adata);
 	}
@@ -868,7 +873,7 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 	for (uint32_t i = 0; i < n_adatas;) {
 		struct async_data* adata = queue_pop(&adata_q);
 		if (adata == NULL) {
-			pthread_yield();
+			//pthread_yield();
 			continue;
 		}
 		i++;
