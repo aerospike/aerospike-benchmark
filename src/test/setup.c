@@ -42,7 +42,6 @@ setup(void)
 	args->namespace = "test";
 	args->set = "testset";
 	args->transaction_worker_threads = 16;
-	args->batch_size = 0;
 	args->enable_compression = false;
 	args->compression_ratio = 1.f;
 	args->read_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
@@ -59,7 +58,6 @@ setup(void)
 	args->write_commit_level = AS_POLICY_COMMIT_LEVEL_ALL;
 	args->durable_deletes = false;
 	args->conn_pools_per_node = 1;
-	args->async = false;
 	args->async_max_commands = 50;
 	args->event_loop_capacity = 1;
 	args->auth_mode = AS_AUTH_INTERNAL;	
@@ -68,12 +66,10 @@ setup(void)
 	data->namespace = args->namespace;
 	data->set = args->set;
 	data->transaction_worker_threads = args->transaction_worker_threads;
-	data->batch_size = args->batch_size;
 	data->compression_ratio = args->compression_ratio;
 	data->transactions_count = 0;
 	data->latency = args->latency;
 	data->debug = args->debug;
-	data->async = args->async;
 	data->async_max_commands = args->async_max_commands;
 }
 

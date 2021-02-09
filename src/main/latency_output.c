@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include <aerospike/as_sleep.h>
+#include <aerospike/as_atomic.h>
 #include <aerospike/as_string_builder.h>
 #include <citrusleaf/cf_clock.h>
 
@@ -20,7 +20,7 @@ int initialize_histograms(clientdata* data, arguments* args,
 	bool has_reads = stages_contains_reads(&data->stages);
 
 	if (args->latency) {
-		latency_init(&data->write_latency, args->latency_columns, args->latency_shift);
+		//latency_init(&data->write_latency, args->latency_columns, args->latency_shift);
 		hdr_init(1, 1000000, 3, &data->write_hdr);
 		as_vector_init(&data->latency_percentiles, args->latency_percentiles.item_size,
 				args->latency_percentiles.capacity);
@@ -30,7 +30,7 @@ int initialize_histograms(clientdata* data, arguments* args,
 		}
 
 		if (has_reads) {
-			latency_init(&data->read_latency, args->latency_columns, args->latency_shift);
+			//latency_init(&data->read_latency, args->latency_columns, args->latency_shift);
 			hdr_init(1, 1000000, 3, &data->read_hdr);
 		}
 	}
@@ -170,13 +170,13 @@ void free_histograms(clientdata* data, arguments* args)
 	bool has_reads = stages_contains_reads(&data->stages);
 
 	if (args->latency) {
-		latency_free(&data->write_latency);
+		//latency_free(&data->write_latency);
 		hdr_close(data->write_hdr);
 
 		as_vector_destroy(&data->latency_percentiles);
 
 		if (has_reads) {
-			latency_free(&data->read_latency);
+			//latency_free(&data->read_latency);
 			hdr_close(data->read_hdr);
 		}
 	}
@@ -258,11 +258,12 @@ void* periodic_output_worker(void* udata)
 	clientdata* data = tdata->cdata;
 	struct thr_coordinator* coord = tdata->coord;
 
-	latency* write_latency = &data->write_latency;
-	latency* read_latency = &data->read_latency;
+	//latency* write_latency = &data->write_latency;
+	//latency* read_latency = &data->read_latency;
 	bool latency = data->latency;
-	char latency_header[500];
-	char latency_detail[500];
+	bool has_reads = stages_contains_reads(&data->stages);
+	//char latency_header[500];
+	//char latency_detail[500];
 	uint64_t gen_count = 0;
 	histogram* write_histogram = &data->write_histogram;
 	histogram* read_histogram = &data->read_histogram;
@@ -282,9 +283,9 @@ void* periodic_output_worker(void* udata)
 	// throttle this thread to 1 event per second (1M microseconds)
 	dyn_throttle_init(&tdata->dyn_throttle, 1000000);
 
-	if (latency) {
+	/*if (latency) {
 		latency_set_header(write_latency, latency_header);
-	}
+	}*/
 
 	// when status is COORD_SLEEP_INTERRUPTED, that means it's time to halt this
 	// stage and move onto the next one, but we want the logger to still print
@@ -316,33 +317,39 @@ void* periodic_output_worker(void* udata)
 		uint32_t write_tps = (uint32_t)((double)write_current * 1000000 / elapsed + 0.5);
 		uint32_t read_tps = (uint32_t)((double)read_current * 1000000 / elapsed + 0.5);
 
-		blog_info("write(tps=%d timeouts=%d errors=%d) "
-				"read(tps=%d timeouts=%d errors=%d) "
-				"total(tps=%d timeouts=%d errors=%d)",
-			write_tps, write_timeout_current, write_error_current,
-			read_tps, read_timeout_current, read_error_current,
-			write_tps + read_tps, write_timeout_current + read_timeout_current,
-			write_error_current + read_error_current);
+		blog_info("write(tps=%d timeouts=%d errors=%d) ",
+				write_tps, write_timeout_current, write_error_current);
+		if (has_reads) {
+			blog("read(tps=%d timeouts=%d errors=%d) ",
+					read_tps, read_timeout_current, read_error_current);
+		}
+		blog_line("total(tps=%d timeouts=%d errors=%d)",
+				write_tps + read_tps, write_timeout_current + read_timeout_current,
+				write_error_current + read_error_current);
 
 		if (latency) {
-			blog_line("%s", latency_header);
+			/*blog_line("%s", latency_header);
 			latency_print_results(write_latency, "write", latency_detail);
 			blog_line("%s", latency_detail);
 			latency_print_results(read_latency, "read", latency_detail);
-			blog_line("%s", latency_detail);
+			blog_line("%s", latency_detail);*/
 
 			uint64_t elapsed_s = (time - start_time) / 1000000;
 			print_hdr_percentiles(data->write_hdr, "write", elapsed_s,
 					&data->latency_percentiles, stdout);
-			print_hdr_percentiles(data->read_hdr,  "read",  elapsed_s,
-					&data->latency_percentiles, stdout);
+			if (has_reads) {
+				print_hdr_percentiles(data->read_hdr,  "read",  elapsed_s,
+						&data->latency_percentiles, stdout);
+			}
 		}
 
 		++gen_count;
 
 		if ((histogram_output != NULL) && ((gen_count % data->histogram_period) == 0)) {
 			histogram_print_clear(write_histogram, data->histogram_period, histogram_output);
-			histogram_print_clear(read_histogram, data->histogram_period, histogram_output);
+			if (has_reads) {
+				histogram_print_clear(read_histogram, data->histogram_period, histogram_output);
+			}
 			fflush(histogram_output);
 		}
 

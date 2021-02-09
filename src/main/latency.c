@@ -19,6 +19,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  ******************************************************************************/
+#if 0
 #include "latency.h"
 #include <aerospike/as_atomic.h>
 #include <citrusleaf/alloc.h>
@@ -148,3 +149,4 @@ latency_print_results(latency* l, const char* prefix, char* out) {
 	}
 	*p = 0;
 }
+#endif

@@ -33,7 +33,7 @@ main(void) {
     srunner_add_suite(sr, hdr_histogram_suite());
     srunner_add_suite(sr, hdr_histogram_log_suite());
     srunner_add_suite(sr, histogram_suite());
-    srunner_add_suite(sr, latency_suite());
+    //srunner_add_suite(sr, latency_suite());
     srunner_add_suite(sr, obj_spec_suite());
     srunner_add_suite(sr, yaml_parse_suite());
 

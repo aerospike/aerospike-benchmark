@@ -22,7 +22,7 @@ static void _record_read(clientdata* cdata, uint64_t dt_us)
 	if (cdata->latency || cdata->histogram_output != NULL ||
 			cdata->hdr_comp_write_output != NULL) {
 		if (cdata->latency) {
-			latency_add(&cdata->read_latency, dt_us / 1000);
+			//latency_add(&cdata->read_latency, dt_us / 1000);
 			hdr_record_value_atomic(cdata->read_hdr, dt_us);
 		}
 		if (cdata->histogram_output != NULL) {
@@ -40,7 +40,7 @@ static void _record_write(clientdata* cdata, uint64_t dt_us)
 	if (cdata->latency || cdata->histogram_output != NULL ||
 			cdata->hdr_comp_write_output != NULL) {
 		if (cdata->latency) {
-			latency_add(&cdata->write_latency, dt_us / 1000);
+			//latency_add(&cdata->write_latency, dt_us / 1000);
 			hdr_record_value_atomic(cdata->write_hdr, dt_us);
 		}
 		if (cdata->histogram_output != NULL) {

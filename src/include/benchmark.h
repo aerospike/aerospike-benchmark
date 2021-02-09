@@ -112,8 +112,8 @@ typedef struct clientdata_t {
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
 
-	latency write_latency;
-	latency read_latency;
+	//latency write_latency;
+	//latency read_latency;
 
 	struct hdr_histogram* read_hdr;
 	struct hdr_histogram* write_hdr;
@@ -139,9 +139,6 @@ typedef struct clientdata_t {
 	struct obj_spec obj_spec;
 
 	float compression_ratio;
-	// when true, random records are generated for every write transaction,
-	// otherwise a single fixed value is set at the beginning and used for
-	// every transaction
 	bool latency;
 	bool debug;
 

@@ -97,7 +97,6 @@ blog_detailv(as_log_level level, const char* fmt, va_list ap)
 	char* p = fmtbuf + len;
 	memcpy(p, fmt, len2);
 	p += len2;
-	*p++ = '\n';
 	*p = 0;
 	
 	vprintf(fmtbuf, ap);

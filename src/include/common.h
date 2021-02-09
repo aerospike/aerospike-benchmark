@@ -85,7 +85,7 @@ int dec_display_len(size_t number);
 
 
 void blog_line(const char* fmt, ...);
-void blog_detailv(as_log_level leve, const char* fmt, va_list ap);
+void blog_detailv(as_log_level level, const char* fmt, va_list ap);
 void blog_detail(as_log_level level, const char* fmt, ...);
 
 #define blog(_fmt, ...) { printf(_fmt, ##__VA_ARGS__); }

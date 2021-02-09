@@ -8,6 +8,7 @@
 
 #define TEST_SUITE_NAME "latency"
 
+#if 0
 
 latency lat;
 
@@ -417,3 +418,4 @@ latency_suite(void)
 
 	return s;
 }
+#endif

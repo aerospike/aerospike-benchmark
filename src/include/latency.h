@@ -21,6 +21,7 @@
  ******************************************************************************/
 #pragma once
 
+#if 0
 #include <aerospike/as_atomic.h>
 
 typedef struct latency_t {
@@ -35,3 +36,4 @@ void latency_add(latency* l, uint64_t elapsed_ms);
 uint32_t latency_get_count(latency* l, uint32_t bucket_idx);
 void latency_set_header(latency* l, char* header);
 void latency_print_results(latency* l, const char* prefix, char* out);
+#endif

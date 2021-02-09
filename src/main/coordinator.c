@@ -1,6 +1,7 @@
 
 #include <coordinator.h>
 
+#include <aerospike/as_atomic.h>
 #include <aerospike/as_sleep.h>
 
 #include <common.h>

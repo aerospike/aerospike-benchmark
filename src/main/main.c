@@ -62,7 +62,7 @@ static struct option long_options[] = {
 	{"writeTimeout",         required_argument, 0, 'V'},
 	{"maxRetries",           required_argument, 0, 'r'},
 	{"debug",                no_argument,       0, 'd'},
-	{"latency",              required_argument, 0, 'L'},
+	{"latency",              no_argument,       0, 'L'},
 	{"percentiles",          required_argument, 0, '8'},
 	{"outputFile",           required_argument, 0, '6'},
 	{"outputPeriod",         required_argument, 0, '7'},
@@ -845,19 +845,6 @@ set_args(int argc, char * const * argv, arguments* args)
 
 			case 'L': {
 				args->latency = true;
-				char* tmp = strdup(optarg);
-				char* p = strchr(tmp, ',');
-
-				if (p) {
-					*p = '\0';
-					args->latency_columns = atoi(tmp);
-					args->latency_shift = atoi(p + 1);
-				}
-				else {
-					args->latency_columns = 4;
-					args->latency_shift = 3;
-				}
-				free(tmp);
 				break;
 			}
 

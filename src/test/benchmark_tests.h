@@ -9,7 +9,7 @@ Suite* sanity_suite(void);
 Suite* hdr_histogram_suite(void);
 Suite* hdr_histogram_log_suite(void);
 Suite* histogram_suite(void);
-Suite* latency_suite(void);
+//Suite* latency_suite(void);
 Suite* obj_spec_suite(void);
 Suite* yaml_parse_suite(void);
 
