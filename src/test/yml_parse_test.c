@@ -32,8 +32,6 @@ yaml_parse_suite(void)
 		return s;
 	}
 
-	//stages_print(&stages);
-
 	free_workload_config(&stages);
 
 	return s;
