@@ -887,6 +887,7 @@ set_args(int argc, char * const * argv, arguments* args)
 					tmp = next_comma + 1;
 				} while (prior != '\0');
 				free(_tmp);
+				args->latency_histogram = true;
 				break;
 			}
 

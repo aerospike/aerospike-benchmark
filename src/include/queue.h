@@ -36,6 +36,9 @@ typedef struct queue {
 	uint32_t __attribute__((aligned(8))) pos;
 	// the position of the head, i.e. the next element to be popped (modulo len)
 	uint32_t __attribute__((aligned(8))) head;
+
+	pthread_cond_t empty_cond;
+	pthread_mutex_t e_lock;
 } queue_t;
 
 

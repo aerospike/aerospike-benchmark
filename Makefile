@@ -18,7 +18,7 @@ else
 	ARCH = $(shell uname -m)
 endif
 
-CFLAGS = -std=gnu99 -g -Wall -fPIC -O1 -MMD -MP -pg
+CFLAGS = -std=gnu99 -g -Wall -fPIC -O0 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
@@ -147,7 +147,7 @@ info:
 
 
 .PHONY: build
-build: target/benchmarks
+build: target/benchmark
 
 .PHONY: archive
 archive: $(OBJECTS) target/libbench.a
@@ -185,8 +185,8 @@ target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogra
 target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | target/lib
 	cp $< $@
 
-target/benchmarks: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
-	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(LDFLAGS) -pg
+target/benchmark: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))
@@ -197,11 +197,11 @@ modules/libcyaml/build/debug/libcyaml.a:
 
 .PHONY: run
 run: build
-	./target/benchmarks -h $(AS_HOST) -p $(AS_PORT)
+	./target/benchmark -h $(AS_HOST) -p $(AS_PORT)
 
 .PHONY: valgrind
 valgrind: build
-	valgrind --tool=memcheck --leak-check=yes --show-reachable=yes --num-callers=20 --track-fds=yes -v ./target/benchmarks
+	valgrind --tool=memcheck --leak-check=yes --show-reachable=yes --num-callers=20 --track-fds=yes -v ./target/benchmark
 
 .PHONY: test
 test: | test_target/test
