@@ -41,6 +41,7 @@ static void assert_workloads_eq(const struct stages* parsed,
 		snprint_obj_spec(&a->obj_spec, buf, sizeof(buf));
 		ck_assert_str_eq(buf, b->obj_spec_str);
 
+		ck_assert_uint_eq(a->n_read_bins, b->n_read_bins);
 		if (a->read_bins == NULL || b->read_bins == NULL) {
 			ck_assert_ptr_eq(a->read_bins, NULL);
 			ck_assert_ptr_eq(b->read_bins, NULL);
@@ -112,6 +113,350 @@ DEFINE_TEST(test_simple,
 		}));
 
 
+DEFINE_TEST(test_tps,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  tps: 321",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 321,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_LINEAR,
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_key_start,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  key-start: 543",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 543,
+				.key_end = 100543,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_LINEAR,
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_key_end,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  key-end: 1321",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 1321,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_LINEAR,
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_pause,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  pause: 231",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 231,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_LINEAR,
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_batch_size,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  batch-size: 32",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 32,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_LINEAR,
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_async,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  async: true",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = true,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_LINEAR,
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_random,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  random: true",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = true,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_LINEAR,
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}))
+
+
+DEFINE_TEST(test_workload_ru_default,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RU\n",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_RANDOM,
+					.pct = 50
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_workload_ru_pct,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RU,75.2\n",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_RANDOM,
+					.pct = 75.2
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_workload_db,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: DB\n",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_DELETE
+				},
+				.obj_spec_str = "I4",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+
+DEFINE_TEST(test_obj_spec,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  object-spec: I,D,{3*S10:[B20,D,I8]}",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_LINEAR,
+				},
+				.obj_spec_str = "I4,D,{3*S10:[B20,D,I8]}",
+				.read_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_read_bins,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RU\n"
+		"  object-spec: I,I,I,I,I\n"
+		"  read-bins: 1,3,5",
+		((struct stages) {
+			(struct stage[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (struct workload) {
+					.type = WORKLOAD_TYPE_RANDOM,
+					.pct = 50
+				},
+				.obj_spec_str = "I4,I4,I4,I4,I4",
+				.read_bins = (char*[]) {
+					"testbin",
+					"testbin_3",
+					"testbin_5",
+					NULL
+				},
+				.n_read_bins = 3
+			},},
+			1,
+			true
+		}));
+
+
 Suite*
 yaml_parse_suite(void)
 {
@@ -122,6 +467,18 @@ yaml_parse_suite(void)
 
 	tc_simple = tcase_create("Simple");
 	tcase_add_test(tc_simple, test_simple);
+	tcase_add_test(tc_simple, test_tps);
+	tcase_add_test(tc_simple, test_key_start);
+	tcase_add_test(tc_simple, test_key_end);
+	tcase_add_test(tc_simple, test_pause);
+	tcase_add_test(tc_simple, test_batch_size);
+	tcase_add_test(tc_simple, test_async);
+	tcase_add_test(tc_simple, test_random);
+	tcase_add_test(tc_simple, test_workload_ru_default);
+	tcase_add_test(tc_simple, test_workload_ru_pct);
+	tcase_add_test(tc_simple, test_workload_db);
+	tcase_add_test(tc_simple, test_obj_spec);
+	tcase_add_test(tc_simple, test_read_bins);
 	suite_add_tcase(s, tc_simple);
 
 	return s;
