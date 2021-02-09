@@ -58,7 +58,7 @@ START_TEST(test_free_after_move)
 	obj_spec_free(&o);
 
 	as_record_init(&rec, obj_spec_n_bins(&p));
-	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test");
+	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", 1.f);
 	_dbg_obj_spec_assert_valid(&p, &rec, "test");
 	obj_spec_free(&p);
 }
@@ -74,7 +74,7 @@ START_TEST(test_shallow_copy)
 	obj_spec_shallow_copy(&p, &o);
 
 	as_record_init(&rec, obj_spec_n_bins(&p));
-	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test");
+	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", 1.f);
 	_dbg_obj_spec_assert_valid(&p, &rec, "test");
 	obj_spec_free(&p);
 	obj_spec_free(&o);
@@ -92,7 +92,7 @@ START_TEST(test_free_after_shallow_copy)
 	obj_spec_free(&p);
 
 	as_record_init(&rec, obj_spec_n_bins(&o));
-	obj_spec_populate_bins(&o, &rec, as_random_instance(), "test");
+	obj_spec_populate_bins(&o, &rec, as_random_instance(), "test", 1.f);
 	_dbg_obj_spec_assert_valid(&o, &rec, "test");
 	obj_spec_free(&o);
 }
@@ -123,7 +123,7 @@ START_TEST(test_name ## _valid) \
 	ck_assert_int_eq(obj_spec_parse(&o, obj_spec_str), 0); \
 	as_record_init(&rec, obj_spec_n_bins(&o)); \
 	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
-				"test"), 0); \
+				"test", 1.f), 0); \
 	_dbg_obj_spec_assert_valid(&o, &rec, "test"); \
 	as_record_destroy(&rec); \
 	obj_spec_free(&o); \
@@ -307,7 +307,7 @@ START_TEST(test_name) \
 	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
 	as_record_init(&rec, obj_spec_n_bins(&o)); \
 	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
-				bin_name), 0); \
+				bin_name, 1.f), 0); \
 	as_record_destroy(&rec); \
 	obj_spec_free(&o); \
 } \
@@ -323,7 +323,7 @@ START_TEST(test_name) \
 	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
 	as_record_init(&rec, obj_spec_n_bins(&o)); \
 	ck_assert_int_ne(obj_spec_populate_bins(&o, &rec, &random, \
-				bin_name), 0); \
+				bin_name, 1.f), 0); \
 	as_record_destroy(&rec); \
 } \
 END_TEST

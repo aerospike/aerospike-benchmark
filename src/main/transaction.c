@@ -323,7 +323,7 @@ _gen_record(as_record* rec, as_random* random, const clientdata* cdata,
 		as_record_init(rec, n_objs);
 
 		obj_spec_populate_bins(&stage->obj_spec, rec, random,
-				cdata->bin_name);
+				cdata->bin_name, cdata->compression_ratio);
 	}
 	else {
 		as_list* list = as_list_fromval(tdata->fixed_value);
@@ -897,8 +897,8 @@ static void init_stage(const clientdata* cdata, struct threaddata* tdata,
 	}
 
 	if (!stage->random) {
-		tdata->fixed_value = obj_spec_gen_value(&stage->obj_spec,
-				tdata->random);
+		tdata->fixed_value = obj_spec_gen_compressible_value(&stage->obj_spec,
+				tdata->random, cdata->compression_ratio);
 	}
 }
 

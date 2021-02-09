@@ -760,7 +760,44 @@ static as_val* _gen_random_int(uint8_t range, as_random* random)
 	return (as_val*) val;
 }
 
-static as_val* _gen_random_str(uint32_t length, as_random* random)
+
+/*
+ * the number of random alphanumeric digits we can pull from 64 bits of random
+ * data
+ */
+#define ALPHANUM_PER_64_BITS 12LU
+/*
+ * the number of possible alphanumeric characters [a-z1-9]
+ */
+#define N_ALPHANUM 36LU
+
+/*
+ * the maximum allowable seed (to prevent modulo bias)
+ * i.e. 36**12
+ */
+#define MAX_SEED 4738381338321616896LU
+
+/*
+ * converts a bytevector of 8 values between 0-35 to a bytevector of 8
+ * alphanumeric characters
+ */
+static uint64_t raw_to_alphanum(uint64_t n) {
+	uint64_t x, y;
+	// offset each value so 0-9 don't have the 6'th bit set and the rest do
+	n += 0x3636363636363636LU;
+	// take each value with the 6'th bit set (designated to be alphabetical
+	// characters) and make another bytevector with their first bit set
+	x = (n >> 6) & 0x0101010101010101LU;
+	// take each value whose first bit isn't set in x and turn it into 0x7a
+	// (which will act like -6 when we add in the end)
+	y = (x + 0x7f7f7f7f7f7f7f7fLU) & 0x7a7a7a7a7a7a7a7aLU;
+	// turn each byte in x with value 0x01 into 0x31
+	x |= x << 5;
+	n += x + y;
+	return n & 0x7f7f7f7f7f7f7f7fLU;
+}
+
+as_val* _gen_random_str(uint32_t length, as_random* random)
 {
 	as_string* val;
 	char* buf;
@@ -768,52 +805,82 @@ static as_val* _gen_random_str(uint32_t length, as_random* random)
 
 	buf = (char*) cf_malloc(length + 1);
 
+	// take groups of 24 characters and batch-generate all random alphanumeric
+	// values with just 2 random 64-bit values
+	while (i + (2 * ALPHANUM_PER_64_BITS) <= length) {
+		uint64_t s1 = gen_rand_range_64(random, MAX_SEED);
+		uint64_t s2 = gen_rand_range_64(random, MAX_SEED);
+
+		// c1-c3 will be 3 vectors of 8 byte-values, which range from 0-35
+		uint64_t c1 = (s1 % N_ALPHANUM);
+		for (uint32_t k = 1; k < 8; k++) {
+			s1 /= N_ALPHANUM;
+			c1 |= (s1 % N_ALPHANUM) << (k * 8);
+		}
+
+		s1 /= N_ALPHANUM;
+		uint64_t c2 = (s1 % N_ALPHANUM);
+		for (uint32_t k = 1; k < 4; k++) {
+			s1 /= N_ALPHANUM;
+			c2 |= (s1 % N_ALPHANUM) << (k * 8);
+		}
+		for (uint32_t k = 4; k < 8; k++) {
+			c2 |= (s2 % N_ALPHANUM) << (k * 8);
+			s2 /= N_ALPHANUM;
+		}
+
+		uint64_t c3 = (s2 % N_ALPHANUM);
+		for (uint32_t k = 1; k < 8; k++) {
+			s2 /= N_ALPHANUM;
+			c3 |= (s2 % N_ALPHANUM) << (k * 8);
+		}
+
+		// turn each of these byte-vectors with values 0-35 into byte-vectors
+		// of alphanumeric characters
+		c1 = raw_to_alphanum(c1);
+		c2 = raw_to_alphanum(c2);
+		c3 = raw_to_alphanum(c3);
+
+		// write them to memory
+		*((uint64_t*) &buf[i + 0])  = c1;
+		*((uint64_t*) &buf[i + 8])  = c2;
+		*((uint64_t*) &buf[i + 16]) = c3;
+
+		i += 2 * ALPHANUM_PER_64_BITS;
+	}
+	// for the remaining characters, use a single randomly generated value to
+	// make sets of 12 characters
 	while (i < length) {
-		uint32_t word_length;
-		uint32_t diff = length - i;
+		uint64_t r;
+		uint32_t sz = MIN(length - i, ALPHANUM_PER_64_BITS);
+		uint64_t s = gen_rand_range_64(random, MAX_SEED);
 
-		if (diff > BIN_SPEC_MAX_STR_LEN) {
-			word_length = gen_rand_range(random, BIN_SPEC_MAX_STR_LEN) + 1;
+		r = s % N_ALPHANUM;
+		buf[i] = r < 10 ? r + '0' : r + 'a' - 10;
+		for (j = 1; j < sz; j++) {
+			s /= N_ALPHANUM;
+			r = s % N_ALPHANUM;
+			buf[i + j] = r < 10 ? r + '0' : r + 'a' - 10;
 		}
-		else if (diff == 1) {
-			word_length = 1;
-		}
-		else {
-			word_length = gen_rand_range(random, diff - 1);
-			word_length = word_length == 0 ? diff : word_length;
-		}
-
-		// allowed characters are only [a-z], and with 26 possibilities and a
-		// max of 9 characters in the string, we need at least log_2(26^9) < 43
-		// bits of entropy, so just draw one random 64-bit number
-		uint64_t seed = as_random_next_uint64(random);
-
-		for (j = 0; j < word_length; j++) {
-			// with 26 letters in the alphabet, choose uniformly randomly from
-			// it by looking at the least significant digit of the number
-			// base 26, then divide out that least significant digit
-			buf[i + j] = 'a' + (seed % 26);
-			seed /= 26;
-		}
-
-		buf[i + word_length] = ' ';
-		i += word_length + 1;
+		i += sz;
 	}
 
-	// null-terminate the string (do at the end to please the prefetcher)
+	// null-terminate the string
 	buf[length] = '\0';
 
 	val = as_string_new_wlen(buf, length, 1);
 	return (as_val*) val;
 }
 
-static as_val* _gen_random_bytes(uint32_t length, as_random* random)
+static as_val* _gen_random_bytes(uint32_t length, as_random* random,
+		float compression_ratio)
 {
 	as_bytes* val;
 	uint8_t* buf;
 
-	buf = (uint8_t*) cf_malloc(length);
-	as_random_next_bytes(random, buf, length);
+	buf = (uint8_t*) cf_calloc(1, length);
+	uint32_t c_len = (uint32_t) (compression_ratio * length);
+	as_random_next_bytes(random, buf, c_len);
 
 	val = as_bytes_new_wrap(buf, length, 1);
 	return (as_val*) val;
@@ -833,11 +900,11 @@ static as_val* _gen_random_double(as_random* random)
  * forward declare for use in list/map construction helpers
  */
 static as_val* bin_spec_random_val(const struct bin_spec* bin_spec,
-		as_random* random);
+		as_random* random, float compression_ratio);
 
 
 static as_val* _gen_random_list(const struct bin_spec* bin_spec,
-		as_random* random)
+		as_random* random, float compression_ratio)
 {
 	as_arraylist* list;
 
@@ -853,7 +920,8 @@ static as_val* _gen_random_list(const struct bin_spec* bin_spec,
 		const struct bin_spec* ele_bin = &bin_spec->list.list[i];
 
 		for (uint32_t j = 0; j < ele_bin->n_repeats; j++, cnt++) {
-			as_val* val = bin_spec_random_val(ele_bin, random);
+			as_val* val = bin_spec_random_val(ele_bin, random,
+					compression_ratio);
 
 			if (val) {
 				as_list_append((as_list*) list, val);
@@ -877,7 +945,7 @@ static as_val* _gen_random_list(const struct bin_spec* bin_spec,
 #define MAX_KEY_ENTRY_RETRIES 1024
 
 static as_val* _gen_random_map(const struct bin_spec* bin_spec,
-		as_random* random)
+		as_random* random, float compression_ratio)
 {
 	as_hashmap* map;
 
@@ -889,11 +957,13 @@ static as_val* _gen_random_map(const struct bin_spec* bin_spec,
 	for (uint32_t i = 0; i < n_entries; i++) {
 		as_val* key;
 		do {
-			key = bin_spec_random_val(bin_spec_get_key(bin_spec), random);
+			key = bin_spec_random_val(bin_spec_get_key(bin_spec), random,
+					compression_ratio);
 		} while (as_hashmap_get(map, key) != NULL &&
 				retry_count++ < MAX_KEY_ENTRY_RETRIES);
 
-		as_val* val = bin_spec_random_val(bin_spec->map.val, random);
+		as_val* val = bin_spec_random_val(bin_spec->map.val, random,
+				compression_ratio);
 		
 		as_hashmap_set(map, key, val);
 	}
@@ -903,7 +973,7 @@ static as_val* _gen_random_map(const struct bin_spec* bin_spec,
 
 
 static as_val* bin_spec_random_val(const struct bin_spec* bin_spec,
-		as_random* random)
+		as_random* random, float compression_ratio)
 {
 	as_val* val;
 	switch (bin_spec_get_type(bin_spec)) {
@@ -914,16 +984,17 @@ static as_val* bin_spec_random_val(const struct bin_spec* bin_spec,
 			val = _gen_random_str(bin_spec->string.length, random);
 			break;
 		case BIN_SPEC_TYPE_BYTES:
-			val = _gen_random_bytes(bin_spec->bytes.length, random);
+			val = _gen_random_bytes(bin_spec->bytes.length, random,
+					compression_ratio);
 			break;
 		case BIN_SPEC_TYPE_DOUBLE:
 			val = _gen_random_double(random);
 			break;
 		case BIN_SPEC_TYPE_LIST:
-			val = _gen_random_list(bin_spec, random);
+			val = _gen_random_list(bin_spec, random, compression_ratio);
 			break;
 		case BIN_SPEC_TYPE_MAP:
-			val = _gen_random_map(bin_spec, random);
+			val = _gen_random_map(bin_spec, random, compression_ratio);
 			break;
 		default:
 			fprintf(stderr, "Unknown bin_spec type (%d)\n",
@@ -936,7 +1007,7 @@ static as_val* bin_spec_random_val(const struct bin_spec* bin_spec,
 
 
 int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
-		as_random* random, const char* bin_name)
+		as_random* random, const char* bin_name, float compression_ratio)
 {
 	uint32_t n_bin_specs = obj_spec->n_bin_specs;
 	as_bins* bins = &rec->bins;
@@ -959,7 +1030,8 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 		const struct bin_spec* bin_spec = &obj_spec->bin_specs[i];
 
 		for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
-			as_val* val = bin_spec_random_val(bin_spec, random);
+			as_val* val = bin_spec_random_val(bin_spec, random,
+					compression_ratio);
 
 			if (val == NULL) {
 				return -1;
@@ -980,12 +1052,18 @@ int obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 
 as_val* obj_spec_gen_value(const struct obj_spec* obj_spec, as_random* random)
 {
+	return obj_spec_gen_compressible_value(obj_spec, random, 1.f);
+}
+
+as_val* obj_spec_gen_compressible_value(const struct obj_spec* obj_spec,
+		as_random* random, float compression_ratio)
+{
 	struct bin_spec tmp_list;
 	tmp_list.type = BIN_SPEC_TYPE_LIST;
 	tmp_list.list.length = obj_spec->n_bin_specs;
 	tmp_list.list.list = obj_spec->bin_specs;
 
-	return bin_spec_random_val(&tmp_list, random);
+	return bin_spec_random_val(&tmp_list, random, compression_ratio);
 }
 
 
@@ -1110,7 +1188,7 @@ static void _dbg_validate_string(uint32_t length, as_string* as_val)
 
 	for (uint32_t i = 0; i < str_len; i++) {
 		char c = as_string_get(as_val)[i];
-		ck_assert(('a' <= c && c <= 'z') || c == ' ');
+		ck_assert(('a' <= c && c <= 'z') || ('0' <= c && c <= '9'));
 	}
 }
 

@@ -117,13 +117,20 @@ uint32_t obj_spec_n_bins(const struct obj_spec*);
  * 	...
  */
 int obj_spec_populate_bins(const struct obj_spec*, as_record*, as_random*,
-		const char* bin_name_template);
+		const char* bin_name_template, float compression_ratio);
 
 /*
  * instead of populating a record's bins, returns an as_list of the objects
  * that would have been placed in the record
  */
 as_val* obj_spec_gen_value(const struct obj_spec*, as_random*);
+
+/*
+ * same as obj_spec_gen_value, but each bytes object is made to be compressible
+ * by the given compression ratio
+ */
+as_val* obj_spec_gen_compressible_value(const struct obj_spec*, as_random*,
+		float compression_ratio);
 
 
 void snprint_obj_spec(const struct obj_spec* obj_spec, char* out_str,
