@@ -29,8 +29,8 @@ main(void) {
 	sr = srunner_create(s);
     srunner_add_suite(sr, setup_suite());
     srunner_add_suite(sr, common_suite());
-    //srunner_add_suite(sr, dyn_throttle_suite());
-    //srunner_add_suite(sr, hdr_histogram_suite());
+    srunner_add_suite(sr, dyn_throttle_suite());
+    srunner_add_suite(sr, hdr_histogram_suite());
     srunner_add_suite(sr, hdr_histogram_log_suite());
     srunner_add_suite(sr, histogram_suite());
     srunner_add_suite(sr, obj_spec_suite());
