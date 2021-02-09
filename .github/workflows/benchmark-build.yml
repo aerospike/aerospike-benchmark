@@ -30,7 +30,6 @@ jobs:
       if: steps.cache-libyaml.outputs.cache-hit != 'true'
       run: |
         tar xvfz yaml-0.2.5.tar.gz && cd yaml-0.2.5
-        ./bootstrap
         ./configure
         make
     - name: install libyaml
