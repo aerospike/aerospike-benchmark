@@ -30,7 +30,6 @@
 #include <hdr_histogram/hdr_histogram.h>
 #include <dynamic_throttle.h>
 #include <histogram.h>
-#include <latency.h>
 #include <object_spec.h>
 #include <workload.h>
 
@@ -111,9 +110,6 @@ typedef struct clientdata_t {
 	uint32_t read_count;
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
-
-	//latency write_latency;
-	//latency read_latency;
 
 	struct hdr_histogram* read_hdr;
 	struct hdr_histogram* write_hdr;

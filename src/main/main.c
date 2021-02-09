@@ -135,6 +135,26 @@ print_usage(const char* program)
 	blog_line("   Aerospike namespace.");
 	blog_line("");
 
+	blog_line("   --workloadStages <path/to/workload_stages.yml>");
+	blog_line("   Accepts a path to a workload stages yml file, which should contain a list of");
+	blog_line("       workload stages to run through.");
+	blog_line("   Each stage must include:");
+	blog_line("     duration: in seconds");
+	blog_line("     workload: Workload type");
+	blog_line("   Optionally each stage should include:");
+	blog_line("     tps : max possible with 0 (default), or specified transactions per second");
+	blog_line("     object-spec: Object spec for the stage. Otherwise, inherits from the previous");
+	blog_line("         stage, with the first stage inheriting the global object spec.");
+	blog_line("     key-start: Key start, otherwise inheriting from the global context");
+	blog_line("     key-end: Key end, otherwise inheriting from the global context");
+	blog_line("     read-bins: Which bins to read if the workload includes reads");
+	blog_line("     pause: max number of seconds to pause before the stage starts. Waits a random");
+	blog_line("         number of seconds between 1 and the pause.");
+	blog_line("     async: when true/yes, uses asynchronous commands for this stage. Default is false");
+	blog_line("     random: when true/yes, randomly generates new objects for each write. Default is false");
+	blog_line("     batch-size: specifies the batch size of reads for this stage. Default is 1");
+	blog_line("");
+
 	blog_line("-s --set <set name>   # Default: testset");
 	blog_line("   Aerospike set name.");
 	blog_line("");
@@ -262,21 +282,19 @@ print_usage(const char* program)
 	blog_line("   Run benchmarks in debug mode.");
 	blog_line("");
 
-	blog_line("-L --latency <columns>,<shift> # Default: latency display is off.");
-	blog_line("   Show transaction latency percentages using elapsed time ranges.");
-	blog_line("   <columns> Number of elapsed time ranges.");
-	blog_line("   <shift>   Power of 2 multiple between each range starting at column 3.");
+	blog_line("-L --latency");
+	blog_line("   Enables the periodic HDR histogram summary of latency data.");
 	blog_line("");
 
 	blog_line("   --percentiles <p1>[,<p2>[,<p3>...]] # Default: \"50,90,99,99.9,99.99\".");
-	blog_line("   Specifies the latency percentiles to display in the cumulative latency");
+	blog_line("   Specifies the latency percentiles to display in the periodic latency");
 	blog_line("   histogram.");
 	blog_line("");
 
 	blog_line("   --outputFile  # Default: stdout");
 	blog_line("   Specifies an output file to write periodic latency data, which enables");
 	blog_line("   the tracking of transaction latencies in microseconds in a histogram.");
-	blog_line("   Currently uses the default layout. Add documentation here later.");
+	blog_line("   Currently uses the default layout.");
 	blog_line("   The file is opened in append mode.");
 	blog_line("");
 

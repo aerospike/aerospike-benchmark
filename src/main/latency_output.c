@@ -258,12 +258,8 @@ void* periodic_output_worker(void* udata)
 	clientdata* data = tdata->cdata;
 	struct thr_coordinator* coord = tdata->coord;
 
-	//latency* write_latency = &data->write_latency;
-	//latency* read_latency = &data->read_latency;
 	bool latency = data->latency;
 	bool has_reads = stages_contains_reads(&data->stages);
-	//char latency_header[500];
-	//char latency_detail[500];
 	uint64_t gen_count = 0;
 	histogram* write_histogram = &data->write_histogram;
 	histogram* read_histogram = &data->read_histogram;
@@ -282,10 +278,6 @@ void* periodic_output_worker(void* udata)
 
 	// throttle this thread to 1 event per second (1M microseconds)
 	dyn_throttle_init(&tdata->dyn_throttle, 1000000);
-
-	/*if (latency) {
-		latency_set_header(write_latency, latency_header);
-	}*/
 
 	// when status is COORD_SLEEP_INTERRUPTED, that means it's time to halt this
 	// stage and move onto the next one, but we want the logger to still print
@@ -328,12 +320,6 @@ void* periodic_output_worker(void* udata)
 				write_error_current + read_error_current);
 
 		if (latency) {
-			/*blog_line("%s", latency_header);
-			latency_print_results(write_latency, "write", latency_detail);
-			blog_line("%s", latency_detail);
-			latency_print_results(read_latency, "read", latency_detail);
-			blog_line("%s", latency_detail);*/
-
 			uint64_t elapsed_s = (time - start_time) / 1000000;
 			print_hdr_percentiles(data->write_hdr, "write", elapsed_s,
 					&data->latency_percentiles, stdout);

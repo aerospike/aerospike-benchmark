@@ -167,6 +167,7 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
 		return 0;
 	}
 
+	uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
 	const char* read_bins_str = bins_str;
 	as_vector read_bins;
 	as_vector_init(&read_bins, sizeof(char*), 8);
@@ -183,6 +184,12 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
 
 		if (bin_num == 0) {
 			fprintf(stderr, "Invalid bin number: 0\n");
+			_parse_bins_destroy(&read_bins);
+			return -1;
+		}
+		if (bin_num > n_bins) {
+			fprintf(stderr, "No such bin %lu (there are only %u bins)\n",
+					bin_num, n_bins);
 			_parse_bins_destroy(&read_bins);
 			return -1;
 		}
@@ -329,6 +336,16 @@ int stages_set_defaults_and_parse(struct stages* stages,
 			ret = -1;
 		}
 		cf_free(bins_str);
+
+		if (stage->read_bins != NULL &&
+				stage->n_read_bins > obj_spec_n_bins(&stage->obj_spec)) {
+			fprintf(stderr, "Stage %d: number of read bins (%u) must not be "
+					"greater than the number of bins specified in the object "
+					"spec (%u)\n",
+					i + 1, stage->n_read_bins,
+					obj_spec_n_bins(&stage->obj_spec));
+			ret = -1;
+		}
 	}
 
 	return ret;
