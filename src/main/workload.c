@@ -298,7 +298,9 @@ int stages_set_defaults_and_parse(struct stages* stages,
 		else {
 			// parse the given obj_spec string
 			char* obj_spec_str = stage->obj_spec_str;
-			ret = obj_spec_parse(&stage->obj_spec, obj_spec_str);
+			if (ret == 0) {
+				ret = obj_spec_parse(&stage->obj_spec, obj_spec_str);
+			}
 
 			cf_free(obj_spec_str);
 			if (ret == 0) {
