@@ -642,7 +642,6 @@ static void linear_writes_async(struct threaddata* tdata, clientdata* cdata,
 
 		adata = queue_pop(adata_q);
 		if (adata == NULL) {
-			//pthread_yield();
 			continue;
 		}
 
@@ -695,7 +694,6 @@ static void rand_read_write_async(struct threaddata* tdata, clientdata* cdata,
 
 		adata = queue_pop(adata_q);
 		if (adata == NULL) {
-			//pthread_yield();
 			continue;
 		}
 
@@ -775,7 +773,6 @@ static void linear_deletes_async(struct threaddata* tdata, clientdata* cdata,
 
 		adata = queue_pop(adata_q);
 		if (adata == NULL) {
-			//pthread_yield();
 			continue;
 		}
 
@@ -873,7 +870,6 @@ static void do_async_workload(struct threaddata* tdata, clientdata* cdata,
 	for (uint32_t i = 0; i < n_adatas;) {
 		struct async_data* adata = queue_pop(&adata_q);
 		if (adata == NULL) {
-			//pthread_yield();
 			continue;
 		}
 		i++;
