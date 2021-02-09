@@ -111,6 +111,68 @@ blog_detail(as_log_level level, const char* fmt, ...)
 	va_end(ap);
 }
 
+
+#ifndef __linux__
+
+/* Find the first occurrence of C in S or the final NUL byte.  */
+char* strchrnul(const char *s, int c_in)
+{
+	const unsigned char *char_ptr;
+	const unsigned long int *longword_ptr;
+	unsigned long int longword, magic_bits, charmask;
+	unsigned char c;
+	c = (unsigned char) c_in;
+	for (char_ptr = (const unsigned char *) s;
+			((unsigned long int) char_ptr & (sizeof (longword) - 1)) != 0;
+			++char_ptr)
+		if (*char_ptr == c || *char_ptr == '\0')
+			return (void *) char_ptr;
+	longword_ptr = (unsigned long int *) char_ptr;
+	magic_bits = -1;
+	magic_bits = magic_bits / 0xff * 0xfe << 1 >> 1 | 1;
+	charmask = c | (c << 8);
+	charmask |= charmask << 16;
+	if (sizeof (longword) > 4)
+		charmask |= (charmask << 16) << 16;
+	if (sizeof (longword) > 8)
+		abort ();
+	for (;;)
+	{
+		longword = *longword_ptr++;
+		if ((((longword + magic_bits)
+						^ ~longword)
+					& ~magic_bits) != 0
+				|| ((((longword ^ charmask) + magic_bits) ^ ~(longword ^ charmask))
+					& ~magic_bits) != 0)
+		{
+			const unsigned char *cp = (const unsigned char *) (longword_ptr - 1);
+			if (*cp == c || *cp == '\0')
+				return (char *) cp;
+			if (*++cp == c || *cp == '\0')
+				return (char *) cp;
+			if (*++cp == c || *cp == '\0')
+				return (char *) cp;
+			if (*++cp == c || *cp == '\0')
+				return (char *) cp;
+			if (sizeof (longword) > 4)
+			{
+				if (*++cp == c || *cp == '\0')
+					return (char *) cp;
+				if (*++cp == c || *cp == '\0')
+					return (char *) cp;
+				if (*++cp == c || *cp == '\0')
+					return (char *) cp;
+				if (*++cp == c || *cp == '\0')
+					return (char *) cp;
+			}
+		}
+	}
+	return NULL;
+}
+
+#endif /* __linux__ */
+
+
 const char* utc_time_str(time_t t)
 {
 	static char buf[UTC_STR_LEN + 1];

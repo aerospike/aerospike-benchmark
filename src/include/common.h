@@ -105,6 +105,13 @@ boolstring(bool val)
 }
 
 
+#ifndef __linux__
+
+char* strchrnul(const char* s, int c_in);
+
+#endif /* __linux__ */
+
+
 #define UTC_STR_LEN 72
 const char* utc_time_str(time_t t);
 
