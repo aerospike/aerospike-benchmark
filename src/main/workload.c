@@ -244,14 +244,6 @@ int stages_set_defaults_and_parse(struct stages* stages,
 	for (uint32_t i = 0; i < n_stages; i++) {
 		struct stage* stage = &stages->stages[i];
 
-		if (stage->desc == NULL) {
-			static const char default_msg[] = "stage %d";
-			uint64_t buf_len = sizeof(default_msg) - 1 + dec_display_len(i + 1);
-			char* buf = malloc(buf_len);
-			snprintf(buf, buf_len, default_msg, i + 1);
-			stage->desc = buf;
-		}
-
 		if (stage->key_start == -1LU) {
 			// if key_start wasn't specified, then inherit from the global context
 			stage->key_start = args->start_key;

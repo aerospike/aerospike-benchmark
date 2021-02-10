@@ -210,7 +210,7 @@ void* coordinator_worker(void* udata)
 
 	for (;;) {
 		struct stage* stage = &cdata->stages.stages[stage_idx];
-		blog_line("Stage %d: %s", stage_idx + 1, stage->desc);
+		blog_line("Stage %d: %s", stage_idx + 1, stage->desc ? stage->desc : "");
 
 		if (stage->duration > 0) {
 			// first sleep the minimum duration of the stage

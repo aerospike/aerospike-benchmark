@@ -19,8 +19,9 @@ int initialize_histograms(clientdata* data, arguments* args,
 	int ret = 0;
 	bool has_reads = stages_contains_reads(&data->stages);
 
+	data->histogram_period = args->histogram_period;
+
 	if (args->latency) {
-		//latency_init(&data->write_latency, args->latency_columns, args->latency_shift);
 		hdr_init(1, 1000000, 3, &data->write_hdr);
 		as_vector_init(&data->latency_percentiles, args->latency_percentiles.item_size,
 				args->latency_percentiles.capacity);
@@ -30,7 +31,6 @@ int initialize_histograms(clientdata* data, arguments* args,
 		}
 
 		if (has_reads) {
-			//latency_init(&data->read_latency, args->latency_columns, args->latency_shift);
 			hdr_init(1, 1000000, 3, &data->read_hdr);
 		}
 	}
@@ -66,8 +66,6 @@ int initialize_histograms(clientdata* data, arguments* args,
 			histogram_set_name(&data->read_histogram, "read_hist");
 			histogram_print_info(&data->read_histogram, data->histogram_output);
 		}
-
-		data->histogram_period = args->histogram_period;
 
 	}
 	
@@ -170,13 +168,11 @@ void free_histograms(clientdata* data, arguments* args)
 	bool has_reads = stages_contains_reads(&data->stages);
 
 	if (args->latency) {
-		//latency_free(&data->write_latency);
 		hdr_close(data->write_hdr);
 
 		as_vector_destroy(&data->latency_percentiles);
 
 		if (has_reads) {
-			//latency_free(&data->read_latency);
 			hdr_close(data->read_hdr);
 		}
 	}
@@ -319,24 +315,27 @@ void* periodic_output_worker(void* udata)
 				write_tps + read_tps, write_timeout_current + read_timeout_current,
 				write_error_current + read_error_current);
 
-		if (latency) {
-			uint64_t elapsed_s = (time - start_time) / 1000000;
-			print_hdr_percentiles(data->write_hdr, "write", elapsed_s,
-					&data->latency_percentiles, stdout);
-			if (has_reads) {
-				print_hdr_percentiles(data->read_hdr,  "read",  elapsed_s,
-						&data->latency_percentiles, stdout);
-			}
-		}
-
 		++gen_count;
 
-		if ((histogram_output != NULL) && ((gen_count % data->histogram_period) == 0)) {
-			histogram_print_clear(write_histogram, data->histogram_period, histogram_output);
-			if (has_reads) {
-				histogram_print_clear(read_histogram, data->histogram_period, histogram_output);
+		if (((gen_count % data->histogram_period) == 0)) {
+			if (latency) {
+				uint64_t elapsed_s = (time - start_time) / 1000000;
+				print_hdr_percentiles(data->write_hdr, "write", elapsed_s,
+						&data->latency_percentiles, stdout);
+				if (has_reads) {
+					print_hdr_percentiles(data->read_hdr,  "read",  elapsed_s,
+							&data->latency_percentiles, stdout);
+				}
 			}
-			fflush(histogram_output);
+			if (histogram_output != NULL) {
+				histogram_print_clear(write_histogram, data->histogram_period,
+						histogram_output);
+				if (has_reads) {
+					histogram_print_clear(read_histogram,
+							data->histogram_period, histogram_output);
+				}
+				fflush(histogram_output);
+			}
 		}
 
 		if (status == COORD_SLEEP_INTERRUPTED) {

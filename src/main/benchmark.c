@@ -46,6 +46,7 @@ as_client_log_callback(as_log_level level, const char * func, const char * file,
 	va_start(ap, fmt);
 	blog_detailv(level, fmt, ap);
 	va_end(ap);
+	blog_line("");
 	return true;
 }
 
@@ -295,7 +296,7 @@ _run(clientdata* cdata)
 	}
 
 	// then create all the worker threads
-	blog_info("Start %d transaction threads", n_threads - 1);
+	blog_info("Start %d transaction threads\n", n_threads - 1);
 
 	uint32_t i;
 	// since the output worker threaddata is in slot 0

@@ -453,6 +453,7 @@ print_args(arguments* args)
 			}
 		}
 		blog_line("");
+		blog_line("latency period:         %ds", args->histogram_period);
 	}
 	else {
 		blog_line("latency:                false");
@@ -650,7 +651,8 @@ validate_args(arguments* args)
 		}
 	}
 
-	if (args->latency_histogram && args->histogram_period <= 0) {
+	if ((args->latency_histogram || args->latency) &&
+			args->histogram_period <= 0) {
 		blog_line("Invalid histogram period: %ds", args->histogram_period);
 		return 1;
 	}
