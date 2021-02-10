@@ -341,6 +341,16 @@ DEFINE_BIN_NAME_OK(bin_name_4_dig_ok, 1024, "abcdefghij");
 DEFINE_BIN_NAME_TOO_LARGE(bin_name_4_dig_too_large, 8192, "abcdefghijk");
 
 
+/*
+ * Spacing test cases
+ */
+DEFINE_TCASE_DIFF(test_space, "I, D", "I4,D");
+DEFINE_TCASE_DIFF(test_space_in_list, "I, [B12, S15]", "I4,[B12,S15]");
+DEFINE_TCASE_DIFF(test_space_map_after_key, "{S12 :I7}", "{S12:I7}");
+DEFINE_TCASE_DIFF(test_space_map_before_value, "{B8: D}", "{B8:D}");
+DEFINE_TCASE_DIFF(test_space_map_both, "{I2 : S1}", "{I2:S1}");
+
+
 Suite*
 obj_spec_suite(void)
 {
@@ -353,6 +363,7 @@ obj_spec_suite(void)
 	TCase* tc_nested;
 	TCase* tc_multipliers;
 	TCase* tc_bin_names;
+	TCase* tc_spacing;
 
 	s = suite_create("Object Spec");
 
@@ -570,6 +581,19 @@ obj_spec_suite(void)
 	tcase_add_test(tc_bin_names, bin_name_4_dig_ok);
 	tcase_add_test(tc_bin_names, bin_name_4_dig_too_large);
 	suite_add_tcase(s, tc_bin_names);
+
+	tc_spacing = tcase_create("Spacing");
+	tcase_add_test(tc_spacing, test_space_str_cmp);
+	tcase_add_test(tc_spacing, test_space_valid);
+	tcase_add_test(tc_spacing, test_space_in_list_str_cmp);
+	tcase_add_test(tc_spacing, test_space_in_list_valid);
+	tcase_add_test(tc_spacing, test_space_map_after_key_str_cmp);
+	tcase_add_test(tc_spacing, test_space_map_after_key_valid);
+	tcase_add_test(tc_spacing, test_space_map_before_value_str_cmp);
+	tcase_add_test(tc_spacing, test_space_map_before_value_valid);
+	tcase_add_test(tc_spacing, test_space_map_both_str_cmp);
+	tcase_add_test(tc_spacing, test_space_map_both_valid);
+	suite_add_tcase(s, tc_spacing);
 
 	return s;
 }

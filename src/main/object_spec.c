@@ -585,6 +585,11 @@ _destroy_state:
 			case CONSUMER_TYPE_LIST:
 				if (*str == ',') {
 					str++;
+
+					// allow a space after a comma
+					if (*str == ' ') {
+						str++;
+					}
 				}
 				else if (*str != delim) {
 					_print_parse_error("Expect ',' separating bin specifiers in a list",
@@ -600,6 +605,10 @@ _destroy_state:
 
 				switch (map_state) {
 					case MAP_KEY:
+						// allow a space before the ':'
+						if (*str == ' ') {
+							str++;
+						}
 						if (*str != ':') {
 							_print_parse_error("Expect ':' separating key and "
 									"value pair in a map",
@@ -608,6 +617,10 @@ _destroy_state:
 							return -1;
 						}
 						str++;
+						// allow a space after the ':'
+						if (*str == ' ') {
+							str++;
+						}
 						break;
 					case MAP_VAL:
 						if (*str != delim) {
