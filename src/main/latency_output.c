@@ -14,31 +14,31 @@
 #include <transaction.h>
 
 
-int initialize_histograms(clientdata* data, arguments* args,
+int initialize_histograms(clientdata* cdata, arguments* args,
 		time_t* start_time, hdr_timespec* start_timespec) {
 	int ret = 0;
-	bool has_reads = stages_contains_reads(&data->stages);
+	bool has_reads = stages_contains_reads(&cdata->stages);
 
-	data->histogram_period = args->histogram_period;
+	cdata->histogram_period = args->histogram_period;
 
 	if (args->latency) {
-		hdr_init(1, 1000000, 3, &data->write_hdr);
-		as_vector_init(&data->latency_percentiles, args->latency_percentiles.item_size,
+		hdr_init(1, 1000000, 3, &cdata->write_hdr);
+		as_vector_init(&cdata->latency_percentiles, args->latency_percentiles.item_size,
 				args->latency_percentiles.capacity);
 		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
-			as_vector_append(&data->latency_percentiles,
+			as_vector_append(&cdata->latency_percentiles,
 					as_vector_get(&args->latency_percentiles, i));
 		}
 
 		if (has_reads) {
-			hdr_init(1, 1000000, 3, &data->read_hdr);
+			hdr_init(1, 1000000, 3, &cdata->read_hdr);
 		}
 	}
 	
 	if (args->latency_histogram) {
 		if (args->histogram_output) {
-			data->histogram_output = fopen(args->histogram_output, "a");
-			if (!data->histogram_output) {
+			cdata->histogram_output = fopen(args->histogram_output, "a");
+			if (!cdata->histogram_output) {
 				fprintf(stderr, "Unable to open %s in append mode\n",
 						args->histogram_output);
 				ret = -1;
@@ -46,25 +46,25 @@ int initialize_histograms(clientdata* data, arguments* args,
 			}
 		}
 		else {
-			data->histogram_output = stdout;
+			cdata->histogram_output = stdout;
 		}
 
-		histogram_init(&data->write_histogram, 3, 100, (rangespec_t[]) {
+		histogram_init(&cdata->write_histogram, 3, 100, (rangespec_t[]) {
 				{ .upper_bound = 4000,   .bucket_width = 100  },
 				{ .upper_bound = 64000,  .bucket_width = 1000 },
 				{ .upper_bound = 128000, .bucket_width = 4000 }
 				});
-		histogram_set_name(&data->write_histogram, "write_hist");
-		histogram_print_info(&data->write_histogram, data->histogram_output);
+		histogram_set_name(&cdata->write_histogram, "write_hist");
+		histogram_print_info(&cdata->write_histogram, cdata->histogram_output);
 		
 		if (has_reads) {
-			histogram_init(&data->read_histogram, 3, 100, (rangespec_t[]) {
+			histogram_init(&cdata->read_histogram, 3, 100, (rangespec_t[]) {
 					{ .upper_bound = 4000,   .bucket_width = 100  },
 					{ .upper_bound = 64000,  .bucket_width = 1000 },
 					{ .upper_bound = 128000, .bucket_width = 4000 }
 					});
-			histogram_set_name(&data->read_histogram, "read_hist");
-			histogram_print_info(&data->read_histogram, data->histogram_output);
+			histogram_set_name(&cdata->read_histogram, "read_hist");
+			histogram_print_info(&cdata->read_histogram, cdata->histogram_output);
 		}
 
 	}
@@ -98,15 +98,15 @@ int initialize_histograms(clientdata* data, arguments* args,
 		as_string_builder_append(&cmp_write_output_b, compressed_output_suffix);
 		as_string_builder_append(&txt_write_output_b, text_output_suffix);
 
-		data->hdr_comp_write_output = fopen(cmp_write_output_b.data, "a");
-		if (!data->hdr_comp_write_output) {
+		cdata->hdr_comp_write_output = fopen(cmp_write_output_b.data, "a");
+		if (!cdata->hdr_comp_write_output) {
 			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 					cmp_write_output_b.data, strerror(errno));
 			ret = -1;
 		}
 
-		data->hdr_text_write_output = fopen(txt_write_output_b.data, "a");
-		if (!data->hdr_text_write_output) {
+		cdata->hdr_text_write_output = fopen(txt_write_output_b.data, "a");
+		if (!cdata->hdr_text_write_output) {
 			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 					cmp_write_output_b.data, strerror(errno));
 			ret = -1;
@@ -115,7 +115,7 @@ int initialize_histograms(clientdata* data, arguments* args,
 		as_string_builder_destroy(&cmp_write_output_b);
 		as_string_builder_destroy(&txt_write_output_b);
 
-		hdr_init(1, 1000000, 3, &data->summary_write_hdr);
+		hdr_init(1, 1000000, 3, &cdata->summary_write_hdr);
 
 		if (has_reads) {
 			size_t read_output_size =
@@ -137,15 +137,15 @@ int initialize_histograms(clientdata* data, arguments* args,
 			as_string_builder_append(&cmp_read_output_b, compressed_output_suffix);
 			as_string_builder_append(&txt_read_output_b, text_output_suffix);
 
-			data->hdr_comp_read_output = fopen(cmp_read_output_b.data, "a");
-			if (!data->hdr_comp_read_output) {
+			cdata->hdr_comp_read_output = fopen(cmp_read_output_b.data, "a");
+			if (!cdata->hdr_comp_read_output) {
 				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 						cmp_read_output_b.data, strerror(errno));
 				ret = -1;
 			}
 
-			data->hdr_text_read_output = fopen(txt_read_output_b.data, "a");
-			if (!data->hdr_text_read_output) {
+			cdata->hdr_text_read_output = fopen(txt_read_output_b.data, "a");
+			if (!cdata->hdr_text_read_output) {
 				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 						cmp_read_output_b.data, strerror(errno));
 				ret = -1;
@@ -154,7 +154,7 @@ int initialize_histograms(clientdata* data, arguments* args,
 			as_string_builder_destroy(&cmp_read_output_b);
 			as_string_builder_destroy(&txt_read_output_b);
 
-			hdr_init(1, 1000000, 3, &data->summary_read_hdr);
+			hdr_init(1, 1000000, 3, &cdata->summary_read_hdr);
 		}
 
 		hdr_gettime(start_timespec);
@@ -163,58 +163,58 @@ int initialize_histograms(clientdata* data, arguments* args,
 }
 
 
-void free_histograms(clientdata* data, arguments* args)
+void free_histograms(clientdata* cdata, arguments* args)
 {
-	bool has_reads = stages_contains_reads(&data->stages);
+	bool has_reads = stages_contains_reads(&cdata->stages);
 
 	if (args->latency) {
-		hdr_close(data->write_hdr);
+		hdr_close(cdata->write_hdr);
 
-		as_vector_destroy(&data->latency_percentiles);
+		as_vector_destroy(&cdata->latency_percentiles);
 
 		if (has_reads) {
-			hdr_close(data->read_hdr);
+			hdr_close(cdata->read_hdr);
 		}
 	}
 
 	if (args->latency_histogram) {
-		histogram_free(&data->write_histogram);
+		histogram_free(&cdata->write_histogram);
 		
 		if (has_reads) {
-			histogram_free(&data->read_histogram);
+			histogram_free(&cdata->read_histogram);
 		}
 
 		if (args->histogram_output) {
-			fclose(data->histogram_output);
+			fclose(cdata->histogram_output);
 		}
 	}
 
 	if (args->hdr_output) {
-		hdr_close(data->summary_write_hdr);
-		if (data->hdr_comp_write_output) {
-			fclose(data->hdr_comp_write_output);
+		hdr_close(cdata->summary_write_hdr);
+		if (cdata->hdr_comp_write_output) {
+			fclose(cdata->hdr_comp_write_output);
 		}
-		if (data->hdr_text_write_output) {
-			fclose(data->hdr_text_write_output);
+		if (cdata->hdr_text_write_output) {
+			fclose(cdata->hdr_text_write_output);
 		}
 
 		if (has_reads) {
-			hdr_close(data->summary_read_hdr);
-			if (data->hdr_comp_read_output) {
-				fclose(data->hdr_comp_read_output);
+			hdr_close(cdata->summary_read_hdr);
+			if (cdata->hdr_comp_read_output) {
+				fclose(cdata->hdr_comp_read_output);
 			}
-			if (data->hdr_text_read_output) {
-				fclose(data->hdr_text_read_output);
+			if (cdata->hdr_text_read_output) {
+				fclose(cdata->hdr_text_read_output);
 			}
 		}
 	}
 }
 
 
-void record_summary_data(clientdata* data, arguments* args, time_t start_time,
+void record_summary_data(clientdata* cdata, arguments* args, time_t start_time,
 		hdr_timespec* start_timespec) {
 	static const int32_t ticks_per_half_distance = 5;
-	bool has_reads = stages_contains_reads(&data->stages);
+	bool has_reads = stages_contains_reads(&cdata->stages);
 
 	// now record summary HDR hist if enabled
 	if (args->hdr_output) {
@@ -225,23 +225,23 @@ void record_summary_data(clientdata* data, arguments* args, time_t start_time,
 		hdr_log_writer_init(&writer);
 
 		const char* utc_time = utc_time_str(start_time);
-		hdr_log_write_header(&writer, data->hdr_comp_write_output,
+		hdr_log_write_header(&writer, cdata->hdr_comp_write_output,
 				utc_time, start_timespec);
 
-		hdr_log_write(&writer, data->hdr_comp_write_output,
-				start_timespec, &end_timespec, data->summary_write_hdr);
+		hdr_log_write(&writer, cdata->hdr_comp_write_output,
+				start_timespec, &end_timespec, cdata->summary_write_hdr);
 
-		hdr_percentiles_print(data->summary_write_hdr, data->hdr_text_write_output,
+		hdr_percentiles_print(cdata->summary_write_hdr, cdata->hdr_text_write_output,
 				ticks_per_half_distance, 1., CLASSIC);
 
 		if (has_reads) {
-			hdr_log_write_header(&writer, data->hdr_comp_read_output,
+			hdr_log_write_header(&writer, cdata->hdr_comp_read_output,
 					utc_time, start_timespec);
 
-			hdr_log_write(&writer, data->hdr_comp_read_output,
-					start_timespec, &end_timespec, data->summary_read_hdr);
+			hdr_log_write(&writer, cdata->hdr_comp_read_output,
+					start_timespec, &end_timespec, cdata->summary_read_hdr);
 
-			hdr_percentiles_print(data->summary_read_hdr, data->hdr_text_read_output,
+			hdr_percentiles_print(cdata->summary_read_hdr, cdata->hdr_text_read_output,
 					ticks_per_half_distance, 1., CLASSIC);
 		}
 	}
@@ -251,15 +251,15 @@ void record_summary_data(clientdata* data, arguments* args, time_t start_time,
 void* periodic_output_worker(void* udata)
 {
 	struct threaddata* tdata = (struct threaddata*) udata;
-	clientdata* data = tdata->cdata;
+	clientdata* cdata = tdata->cdata;
 	struct thr_coordinator* coord = tdata->coord;
 
-	bool latency = data->latency;
-	bool has_reads = stages_contains_reads(&data->stages);
+	bool latency = cdata->latency;
+	bool has_reads = stages_contains_reads(&cdata->stages);
 	uint64_t gen_count = 0;
-	histogram* write_histogram = &data->write_histogram;
-	histogram* read_histogram = &data->read_histogram;
-	FILE* histogram_output = data->histogram_output;
+	histogram* write_histogram = &cdata->write_histogram;
+	histogram* read_histogram = &cdata->read_histogram;
+	FILE* histogram_output = cdata->histogram_output;
 
 	struct timespec wake_up;
 	clock_gettime(COORD_CLOCK, &wake_up);
@@ -282,6 +282,10 @@ void* periodic_output_worker(void* udata)
 	// right after that
 	int status;
 
+	// set to true when this is the first time logging latency data for the
+	// current stage
+	bool first_log_of_stage = true;
+
 	goto do_sleep;
 
 	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
@@ -292,15 +296,15 @@ void* periodic_output_worker(void* udata)
 		int64_t elapsed = time - prev_time;
 		prev_time = time;
 
-		uint32_t write_current = as_fas_uint32(&data->write_count, 0);
-		uint32_t write_timeout_current = as_fas_uint32(&data->write_timeout_count, 0);
-		uint32_t write_error_current = as_fas_uint32(&data->write_error_count, 0);
-		uint32_t read_current = as_fas_uint32(&data->read_count, 0);
-		uint32_t read_timeout_current = as_fas_uint32(&data->read_timeout_count, 0);
-		uint32_t read_error_current = as_fas_uint32(&data->read_error_count, 0);
-		//uint64_t transactions_current = as_load_uint64(&data->transactions_count);
+		uint32_t write_current = as_fas_uint32(&cdata->write_count, 0);
+		uint32_t write_timeout_current = as_fas_uint32(&cdata->write_timeout_count, 0);
+		uint32_t write_error_current = as_fas_uint32(&cdata->write_error_count, 0);
+		uint32_t read_current = as_fas_uint32(&cdata->read_count, 0);
+		uint32_t read_timeout_current = as_fas_uint32(&cdata->read_timeout_count, 0);
+		uint32_t read_error_current = as_fas_uint32(&cdata->read_error_count, 0);
+		//uint64_t transactions_current = as_load_uint64(&cdata->transactions_count);
 
-		data->period_begin = time;
+		cdata->period_begin = time;
 
 		uint32_t write_tps = (uint32_t)((double)write_current * 1000000 / elapsed + 0.5);
 		uint32_t read_tps = (uint32_t)((double)read_current * 1000000 / elapsed + 0.5);
@@ -317,22 +321,28 @@ void* periodic_output_worker(void* udata)
 
 		++gen_count;
 
-		if (((gen_count % data->histogram_period) == 0)) {
+		// print latency information at the very end of the stage no matter what
+		if (status == COORD_SLEEP_INTERRUPTED ||
+				((gen_count % cdata->histogram_period) == 0)) {
 			if (latency) {
 				uint64_t elapsed_s = (time - start_time) / 1000000;
-				print_hdr_percentiles(data->write_hdr, "write", elapsed_s,
-						&data->latency_percentiles, stdout);
+				print_hdr_percentiles(cdata->write_hdr, "write", elapsed_s,
+						&cdata->latency_percentiles, stdout);
 				if (has_reads) {
-					print_hdr_percentiles(data->read_hdr,  "read",  elapsed_s,
-							&data->latency_percentiles, stdout);
+					print_hdr_percentiles(cdata->read_hdr,  "read",  elapsed_s,
+							&cdata->latency_percentiles, stdout);
 				}
 			}
 			if (histogram_output != NULL) {
-				histogram_print_clear(write_histogram, data->histogram_period,
+				if (first_log_of_stage) {
+					fprint_stage(histogram_output, &cdata->stages,
+							tdata->stage_idx);
+				}
+				histogram_print_clear(write_histogram, elapsed,
 						histogram_output);
 				if (has_reads) {
-					histogram_print_clear(read_histogram,
-							data->histogram_period, histogram_output);
+					histogram_print_clear(read_histogram, elapsed,
+							histogram_output);
 				}
 				fflush(histogram_output);
 			}
@@ -359,6 +369,11 @@ void* periodic_output_worker(void* udata)
 				// no need to check again
 				break;
 			}
+
+			first_log_of_stage = true;
+		}
+		else {
+			first_log_of_stage = false;
 		}
 
 do_sleep:

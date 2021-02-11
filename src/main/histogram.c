@@ -47,7 +47,7 @@ STATIC_ASSERT(offsetof(histogram, underflow_cnt) + sizeof(uint32_t) ==
 
 inline uint32_t *
 __attribute__((always_inline))
-__histogram_get_bucket(histogram * h, int32_t idx) {
+__histogram_get_bucket(histogram * h, int64_t idx) {
 	return (idx < 0) ? (((uint32_t *) (((ptr_int_t) h) + offsetof(histogram, underflow_cnt)
 				+ 2 * sizeof(uint32_t))) + idx) : &h->buckets[idx];
 }
@@ -161,7 +161,7 @@ histogram_add(histogram * h, delay_t elapsed_us)
 }
 
 delay_t
-histogram_get_count(histogram * h, uint32_t bucket_idx)
+histogram_get_count(histogram * h, uint64_t bucket_idx)
 {
 	uint32_t * bucket = __histogram_get_bucket(h, bucket_idx);
 
@@ -184,22 +184,22 @@ histogram_calc_total(const histogram * h)
 
 
 static void
-_print_header(const histogram * h, uint32_t period_duration, uint64_t total_cnt,
+_print_header(const histogram * h, uint64_t period_duration_us, uint64_t total_cnt,
 		FILE * out_file)
 {
 	if (h->name != NULL) {
 		fblog(out_file, "%s ", h->name);
 	}
-	fblog(out_file, "%.24s, %us, %lu", utc_time_str(time(NULL)), period_duration,
-			total_cnt);
+	fblog(out_file, "%.24s, %gs, %lu", utc_time_str(time(NULL)),
+			period_duration_us / 1000000.f, total_cnt);
 }
 
 
 void
-histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file)
+histogram_print(const histogram * h, uint64_t period_duration_us, FILE * out_file)
 {
 	uint64_t total_cnt = histogram_calc_total(h);
-	_print_header(h, period_duration, total_cnt, out_file);
+	_print_header(h, period_duration_us, total_cnt, out_file);
 
 	if (h->underflow_cnt > 0) {
 		fblog(out_file, ", 0:%u", h->underflow_cnt);
@@ -228,7 +228,7 @@ histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file)
 }
 
 void
-histogram_print_clear(histogram * h, uint32_t period_duration, FILE * out_file)
+histogram_print_clear(histogram * h, uint64_t period_duration_us, FILE * out_file)
 {
 	uint64_t total_cnt = 0;
 	uint32_t * cnts = (uint32_t *) cf_malloc(h->n_buckets * sizeof(uint32_t));
@@ -252,7 +252,7 @@ histogram_print_clear(histogram * h, uint32_t period_duration, FILE * out_file)
 	uint32_t overflow_cnt = as_fas_uint32(&h->overflow_cnt, 0);
 	total_cnt += overflow_cnt;
 
-	_print_header(h, period_duration, total_cnt, out_file);
+	_print_header(h, period_duration_us, total_cnt, out_file);
 
 	if (underflow_cnt > 0) {
 		fblog(out_file, ", 0:%u", underflow_cnt);

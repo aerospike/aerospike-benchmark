@@ -107,13 +107,13 @@ void histogram_add(histogram * h, delay_t elapsed_us);
 /*
  * returns the count in the bucket of the given index
  */
-delay_t histogram_get_count(histogram * h, uint32_t bucket_idx);
+delay_t histogram_get_count(histogram * h, uint64_t bucket_idx);
 
 /*
  * prints the histogram in a condensed format, requires period duration in
  * seconds (i.e. how long this histogram has been accumulating)
  */
-void histogram_print(const histogram * h, uint32_t period_duration, FILE * out_file);
+void histogram_print(const histogram * h, uint64_t period_duration, FILE * out_file);
 
 /*
  * prints the histogram, clearing the buckets as their values are read. This
@@ -121,7 +121,7 @@ void histogram_print(const histogram * h, uint32_t period_duration, FILE * out_f
  * concurrent writers executing simultaneously. This guarantees that no writes
  * to the histogram will be missed
  */
-void histogram_print_clear(histogram * h, uint32_t period_duration, FILE * out_file);
+void histogram_print_clear(histogram * h, uint64_t period_duration, FILE * out_file);
 
 /*
  * print info about the histogram and how it is constructed

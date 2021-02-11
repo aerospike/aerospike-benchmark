@@ -167,6 +167,13 @@ static inline bool workload_is_infinite(const struct workload* workload)
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }
 
+static inline void fprint_stage(FILE* out_file, const struct stages* stages,
+		uint32_t stage_idx)
+{
+	const char* desc = stages->stages[stage_idx].desc;
+	fprintf(out_file, "Stage %d: %s\n", stage_idx + 1, desc ? desc : "");
+}
+
 /*
  * reads and parses bins_str, a comma-separated list of bin numbers
  * (1-based indexed) and populates the read_bins field of stage
