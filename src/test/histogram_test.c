@@ -243,7 +243,7 @@ START_TEST(simple_print)
 
 	FILE * out_file = tmpfile();
 
-	histogram_print(h, 1, out_file);
+	histogram_print(h, 1000000, out_file);
 	fseek(out_file, 0, SEEK_SET);
 
 	int bucket, cnt;
@@ -273,7 +273,7 @@ START_TEST(simple_print_lowb)
 
 	FILE * out_file = tmpfile();
 
-	histogram_print(h, 1, out_file);
+	histogram_print(h, 1000000, out_file);
 	fseek(out_file, 0, SEEK_SET);
 
 	int bucket, cnt;
@@ -303,7 +303,7 @@ START_TEST(simple_print_upb)
 
 	FILE * out_file = tmpfile();
 
-	histogram_print(h, 1, out_file);
+	histogram_print(h, 1000000, out_file);
 	fseek(out_file, 0, SEEK_SET);
 
 	int bucket, cnt;
@@ -333,7 +333,7 @@ START_TEST(simple_print_clear)
 
 	FILE * out_file = tmpfile();
 
-	histogram_print_clear(h, 1, out_file);
+	histogram_print_clear(h, 1000000, out_file);
 	fseek(out_file, 0, SEEK_SET);
 
 	// should get the exact same output as simple_print
