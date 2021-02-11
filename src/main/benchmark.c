@@ -58,11 +58,11 @@ connect_to_server(arguments* args, aerospike* client)
 
 #if AS_EVENT_LIB_DEFINED
 		if (! as_event_create_loops(args->event_loop_capacity)) {
-			blog_error("Failed to create asynchronous event loops");
+			blog_error("Failed to create asynchronous event loops\n");
 			return 2;
 		}
 #else
-		blog_error("Must 'make EVENT_LIB=<libname>' to use asynchronous functions.");
+		blog_error("Must 'make EVENT_LIB=<libname>' to use asynchronous functions.\n");
 		return 2;
 #endif
 	}
@@ -71,7 +71,7 @@ connect_to_server(arguments* args, aerospike* client)
 	as_config_init(&cfg);
 	
 	if (! as_config_add_hosts(&cfg, args->hosts, args->port)) {
-		blog_error("Invalid host(s) %s", args->hosts);
+		blog_error("Invalid host(s) %s\n", args->hosts);
 		return 3;
 	}
 
@@ -143,7 +143,7 @@ connect_to_server(arguments* args, aerospike* client)
 	as_error err;
 	
 	if (aerospike_connect(client, &err) != AEROSPIKE_OK) {
-		blog_error("%s", err.message);
+		blog_error("%s\n", err.message);
 		aerospike_destroy(client);
 		return 1;
 	}
@@ -182,7 +182,7 @@ is_single_bin(aerospike* client, const char* namespace)
 		free(res);
 	}
 	else {
-		blog_error("Info request failed: %d - %s", err.code, err.message);
+		blog_error("Info request failed: %d - %s\n", err.code, err.message);
 	}
 	return single_bin;
 }
@@ -217,7 +217,7 @@ is_stop_writes(aerospike* client, const char* namespace)
 		}
 	}
 	else {
-		blog_error("Info request failed: %d - %s", err.code, err.message);
+		blog_error("Info request failed: %d - %s\n", err.code, err.message);
 	}
 	free(res);
 	return stop_writes;
@@ -288,7 +288,7 @@ _run(clientdata* cdata)
 	struct threaddata* out_worker_tdata = tdatas[n_threads - 1];
 	if (pthread_create(&threads[n_threads - 1], NULL, periodic_output_worker,
 				out_worker_tdata) != 0) {
-		blog_error("Failed to create output thread");
+		blog_error("Failed to create output thread\n");
 		cf_free(threads);
 		cf_free(tdatas);
 		thr_coordinator_free(&coord);
@@ -304,7 +304,7 @@ _run(clientdata* cdata)
 		struct threaddata* tdata = tdatas[i];
 
 		if (pthread_create(&threads[i], NULL, worker_fn, tdata) != 0) {
-			blog_error("Failed to create transaction worker thread");
+			blog_error("Failed to create transaction worker thread\n");
 			ret = -1;
 
 			// go to clean up the rest of the threads that have already
