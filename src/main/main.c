@@ -49,6 +49,7 @@ static struct option long_options[] = {
 	{"duration",             required_argument, 0, 't'},
 	{"workload",             required_argument, 0, 'w'},
 	{"workloadStages",       required_argument, 0, '.'},
+	{"readBins",             required_argument, 0, '+'},
 	{"threads",              required_argument, 0, 'z'},
 	{"throughput",           required_argument, 0, 'g'},
 	{"batchSize",            required_argument, 0, '0'},
@@ -135,6 +136,10 @@ print_usage(const char* program)
 	blog_line("   Aerospike namespace.");
 	blog_line("");
 
+	blog_line("-s --set <set name>   # Default: testset");
+	blog_line("   Aerospike set name.");
+	blog_line("");
+
 	blog_line("   --workloadStages <path/to/workload_stages.yml>");
 	blog_line("   Accepts a path to a workload stages yml file, which should contain a list of");
 	blog_line("       workload stages to run through.");
@@ -153,10 +158,6 @@ print_usage(const char* program)
 	blog_line("     async: when true/yes, uses asynchronous commands for this stage. Default is false");
 	blog_line("     random: when true/yes, randomly generates new objects for each write. Default is false");
 	blog_line("     batch-size: specifies the batch size of reads for this stage. Default is 1");
-	blog_line("");
-
-	blog_line("-s --set <set name>   # Default: testset");
-	blog_line("   Aerospike set name.");
 	blog_line("");
 
 	blog_line("-K --startKey <start> # Default: 0");
@@ -428,7 +429,9 @@ print_args(arguments* args)
 	blog_line("threads:                %d", args->transaction_worker_threads);
 
 	blog_line("enable compression:     %s", boolstring(args->enable_compression));
-	blog_line("compression ratio:      %f", args->compression_ratio);
+	if (args->enable_compression) {
+		blog_line("compression ratio:      %f", args->compression_ratio);
+	}
 	blog_line("read socket timeout:    %d ms", args->read_socket_timeout);
 	blog_line("write socket timeout:   %d ms", args->write_socket_timeout);
 	blog_line("read total timeout:     %d ms", args->read_total_timeout);
@@ -684,6 +687,7 @@ static struct stage* get_or_init_stage(arguments* args)
 		args->stages.n_stages = 1;
 		args->stages.valid = true;
 
+		args->stages.stages[0].stage_idx = 1;
 		args->stages.stages[0].duration = -1LU;
 		args->stages.stages[0].key_start = -1LU;
 		args->stages.stages[0].key_end = -1LU;
@@ -792,6 +796,17 @@ set_args(int argc, char * const * argv, arguments* args)
 					return -1;
 				}
 				args->workload_stages_file = strdup(optarg);
+				break;
+			}
+
+			case '+': {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the readBins flag\n");
+					return -1;
+				}
+				struct stage* stage = get_or_init_stage(args);
+				stage->read_bins_str = strdup(optarg);
 				break;
 			}
 
@@ -1142,7 +1157,7 @@ _load_defaults_post(arguments* args)
 			stage->workload_str = strdup("RU");
 		}
 
-		stages_set_defaults_and_parse(&args->stages, args);
+		res = stages_set_defaults_and_parse(&args->stages, args);
 	}
 
 	return res;

@@ -82,16 +82,16 @@ struct stage {
 	bool random;
 
 	union {
-		struct {
-			char* workload_str;
-			// only used temporarily to verify that stages are indexed properly
-			uint16_t stage_idx;
-		};
+		char* workload_str;
 		struct workload workload;
 	};
 
 	union {
-		char* obj_spec_str;
+		struct {
+			char* obj_spec_str;
+			// only used temporarily to verify that stages are indexed properly
+			uint16_t stage_idx;
+		};
 		struct obj_spec obj_spec;
 	};
 

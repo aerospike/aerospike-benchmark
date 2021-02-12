@@ -323,7 +323,6 @@ int stages_set_defaults_and_parse(struct stages* stages,
 			ret = -1;
 		}
 		else if (parse_bins_selection(stage, bins_str, args->bin_name) != 0) {
-			cf_free(bins_str);
 			stage->read_bins_str = NULL;
 			ret = -1;
 		}
