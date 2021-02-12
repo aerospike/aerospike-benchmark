@@ -23,7 +23,7 @@ int queue_init(queue_t* q, uint32_t q_len)
 
 	// len is the next power of 2 strictly greater than q_len
 	uint32_t len = next_pow2(q_len);
-	q->items = (void**) cf_malloc(len * sizeof(void*));
+	q->items = (void**) cf_calloc(len, sizeof(void*));
 	q->len_mask = len - 1;
 	q->pos = 0;
 	q->head = 0;
@@ -49,7 +49,8 @@ void* queue_pop(queue_t* q)
 	uint32_t head = q->head;
 	uint32_t pos = as_load_uint32(&q->pos);
 
-	if (((head ^ pos) & q->len_mask)) {
+	// Since uint32_t can overflow with only ~4B transactions, use !=, not <
+	if (head != pos) {
 		item = (void*) as_fas_uint64((uint64_t*) &q->items[head & q->len_mask],
 				(uint64_t) NULL);
 		// can be non-atomic since this thread is the only modifier of head

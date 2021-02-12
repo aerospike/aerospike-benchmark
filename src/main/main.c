@@ -863,12 +863,12 @@ set_args(int argc, char * const * argv, arguments* args)
 				args->debug = true;
 				break;
 
-			case 'L': {
+			case 'L':
 				args->latency = true;
 				break;
-			}
 
-			case '8': {
+			case '8':
+				; // TODO make a comment
 				as_vector * perc = &args->latency_percentiles;
 				as_vector_clear(perc);
 				char* _tmp = strdup(optarg);
@@ -895,25 +895,21 @@ set_args(int argc, char * const * argv, arguments* args)
 				} while (prior != '\0');
 				free(_tmp);
 				break;
-			}
 
-			case '6': {
+			case '6':
 				args->latency_histogram = true;
 				if (strcmp(optarg, "stdout") != 0) {
 					args->histogram_output = strdup(optarg);
 				}
 				break;
-			}
 
-			case '7': {
+			case '7':
 				args->histogram_period = atoi(optarg);
 				break;
-			}
 
-			case '/': {
+			case '/':
 				args->hdr_output = strdup(optarg);
 				break;
-			}
 
 			case 'S':
 				args->use_shm = true;

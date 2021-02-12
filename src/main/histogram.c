@@ -174,7 +174,7 @@ histogram_calc_total(const histogram * h)
 	uint64_t total;
 
 	total = h->underflow_cnt + h->overflow_cnt;
-	
+
 	for (uint32_t i = 0; i < h->n_buckets; i++) {
 		total += h->buckets[i];
 	}
@@ -190,10 +190,9 @@ _print_header(const histogram * h, uint64_t period_duration_us, uint64_t total_c
 	if (h->name != NULL) {
 		fblog(out_file, "%s ", h->name);
 	}
-	fblog(out_file, "%.24s, %gs, %lu", utc_time_str(time(NULL)),
+	fblog(out_file, "%s, %gs, %lu", utc_time_str(time(NULL)),
 			period_duration_us / 1000000.f, total_cnt);
 }
-
 
 void
 histogram_print(const histogram * h, uint64_t period_duration_us, FILE * out_file)
