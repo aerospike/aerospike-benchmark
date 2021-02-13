@@ -1,4 +1,8 @@
 
+//==========================================================
+// Includes
+//
+
 #include <latency_output.h>
 
 #include <errno.h>
@@ -14,8 +18,13 @@
 #include <transaction.h>
 
 
-int initialize_histograms(clientdata* cdata, arguments* args,
-		time_t* start_time, hdr_timespec* start_timespec) {
+//==========================================================
+// Public API.
+//
+
+int
+initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
+		hdr_timespec* start_timespec) {
 	int ret = 0;
 	bool has_reads = stages_contains_reads(&cdata->stages);
 
@@ -162,8 +171,8 @@ int initialize_histograms(clientdata* cdata, arguments* args,
 	return ret;
 }
 
-
-void free_histograms(clientdata* cdata, arguments* args)
+void
+free_histograms(cdata_t* cdata, args_t* args)
 {
 	bool has_reads = stages_contains_reads(&cdata->stages);
 
@@ -210,8 +219,8 @@ void free_histograms(clientdata* cdata, arguments* args)
 	}
 }
 
-
-void record_summary_data(clientdata* cdata, arguments* args, time_t start_time,
+void
+record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 		hdr_timespec* start_timespec) {
 	static const int32_t ticks_per_half_distance = 5;
 	bool has_reads = stages_contains_reads(&cdata->stages);
@@ -247,18 +256,18 @@ void record_summary_data(clientdata* cdata, arguments* args, time_t start_time,
 	}
 }
 
-
-void* periodic_output_worker(void* udata)
+void*
+periodic_output_worker(void* udata)
 {
 	struct threaddata* tdata = (struct threaddata*) udata;
-	clientdata* cdata = tdata->cdata;
+	cdata_t* cdata = tdata->cdata;
 	struct thr_coordinator* coord = tdata->coord;
 
 	bool latency = cdata->latency;
 	bool has_reads = stages_contains_reads(&cdata->stages);
 	uint64_t gen_count = 0;
-	histogram* write_histogram = &cdata->write_histogram;
-	histogram* read_histogram = &cdata->read_histogram;
+	histogram_t* write_histogram = &cdata->write_histogram;
+	histogram_t* read_histogram = &cdata->read_histogram;
 	FILE* histogram_output = cdata->histogram_output;
 
 	struct timespec wake_up;

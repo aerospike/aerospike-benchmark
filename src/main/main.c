@@ -19,6 +19,11 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  ******************************************************************************/
+
+//==========================================================
+// Forward declarations.
+//
+
 #include <benchmark.h>
 #include <common.h>
 
@@ -31,6 +36,11 @@
 #undef _UNICODE  // Use ASCII getopt version on windows.
 #endif
 #include <getopt.h>
+
+
+//==========================================================
+// Typedefs & constants.
+//
 
 static const char* short_options = "h:p:U:P::n:s:K:k:b:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:u";
 
@@ -94,6 +104,67 @@ static struct option long_options[] = {
 	{"usage",                no_argument,       0, 'u'},
 	{0, 0, 0, 0}
 };
+
+
+//==========================================================
+// Forward declarations.
+//
+
+static void print_usage(const char* program);
+static void print_args(args_t* args);
+static int validate_args(args_t* args);
+static stage_t* get_or_init_stage(args_t* args);
+static int set_args(int argc, char * const* argv, args_t* args);
+static void _load_defaults(args_t* args);
+static int _load_defaults_post(args_t* args);
+
+
+//==========================================================
+// Public API.
+//
+
+int
+main(int argc, char * const * argv)
+{
+	args_t args;
+	_load_defaults(&args);
+
+	int ret = set_args(argc, argv, &args);
+
+	if (ret == 0) {
+		ret = _load_defaults_post(&args);
+	}
+
+	if (ret == 0) {
+		print_args(&args);
+		run_benchmark(&args);
+
+		free_workload_config(&args.stages);
+	}
+	else if (ret != -1) {
+		blog_line("Run with --help for usage information and flag options.");
+	}
+
+	obj_spec_free(&args.obj_spec);
+	if (args.workload_stages_file) {
+		cf_free(args.workload_stages_file);
+	}
+	if (args.hdr_output) {
+		cf_free(args.hdr_output);
+	}
+	if (args.histogram_output) {
+		cf_free(args.histogram_output);
+	}
+	as_vector_destroy(&args.latency_percentiles);
+
+	free(args.hosts);
+	return ret;
+}
+
+
+//==========================================================
+// Local helpers.
+//
 
 static void
 print_usage(const char* program)
@@ -410,7 +481,7 @@ print_usage(const char* program)
 }
 
 static void
-print_args(arguments* args)
+print_args(args_t* args)
 {
 	blog_line("hosts:                  %s", args->hosts);
 	blog_line("port:                   %d", args->port);
@@ -563,7 +634,7 @@ print_args(arguments* args)
 }
 
 static int
-validate_args(arguments* args)
+validate_args(args_t* args)
 {
 	if (args->start_key == ULLONG_MAX) {
 		blog_line("Invalid start key: %" PRIu64, args->start_key);
@@ -680,7 +751,8 @@ validate_args(arguments* args)
 	return 0;
 }
 
-static struct stage* get_or_init_stage(arguments* args)
+static stage_t*
+get_or_init_stage(args_t* args)
 {
 	if (args->stages.stages == NULL) {
 		args->stages.stages = (struct stage*) cf_calloc(1, sizeof(struct stage));
@@ -696,7 +768,7 @@ static struct stage* get_or_init_stage(arguments* args)
 }
 
 static int
-set_args(int argc, char * const * argv, arguments* args)
+set_args(int argc, char * const* argv, args_t* args)
 {
 	int option_index = 0;
 	int c;
@@ -1083,7 +1155,7 @@ set_args(int argc, char * const * argv, arguments* args)
 }
 
 static void
-_load_defaults(arguments* args)
+_load_defaults(args_t* args)
 {
 	args->hosts = strdup("127.0.0.1");
 	args->port = 3000;
@@ -1139,7 +1211,7 @@ _load_defaults(arguments* args)
 }
 
 static int
-_load_defaults_post(arguments* args)
+_load_defaults_post(args_t* args)
 {
 	int res = 0;
 
@@ -1163,40 +1235,3 @@ _load_defaults_post(arguments* args)
 	return res;
 }
 
-int
-main(int argc, char * const * argv)
-{
-	arguments args;
-	_load_defaults(&args);
-
-	int ret = set_args(argc, argv, &args);
-
-	if (ret == 0) {
-		ret = _load_defaults_post(&args);
-	}
-
-	if (ret == 0) {
-		print_args(&args);
-		run_benchmark(&args);
-
-		free_workload_config(&args.stages);
-	}
-	else if (ret != -1) {
-		blog_line("Run with --help for usage information and flag options.");
-	}
-
-	obj_spec_free(&args.obj_spec);
-	if (args.workload_stages_file) {
-		cf_free(args.workload_stages_file);
-	}
-	if (args.hdr_output) {
-		cf_free(args.hdr_output);
-	}
-	if (args.histogram_output) {
-		cf_free(args.histogram_output);
-	}
-	as_vector_destroy(&args.latency_percentiles);
-
-	free(args.hosts);
-	return ret;
-}

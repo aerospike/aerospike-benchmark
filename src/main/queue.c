@@ -1,4 +1,8 @@
 
+//==========================================================
+// Includes.
+//
+
 #include <stdio.h>
 
 #include <aerospike/as_atomic.h>
@@ -6,15 +10,20 @@
 
 #include <queue.h>
 
-static uint32_t next_pow2(uint32_t n)
-{
-	uint32_t leading_bits = __builtin_clz(n);
-	// safe as long as n < 2**31
-	return 0x80000000LU >> (leading_bits - 1);
-}
+
+//==========================================================
+// Forward declarations.
+//
+
+static uint32_t next_pow2(uint32_t n);
 
 
-int queue_init(queue_t* q, uint32_t q_len)
+//==========================================================
+// Public API.
+//
+
+int
+queue_init(queue_t* q, uint32_t q_len)
 {
 	if (q_len == 0) {
 		fprintf(stderr, "Queue length cannot be 0\n");
@@ -30,20 +39,23 @@ int queue_init(queue_t* q, uint32_t q_len)
 	return 0;
 }
 
-void queue_free(queue_t* q)
+void
+queue_free(queue_t* q)
 {
 	cf_free(q->items);
 }
 
 
-void queue_push(queue_t* q, void* item)
+void
+queue_push(queue_t* q, void* item)
 {
 	uint32_t pos = as_faa_uint32(&q->pos, 1);
 	as_store_ptr(&q->items[pos & q->len_mask], item);
 }
 
 
-void* queue_pop(queue_t* q)
+void*
+queue_pop(queue_t* q)
 {
 	void* item;
 	uint32_t head = q->head;
@@ -60,3 +72,15 @@ void* queue_pop(queue_t* q)
 	return NULL;
 }
 
+
+//==========================================================
+// Local helpers.
+//
+
+static uint32_t
+next_pow2(uint32_t n)
+{
+	uint32_t leading_bits = __builtin_clz(n);
+	// safe as long as n < 2**31
+	return 0x80000000LU >> (leading_bits - 1);
+}

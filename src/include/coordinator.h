@@ -44,7 +44,7 @@
 // forward declare to avoid circular inclusion
 struct threaddata;
 
-struct thr_coordinator {
+typedef struct thr_coordinator {
 	/*
 	 * condition variable that the coordinator thread waits on after the stage
 	 * duration has elapsed but not all threads have completed their alloted
@@ -60,11 +60,11 @@ struct thr_coordinator {
 	// from the as_sleep call, i.e. once the minimum required duration of the
 	// stage has elapsed)
 	uint32_t unfinished_threads;
-};
+} thr_coord_t;
 
 struct coordinator_worker_args {
-	struct thr_coordinator* coord;
-	clientdata* cdata;
+	thr_coord_t* coord;
+	cdata_t* cdata;
 
 	// list of thread data pointers
 	struct threaddata** tdatas;
@@ -74,9 +74,9 @@ struct coordinator_worker_args {
 /*
  * initializes the given thread coordinator struct
  */
-int thr_coordinator_init(struct thr_coordinator*, uint32_t n_threads);
+int thr_coordinator_init(thr_coord_t*, uint32_t n_threads);
 
-void thr_coordinator_free(struct thr_coordinator*);
+void thr_coordinator_free(thr_coord_t*);
 
 
 /*
@@ -87,7 +87,7 @@ void thr_coordinator_free(struct thr_coordinator*);
  * this is safe to call whenever during a stage, even before every other thread
  * has called thr_coordinator_complete
  */
-void thr_coordinator_wait(struct thr_coordinator*);
+void thr_coordinator_wait(thr_coord_t*);
 
 /*
  * notifies the thread coordinator that this thread has completed its task.
@@ -100,7 +100,7 @@ void thr_coordinator_wait(struct thr_coordinator*);
  * stopped at any point (like the logging thread, or the transaction threads
  * performing a read/update workload)
  */
-void thr_coordinator_complete(struct thr_coordinator*);
+void thr_coordinator_complete(thr_coord_t*);
 
 /*
  * puts the calling thread to sleep until the given wakeup time, either
@@ -112,8 +112,7 @@ void thr_coordinator_complete(struct thr_coordinator*);
  *
  * wakeup_time must be given by the CLOCK_MONOTONIC clock
  */
-int thr_coordinator_sleep(struct thr_coordinator*,
-		const struct timespec* wakeup_time);
+int thr_coordinator_sleep(thr_coord_t*, const struct timespec* wakeup_time);
 
 
 /*

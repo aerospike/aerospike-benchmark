@@ -1,4 +1,8 @@
 
+//==========================================================
+// Includes.
+//
+
 #include <assert.h>
 #include <stdio.h>
 
@@ -10,53 +14,57 @@
 #include <workload.h>
 
 
+//==========================================================
+// Typedefs & constants.
+//
+
 /* CYAML mapping schema fields array for stages */
 static const cyaml_schema_field_t stage_mapping_schema[] = {
 	CYAML_FIELD_UINT("stage", 0,
-			struct stage, stage_idx),
+			stage_t, stage_idx),
 	CYAML_FIELD_STRING_PTR("desc",
 			CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
-			struct stage, desc,
+			stage_t, desc,
 			0, CYAML_UNLIMITED),
 	CYAML_FIELD_UINT("duration", 0,
-			struct stage, duration),
+			stage_t, duration),
 	CYAML_FIELD_STRING_PTR("workload", 0,
-			struct stage, workload_str,
+			stage_t, workload_str,
 			0, CYAML_UNLIMITED),
 	CYAML_FIELD_UINT("tps", CYAML_FLAG_OPTIONAL,
-			struct stage, tps),
+			stage_t, tps),
 	CYAML_FIELD_STRING_PTR("object-spec",
 			CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
-			struct stage, obj_spec_str,
+			stage_t, obj_spec_str,
 			0, CYAML_UNLIMITED),
 	CYAML_FIELD_UINT("key-start", CYAML_FLAG_OPTIONAL | CYAML_FLAG_DEFAULT_ONES,
-			struct stage, key_start),
+			stage_t, key_start),
 	CYAML_FIELD_UINT("key-end", CYAML_FLAG_OPTIONAL | CYAML_FLAG_DEFAULT_ONES,
-			struct stage, key_end),
+			stage_t, key_end),
 	CYAML_FIELD_STRING_PTR("read-bins",
 			CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
-			struct stage, read_bins_str,
+			stage_t, read_bins_str,
 			0, CYAML_UNLIMITED),
 	CYAML_FIELD_UINT("pause", CYAML_FLAG_OPTIONAL,
-			struct stage, pause),
+			stage_t, pause),
 	CYAML_FIELD_UINT("batch-size", CYAML_FLAG_OPTIONAL,
-			struct stage, batch_size),
+			stage_t, batch_size),
 	CYAML_FIELD_BOOL("async", CYAML_FLAG_OPTIONAL,
-			struct stage, async),
+			stage_t, async),
 	CYAML_FIELD_BOOL("random", CYAML_FLAG_OPTIONAL,
-			struct stage, random),
+			stage_t, random),
 	CYAML_FIELD_END
 };
 
 static const cyaml_schema_value_t stage_schema = {
 	CYAML_VALUE_MAPPING(CYAML_FLAG_DEFAULT,
-			struct stage, stage_mapping_schema),
+			stage_t, stage_mapping_schema),
 };
 
 /* CYAML value schema for the top level mapping. */
 static const cyaml_schema_value_t top_schema = {
 	CYAML_VALUE_SEQUENCE(CYAML_FLAG_POINTER,
-			struct stage, &stage_schema,
+			stage_t, &stage_schema,
 			1, CYAML_UNLIMITED),
 };
 
@@ -71,8 +79,19 @@ static const cyaml_config_t config = {
 };
 
 
+//==========================================================
+// Forward declarations.
+//
 
-int parse_workload_type(struct workload* workload, const char* workload_str)
+static void _parse_bins_destroy(as_vector* read_bins);
+
+
+//==========================================================
+// Public API.
+//
+
+int
+parse_workload_type(workload_t* workload, const char* workload_str)
 {
 	char* endptr;
 
@@ -144,23 +163,11 @@ int parse_workload_type(struct workload* workload, const char* workload_str)
 	return 0;
 }
 
-
-static void _parse_bins_destroy(as_vector* read_bins)
-{
-
-	// free all the as_bin_names reserved so far
-	for (uint32_t d_idx = read_bins->size - 1; d_idx < read_bins->size;
-			d_idx--) {
-		cf_free(as_vector_get_ptr(read_bins, d_idx));
-	}
-	// then free the vector itself
-	as_vector_destroy(read_bins);
-}
-
 /*
  * note: this must be done after the obj_spec has already been parsed
  */
-int parse_bins_selection(struct stage* stage, const char* bins_str,
+int
+parse_bins_selection(stage_t* stage, const char* bins_str,
 		const char* stage_bin_name)
 {
 	if (bins_str == NULL) {
@@ -218,7 +225,8 @@ int parse_bins_selection(struct stage* stage, const char* bins_str,
 	return 0;
 }
 
-void free_bins_selection(struct stage* stage)
+void
+free_bins_selection(stage_t* stage)
 {
 	char** read_bins = stage->read_bins;
 	if (read_bins != NULL) {
@@ -229,9 +237,8 @@ void free_bins_selection(struct stage* stage)
 	}
 }
 
-
-int stages_set_defaults_and_parse(struct stages* stages,
-		const struct arguments_t* args)
+int
+stages_set_defaults_and_parse(stages_t* stages, const args_t* args)
 {
 	uint32_t n_stages = stages->n_stages;
 
@@ -242,7 +249,7 @@ int stages_set_defaults_and_parse(struct stages* stages,
 	int ret = 0;
 
 	for (uint32_t i = 0; i < n_stages; i++) {
-		struct stage* stage = &stages->stages[i];
+		stage_t* stage = &stages->stages[i];
 
 		if (stage->key_start == -1LU) {
 			// if key_start wasn't specified, then inherit from the global context
@@ -343,8 +350,8 @@ int stages_set_defaults_and_parse(struct stages* stages,
 }
 
 
-int parse_workload_config_file(const char* file, struct stages* stages,
-		const struct arguments_t* args)
+int parse_workload_config_file(const char* file, stages_t* stages,
+		const args_t* args)
 {
 	cyaml_err_t err;
 
@@ -364,12 +371,12 @@ int parse_workload_config_file(const char* file, struct stages* stages,
 	return ret;
 }
 
-void free_workload_config(struct stages* stages)
+void free_workload_config(stages_t* stages)
 {
 	if (stages->valid) {
 		// first go through and free the parts that aren't part of the yaml struct
 		for (uint32_t i = 0; i < stages->n_stages; i++) {
-			struct stage* stage = &stages->stages[i];
+			stage_t* stage = &stages->stages[i];
 
 			// no freeing needed to be done for workload, so just set workload_str
 			// to NULL
@@ -386,25 +393,22 @@ void free_workload_config(struct stages* stages)
 	}
 }
 
-
-void stages_move(struct stages* dst, struct stages* src)
+void stages_move(stages_t* dst, stages_t* src)
 {
 	// you can only move from a valid src
 	assert(src->valid);
-	__builtin_memcpy(dst, src, offsetof(struct stages, valid));
+	__builtin_memcpy(dst, src, offsetof(stages_t, valid));
 	dst->valid = true;
 	src->valid = false;
 }
 
-
-void stages_shallow_copy(struct stages* dst, const struct stages* src)
+void stages_shallow_copy(stages_t* dst, const stages_t* src)
 {
-	__builtin_memcpy(dst, src, offsetof(struct stages, valid));
+	__builtin_memcpy(dst, src, offsetof(stages_t, valid));
 	dst->valid = false;
 }
 
-
-bool stages_contains_reads(const struct stages* stages)
+bool stages_contains_reads(const stages_t* stages)
 {
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		if (workload_contains_reads(&stages->stages[i].workload)) {
@@ -414,15 +418,13 @@ bool stages_contains_reads(const struct stages* stages)
 	return false;
 }
 
-
-uint64_t stage_gen_random_key(const struct stage* stage, as_random* random)
+uint64_t stage_gen_random_key(const stage_t* stage, as_random* random)
 {
 	return gen_rand_range_64(random, stage->key_end - stage->key_start) +
 		stage->key_start;
 }
 
-
-void stage_random_pause(as_random* random, const struct stage* stage)
+void stage_random_pause(as_random* random, const stage_t* stage)
 {
 	uint32_t pause = stage->pause;
 	if (pause != 0) {
@@ -434,8 +436,7 @@ void stage_random_pause(as_random* random, const struct stage* stage)
 	}
 }
 
-
-void stages_print(const struct stages* stages)
+void stages_print(const stages_t* stages)
 {
 	const static char* workloads[] = {
 		"I",
@@ -445,7 +446,7 @@ void stages_print(const struct stages* stages)
 
 	char obj_spec_buf[512];
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
-		const struct stage* stage = &stages->stages[i];
+		const stage_t* stage = &stages->stages[i];
 
 		snprint_obj_spec(&stage->obj_spec, obj_spec_buf, sizeof(obj_spec_buf));
 		printf( "- duration: %lu\n"
@@ -492,5 +493,22 @@ void stages_print(const struct stages* stages)
 			printf("  read_bins: (null)\n");
 		}
 	}
+}
+
+
+//==========================================================
+// Local helpers.
+//
+
+static void _parse_bins_destroy(as_vector* read_bins)
+{
+
+	// free all the as_bin_names reserved so far
+	for (uint32_t d_idx = read_bins->size - 1; d_idx < read_bins->size;
+			d_idx--) {
+		cf_free(as_vector_get_ptr(read_bins, d_idx));
+	}
+	// then free the vector itself
+	as_vector_destroy(read_bins);
 }
 

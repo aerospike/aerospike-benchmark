@@ -20,11 +20,19 @@
  * IN THE SOFTWARE.
  ******************************************************************************/
 
+//==========================================================
+// Includes.
+//
+
 #include <string.h>
 #include <time.h>
 
 #include "common.h"
 
+
+//==========================================================
+// Public API.
+//
 
 /*
  * algorithm inspired by: https://stackoverflow.com/a/18027868
@@ -60,7 +68,6 @@ int dec_display_len(size_t number)
 	return number == 0 ? 1 :
 		lookup[digits].digits + (lookup[digits].max < number);
 }
-
 
 void
 blog_line(const char* fmt, ...)
@@ -121,7 +128,6 @@ char* strchrnul(const char *s, int c_in)
 }
 
 #endif /* __linux__ */
-
 
 const char* utc_time_str(time_t t)
 {

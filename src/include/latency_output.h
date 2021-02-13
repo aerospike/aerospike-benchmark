@@ -35,19 +35,19 @@
  * setting the start time and start_timespec if args->hdr_output is not NULL
  * (i.e. if the summary histogram is enabled)
  */
-int initialize_histograms(clientdata* data, arguments* args,
-		time_t* start_time, hdr_timespec* start_timespec);
+int initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
+		hdr_timespec* start_timespec);
 
 /*
  * frees the histograms in cdata
  */
-void free_histograms(clientdata* data, arguments* args);
+void free_histograms(cdata_t* cdata, args_t* args);
 
 /*
  * to be called after the benchmark is complete in order to save summary data
  * from the cumulative histograms
  */
-void record_summary_data(clientdata* data, arguments* args, time_t start_time,
+void record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 		hdr_timespec* start_timespec);
 
 

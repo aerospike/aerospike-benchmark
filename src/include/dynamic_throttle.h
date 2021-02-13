@@ -30,6 +30,7 @@
 // the weight that new records have in moving the avg_fn_delay
 #define DYN_THROTTLE_ALPHA (1.f / DYN_THROTTLE_N)
 
+
 typedef struct dyn_throttle {
 	// the number of records that have been recorded
 	uint64_t n_records;

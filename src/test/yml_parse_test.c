@@ -14,13 +14,13 @@
 #define TMP_FILE_LOC "/tmp"
 
 
-static void assert_workloads_eq(const struct stages* parsed,
-		const struct stages* expected)
+static void assert_workloads_eq(const stages_t* parsed,
+		const stages_t* expected)
 {
 	ck_assert_int_eq(parsed->n_stages, expected->n_stages);
 	for (uint32_t i = 0; i < parsed->n_stages; i++) {
-		struct stage* a = &parsed->stages[i];
-		struct stage* b = &expected->stages[i];
+		stage_t* a = &parsed->stages[i];
+		stage_t* b = &expected->stages[i];
 
 		ck_assert_uint_eq(a->duration, b->duration);
 		ck_assert_str_eq(a->desc, b->desc);
@@ -63,9 +63,9 @@ START_TEST(test_name) \
 { \
 	FILE* tmp = fopen(TMP_FILE_LOC "/test.yml", "w+");		\
 	ck_assert_ptr_ne(tmp, NULL);							\
-	struct stages expected = stages_struct;					\
-	struct stages parsed;									\
-	arguments args;											\
+	stages_t expected = stages_struct;					\
+	stages_t parsed;									\
+	args_t args;											\
 	\
 	args.start_key = 1;										\
 	args.keys = 100000;										\
@@ -91,8 +91,8 @@ DEFINE_TEST(test_simple,
 		"  desc: \"test stage\"\n"
 		"  duration: 20\n"
 		"  workload: I",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -102,7 +102,7 @@ DEFINE_TEST(test_simple,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
@@ -119,8 +119,8 @@ DEFINE_TEST(test_tps,
 		"  duration: 20\n"
 		"  workload: I\n"
 		"  tps: 321",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 321,
@@ -130,7 +130,7 @@ DEFINE_TEST(test_tps,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
@@ -147,8 +147,8 @@ DEFINE_TEST(test_key_start,
 		"  duration: 20\n"
 		"  workload: I\n"
 		"  key-start: 543",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -158,7 +158,7 @@ DEFINE_TEST(test_key_start,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
@@ -175,8 +175,8 @@ DEFINE_TEST(test_key_end,
 		"  duration: 20\n"
 		"  workload: I\n"
 		"  key-end: 1321",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -186,7 +186,7 @@ DEFINE_TEST(test_key_end,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
@@ -203,8 +203,8 @@ DEFINE_TEST(test_pause,
 		"  duration: 20\n"
 		"  workload: I\n"
 		"  pause: 231",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -214,7 +214,7 @@ DEFINE_TEST(test_pause,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
@@ -231,8 +231,8 @@ DEFINE_TEST(test_batch_size,
 		"  duration: 20\n"
 		"  workload: I\n"
 		"  batch-size: 32",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -242,7 +242,7 @@ DEFINE_TEST(test_batch_size,
 				.batch_size = 32,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
@@ -259,8 +259,8 @@ DEFINE_TEST(test_async,
 		"  duration: 20\n"
 		"  workload: I\n"
 		"  async: true",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -270,7 +270,7 @@ DEFINE_TEST(test_async,
 				.batch_size = 1,
 				.async = true,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
@@ -287,8 +287,8 @@ DEFINE_TEST(test_random,
 		"  duration: 20\n"
 		"  workload: I\n"
 		"  random: true",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -298,7 +298,7 @@ DEFINE_TEST(test_random,
 				.batch_size = 1,
 				.async = false,
 				.random = true,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
@@ -314,8 +314,8 @@ DEFINE_TEST(test_workload_ru_default,
 		"  desc: \"test stage\"\n"
 		"  duration: 20\n"
 		"  workload: RU\n",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -325,7 +325,7 @@ DEFINE_TEST(test_workload_ru_default,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_RANDOM,
 					.pct = 50
 				},
@@ -342,8 +342,8 @@ DEFINE_TEST(test_workload_ru_pct,
 		"  desc: \"test stage\"\n"
 		"  duration: 20\n"
 		"  workload: RU,75.2\n",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -353,7 +353,7 @@ DEFINE_TEST(test_workload_ru_pct,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_RANDOM,
 					.pct = 75.2
 				},
@@ -370,8 +370,8 @@ DEFINE_TEST(test_workload_db,
 		"  desc: \"test stage\"\n"
 		"  duration: 20\n"
 		"  workload: DB\n",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -381,7 +381,7 @@ DEFINE_TEST(test_workload_db,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_DELETE
 				},
 				.obj_spec_str = "I4",
@@ -399,8 +399,8 @@ DEFINE_TEST(test_obj_spec,
 		"  duration: 20\n"
 		"  workload: I\n"
 		"  object-spec: I,D,{3*S10:[B20,D,I8]}",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -410,7 +410,7 @@ DEFINE_TEST(test_obj_spec,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4,D,{3*S10:[B20,D,I8]}",
@@ -428,8 +428,8 @@ DEFINE_TEST(test_read_bins,
 		"  workload: RU\n"
 		"  object-spec: I,I,I,I,I\n"
 		"  read-bins: 1,3,5",
-		((struct stages) {
-			(struct stage[]) {{
+		((stages_t) {
+			(stage_t[]) {{
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
@@ -439,7 +439,7 @@ DEFINE_TEST(test_read_bins,
 				.batch_size = 1,
 				.async = false,
 				.random = false,
-				.workload = (struct workload) {
+				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_RANDOM,
 					.pct = 50
 				},

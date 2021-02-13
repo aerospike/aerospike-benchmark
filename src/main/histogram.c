@@ -19,6 +19,11 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  ******************************************************************************/
+
+//==========================================================
+// Includes.
+//
+
 #include <stdio.h>
 
 #include <citrusleaf/alloc.h>
@@ -26,6 +31,11 @@
 
 #include "histogram.h"
 #include "common.h"
+
+
+//==========================================================
+// Typedefs & constants.
+//
 
 /*
  * internal struct to describe the layout of the histogram, with redundancy
@@ -42,22 +52,39 @@ typedef struct bucket_range_desc {
 #define OVERFLOW_IDX  (-1)
 
 
-STATIC_ASSERT(offsetof(histogram, underflow_cnt) + sizeof(uint32_t) ==
-		offsetof(histogram, overflow_cnt));
+//==========================================================
+// Forward declarations.
+//
 
-inline uint32_t *
+static int32_t _histogram_get_index(histogram_t* h, delay_t elapsed_us);
+static void _print_header(const histogram_t* h, uint64_t period_duration_us,
+		uint64_t total_cnt, FILE* out_file);
+
+
+//==========================================================
+// Inlines and macros.
+//
+
+STATIC_ASSERT(offsetof(histogram_t, underflow_cnt) + sizeof(uint32_t) ==
+		offsetof(histogram_t, overflow_cnt));
+
+inline uint32_t*
 __attribute__((always_inline))
-__histogram_get_bucket(histogram * h, int64_t idx) {
-	return (idx < 0) ? (((uint32_t *) (((ptr_int_t) h) + offsetof(histogram, underflow_cnt)
+__histogram_get_bucket(histogram_t* h, int64_t idx) {
+	return (idx < 0) ? (((uint32_t*) (((ptr_int_t) h) + offsetof(histogram_t, underflow_cnt)
 				+ 2 * sizeof(uint32_t))) + idx) : &h->buckets[idx];
 }
 
 
+//==========================================================
+// Public API.
+//
+
 int
-histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges)
+histogram_init(histogram_t* h, size_t n_ranges, delay_t lowb, rangespec_t* ranges)
 {
-	bucket_range_desc_t * b =
-		(bucket_range_desc_t *) cf_malloc(n_ranges * sizeof(bucket_range_desc_t));
+	bucket_range_desc_t* b =
+		(bucket_range_desc_t*) cf_malloc(n_ranges * sizeof(bucket_range_desc_t));
 
 	delay_t range_start = lowb;
 	uint32_t total_buckets = 0;
@@ -85,7 +112,7 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 		range_start = range_end;
 	}
 
-	h->buckets = (uint32_t *) cf_calloc(total_buckets, sizeof(uint32_t));
+	h->buckets = (uint32_t*) cf_calloc(total_buckets, sizeof(uint32_t));
 	h->bounds = b;
 	h->name = NULL;
 	h->range_min = lowb;
@@ -98,7 +125,7 @@ histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * range
 }
 
 void
-histogram_free(histogram * h)
+histogram_free(histogram_t* h)
 {
 	if (h->name != NULL) {
 		cf_free(h->name);
@@ -108,7 +135,7 @@ histogram_free(histogram * h)
 }
 
 void
-histogram_clear(histogram * h)
+histogram_clear(histogram_t* h)
 {
 	memset(h->buckets, 0, h->n_buckets * sizeof(uint32_t));
 	h->underflow_cnt = 0;
@@ -117,7 +144,7 @@ histogram_clear(histogram * h)
 
 
 void
-histogram_set_name(histogram * h, const char * name)
+histogram_set_name(histogram_t* h, const char* name)
 {
 	if (h->name != NULL) {
 		cf_free(h->name);
@@ -125,51 +152,25 @@ histogram_set_name(histogram * h, const char * name)
 	h->name = cf_strdup(name);
 }
 
-static int32_t
-_histogram_get_index(histogram * h, delay_t elapsed_us)
-{
-	int32_t bin_idx;
-	delay_t lower_bound;
-	int32_t bin_offset;
-
-	// find which range index belongs in. Expecting a small number
-	// of buckets-size ranges, so do a simple linear search
-
-	if (elapsed_us < h->range_min) {
-		return UNDERFLOW_IDX;
-	}
-	if (elapsed_us >= h->range_max) {
-		return OVERFLOW_IDX;
-	}
-
-	bin_idx = h->n_bounds - 1;
-	while (elapsed_us < (lower_bound = h->bounds[bin_idx].lower_bound)) {
-		bin_idx--;
-	}
-
-	bin_offset = (elapsed_us - lower_bound) / h->bounds[bin_idx].bucket_width;
-	return h->bounds[bin_idx].offset + bin_offset;
-}
-
 void
-histogram_add(histogram * h, delay_t elapsed_us)
+histogram_add(histogram_t* h, delay_t elapsed_us)
 {
 	int32_t bucket_idx = _histogram_get_index(h, elapsed_us);
-	uint32_t * bucket = __histogram_get_bucket(h, bucket_idx);
+	uint32_t* bucket = __histogram_get_bucket(h, bucket_idx);
 
 	as_incr_uint32(bucket);
 }
 
 delay_t
-histogram_get_count(histogram * h, uint64_t bucket_idx)
+histogram_get_count(histogram_t* h, uint64_t bucket_idx)
 {
-	uint32_t * bucket = __histogram_get_bucket(h, bucket_idx);
+	uint32_t* bucket = __histogram_get_bucket(h, bucket_idx);
 
 	return as_load_uint32(bucket);
 }
 
 uint64_t
-histogram_calc_total(const histogram * h)
+histogram_calc_total(const histogram_t* h)
 {
 	uint64_t total;
 
@@ -182,20 +183,8 @@ histogram_calc_total(const histogram * h)
 	return total;
 }
 
-
-static void
-_print_header(const histogram * h, uint64_t period_duration_us, uint64_t total_cnt,
-		FILE * out_file)
-{
-	if (h->name != NULL) {
-		fblog(out_file, "%s ", h->name);
-	}
-	fblog(out_file, "%s, %gs, %lu", utc_time_str(time(NULL)),
-			period_duration_us / 1000000.f, total_cnt);
-}
-
 void
-histogram_print(const histogram * h, uint64_t period_duration_us, FILE * out_file)
+histogram_print(const histogram_t* h, uint64_t period_duration_us, FILE* out_file)
 {
 	uint64_t total_cnt = histogram_calc_total(h);
 	_print_header(h, period_duration_us, total_cnt, out_file);
@@ -227,10 +216,10 @@ histogram_print(const histogram * h, uint64_t period_duration_us, FILE * out_fil
 }
 
 void
-histogram_print_clear(histogram * h, uint64_t period_duration_us, FILE * out_file)
+histogram_print_clear(histogram_t* h, uint64_t period_duration_us, FILE* out_file)
 {
 	uint64_t total_cnt = 0;
-	uint32_t * cnts = (uint32_t *) cf_malloc(h->n_buckets * sizeof(uint32_t));
+	uint32_t* cnts = (uint32_t*) cf_malloc(h->n_buckets * sizeof(uint32_t));
 
 	/*
 	 * to avoid race conditions/inconsistencies in the total count of bucket
@@ -282,7 +271,7 @@ histogram_print_clear(histogram * h, uint64_t period_duration_us, FILE * out_fil
 }
 
 void
-histogram_print_info(const histogram * h, FILE * out_file)
+histogram_print_info(const histogram_t* h, FILE* out_file)
 {
 
 	fblog(out_file,
@@ -296,7 +285,7 @@ histogram_print_info(const histogram * h, FILE * out_file)
 			h->range_max);
 
 	for (uint32_t i = 0; i < h->n_bounds; i++) {
-		bucket_range_desc_t * r = &h->bounds[i];
+		bucket_range_desc_t* r = &h->bounds[i];
 
 		fblog(out_file,
 				"\tBucket range %d:\n"
@@ -310,5 +299,47 @@ histogram_print_info(const histogram * h, FILE * out_file)
 				r->bucket_width,
 				r->n_buckets);
 	}
+}
+
+
+//==========================================================
+// Local helpers.
+//
+
+static int32_t
+_histogram_get_index(histogram_t* h, delay_t elapsed_us)
+{
+	int32_t bin_idx;
+	delay_t lower_bound;
+	int32_t bin_offset;
+
+	// find which range index belongs in. Expecting a small number
+	// of buckets-size ranges, so do a simple linear search
+
+	if (elapsed_us < h->range_min) {
+		return UNDERFLOW_IDX;
+	}
+	if (elapsed_us >= h->range_max) {
+		return OVERFLOW_IDX;
+	}
+
+	bin_idx = h->n_bounds - 1;
+	while (elapsed_us < (lower_bound = h->bounds[bin_idx].lower_bound)) {
+		bin_idx--;
+	}
+
+	bin_offset = (elapsed_us - lower_bound) / h->bounds[bin_idx].bucket_width;
+	return h->bounds[bin_idx].offset + bin_offset;
+}
+
+static void
+_print_header(const histogram_t* h, uint64_t period_duration_us, uint64_t total_cnt,
+		FILE* out_file)
+{
+	if (h->name != NULL) {
+		fblog(out_file, "%s ", h->name);
+	}
+	fblog(out_file, "%s, %gs, %lu", utc_time_str(time(NULL)),
+			period_duration_us / 1000000.f, total_cnt);
 }
 

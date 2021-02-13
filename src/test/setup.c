@@ -23,8 +23,8 @@
 #include "benchmark.h"
 
 #define TEST_SUITE_NAME "Setup"
-arguments *args;
-clientdata *data;
+args_t *args;
+cdata_t *data;
 
 /**
  * Any setup code to run each test goes here
@@ -34,7 +34,7 @@ clientdata *data;
 static void 
 setup(void) 
 {
-	args = cf_malloc(sizeof(arguments));
+	args = cf_malloc(sizeof(args_t));
 	args->hosts = strdup("127.0.0.1");
 	args->port = 3000;
 	args->user = 0;
@@ -62,7 +62,7 @@ setup(void)
 	args->event_loop_capacity = 1;
 	args->auth_mode = AS_AUTH_INTERNAL;	
 	
-	data = cf_malloc(sizeof(clientdata));
+	data = cf_malloc(sizeof(cdata_t));
 	data->namespace = args->namespace;
 	data->set = args->set;
 	data->transaction_worker_threads = args->transaction_worker_threads;

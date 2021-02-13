@@ -36,13 +36,7 @@
 // forward declare thr_coordinator for use in threaddata
 struct thr_coordinator;
 
-typedef enum {
-	LEN_TYPE_COUNT,
-	LEN_TYPE_BYTES,
-	LEN_TYPE_KBYTES
-} len_type;
-
-typedef struct arguments_t {
+typedef struct args {
 	char* hosts;
 	int port;
 	const char* user;
@@ -89,9 +83,9 @@ typedef struct arguments_t {
 	int event_loop_capacity;
 	as_config_tls tls;
 	as_auth_mode auth_mode;
-} arguments;
+} args_t;
 
-typedef struct clientdata_t {
+typedef struct clientdata {
 	const char* namespace;
 	const char* set;
 	const char* bin_name;
@@ -117,8 +111,8 @@ typedef struct clientdata_t {
 
 	FILE* histogram_output;
 	int histogram_period;
-	histogram write_histogram;
-	histogram read_histogram;
+	histogram_t write_histogram;
+	histogram_t read_histogram;
 
 	FILE* hdr_comp_write_output;
 	FILE* hdr_text_write_output;
@@ -138,10 +132,10 @@ typedef struct clientdata_t {
 	bool latency;
 	bool debug;
 
-} clientdata;
+} cdata_t;
 
-struct threaddata {
-	clientdata* cdata;
+typedef struct threaddata {
+	cdata_t* cdata;
 	struct thr_coordinator* coord;
 	as_random* random;
 	dyn_throttle_t dyn_throttle;
@@ -163,8 +157,8 @@ struct threaddata {
 	bool finished;
 
 	as_val* fixed_value;
-};
+} tdata_t;
 
-int run_benchmark(arguments* args);
 
-bool is_stop_writes(aerospike* client, const char* namespace);
+int run_benchmark(args_t* args);
+

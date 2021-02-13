@@ -37,7 +37,12 @@
 // the default number of seconds an infinite workload will run if not specified
 #define DEFAULT_RANDOM_DURATION 10
 
-struct workload {
+
+// forward declare arguments since benchmark.h includes this file
+struct args;
+
+
+typedef struct workload {
 	/*
 	 * one of:
 	 *  WORKLOAD_TYPE_LINEAR: linear insert workload, initializing pct% of the
@@ -53,10 +58,10 @@ struct workload {
 	 * percent of reads (rest are writes), for RANDOM
 	 */
 	float pct;
-};
+} workload_t;
 
 
-struct stage {
+typedef struct stage {
 	// minimum stage duration in seconds
 	uint64_t duration;
 
@@ -83,7 +88,7 @@ struct stage {
 
 	union {
 		char* workload_str;
-		struct workload workload;
+		workload_t workload;
 	};
 
 	union {
@@ -92,7 +97,7 @@ struct stage {
 			// only used temporarily to verify that stages are indexed properly
 			uint16_t stage_idx;
 		};
-		struct obj_spec obj_spec;
+		obj_spec_t obj_spec;
 	};
 
 	union {
@@ -102,11 +107,11 @@ struct stage {
 			uint32_t n_read_bins;
 		};
 	};
-};
+} stage_t;
 
 
-struct stages {
-	struct stage* stages;
+typedef struct stages {
+	stage_t* stages;
 	uint32_t n_stages;
 	/*
      * when set to true, this is a valid stages struct, when set to false, this
@@ -116,29 +121,26 @@ struct stages {
 	 * hasn't been freed yet
 	 */
 	bool valid;
-};
-
-// forward declare arguments struct from benchmark
-struct arguments_t;
+} stages_t;
 
 
 /*
  * given a workload string, populates the workload struct pointed to by the
  * first argument
  */
-int parse_workload_type(struct workload*, const char* workload_str);
+int parse_workload_type(workload_t*, const char* workload_str);
 
-static inline bool workload_is_random(const struct workload* workload)
+static inline bool workload_is_random(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }
 
-static inline bool workload_contains_reads(const struct workload* workload)
+static inline bool workload_contains_reads(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }
 
-static inline bool stages_contain_async(const struct stages* stages)
+static inline bool stages_contain_async(const stages_t* stages)
 {
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		if (stages->stages[i].async) {
@@ -148,7 +150,7 @@ static inline bool stages_contain_async(const struct stages* stages)
 	return false;
 }
 
-static inline bool stages_contain_random(const struct stages* stages)
+static inline bool stages_contain_random(const stages_t* stages)
 {
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		if (stages->stages[i].random) {
@@ -162,12 +164,12 @@ static inline bool stages_contain_random(const struct stages* stages)
  * returns true if the workload has no fixed amount of work to do (i.e. could
  * run forever, and will not run at all if duration is set to 0)
  */
-static inline bool workload_is_infinite(const struct workload* workload)
+static inline bool workload_is_infinite(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
 }
 
-static inline void fprint_stage(FILE* out_file, const struct stages* stages,
+static inline void fprint_stage(FILE* out_file, const stages_t* stages,
 		uint32_t stage_idx)
 {
 	const char* desc = stages->stages[stage_idx].desc;
@@ -180,55 +182,55 @@ static inline void fprint_stage(FILE* out_file, const struct stages* stages,
  *
  * note: this must be done after the obj_spec has already been parsed
  */
-int parse_bins_selection(struct stage* stage, const char* bins_str,
+int parse_bins_selection(stage_t* stage, const char* bins_str,
 		const char* bin_name);
 
 /*
  * frees the bins selection array created from parse_bins_selection
  */
-void free_bins_selection(struct stage* stage);
+void free_bins_selection(stage_t* stage);
 
 /*
  * set stages struct to default values if they were not supplied
  */
-int stages_set_defaults_and_parse(struct stages* stages,
-		const struct arguments_t* args);
+int stages_set_defaults_and_parse(stages_t* stages,
+		const struct args* args);
 
 /*
  * parses the given file into the stages struct
  */
-int parse_workload_config_file(const char* file, struct stages* stages,
-		const struct arguments_t* args);
+int parse_workload_config_file(const char* file, stages_t* stages,
+		const struct args* args);
 
-void free_workload_config(struct stages* stages);
+void free_workload_config(stages_t* stages);
 
 /*
  * transfers ownership of the stages struct from src to dst, so if free is
  * called on the previous owner it does not free the stages while the new
  * owner is still using it
  */
-void stages_move(struct stages* dst, struct stages* src);
+void stages_move(stages_t* dst, stages_t* src);
 
 /*
  * copies the stages struct src into dst without transferring ownership
  * (meaning dst may become invalid once src is freed)
  */
-void stages_shallow_copy(struct stages* dst, const struct stages* src);
+void stages_shallow_copy(stages_t* dst, const stages_t* src);
 
 /*
  * returns true if any of the stages will perform reads
  */
-bool stages_contains_reads(const struct stages*);
+bool stages_contains_reads(const stages_t*);
 
 /*
  * generates a random key for the stage
  */
-uint64_t stage_gen_random_key(const struct stage*, as_random*);
+uint64_t stage_gen_random_key(const stage_t*, as_random*);
 
 /*
  * pauses for a random amount of time, to be called before the stage begins
  */
-void stage_random_pause(as_random* random, const struct stage* stage);
+void stage_random_pause(as_random* random, const stage_t* stage);
 
-void stages_print(const struct stages* stages);
+void stages_print(const stages_t* stages);
 

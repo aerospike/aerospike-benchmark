@@ -36,11 +36,11 @@ typedef struct rangespec {
 
 
 typedef struct histogram {
-	uint32_t * buckets;
-	struct bucket_range_desc * bounds;
+	uint32_t* buckets;
+	struct bucket_range_desc* bounds;
 
 	// name to be printed before each output line of this histogram
-	char * name;
+	char* name;
 
 	// inclusive lower bound on the histogram range
 	delay_t range_min;
@@ -56,7 +56,7 @@ typedef struct histogram {
 	uint32_t n_bounds;
 	// total number of buckets in the histogram;
 	uint32_t n_buckets;
-} histogram;
+} histogram_t;
 
 
 /*
@@ -75,21 +75,21 @@ typedef struct histogram {
  *
  * returns 0 on success and -1 on error
  */
-int histogram_init(histogram * h, size_t n_ranges, delay_t lowb, rangespec_t * ranges);
+int histogram_init(histogram_t* h, size_t n_ranges, delay_t lowb, rangespec_t* ranges);
 
-void histogram_free(histogram * h);
+void histogram_free(histogram_t* h);
 
 /*
  * resets all bucket counts to 0
  */
-void histogram_clear(histogram * h);
+void histogram_clear(histogram_t* h);
 
 
 /*
  * sets the name of the histogram, to be printed at the beginning of each
  * histogram_print call
  */
-void histogram_set_name(histogram * h, const char * name);
+void histogram_set_name(histogram_t* h, const char* name);
 
 /*
  * Calculates the totals of all buckets by traversing them and adding. This
@@ -97,23 +97,23 @@ void histogram_set_name(histogram * h, const char * name);
  * atomic increments per insertion rather than one, and that atomic increment
  * would be on highly contentious memory
  */
-uint64_t histogram_calc_total(const histogram * h);
+uint64_t histogram_calc_total(const histogram_t* h);
 
 /*
  * insert the delay into the histogram in a thread-safe manner
  */
-void histogram_add(histogram * h, delay_t elapsed_us);
+void histogram_add(histogram_t* h, delay_t elapsed_us);
 
 /*
  * returns the count in the bucket of the given index
  */
-delay_t histogram_get_count(histogram * h, uint64_t bucket_idx);
+delay_t histogram_get_count(histogram_t* h, uint64_t bucket_idx);
 
 /*
  * prints the histogram in a condensed format, requires period duration in
  * seconds (i.e. how long this histogram has been accumulating)
  */
-void histogram_print(const histogram * h, uint64_t period_duration, FILE * out_file);
+void histogram_print(const histogram_t* h, uint64_t period_duration, FILE* out_file);
 
 /*
  * prints the histogram, clearing the buckets as their values are read. This
@@ -121,10 +121,10 @@ void histogram_print(const histogram * h, uint64_t period_duration, FILE * out_f
  * concurrent writers executing simultaneously. This guarantees that no writes
  * to the histogram will be missed
  */
-void histogram_print_clear(histogram * h, uint64_t period_duration, FILE * out_file);
+void histogram_print_clear(histogram_t* h, uint64_t period_duration, FILE* out_file);
 
 /*
  * print info about the histogram and how it is constructed
  */
-void histogram_print_info(const histogram * h, FILE * out_file);
+void histogram_print_info(const histogram_t* h, FILE* out_file);
 

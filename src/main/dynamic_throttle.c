@@ -1,4 +1,8 @@
 
+//==========================================================
+// Includes
+//
+
 #include <math.h>
 
 #include <citrusleaf/cf_clock.h>
@@ -7,7 +11,12 @@
 #include <dynamic_throttle.h>
 
 
-int dyn_throttle_init(dyn_throttle_t* thr, float target_period)
+//==========================================================
+// Public API
+//
+
+int
+dyn_throttle_init(dyn_throttle_t* thr, float target_period)
 {
 	thr->target_period = target_period;
 	thr->avg_fn_delay = 0;
@@ -15,13 +24,15 @@ int dyn_throttle_init(dyn_throttle_t* thr, float target_period)
 	return 0;
 }
 
-void dyn_throttle_reset_time(dyn_throttle_t* thr, uint64_t new_rec)
+void
+dyn_throttle_reset_time(dyn_throttle_t* thr, uint64_t new_rec)
 {
 	thr->last_rec = new_rec - ((int64_t) nearbyintf(thr->avg_fn_delay));
 	thr->n_records = ramp(thr->n_records - 1);
 }
 
-uint64_t dyn_throttle_pause_for(dyn_throttle_t* dt, uint64_t rec)
+uint64_t
+dyn_throttle_pause_for(dyn_throttle_t* dt, uint64_t rec)
 {
 	uint64_t pause_for;
 	uint64_t n_records = dt->n_records;

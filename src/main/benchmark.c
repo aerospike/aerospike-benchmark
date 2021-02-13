@@ -19,6 +19,11 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  ******************************************************************************/
+
+//==========================================================
+// Includes.
+//
+
 #include <stdlib.h>
 #include <time.h>
 
@@ -37,10 +42,110 @@
 #include <transaction.h>
 
 
-as_monitor monitor;
+//==========================================================
+// Forward declarations.
+//
+
+static bool as_client_log_cb(as_log_level level, const char* func,
+		const char* file, uint32_t line, const char* fmt, ...);
+static int connect_to_server(args_t* args, aerospike* client);
+static bool is_single_bin(aerospike* client, const char* namespace);
+static tdata_t* init_tdata(cdata_t* cdata, thr_coord_t* coord,
+		uint32_t t_idx);
+static void destroy_tdata(tdata_t* tdata);
+static int _run(cdata_t* cdata);
+
+
+//==========================================================
+// Public API.
+//
+
+int
+run_benchmark(args_t* args)
+{
+	cdata_t data;
+	memset(&data, 0, sizeof(cdata_t));
+	data.namespace = args->namespace;
+	data.set = args->set;
+	data.transaction_worker_threads = args->transaction_worker_threads;
+	data.compression_ratio = args->compression_ratio;
+	stages_move(&data.stages, &args->stages);
+	obj_spec_move(&data.obj_spec, &args->obj_spec);
+	data.transactions_count = 0;
+	data.latency = args->latency;
+	data.debug = args->debug;
+	data.async_max_commands = args->async_max_commands;
+
+	time_t start_time;
+	hdr_timespec start_timespec;
+
+	if (args->debug) {
+		as_log_set_level(AS_LOG_LEVEL_DEBUG);
+	}
+	else {
+		as_log_set_level(AS_LOG_LEVEL_INFO);
+	}
+
+	as_log_set_callback(as_client_log_cb);
+
+	int ret = connect_to_server(args, &data.client);
+	
+	if (ret != 0) {
+		return ret;
+	}
+	
+	bool single_bin = is_single_bin(&data.client, args->namespace);
+	
+	if (single_bin) {
+		data.bin_name = "";
+
+		if (obj_spec_n_bins(&args->obj_spec) > 1) {
+			fprintf(stderr, "Single bin database, but obj_spec has > 1 bin\n");
+			ret = -1;
+		}
+	}
+	else {
+		data.bin_name = args->bin_name;
+	}
+
+	if (ret == 0) {
+		ret = initialize_histograms(&data, args, &start_time, &start_timespec);
+	}
+
+	if (ret == 0) {
+		ret = _run(&data);
+
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+		// don't worry, will be initialized (would have to make args const
+		// to suppress)
+		record_summary_data(&data, args, start_time, &start_timespec);
+#pragma GCC diagnostic pop
+
+		free_histograms(&data, args);
+	}
+
+	as_error err;
+	aerospike_close(&data.client, &err);
+	aerospike_destroy(&data.client);
+	
+	if (stages_contain_async(&args->stages)) {
+		as_event_close_loops();
+	}
+
+	obj_spec_free(&data.obj_spec);
+	free_workload_config(&data.stages);
+	
+	return ret;
+}
+
+
+//==========================================================
+// Local helpers.
+//
 
 static bool
-as_client_log_callback(as_log_level level, const char * func, const char * file, uint32_t line, const char * fmt, ...)
+as_client_log_cb(as_log_level level, const char* func, const char* file,
+		uint32_t line, const char* fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
@@ -51,11 +156,9 @@ as_client_log_callback(as_log_level level, const char * func, const char * file,
 }
 
 static int
-connect_to_server(arguments* args, aerospike* client)
+connect_to_server(args_t* args, aerospike* client)
 {
 	if (stages_contain_async(&args->stages)) {
-		as_monitor_init(&monitor);
-
 #if AS_EVENT_LIB_DEFINED
 		if (! as_event_create_loops(args->event_loop_capacity)) {
 			blog_error("Failed to create asynchronous event loops\n");
@@ -187,52 +290,14 @@ is_single_bin(aerospike* client, const char* namespace)
 	return single_bin;
 }
 
-bool
-is_stop_writes(aerospike* client, const char* namespace)
-{
-	char filter[256];
-	snprintf(filter, sizeof(filter), "namespace/%s", namespace);
-	
-	char* res = 0;
-	as_error err;
-	as_status rc = aerospike_info_any(client, &err, NULL, filter, &res);
-	bool stop_writes = false;
-	
-	if (rc == AEROSPIKE_OK) {
-		static const char* search = "stop-writes=";
-		char* p = strstr(res, search);
-		
-		if (p) {
-			// The compiler (with -O3 flag) will know search is a literal and optimize strlen accordingly.
-			p += strlen(search);
-			char* q = strchr(p, ';');
-			
-			if (q) {
-				*q = 0;
-				
-				if (strcmp(p, "true") == 0) {
-					stop_writes = true;
-				}
-			}
-		}
-	}
-	else {
-		blog_error("Info request failed: %d - %s\n", err.code, err.message);
-	}
-	free(res);
-	return stop_writes;
-}
-
-
 /*
  * allocates and initializes a new threaddata struct, returning a pointer to it
  */
-static struct threaddata*
-init_tdata(clientdata* cdata, struct thr_coordinator* coord,
+static tdata_t*
+init_tdata(cdata_t* cdata, thr_coord_t* coord,
 		uint32_t t_idx)
 {
-	struct threaddata* tdata =
-		(struct threaddata*) cf_malloc(sizeof(struct threaddata));
+	tdata_t* tdata = (tdata_t*) cf_malloc(sizeof(tdata_t));
 
 	tdata->cdata = cdata;
 	tdata->coord = coord;
@@ -247,13 +312,13 @@ init_tdata(clientdata* cdata, struct thr_coordinator* coord,
 	return tdata;
 }
 
-void destroy_tdata(struct threaddata* tdata)
+static void
+destroy_tdata(tdata_t* tdata)
 {
 }
 
-
 static int
-_run(clientdata* cdata)
+_run(cdata_t* cdata)
 {
 	int ret = 0;
 	struct thr_coordinator coord;
@@ -267,8 +332,7 @@ _run(clientdata* cdata)
 	worker_fn = transaction_worker;
 
 	// initialize the list of all thread pointers/data pointers
-	struct threaddata** tdatas =
-		(struct threaddata**) cf_malloc(n_threads * sizeof(struct threaddata*));
+	tdata_t** tdatas = (tdata_t**) cf_malloc(n_threads * sizeof(tdata_t*));
 
 	for (uint32_t i = 0; i < n_threads; i++) {
 		tdatas[i] = init_tdata(cdata, &coord, i);
@@ -285,7 +349,7 @@ _run(clientdata* cdata)
 	pthread_t* threads = (pthread_t*) cf_malloc(n_threads * sizeof(pthread_t));
 
 	// then initialize periodic output thread
-	struct threaddata* out_worker_tdata = tdatas[n_threads - 1];
+	tdata_t* out_worker_tdata = tdatas[n_threads - 1];
 	if (pthread_create(&threads[n_threads - 1], NULL, periodic_output_worker,
 				out_worker_tdata) != 0) {
 		blog_error("Failed to create output thread\n");
@@ -301,7 +365,7 @@ _run(clientdata* cdata)
 	uint32_t i;
 	// since the output worker threaddata is in slot 0
 	for (i = 0; i < n_threads - 1; i++) {
-		struct threaddata* tdata = tdatas[i];
+		tdata_t* tdata = tdatas[i];
 
 		if (pthread_create(&threads[i], NULL, worker_fn, tdata) != 0) {
 			blog_error("Failed to create transaction worker thread\n");
@@ -359,81 +423,3 @@ _run(clientdata* cdata)
 	return ret;
 }
 
-int
-run_benchmark(arguments* args)
-{
-	clientdata data;
-	memset(&data, 0, sizeof(clientdata));
-	data.namespace = args->namespace;
-	data.set = args->set;
-	data.transaction_worker_threads = args->transaction_worker_threads;
-	data.compression_ratio = args->compression_ratio;
-	stages_move(&data.stages, &args->stages);
-	obj_spec_move(&data.obj_spec, &args->obj_spec);
-	data.transactions_count = 0;
-	data.latency = args->latency;
-	data.debug = args->debug;
-	data.async_max_commands = args->async_max_commands;
-
-	time_t start_time;
-	hdr_timespec start_timespec;
-
-	if (args->debug) {
-		as_log_set_level(AS_LOG_LEVEL_DEBUG);
-	}
-	else {
-		as_log_set_level(AS_LOG_LEVEL_INFO);
-	}
-
-	as_log_set_callback(as_client_log_callback);
-
-	int ret = connect_to_server(args, &data.client);
-	
-	if (ret != 0) {
-		return ret;
-	}
-	
-	bool single_bin = is_single_bin(&data.client, args->namespace);
-	
-	if (single_bin) {
-		data.bin_name = "";
-
-		if (obj_spec_n_bins(&args->obj_spec) > 1) {
-			fprintf(stderr, "Single bin database, but obj_spec has > 1 bin\n");
-			ret = -1;
-		}
-	}
-	else {
-		data.bin_name = args->bin_name;
-	}
-
-	if (ret == 0) {
-		ret = initialize_histograms(&data, args, &start_time, &start_timespec);
-	}
-
-	if (ret == 0) {
-		ret = _run(&data);
-
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-		// don't worry, will be initialized (would have to make args const
-		// to suppress)
-		record_summary_data(&data, args, start_time, &start_timespec);
-#pragma GCC diagnostic pop
-
-		free_histograms(&data, args);
-	}
-
-	as_error err;
-	aerospike_close(&data.client, &err);
-	aerospike_destroy(&data.client);
-	
-	if (stages_contain_async(&args->stages)) {
-		as_event_close_loops();
-		as_monitor_destroy(&monitor);
-	}
-
-	obj_spec_free(&data.obj_spec);
-	free_workload_config(&data.stages);
-	
-	return ret;
-}

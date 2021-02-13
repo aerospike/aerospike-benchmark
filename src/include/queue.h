@@ -66,4 +66,3 @@ void queue_push(queue_t* q, void* item);
  */
 void* queue_pop(queue_t* q);
 
-
