@@ -5,6 +5,8 @@
 
 #include <transaction.h>
 
+#include <xmmintrin.h>
+
 #include <aerospike/as_atomic.h>
 #include <aerospike/aerospike_batch.h>
 #include <aerospike/aerospike_key.h>
@@ -740,6 +742,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		adata = queue_pop(adata_q);
 		if (adata == NULL) {
+			_mm_pause();
 			continue;
 		}
 
@@ -793,6 +796,7 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		adata = queue_pop(adata_q);
 		if (adata == NULL) {
+			_mm_pause();
 			continue;
 		}
 
@@ -873,6 +877,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		adata = queue_pop(adata_q);
 		if (adata == NULL) {
+			_mm_pause();
 			continue;
 		}
 
@@ -973,6 +978,7 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	for (uint32_t i = 0; i < n_adatas;) {
 		struct async_data_s* adata = queue_pop(&adata_q);
 		if (adata == NULL) {
+			_mm_pause();
 			continue;
 		}
 		i++;
