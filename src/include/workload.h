@@ -31,7 +31,6 @@
 #define WORKLOAD_TYPE_RANDOM 0x1
 #define WORKLOAD_TYPE_DELETE 0x2
 
-#define WORKLOAD_LINEAR_DEFAULT_PCT 100.f
 #define WORKLOAD_RANDOM_DEFAULT_PCT 50.f
 
 // the default number of seconds an infinite workload will run if not specified

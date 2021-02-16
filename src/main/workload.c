@@ -97,29 +97,7 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 
 	switch (*workload_str) {
 		case 'I': {
-			float pct;
-			if (workload_str[1] == '\0') {
-				pct = WORKLOAD_LINEAR_DEFAULT_PCT;
-			}
-			else {
-				if (workload_str[1] != ',') {
-					fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
-					return -1;
-				}
-				pct = strtod(workload_str + 2, &endptr);
-				if (workload_str[2] == '\0' || *endptr != '\0') {
-					fprintf(stderr, "\"%s\" not a floating point number\n",
-							workload_str + 2);
-					return -1;
-				}
-				if (pct <= 0 || pct > 100) {
-					fprintf(stderr, "%f not a percentage greater than 0\n",
-							pct);
-					return -1;
-				}
-			}
 			workload->type = WORKLOAD_TYPE_LINEAR;
-			workload->pct = pct;
 			break;
 		}
 		case 'R': {
