@@ -321,7 +321,7 @@ static int
 _run(cdata_t* cdata)
 {
 	int ret = 0;
-	struct thr_coordinator coord;
+	thr_coord_t coord;
 
 	// first figure out how many threads we'll be spawning
 	uint32_t n_threads;
@@ -378,7 +378,7 @@ _run(cdata_t* cdata)
 	}
 
 	if (ret == 0) {
-		struct coordinator_worker_args coord_args = {
+		struct coordinator_worker_args_s coord_args = {
 			.coord = &coord,
 			.cdata = cdata,
 			.tdatas = tdatas,

@@ -65,7 +65,7 @@
 #define MAX_KEY_ENTRY_RETRIES 1024
 
 
-struct bin_spec {
+struct bin_spec_s {
 
 	union {
 
@@ -125,7 +125,7 @@ struct bin_spec {
 			 * struct bin_spec pointers) is <= this value
 			 */
 			uint32_t length;
-			struct bin_spec* list;
+			struct bin_spec_s* list;
 		} list;
 
 		struct {
@@ -141,11 +141,11 @@ struct bin_spec {
 			 * the key pointers must be aligned by 8 bytes, since the first 3
 			 * bits of this pointer is aliased by the type of this bin_spec
 			 */
-			struct bin_spec* key;
+			struct bin_spec_s* key;
 			/*
 			 * a pointer to the value type
 			 */
-			struct bin_spec* val;
+			struct bin_spec_s* val;
 		} map;
 
 	};
@@ -166,7 +166,7 @@ struct bin_spec {
 // key and value already given, expecing the map to be closed with a '}'
 #define MAP_DONE 0x2
 
-struct consumer_state {
+struct consumer_state_s {
 	// the character which denotes the end of this bin spec
 	char delimiter;
 
@@ -177,9 +177,9 @@ struct consumer_state {
 	uint8_t state;
 
 	// a pointer to the bin spec that is being built at this layer
-	struct bin_spec* bin_spec;
+	struct bin_spec_s* bin_spec;
 
-	struct consumer_state* parent;
+	struct consumer_state_s* parent;
 
 	union {
 		struct {
@@ -192,8 +192,8 @@ struct consumer_state {
 
 		// the key/value bin_specs used to build a map
 		struct {
-			struct bin_spec* key;
-			struct bin_spec* value;
+			struct bin_spec_s* key;
+			struct bin_spec_s* value;
 		};
 	};
 };
@@ -203,41 +203,41 @@ struct consumer_state {
 // Forward declarations.
 //
 
-static void bin_spec_set_key_and_type(struct bin_spec* b, struct bin_spec* key);
-static uint8_t bin_spec_get_type(const struct bin_spec* b);
-static struct bin_spec* bin_spec_get_key(const struct bin_spec* b);
-static uint32_t bin_spec_map_n_entries(const struct bin_spec* b);
+static void bin_spec_set_key_and_type(struct bin_spec_s* b, struct bin_spec_s* key);
+static uint8_t bin_spec_get_type(const struct bin_spec_s* b);
+static struct bin_spec_s* bin_spec_get_key(const struct bin_spec_s* b);
+static uint32_t bin_spec_map_n_entries(const struct bin_spec_s* b);
 static void _print_parse_error(const char* err_msg, const char* obj_spec_str,
 		const char* err_loc);
-static void bin_spec_free(struct bin_spec* bin_spec);
-static void _destroy_consumer_states(struct consumer_state* state);
+static void bin_spec_free(struct bin_spec_s* bin_spec);
+static void _destroy_consumer_states(struct consumer_state_s* state);
 static int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str);
-static void bin_spec_free(struct bin_spec* bin_spec);
+static void bin_spec_free(struct bin_spec_s* bin_spec);
 static as_val* _gen_random_int(uint8_t range, as_random* random);
 static uint64_t raw_to_alphanum(uint64_t n);
 static as_val* _gen_random_str(uint32_t length, as_random* random);
 static as_val* _gen_random_bytes(uint32_t length, as_random* random,
 		float compression_ratio);
 static as_val* _gen_random_double(as_random* random);
-static as_val* _gen_random_list(const struct bin_spec* bin_spec,
+static as_val* _gen_random_list(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio);
-static as_val* _gen_random_map(const struct bin_spec* bin_spec,
+static as_val* _gen_random_map(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio);
-static as_val* bin_spec_random_val(const struct bin_spec* bin_spec,
+static as_val* bin_spec_random_val(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio);
-static size_t _sprint_bin(const struct bin_spec* bin, char** out_str,
+static size_t _sprint_bin(const struct bin_spec_s* bin, char** out_str,
 		size_t str_size);
 
 #ifdef _TEST
 static void _dbg_validate_int(uint8_t range, as_integer* as_val);
 static void _dbg_validate_string(uint32_t length, as_string* as_val);
 static void _dbg_validate_bytes(uint32_t length, as_bytes* as_val);
-static void _dbg_validate_list(const struct bin_spec* bin_spec,
+static void _dbg_validate_list(const struct bin_spec_s* bin_spec,
 		const as_list* as_val);
-static void _dbg_validate_map(const struct bin_spec* bin_spec,
+static void _dbg_validate_map(const struct bin_spec_s* bin_spec,
 		const as_map* val);
-static void _dbg_validate_obj_spec(const struct bin_spec* bin_spec,
+static void _dbg_validate_obj_spec(const struct bin_spec_s* bin_spec,
 		const as_val* val);
 #endif /* _TEST */
 
@@ -284,7 +284,7 @@ raw_to_alphanum(uint64_t n)
 //
 
 int
-obj_spec_parse(struct obj_spec* base_obj, const char* obj_spec_str)
+obj_spec_parse(struct obj_spec_s* base_obj, const char* obj_spec_str)
 {
 	int err;
 	// use as_vector to build the list of bin_specs, as it has dynamic sizing
@@ -292,7 +292,7 @@ obj_spec_parse(struct obj_spec* base_obj, const char* obj_spec_str)
 	uint32_t n_bins;
 
 	// begin with a capacity of 8
-	as_vector_inita(&bin_specs, sizeof(struct bin_spec),
+	as_vector_inita(&bin_specs, sizeof(struct bin_spec_s),
 			DEFAULT_LIST_BUILDER_CAPACITY);
 
 	err = _parse_bin_types(&bin_specs, &n_bins, obj_spec_str);
@@ -317,7 +317,7 @@ obj_spec_parse(struct obj_spec* base_obj, const char* obj_spec_str)
 }
 
 void
-obj_spec_free(struct obj_spec* obj_spec)
+obj_spec_free(struct obj_spec_s* obj_spec)
 {
 	if (obj_spec->valid) {
 		for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
@@ -331,32 +331,32 @@ obj_spec_free(struct obj_spec* obj_spec)
 
 
 void
-obj_spec_move(struct obj_spec* dst, struct obj_spec* src)
+obj_spec_move(struct obj_spec_s* dst, struct obj_spec_s* src)
 {
 	// you can only move from a valid src
 	assert(src->valid);
-	__builtin_memcpy(dst, src, offsetof(struct obj_spec, valid));
+	__builtin_memcpy(dst, src, offsetof(struct obj_spec_s, valid));
 	dst->valid = true;
 	src->valid = false;
 }
 
 
 void
-obj_spec_shallow_copy(struct obj_spec* dst, const struct obj_spec* src)
+obj_spec_shallow_copy(struct obj_spec_s* dst, const struct obj_spec_s* src)
 {
-	__builtin_memcpy(dst, src, offsetof(struct obj_spec, valid));
+	__builtin_memcpy(dst, src, offsetof(struct obj_spec_s, valid));
 	dst->valid = false;
 }
 
 
 uint32_t
-obj_spec_n_bins(const struct obj_spec* obj_spec)
+obj_spec_n_bins(const struct obj_spec_s* obj_spec)
 {
 	return obj_spec->n_bin_specs;
 }
 
 int
-obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
+obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 		as_random* random, const char* bin_name, float compression_ratio)
 {
 	uint32_t n_bin_specs = obj_spec->n_bin_specs;
@@ -377,7 +377,7 @@ obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 	}
 
 	for (uint32_t i = 0, cnt = 0; cnt < n_bin_specs; i++) {
-		const struct bin_spec* bin_spec = &obj_spec->bin_specs[i];
+		const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
 
 		for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
 			as_val* val = bin_spec_random_val(bin_spec, random,
@@ -401,16 +401,16 @@ obj_spec_populate_bins(const struct obj_spec* obj_spec, as_record* rec,
 
 
 as_val*
-obj_spec_gen_value(const struct obj_spec* obj_spec, as_random* random)
+obj_spec_gen_value(const struct obj_spec_s* obj_spec, as_random* random)
 {
 	return obj_spec_gen_compressible_value(obj_spec, random, 1.f);
 }
 
 as_val*
-obj_spec_gen_compressible_value(const struct obj_spec* obj_spec,
+obj_spec_gen_compressible_value(const struct obj_spec_s* obj_spec,
 		as_random* random, float compression_ratio)
 {
-	struct bin_spec tmp_list;
+	struct bin_spec_s tmp_list;
 	tmp_list.type = BIN_SPEC_TYPE_LIST;
 	tmp_list.list.length = obj_spec->n_bin_specs;
 	tmp_list.list.list = obj_spec->bin_specs;
@@ -418,7 +418,7 @@ obj_spec_gen_compressible_value(const struct obj_spec* obj_spec,
 	return bin_spec_random_val(&tmp_list, random, compression_ratio);
 }
 
-void snprint_obj_spec(const struct obj_spec* obj_spec, char* out_str,
+void snprint_obj_spec(const struct obj_spec_s* obj_spec, char* out_str,
 		size_t str_size)
 {
 	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
@@ -434,13 +434,13 @@ void snprint_obj_spec(const struct obj_spec* obj_spec, char* out_str,
 
 #ifdef _TEST
 
-void _dbg_obj_spec_assert_valid(const struct obj_spec* obj_spec,
+void _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 		const as_record* rec, const char* bin_name)
 {
 	as_bin_name name;
 
 	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
-		const struct bin_spec* bin_spec = &obj_spec->bin_specs[i];
+		const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
 
 		for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
 			gen_bin_name(name, bin_name, cnt);
@@ -460,28 +460,28 @@ void _dbg_obj_spec_assert_valid(const struct obj_spec* obj_spec,
 //
 
 static void
-bin_spec_set_key_and_type(struct bin_spec* b, struct bin_spec* key)
+bin_spec_set_key_and_type(struct bin_spec_s* b, struct bin_spec_s* key)
 {
-	b->map.key = (struct bin_spec*) (((uint64_t) key) | BIN_SPEC_TYPE_MAP);
+	b->map.key = (struct bin_spec_s*) (((uint64_t) key) | BIN_SPEC_TYPE_MAP);
 }
 
 static uint8_t
-bin_spec_get_type(const struct bin_spec* b)
+bin_spec_get_type(const struct bin_spec_s* b)
 {
 	return b->type & BIN_SPEC_TYPE_MASK;
 }
 
-static struct bin_spec*
-bin_spec_get_key(const struct bin_spec* b)
+static struct bin_spec_s*
+bin_spec_get_key(const struct bin_spec_s* b)
 {
-	return (struct bin_spec*) (((uint64_t) b->map.key) & ~BIN_SPEC_TYPE_MASK);
+	return (struct bin_spec_s*) (((uint64_t) b->map.key) & ~BIN_SPEC_TYPE_MASK);
 }
 
 /*
  * gives the number of entries to put in the map
  */
 static uint32_t
-bin_spec_map_n_entries(const struct bin_spec* b)
+bin_spec_map_n_entries(const struct bin_spec_s* b)
 {
 	return bin_spec_get_key(b)->n_repeats;
 }
@@ -520,16 +520,16 @@ _print_parse_error(const char* err_msg, const char* obj_spec_str,
 // forward declare helper method for obj_spec_free, to be used in
 // _destroy_consumer_states
 static void
-bin_spec_free(struct bin_spec* bin_spec);
+bin_spec_free(struct bin_spec_s* bin_spec);
 
 /*
  * to be called when an error is encountered while parsing, and cleanup of the
  * consumer state managers and bin_specs is necessary
  */
 static void
-_destroy_consumer_states(struct consumer_state* state)
+_destroy_consumer_states(struct consumer_state_s* state)
 {
-	struct consumer_state* parent;
+	struct consumer_state_s* parent;
 	as_vector* list_builder;
 
 	while (state != NULL) {
@@ -543,7 +543,7 @@ _destroy_consumer_states(struct consumer_state* state)
 					// since all bin_spec objects but the last have been fully
 					// initialized, we can call free on each
 					bin_spec_free(
-							(struct bin_spec*) as_vector_get(list_builder, i));
+							(struct bin_spec_s*) as_vector_get(list_builder, i));
 				}
 				// the last bin_spec is guaranteed to not be initialized yet,
 				// so ignore it
@@ -583,9 +583,9 @@ static int
 _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str)
 {
-	struct consumer_state begin_state;
-	struct consumer_state* state;
-	struct bin_spec* bin_spec;
+	struct consumer_state_s begin_state;
+	struct consumer_state_s* state;
+	struct bin_spec_s* bin_spec;
 	const char* str;
 
 	begin_state.delimiter = '\0';
@@ -656,7 +656,7 @@ _top:
 				}
 				str++;
 			}
-			struct consumer_state* new_state = state->parent;
+			struct consumer_state_s* new_state = state->parent;
 			if (new_state != NULL) {
 				cf_free(state);
 
@@ -677,11 +677,11 @@ _top:
 			switch (type) {
 				case CONSUMER_TYPE_LIST:
 					list_builder = state->list_builder;
-					bin_spec = (struct bin_spec*) as_vector_reserve(list_builder);
+					bin_spec = (struct bin_spec_s*) as_vector_reserve(list_builder);
 					break;
 				case CONSUMER_TYPE_MAP:
 					bin_spec =
-						(struct bin_spec*) cf_malloc(sizeof(struct bin_spec));
+						(struct bin_spec_s*) cf_malloc(sizeof(struct bin_spec_s));
 					assert((((uint64_t) bin_spec) & BIN_SPEC_TYPE_MASK) == 0);
 					switch (map_state) {
 						case MAP_KEY:
@@ -818,10 +818,10 @@ _top:
 						goto _destroy_state;
 					}
 					// begin list parse
-					as_vector* list_builder = as_vector_create(sizeof(struct bin_spec),
+					as_vector* list_builder = as_vector_create(sizeof(struct bin_spec_s),
 							DEFAULT_LIST_BUILDER_CAPACITY);
-					struct consumer_state* list_state =
-						(struct consumer_state*) cf_malloc(sizeof(struct consumer_state));
+					struct consumer_state_s* list_state =
+						(struct consumer_state_s*) cf_malloc(sizeof(struct consumer_state_s));
 					list_state->delimiter = ']';
 					list_state->type = CONSUMER_TYPE_LIST;
 					list_state->bin_spec = bin_spec;
@@ -841,8 +841,8 @@ _top:
 						goto _destroy_state;
 					}
 					// begin map parse
-					struct consumer_state* map_state =
-						(struct consumer_state*) cf_malloc(sizeof(struct consumer_state));
+					struct consumer_state_s* map_state =
+						(struct consumer_state_s*) cf_malloc(sizeof(struct consumer_state_s));
 					map_state->delimiter = '}';
 					map_state->type = CONSUMER_TYPE_MAP;
 					map_state->state = MAP_KEY;
@@ -933,9 +933,9 @@ _destroy_state:
 }
 
 static void
-bin_spec_free(struct bin_spec* bin_spec)
+bin_spec_free(struct bin_spec_s* bin_spec)
 {
-	struct bin_spec* key;
+	struct bin_spec_s* key;
 	switch (bin_spec_get_type(bin_spec)) {
 		case BIN_SPEC_TYPE_INT:
 		case BIN_SPEC_TYPE_STR:
@@ -1109,7 +1109,7 @@ static as_val* _gen_random_double(as_random* random)
 	return (as_val*) val;
 }
 
-static as_val* _gen_random_list(const struct bin_spec* bin_spec,
+static as_val* _gen_random_list(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio)
 {
 	as_arraylist* list;
@@ -1123,7 +1123,7 @@ static as_val* _gen_random_list(const struct bin_spec* bin_spec,
 	// iterate over the list elements and recursively generate their
 	// values
 	for (uint32_t i = 0, cnt = 0; cnt < bin_spec->list.length; i++) {
-		const struct bin_spec* ele_bin = &bin_spec->list.list[i];
+		const struct bin_spec_s* ele_bin = &bin_spec->list.list[i];
 
 		for (uint32_t j = 0; j < ele_bin->n_repeats; j++, cnt++) {
 			as_val* val = bin_spec_random_val(ele_bin, random,
@@ -1142,7 +1142,7 @@ static as_val* _gen_random_list(const struct bin_spec* bin_spec,
 	return (as_val*) list;
 }
 
-static as_val* _gen_random_map(const struct bin_spec* bin_spec,
+static as_val* _gen_random_map(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio)
 {
 	as_hashmap* map;
@@ -1170,7 +1170,7 @@ static as_val* _gen_random_map(const struct bin_spec* bin_spec,
 }
 
 
-static as_val* bin_spec_random_val(const struct bin_spec* bin_spec,
+static as_val* bin_spec_random_val(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio)
 {
 	as_val* val;
@@ -1204,7 +1204,7 @@ static as_val* bin_spec_random_val(const struct bin_spec* bin_spec,
 }
 
 static size_t
-_sprint_bin(const struct bin_spec* bin, char** out_str, size_t str_size)
+_sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 {
 	if (bin->n_repeats != 1) {
 		sprint(out_str, str_size, "%d*", bin->n_repeats);
@@ -1318,14 +1318,14 @@ _dbg_validate_double(as_double* as_val)
 }
 
 static void
-_dbg_validate_list(const struct bin_spec* bin_spec, const as_list* as_val)
+_dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val)
 {
 	ck_assert_msg(as_val != NULL, "Expected a list, got something else");
 	size_t list_len = as_list_size(as_val);
 	ck_assert_int_eq(list_len, bin_spec->list.length);
 
 	for (uint32_t i = 0, cnt = 0; cnt < list_len; i++) {
-		const struct bin_spec* ele_bin = &bin_spec->list.list[i];
+		const struct bin_spec_s* ele_bin = &bin_spec->list.list[i];
 
 		for (uint32_t j = 0; j < ele_bin->n_repeats; j++, cnt++) {
 			_dbg_validate_obj_spec(ele_bin, as_list_get(as_val, cnt));
@@ -1335,7 +1335,7 @@ _dbg_validate_list(const struct bin_spec* bin_spec, const as_list* as_val)
 
 
 static void
-_dbg_validate_map(const struct bin_spec* bin_spec, const as_map* val)
+_dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val)
 {
 	as_hashmap_iterator iter;
 
@@ -1343,8 +1343,8 @@ _dbg_validate_map(const struct bin_spec* bin_spec, const as_map* val)
 	uint32_t map_size = as_map_size(val);
 	ck_assert_int_eq(map_size, bin_spec_map_n_entries(bin_spec));
 
-	const struct bin_spec* key_spec = bin_spec_get_key(bin_spec);
-	const struct bin_spec* val_spec = bin_spec->map.val;
+	const struct bin_spec_s* key_spec = bin_spec_get_key(bin_spec);
+	const struct bin_spec_s* val_spec = bin_spec->map.val;
 
 	for (as_hashmap_iterator_init(&iter, (as_hashmap*) val);
 			as_hashmap_iterator_has_next(&iter);) {
@@ -1358,7 +1358,7 @@ _dbg_validate_map(const struct bin_spec* bin_spec, const as_map* val)
 }
 
 static void
-_dbg_validate_obj_spec(const struct bin_spec* bin_spec, const as_val* val)
+_dbg_validate_obj_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 {
 	switch (bin_spec_get_type(bin_spec)) {
 		case BIN_SPEC_TYPE_INT:

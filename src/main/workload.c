@@ -244,7 +244,7 @@ stages_set_defaults_and_parse(stages_t* stages, const args_t* args)
 
 	// when obj_specs are omitted, they are inherited from the previous stage,
 	// with the first stage inheriting from the global obj_spec
-	const struct obj_spec* prev_obj_spec = &args->obj_spec;
+	const struct obj_spec_s* prev_obj_spec = &args->obj_spec;
 
 	int ret = 0;
 

@@ -29,10 +29,10 @@
 
 
 // forward declaration (defined only in source file)
-struct bin_spec;
+struct bin_spec_s;
 
-typedef struct obj_spec {
-	struct bin_spec* bin_specs;
+typedef struct obj_spec_s {
+	struct bin_spec_s* bin_specs;
 	uint32_t n_bin_specs;
 	/*
      * when set to true, this is a valid obj_spec, when set to false, this

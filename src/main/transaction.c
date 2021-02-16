@@ -21,7 +21,7 @@
 // Typedefs & constants.
 //
 
-struct async_data {
+struct async_data_s {
 	cdata_t* cdata;
 	stage_t* stage;
 	// queue to place this item back on once the callback has finished
@@ -64,11 +64,11 @@ static int _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 
 // Read/Write singular/batch asynchronous operations
 static int _write_record_async(as_key* key, as_record* rec,
-		struct async_data* adata, cdata_t* cdata);
-static int _read_record_async(as_key* key, struct async_data* adata,
+		struct async_data_s* adata, cdata_t* cdata);
+static int _read_record_async(as_key* key, struct async_data_s* adata,
 		cdata_t* cdata, stage_t* stage);
 static int _batch_read_record_async(as_batch_read_records* keys,
-		struct async_data* adata, cdata_t* cdata);
+		struct async_data_s* adata, cdata_t* cdata);
 
 // Thread worker helper methods
 static void _calculate_subrange(uint64_t key_start, uint64_t key_end,
@@ -325,7 +325,7 @@ _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
  *****************************************************************************/
 
 static int
-_write_record_async(as_key* key, as_record* rec, struct async_data* adata,
+_write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
 		cdata_t* cdata)
 {
 	as_status status;
@@ -344,7 +344,7 @@ _write_record_async(as_key* key, as_record* rec, struct async_data* adata,
 }
 
 static int
-_read_record_async(as_key* key, struct async_data* adata, cdata_t* cdata,
+_read_record_async(as_key* key, struct async_data_s* adata, cdata_t* cdata,
 		stage_t* stage)
 {
 	as_status status;
@@ -371,7 +371,7 @@ _read_record_async(as_key* key, struct async_data* adata, cdata_t* cdata,
 }
 
 static int
-_batch_read_record_async(as_batch_read_records* keys, struct async_data* adata,
+_batch_read_record_async(as_batch_read_records* keys, struct async_data_s* adata,
 		cdata_t* cdata)
 {
 	as_status status;
@@ -642,7 +642,7 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 static void
 _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 {
-	struct async_data* adata = (struct async_data*) udata;
+	struct async_data_s* adata = (struct async_data_s*) udata;
 
 	cdata_t* cdata = adata->cdata;
 
@@ -728,7 +728,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, queue_t* adata_q)
 {
 	uint64_t key_val, end_key;
-	struct async_data* adata;
+	struct async_data_s* adata;
 
 	struct timespec wake_time;
 	uint64_t start_time;
@@ -773,7 +773,7 @@ static void
 rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, queue_t* adata_q)
 {
-	struct async_data* adata;
+	struct async_data_s* adata;
 
 	struct timespec wake_time;
 	uint64_t start_time;
@@ -861,7 +861,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, queue_t* adata_q)
 {
 	uint64_t key_val, end_key;
-	struct async_data* adata;
+	struct async_data_s* adata;
 
 	struct timespec wake_time;
 	uint64_t start_time;
@@ -928,7 +928,7 @@ static void
 do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
 {
-	struct async_data* adatas;
+	struct async_data_s* adatas;
 	uint32_t t_idx = tdata->t_idx;
 	uint64_t n_adatas;
 	queue_t adata_q;
@@ -943,11 +943,11 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	n_adatas = cdata->async_max_commands;
 	adatas =
-		(struct async_data*) cf_malloc(n_adatas * sizeof(struct async_data));
+		(struct async_data_s*) cf_malloc(n_adatas * sizeof(struct async_data_s));
 
 	queue_init(&adata_q, n_adatas);
 	for (uint32_t i = 0; i < n_adatas; i++) {
-		struct async_data* adata = &adatas[i];
+		struct async_data_s* adata = &adatas[i];
 
 		adata->cdata = cdata;
 		adata->stage = stage;
@@ -971,7 +971,7 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// wait for all the async calls to finish
 	for (uint32_t i = 0; i < n_adatas;) {
-		struct async_data* adata = queue_pop(&adata_q);
+		struct async_data_s* adata = queue_pop(&adata_q);
 		if (adata == NULL) {
 			continue;
 		}

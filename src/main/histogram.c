@@ -41,7 +41,7 @@
  * internal struct to describe the layout of the histogram, with redundancy
  * for performance reasons
  */
-typedef struct bucket_range_desc {
+typedef struct bucket_range_desc_s {
 	delay_t lower_bound;
 	delay_t bucket_width;
 	uint32_t offset;

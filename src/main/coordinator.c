@@ -117,8 +117,8 @@ thr_coordinator_sleep(thr_coord_t* coord,
 void*
 coordinator_worker(void* udata)
 {
-	struct coordinator_worker_args* args =
-		(struct coordinator_worker_args*) udata;
+	struct coordinator_worker_args_s* args =
+		(struct coordinator_worker_args_s*) udata;
 	thr_coord_t* coord = args->coord;
 	cdata_t* cdata = args->cdata;
 	tdata_t** tdatas = args->tdatas;

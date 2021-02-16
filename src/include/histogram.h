@@ -29,15 +29,15 @@
  */
 typedef uint64_t delay_t;
 
-typedef struct rangespec {
+typedef struct rangespec_s {
 	delay_t upper_bound;
 	delay_t bucket_width;
 } rangespec_t;
 
 
-typedef struct histogram {
+typedef struct histogram_s {
 	uint32_t* buckets;
-	struct bucket_range_desc* bounds;
+	struct bucket_range_desc_s* bounds;
 
 	// name to be printed before each output line of this histogram
 	char* name;

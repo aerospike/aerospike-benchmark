@@ -34,9 +34,9 @@
 #include <workload.h>
 
 // forward declare thr_coordinator for use in threaddata
-struct thr_coordinator;
+struct thr_coordinator_s;
 
-typedef struct args {
+typedef struct args_s {
 	char* hosts;
 	int port;
 	const char* user;
@@ -47,12 +47,12 @@ typedef struct args {
 	uint64_t start_key;
 	uint64_t keys;
 
-	struct stages stages;
+	struct stages_s stages;
 	char* workload_stages_file;
 
 	// the default object spec, in the case that a workload stage isn't defined
 	// with one
-	struct obj_spec obj_spec;
+	struct obj_spec_s obj_spec;
 
 	int transaction_worker_threads;
 	bool enable_compression;
@@ -85,11 +85,11 @@ typedef struct args {
 	as_auth_mode auth_mode;
 } args_t;
 
-typedef struct clientdata {
+typedef struct clientdata_s {
 	const char* namespace;
 	const char* set;
 	const char* bin_name;
-	struct stages stages;
+	struct stages_s stages;
 
 	uint64_t transactions_count;
 	uint64_t period_begin;
@@ -126,7 +126,7 @@ typedef struct clientdata {
 	int async_max_commands;
 	int transaction_worker_threads;
 	int read_pct;
-	struct obj_spec obj_spec;
+	struct obj_spec_s obj_spec;
 
 	float compression_ratio;
 	bool latency;
@@ -134,9 +134,9 @@ typedef struct clientdata {
 
 } cdata_t;
 
-typedef struct threaddata {
+typedef struct threaddata_s {
 	cdata_t* cdata;
-	struct thr_coordinator* coord;
+	struct thr_coordinator_s* coord;
 	as_random* random;
 	dyn_throttle_t dyn_throttle;
 

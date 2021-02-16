@@ -755,7 +755,7 @@ static stage_t*
 get_or_init_stage(args_t* args)
 {
 	if (args->stages.stages == NULL) {
-		args->stages.stages = (struct stage*) cf_calloc(1, sizeof(struct stage));
+		args->stages.stages = (struct stage_s*) cf_calloc(1, sizeof(struct stage_s));
 		args->stages.n_stages = 1;
 		args->stages.valid = true;
 
@@ -829,7 +829,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the random flag\n");
 					return -1;
 				}
-				struct stage* stage = get_or_init_stage(args);
+				struct stage_s* stage = get_or_init_stage(args);
 				stage->random = true;
 				break;
 
@@ -839,7 +839,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the duration flag\n");
 					return -1;
 				}
-				struct stage* stage = get_or_init_stage(args);
+				struct stage_s* stage = get_or_init_stage(args);
 				char* endptr;
 				stage->duration = strtoull(optarg, &endptr, 10);
 				if (*optarg == '\0' || *endptr != '\0') {
@@ -856,7 +856,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the workload flag\n");
 					return -1;
 				}
-				struct stage* stage = get_or_init_stage(args);
+				struct stage_s* stage = get_or_init_stage(args);
 				stage->workload_str = strdup(optarg);
 				break;
 			}
@@ -877,7 +877,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the readBins flag\n");
 					return -1;
 				}
-				struct stage* stage = get_or_init_stage(args);
+				struct stage_s* stage = get_or_init_stage(args);
 				stage->read_bins_str = strdup(optarg);
 				break;
 			}
@@ -892,7 +892,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the throughput flag\n");
 					return -1;
 				}
-				struct stage* stage = get_or_init_stage(args);
+				struct stage_s* stage = get_or_init_stage(args);
 				stage->tps = atoi(optarg);
 				break;
 			}
@@ -903,7 +903,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the workload flag\n");
 					return -1;
 				}
-				struct stage* stage = get_or_init_stage(args);
+				struct stage_s* stage = get_or_init_stage(args);
 				stage->batch_size = atoi(optarg);
 				break;
 			}
@@ -1078,7 +1078,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the async flag\n");
 					return -1;
 				}
-				struct stage* stage = get_or_init_stage(args);
+				struct stage_s* stage = get_or_init_stage(args);
 				stage->async = true;
 				break;
 			}
@@ -1166,7 +1166,7 @@ _load_defaults(args_t* args)
 	args->bin_name = "testbin";
 	args->start_key = 1;
 	args->keys = 1000000;
-	__builtin_memset(&args->stages, 0, sizeof(struct stages));
+	__builtin_memset(&args->stages, 0, sizeof(struct stages_s));
 	args->workload_stages_file = NULL;
 	obj_spec_parse(&args->obj_spec, "I");
 	args->transaction_worker_threads = 16;
@@ -1220,7 +1220,7 @@ _load_defaults_post(args_t* args)
 				&args->stages, args);
 	}
 	else {
-		struct stage* stage = get_or_init_stage(args);
+		struct stage_s* stage = get_or_init_stage(args);
 
 		stage->desc = strdup("default config (specify your own with "
 				"--workloadStages)");

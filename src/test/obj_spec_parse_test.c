@@ -29,7 +29,7 @@ simple_teardown(void)
  */
 START_TEST(test_double_free)
 {
-	struct obj_spec o;
+	struct obj_spec_s o;
 	obj_spec_parse(&o, "I");
 	obj_spec_free(&o);
 	obj_spec_free(&o);
@@ -38,7 +38,7 @@ END_TEST
 
 START_TEST(test_free_after_failed_init)
 {
-	struct obj_spec o;
+	struct obj_spec_s o;
 	// technically o can be anything, so let's set it to valid to make sure
 	// that obj_spec_init unsets it if it fails to initialize
 	o.valid = true;
@@ -49,8 +49,8 @@ END_TEST
 
 START_TEST(test_free_after_move)
 {
-	struct obj_spec o;
-	struct obj_spec p;
+	struct obj_spec_s o;
+	struct obj_spec_s p;
 	as_record rec;
 
 	obj_spec_parse(&o, "[I,D,{S10:B20}]");
@@ -66,8 +66,8 @@ END_TEST
 
 START_TEST(test_shallow_copy)
 {
-	struct obj_spec o;
-	struct obj_spec p;
+	struct obj_spec_s o;
+	struct obj_spec_s p;
 	as_record rec;
 
 	obj_spec_parse(&o, "[I,D,{S10:B20}]");
@@ -83,8 +83,8 @@ END_TEST
 
 START_TEST(test_free_after_shallow_copy)
 {
-	struct obj_spec o;
-	struct obj_spec p;
+	struct obj_spec_s o;
+	struct obj_spec_s p;
 	as_record rec;
 
 	obj_spec_parse(&o, "[I,D,{S10:B20}]");
@@ -105,7 +105,7 @@ END_TEST
 #define DEFINE_TCASE_DIFF(test_name, obj_spec_str, expected_out_str) \
 START_TEST(test_name ## _str_cmp) \
 { \
-	struct obj_spec o; \
+	struct obj_spec_s o; \
 	char buf[sizeof(expected_out_str) + 1]; \
 	ck_assert_int_eq(obj_spec_parse(&o, obj_spec_str), 0); \
 	_dbg_sprint_obj_spec(&o, buf, sizeof(buf)); \
@@ -116,7 +116,7 @@ START_TEST(test_name ## _str_cmp) \
 END_TEST \
 START_TEST(test_name ## _valid) \
 { \
-	struct obj_spec o; \
+	struct obj_spec_s o; \
 	as_random random; \
 	as_record rec; \
 	as_random_init(&random); \
@@ -135,7 +135,7 @@ START_TEST(test_name ## _valid) \
 #define DEFINE_FAILING_TCASE(test_name, obj_spec_str, msg) \
 START_TEST(test_name) \
 { \
-	struct obj_spec o; \
+	struct obj_spec_s o; \
 	ck_assert_msg(obj_spec_parse(&o, obj_spec_str) != 0, \
 			"test should have failed on string \"" obj_spec_str "\": " msg); \
 } \
@@ -300,7 +300,7 @@ DEFINE_FAILING_TCASE(test_mult_list_too_many_elements, "[3000000000*I4,300000000
 #define DEFINE_BIN_NAME_OK(test_name, n_bins, bin_name) \
 START_TEST(test_name) \
 { \
-	struct obj_spec o; \
+	struct obj_spec_s o; \
 	as_random random; \
 	as_record rec; \
 	as_random_init(&random); \
@@ -316,7 +316,7 @@ END_TEST
 #define DEFINE_BIN_NAME_TOO_LARGE(test_name, n_bins, bin_name) \
 START_TEST(test_name) \
 { \
-	struct obj_spec o; \
+	struct obj_spec_s o; \
 	as_random random; \
 	as_record rec; \
 	as_random_init(&random); \

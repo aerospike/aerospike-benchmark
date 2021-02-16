@@ -42,9 +42,9 @@
 
 
 // forward declare to avoid circular inclusion
-struct threaddata;
+struct threaddata_s;
 
-typedef struct thr_coordinator {
+typedef struct thr_coordinator_s {
 	/*
 	 * condition variable that the coordinator thread waits on after the stage
 	 * duration has elapsed but not all threads have completed their alloted
@@ -62,12 +62,12 @@ typedef struct thr_coordinator {
 	uint32_t unfinished_threads;
 } thr_coord_t;
 
-struct coordinator_worker_args {
+struct coordinator_worker_args_s {
 	thr_coord_t* coord;
 	cdata_t* cdata;
 
 	// list of thread data pointers
-	struct threaddata** tdatas;
+	struct threaddata_s** tdatas;
 	uint32_t n_threads;
 };
 

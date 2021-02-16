@@ -39,10 +39,10 @@
 
 
 // forward declare arguments since benchmark.h includes this file
-struct args;
+struct args_s;
 
 
-typedef struct workload {
+typedef struct workload_s {
 	/*
 	 * one of:
 	 *  WORKLOAD_TYPE_LINEAR: linear insert workload, initializing pct% of the
@@ -61,7 +61,7 @@ typedef struct workload {
 } workload_t;
 
 
-typedef struct stage {
+typedef struct stage_s {
 	// minimum stage duration in seconds
 	uint64_t duration;
 
@@ -110,7 +110,7 @@ typedef struct stage {
 } stage_t;
 
 
-typedef struct stages {
+typedef struct stages_s {
 	stage_t* stages;
 	uint32_t n_stages;
 	/*
@@ -194,13 +194,13 @@ void free_bins_selection(stage_t* stage);
  * set stages struct to default values if they were not supplied
  */
 int stages_set_defaults_and_parse(stages_t* stages,
-		const struct args* args);
+		const struct args_s* args);
 
 /*
  * parses the given file into the stages struct
  */
 int parse_workload_config_file(const char* file, stages_t* stages,
-		const struct args* args);
+		const struct args_s* args);
 
 void free_workload_config(stages_t* stages);
 

@@ -259,9 +259,9 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 void*
 periodic_output_worker(void* udata)
 {
-	struct threaddata* tdata = (struct threaddata*) udata;
+	tdata_t* tdata = (tdata_t*) udata;
 	cdata_t* cdata = tdata->cdata;
-	struct thr_coordinator* coord = tdata->coord;
+	thr_coord_t* coord = tdata->coord;
 
 	bool latency = cdata->latency;
 	bool has_reads = stages_contains_reads(&cdata->stages);

@@ -31,7 +31,7 @@
 #define DYN_THROTTLE_ALPHA (1.f / DYN_THROTTLE_N)
 
 
-typedef struct dyn_throttle {
+typedef struct dyn_throttle_s {
 	// the number of records that have been recorded
 	uint64_t n_records;
 

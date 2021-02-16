@@ -27,7 +27,7 @@
  * implementation of a lock-free single-popper multiple-pusher thread-safe
  * queue
  */
-typedef struct queue {
+typedef struct queue_s {
 	void** items;
 	// length of items - 1 (length is always a power of 2)
 	uint32_t len_mask;
