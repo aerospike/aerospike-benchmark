@@ -604,7 +604,6 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		uint8_t map_state;
 		as_vector* list_builder;
 
-_top:
 		delim = state->delimiter;
 		type = state->type;
 
@@ -831,7 +830,7 @@ _top:
 
 					str++;
 					state = list_state;
-					goto _top;
+					continue;
 				}
 				case '{': {
 					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
@@ -851,7 +850,7 @@ _top:
 
 					str++;
 					state = map_state;
-					goto _top;
+					continue;
 				}
 				default:
 					_print_parse_error("Expect 'I', 'S', 'B', or 'D' specifier, "
