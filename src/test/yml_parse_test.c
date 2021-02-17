@@ -54,6 +54,20 @@ static void assert_workloads_eq(const stages_t* parsed,
 			ck_assert_ptr_eq(a->read_bins[j], NULL);
 			ck_assert_ptr_eq(b->read_bins[j], NULL);
 		}
+
+		ck_assert_uint_eq(a->n_write_bins, b->n_write_bins);
+		if (a->write_bins == NULL || b->write_bins == NULL) {
+			ck_assert_ptr_eq(a->write_bins, NULL);
+			ck_assert_ptr_eq(b->write_bins, NULL);
+		}
+		else {
+			uint32_t j;
+			for (j = 0; a->write_bins[j] != NULL && b->write_bins[j] != NULL; j++) {
+				ck_assert_str_eq(a->write_bins[j], b->write_bins[j]);
+			}
+			ck_assert_ptr_eq(a->write_bins[j], NULL);
+			ck_assert_ptr_eq(b->write_bins[j], NULL);
+		}
 	}
 }
 
@@ -106,7 +120,8 @@ DEFINE_TEST(test_simple,
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -134,7 +149,8 @@ DEFINE_TEST(test_tps,
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -162,7 +178,8 @@ DEFINE_TEST(test_key_start,
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -190,7 +207,8 @@ DEFINE_TEST(test_key_end,
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -218,7 +236,8 @@ DEFINE_TEST(test_pause,
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -246,7 +265,8 @@ DEFINE_TEST(test_batch_size,
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -274,7 +294,8 @@ DEFINE_TEST(test_async,
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -302,7 +323,8 @@ DEFINE_TEST(test_random,
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -330,7 +352,8 @@ DEFINE_TEST(test_workload_ru_default,
 					.pct = 50
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -358,7 +381,8 @@ DEFINE_TEST(test_workload_ru_pct,
 					.pct = 75.2
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -385,7 +409,8 @@ DEFINE_TEST(test_workload_db,
 					.type = WORKLOAD_TYPE_DELETE
 				},
 				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -414,7 +439,8 @@ DEFINE_TEST(test_obj_spec,
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
 				.obj_spec_str = "I4,D,{3*S10:[B20,D,I8]}",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
@@ -450,7 +476,45 @@ DEFINE_TEST(test_read_bins,
 					"testbin_5",
 					NULL
 				},
-				.n_read_bins = 3
+				.n_read_bins = 3,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}));
+
+
+DEFINE_TEST(test_write_bins,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RU\n"
+		"  object-spec: I,I,I,I,I\n"
+		"  write-bins: 1,3,5",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RANDOM,
+					.pct = 50
+				},
+				.obj_spec_str = "I4,I4,I4,I4,I4",
+				.read_bins = NULL,
+				.write_bins = (char*[]) {
+					"testbin",
+					"testbin_3",
+					"testbin_5",
+					NULL
+				},
+				.n_write_bins = 3
 			},},
 			1,
 			true
@@ -479,6 +543,7 @@ yaml_parse_suite(void)
 	tcase_add_test(tc_simple, test_workload_db);
 	tcase_add_test(tc_simple, test_obj_spec);
 	tcase_add_test(tc_simple, test_read_bins);
+	tcase_add_test(tc_simple, test_write_bins);
 	suite_add_tcase(s, tc_simple);
 
 	return s;

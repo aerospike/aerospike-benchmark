@@ -45,6 +45,10 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
 			stage_t, read_bins_str,
 			0, CYAML_UNLIMITED),
+	CYAML_FIELD_STRING_PTR("write-bins",
+			CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
+			stage_t, write_bins_str,
+			0, CYAML_UNLIMITED),
 	CYAML_FIELD_UINT("pause", CYAML_FLAG_OPTIONAL,
 			stage_t, pause),
 	CYAML_FIELD_UINT("batch-size", CYAML_FLAG_OPTIONAL,
@@ -141,19 +145,18 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 	return 0;
 }
 
-/*
- * note: this must be done after the obj_spec has already been parsed
- */
-int
-parse_bins_selection(stage_t* stage, const char* bins_str,
-		const char* stage_bin_name)
+
+char**
+parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
+		const char* stage_bin_name, uint32_t* n_bins_ptr)
 {
 	if (bins_str == NULL) {
-		return 0;
+		return NULL;
 	}
 
-	uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+	uint32_t n_bins = obj_spec_n_bins(obj_spec);
 	const char* read_bins_str = bins_str;
+	char** bin_list;
 	as_vector read_bins;
 	as_vector_init(&read_bins, sizeof(char*), 8);
 
@@ -164,19 +167,19 @@ parse_bins_selection(stage_t* stage, const char* bins_str,
 			fprintf(stderr, "Element %u of read-bins list not a positive "
 					"number\n", read_bins.size + 1);
 			_parse_bins_destroy(&read_bins);
-			return -1;
+			return NULL;
 		}
 
 		if (bin_num == 0) {
 			fprintf(stderr, "Invalid bin number: 0\n");
 			_parse_bins_destroy(&read_bins);
-			return -1;
+			return NULL;
 		}
 		if (bin_num > n_bins) {
 			fprintf(stderr, "No such bin %lu (there are only %u bins)\n",
 					bin_num, n_bins);
 			_parse_bins_destroy(&read_bins);
-			return -1;
+			return NULL;
 		}
 
 		// form bin name
@@ -195,12 +198,12 @@ parse_bins_selection(stage_t* stage, const char* bins_str,
 	as_vector_reserve(&read_bins);
 
 	// and now copy the vector to read_bins
-	stage->read_bins = (char**) as_vector_to_array(&read_bins, &stage->n_read_bins);
+	bin_list = (char**) as_vector_to_array(&read_bins, n_bins_ptr);
 	// don't count the null-terminating pointer
-	stage->n_read_bins--;
+	(*n_bins_ptr)--;
 
 	as_vector_destroy(&read_bins);
-	return 0;
+	return bin_list;
 }
 
 void
@@ -307,8 +310,34 @@ stages_set_defaults_and_parse(stages_t* stages, const args_t* args)
 			stage->read_bins_str = NULL;
 			ret = -1;
 		}
-		else if (parse_bins_selection(stage, bins_str, args->bin_name) != 0) {
+		else if (bins_str != NULL &&
+				(stage->read_bins = parse_bins_selection(bins_str,
+														 &stage->obj_spec,
+														 args->bin_name,
+														 &stage->n_read_bins))
+				== NULL) {
 			stage->read_bins_str = NULL;
+			ret = -1;
+		}
+		cf_free(bins_str);
+
+		// now parse write bins
+		bins_str = stage->write_bins_str;
+		if (stage->write_bins_str != NULL &&
+				!workload_contains_writes(&stage->workload)) {
+			fprintf(stderr, "Stage %d: cannot specify write-bins on workload "
+					"without writes\n",
+					i + 1);
+			stage->write_bins_str = NULL;
+			ret = -1;
+		}
+		else if (bins_str != NULL &&
+				(stage->write_bins = parse_bins_selection(bins_str,
+														  &stage->obj_spec,
+														  args->bin_name,
+														  &stage->n_write_bins))
+				== NULL) {
+			stage->write_bins_str = NULL;
 			ret = -1;
 		}
 		cf_free(bins_str);
