@@ -418,7 +418,8 @@ obj_spec_gen_compressible_value(const struct obj_spec_s* obj_spec,
 	return bin_spec_random_val(&tmp_list, random, compression_ratio);
 }
 
-void snprint_obj_spec(const struct obj_spec_s* obj_spec, char* out_str,
+void
+snprint_obj_spec(const struct obj_spec_s* obj_spec, char* out_str,
 		size_t str_size)
 {
 	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
@@ -434,7 +435,8 @@ void snprint_obj_spec(const struct obj_spec_s* obj_spec, char* out_str,
 
 #ifdef _TEST
 
-void _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
+void
+_dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 		const as_record* rec, const char* bin_name)
 {
 	as_bin_name name;
@@ -486,7 +488,6 @@ bin_spec_map_n_entries(const struct bin_spec_s* b)
 	return bin_spec_get_key(b)->n_repeats;
 }
 
-
 static void
 _print_parse_error(const char* err_msg, const char* obj_spec_str,
 		const char* err_loc)
@@ -515,12 +516,6 @@ _print_parse_error(const char* err_msg, const char* obj_spec_str,
 			line_length, last_newline + 1,
 			err_offset, "");
 }
-
-
-// forward declare helper method for obj_spec_free, to be used in
-// _destroy_consumer_states
-static void
-bin_spec_free(struct bin_spec_s* bin_spec);
 
 /*
  * to be called when an error is encountered while parsing, and cleanup of the
@@ -1010,7 +1005,8 @@ _gen_random_int(uint8_t range, as_random* random)
  */
 #define MAX_SEED 4738381338321616896LU
 
-static as_val* _gen_random_str(uint32_t length, as_random* random)
+static as_val*
+_gen_random_str(uint32_t length, as_random* random)
 {
 	as_string* val;
 	char* buf;
@@ -1085,8 +1081,8 @@ static as_val* _gen_random_str(uint32_t length, as_random* random)
 	return (as_val*) val;
 }
 
-static as_val* _gen_random_bytes(uint32_t length, as_random* random,
-		float compression_ratio)
+static as_val*
+_gen_random_bytes(uint32_t length, as_random* random, float compression_ratio)
 {
 	as_bytes* val;
 	uint8_t* buf;
@@ -1099,7 +1095,8 @@ static as_val* _gen_random_bytes(uint32_t length, as_random* random,
 	return (as_val*) val;
 }
 
-static as_val* _gen_random_double(as_random* random)
+static as_val*
+_gen_random_double(as_random* random)
 {
 	as_double* val;
 	// for now, just generate random uint64 and reinterpret as double
@@ -1108,8 +1105,9 @@ static as_val* _gen_random_double(as_random* random)
 	return (as_val*) val;
 }
 
-static as_val* _gen_random_list(const struct bin_spec_s* bin_spec,
-		as_random* random, float compression_ratio)
+static as_val*
+_gen_random_list(const struct bin_spec_s* bin_spec, as_random* random,
+		float compression_ratio)
 {
 	as_arraylist* list;
 
@@ -1141,8 +1139,9 @@ static as_val* _gen_random_list(const struct bin_spec_s* bin_spec,
 	return (as_val*) list;
 }
 
-static as_val* _gen_random_map(const struct bin_spec_s* bin_spec,
-		as_random* random, float compression_ratio)
+static as_val*
+_gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
+		float compression_ratio)
 {
 	as_hashmap* map;
 
@@ -1169,8 +1168,9 @@ static as_val* _gen_random_map(const struct bin_spec_s* bin_spec,
 }
 
 
-static as_val* bin_spec_random_val(const struct bin_spec_s* bin_spec,
-		as_random* random, float compression_ratio)
+static as_val*
+bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
+		float compression_ratio)
 {
 	as_val* val;
 	switch (bin_spec_get_type(bin_spec)) {

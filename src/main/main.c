@@ -60,6 +60,7 @@ static struct option long_options[] = {
 	{"workload",             required_argument, 0, 'w'},
 	{"workloadStages",       required_argument, 0, '.'},
 	{"readBins",             required_argument, 0, '+'},
+	{"writeBins",            required_argument, 0, '-'},
 	{"threads",              required_argument, 0, 'z'},
 	{"throughput",           required_argument, 0, 'g'},
 	{"batchSize",            required_argument, 0, '0'},
@@ -280,6 +281,18 @@ print_usage(const char* program)
 	blog_line("");
 	blog_line("   Example:");
 	blog_line("      -o I2,S12,[3*I1] => b1: 478; b2: \"a09dfwu3ji2r\"; b3: [12, 45, 209])");
+	blog_line("");
+
+	blog_line("   --readBins        # Default: all bins");
+	blog_line("   Specifies which bins from the object-spec to load from the database on read ");
+	blog_line("   transactions. Must be given as a comma-separated list of bin numbers, ");
+	blog_line("   starting from 1 (i.e. \"1,3,4,6\".");
+	blog_line("");
+
+	blog_line("   --writeBins        # Default: all bins");
+	blog_line("   Specifies which bins from the object-spec to generate and store in the ");
+	blog_line("   database on write transactions. Must be given as a comma-separated list ");
+	blog_line("   of bin numbers, starting from 1 (i.e. \"1,3,4,6\".");
 	blog_line("");
 
 	blog_line("-R --random          # Default: static fixed bin values");
@@ -879,6 +892,17 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				struct stage_s* stage = get_or_init_stage(args);
 				stage->read_bins_str = strdup(optarg);
+				break;
+			}
+
+			case '-': {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the writeBins flag\n");
+					return -1;
+				}
+				struct stage_s* stage = get_or_init_stage(args);
+				stage->write_bins_str = strdup(optarg);
 				break;
 			}
 

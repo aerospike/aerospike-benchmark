@@ -110,7 +110,7 @@ typedef struct stage_s {
 	union {
 		char* write_bins_str;
 		struct {
-			char** write_bins;
+			uint32_t* write_bins;
 			uint32_t n_write_bins;
 		};
 	};
@@ -187,21 +187,6 @@ static inline void fprint_stage(FILE* out_file, const stages_t* stages,
 	const char* desc = stages->stages[stage_idx].desc;
 	fprintf(out_file, "Stage %d: %s\n", stage_idx + 1, desc ? desc : "");
 }
-
-/*
- * reads and parses bins_str, a comma-separated list of bin numbers
- * (1-based indexed) and populates the read_bins field of stage
- *
- * the list of bin names will be returned, and n_bins will be populated with
- * the number of bins in the returned array
- */
-char** parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
-		const char* bin_name, uint32_t* n_bins);
-
-/*
- * frees the bins selection array created from parse_bins_selection
- */
-void free_bins_selection(stage_t* stage);
 
 /*
  * set stages struct to default values if they were not supplied

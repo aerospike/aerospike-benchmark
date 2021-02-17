@@ -62,11 +62,9 @@ static void assert_workloads_eq(const stages_t* parsed,
 		}
 		else {
 			uint32_t j;
-			for (j = 0; a->write_bins[j] != NULL && b->write_bins[j] != NULL; j++) {
-				ck_assert_str_eq(a->write_bins[j], b->write_bins[j]);
+			for (j = 0; j < a->n_write_bins; j++) {
+				ck_assert_int_eq(a->write_bins[j], b->write_bins[j]);
 			}
-			ck_assert_ptr_eq(a->write_bins[j], NULL);
-			ck_assert_ptr_eq(b->write_bins[j], NULL);
 		}
 	}
 }
@@ -508,11 +506,10 @@ DEFINE_TEST(test_write_bins,
 				},
 				.obj_spec_str = "I4,I4,I4,I4,I4",
 				.read_bins = NULL,
-				.write_bins = (char*[]) {
-					"testbin",
-					"testbin_3",
-					"testbin_5",
-					NULL
+				.write_bins = (uint32_t[]) {
+					0,
+					2,
+					4
 				},
 				.n_write_bins = 3
 			},},
