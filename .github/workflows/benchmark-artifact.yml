@@ -13,6 +13,31 @@ jobs:
     steps:
     - name: Install event libs
       run: sudo apt-get install -y libevent-dev libev-dev libuv1-dev
+    - name: Download libyaml
+      uses: dsaltares/fetch-gh-release-asset@0.0.5
+      with:
+        repo: "yaml/libyaml"
+        version: "tags/0.2.5"
+        file: yaml-0.2.5.tar.gz
+    - name: Cache libyaml
+      id: cache-libyaml
+      uses: actions/cache@v2
+      env:
+        cache-name: libyaml
+      with:
+        path: yaml-0.2.5
+        key: yaml-0.2.5-${{ runner.os }}
+    - name: Build libyaml
+      id: build-libyaml
+      if: steps.cache-libyaml.outputs.cache-hit != 'true'
+      run: |
+        tar xvfz yaml-0.2.5.tar.gz && cd yaml-0.2.5
+        ./configure
+        make
+    - name: install libyaml
+      run: |
+        cd yaml-0.2.5
+        sudo make install
     - name: Checkout c client
       uses: actions/checkout@v2
       with:
