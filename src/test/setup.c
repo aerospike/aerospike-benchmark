@@ -23,8 +23,8 @@
 #include "benchmark.h"
 
 #define TEST_SUITE_NAME "Setup"
-arguments *args;
-clientdata *data;
+args_t *args;
+cdata_t *data;
 
 /**
  * Any setup code to run each test goes here
@@ -34,28 +34,14 @@ clientdata *data;
 static void 
 setup(void) 
 {
-	args = cf_malloc(sizeof(arguments));
+	args = cf_malloc(sizeof(args_t));
 	args->hosts = strdup("127.0.0.1");
 	args->port = 3000;
 	args->user = 0;
 	args->password[0] = 0;
 	args->namespace = "test";
 	args->set = "testset";
-	args->start_key = 1;
-	args->keys = 1000000;
-	args->numbins = 1;
-	args->bintype = 'I';
-	args->binlen = 50;
-	args->binlen_type = LEN_TYPE_COUNT;
-	args->random = false;
-	args->transactions_limit = 0;
-	args->init = false;
-	args->init_pct = 100;
-	args->read_pct = 50;
-	args->del_bin = false;
-	args->threads = 16;
-	args->throughput = 0;
-	args->batch_size = 0;
+	args->transaction_worker_threads = 16;
 	args->enable_compression = false;
 	args->compression_ratio = 1.f;
 	args->read_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
@@ -72,33 +58,19 @@ setup(void)
 	args->write_commit_level = AS_POLICY_COMMIT_LEVEL_ALL;
 	args->durable_deletes = false;
 	args->conn_pools_per_node = 1;
-	args->async = false;
 	args->async_max_commands = 50;
 	args->event_loop_capacity = 1;
 	args->auth_mode = AS_AUTH_INTERNAL;	
 	
-	data = cf_malloc(sizeof(clientdata));
+	data = cf_malloc(sizeof(cdata_t));
 	data->namespace = args->namespace;
 	data->set = args->set;
-	data->threads = args->threads;
-	data->throughput = args->throughput;
-	data->batch_size = args->batch_size;
-	data->read_pct = args->read_pct;
-	data->del_bin = args->del_bin;
+	data->transaction_worker_threads = args->transaction_worker_threads;
 	data->compression_ratio = args->compression_ratio;
-	data->bintype = args->bintype;
-	data->binlen = args->binlen;
-	data->binlen_type = args->binlen_type;
-	data->numbins = args->numbins;
-	data->random = args->random;
-	data->transactions_limit = args->transactions_limit;
 	data->transactions_count = 0;
 	data->latency = args->latency;
 	data->debug = args->debug;
-	data->valid = 1;
-	data->async = args->async;
 	data->async_max_commands = args->async_max_commands;
-	data->fixed_value = NULL;
 }
 
 /**
@@ -110,6 +82,7 @@ static void
 teardown(void)
 {
 //do some tearing
+	free(args->hosts);
 	free(args);
 	free(data);
 }

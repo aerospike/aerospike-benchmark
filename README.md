@@ -1,79 +1,84 @@
-Aerospike Benchmark
-=============================
+# Aerospike Benchmark Tool
 
 ![Build:Main](https://github.com/citrusleaf/aerospike-benchmark/workflows/Build:Main/badge.svg)
 [![codecov](https://codecov.io/gh/aerospike/aerospike-benchmark/branch/main/graph/badge.svg?token=TPGZT8V6AA)](https://codecov.io/gh/aerospike/aerospike-benchmark)
 
-This project contains the files necessary to build C client benchmarks. 
-This program is used to insert data and generate load. 
+This project contains the files necessary to build the C client benchmarking tool.  This program is used to insert data and generate load emulating real-world usage patterns of the database.
 
-Build instructions:
+## Wiki
+For more information on how to use the benchmark tool and configure it to your needs, visit the wiki [here](https://github.com/aerospike/aerospike-benchmark/wiki).
 
-    export CLIENTREPO=.. #or location of the C client repository
-    make clean
-    make test
-    make [EVENT_LIB=libev|libuv|libevent]
+## Get started
 
-The EVENT_LIB setting must also match the same setting when building the client itself.
-If an event library is defined, it must be installed separately.  Event libraries usually
-install into /usr/local/lib.  Most operating systems do not search /usr/local/lib by 
-default.  Therefore, the following LD_LIBRARY_PATH setting may be necessary.
+### Dependencies
 
-    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+Before building, you need to have a local copy of the [Aerospike C Client](https://github.com/aerospike/aerospike-client-c) and to have built it. After this, set the environment variable `CLIENTREPO` to point to the directory containing the built C client.
 
-Build examples:
+Additional external dependencies:
+ * libyaml
+ * libev, libuv, or libevent, if an event library is used
 
-    make                     # synchronous functionality only
-    make EVENT_LIB=libev     # synchronous and asynchronous functionality with libev   
-    make EVENT_LIB=libuv     # synchronous and asynchronous functionality with libuv   
-    make EVENT_LIB=libevent  # synchronous and asynchronous functionality with libevent  
+### Build
 
-The command line usage can be obtained by:
-
-    target/benchmarks -u
-
-Some sample arguments are:
-
+To build the benchmark tool, run:
+```sh
+make [EVENT_LIB=libev|libuv|libevent]
 ```
-# Connect to localhost:3000 using test namespace.
-# Read 10% and write 90% of the time using 20 concurrent threads.
-# Use 10000000 keys and 50 character string values.
-target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 10000000 -o S:50 -w RU,10 -z 20
+with `EVENT_LIB` matching the event library used when the C client was compiled, if one was used (it is necessary to build with an event library to use async commands). If an event library is defined, it must be installed separately. Event libraries usually install into `/usr/local/lib`. Most operating systems do not search `/usr/local/lib` by default. Therefore, the following `LD_LIBRARY_PATH` setting may be necessary:
+```sh
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 ```
 
-```
-# Connect to localhost:3000 using test namespace.
-# Read 80% and write 20% of the time using 8 concurrent threads.
-# Use 1000000 keys and 1400 length byte array values using a single bin.
-# Timeout after 50ms for reads and writes.
-# Restrict transactions/second to 2500.
-target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o B:1400 -w RU,80 -g 2500 -T 50 -z 8
-```
+Now, the benchmark executable will be located at `target/benchmark`.
 
-```
-# Benchmark asynchronous methods using 1 event loop.
-# Limit the maximum number of concurrent commands to 50.
-# Use and 50% read 50% write pattern.
-target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o S:50 -w RU,50 --async --asyncMaxCommands 50 --eventLoops 1
-```
 
-## Running Tests and Coverage
+### Running Tests and Coverage
 
 To run the unit tests, call
 
-```
-make test
+```sh
+make test [EVENT_LIB=libev|libuv|libevent]
 ```
 
 To generate coverage data for the unit tests, run
 
-```
-make coverage
+```sh
+make coverage [EVENT_LIB=libev|libuv|libevent]
 ```
 > note: this will rerun the tests.
 
 To view coverage data in the console, run
-```
+
+```sh
 make report
 ```
-> note: this will rerun the tests.
+
+## Example usage
+
+To run a random read/update workload for 30 seconds, run:
+```sh
+target/benchmark --workload RU,50 --duration 30
+```
+
+To:
+ * Connect to localhost:3000 using namespace "test".
+ * Read 80% and write 20% of the time using 8 concurrent threads.
+ * Use 1000000 keys and 1400 length byte array values using a single bin.
+ * Timeout after 50ms for reads and writes.
+ * Restrict transactions/second to 2500.
+```sh
+target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o B1400 -w RU,80 -g 2500 -T 50 -z 8
+```
+
+To:
+ * Benchmark asynchronous methods using 1 event loop.
+ * Limit the maximum number of concurrent commands to 50.
+ * Use and 50% read 50% write pattern.
+```sh
+target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o S:50 -w RU,50 --async --asyncMaxCommands 50 --eventLoops 1
+```
+
+Command line usage can be read with:
+```sh
+target/benchmark --help
+```

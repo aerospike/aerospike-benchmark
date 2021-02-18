@@ -19,45 +19,153 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  ******************************************************************************/
-#include "benchmark.h"
-#include "common.h"
-#include "aerospike/aerospike_info.h"
-#include "aerospike/as_config.h"
-#include "aerospike/as_event.h"
-#include "aerospike/as_log.h"
-#include "aerospike/as_monitor.h"
-#include "aerospike/as_random.h"
-#include "aerospike/as_string_builder.h"
-#include <hdr_histogram/hdr_time.h>
-#include <hdr_histogram/hdr_histogram_log.h>
+
+//==========================================================
+// Includes.
+//
+
 #include <stdlib.h>
 #include <time.h>
 
-as_monitor monitor;
+#include <aerospike/aerospike_info.h>
+#include <aerospike/as_config.h>
+#include <aerospike/as_event.h>
+#include <aerospike/as_log.h>
+#include <aerospike/as_monitor.h>
+#include <aerospike/as_random.h>
+
+#include <hdr_histogram/hdr_time.h>
+#include <hdr_histogram/hdr_histogram_log.h>
+#include <benchmark.h>
+#include <common.h>
+#include <latency_output.h>
+#include <transaction.h>
+
+
+//==========================================================
+// Forward declarations.
+//
+
+static bool as_client_log_cb(as_log_level level, const char* func,
+		const char* file, uint32_t line, const char* fmt, ...);
+static int connect_to_server(args_t* args, aerospike* client);
+static bool is_single_bin(aerospike* client, const char* namespace);
+static tdata_t* init_tdata(cdata_t* cdata, thr_coord_t* coord,
+		uint32_t t_idx);
+static void destroy_tdata(tdata_t* tdata);
+static int _run(cdata_t* cdata);
+
+
+//==========================================================
+// Public API.
+//
+
+int
+run_benchmark(args_t* args)
+{
+	cdata_t data;
+	memset(&data, 0, sizeof(cdata_t));
+	data.namespace = args->namespace;
+	data.set = args->set;
+	data.transaction_worker_threads = args->transaction_worker_threads;
+	data.compression_ratio = args->compression_ratio;
+	stages_move(&data.stages, &args->stages);
+	obj_spec_move(&data.obj_spec, &args->obj_spec);
+	data.transactions_count = 0;
+	data.latency = args->latency;
+	data.debug = args->debug;
+	data.async_max_commands = args->async_max_commands;
+
+	time_t start_time;
+	hdr_timespec start_timespec;
+
+	if (args->debug) {
+		as_log_set_level(AS_LOG_LEVEL_DEBUG);
+	}
+	else {
+		as_log_set_level(AS_LOG_LEVEL_INFO);
+	}
+
+	as_log_set_callback(as_client_log_cb);
+
+	int ret = connect_to_server(args, &data.client);
+	
+	if (ret != 0) {
+		return ret;
+	}
+	
+	bool single_bin = is_single_bin(&data.client, args->namespace);
+	
+	if (single_bin) {
+		data.bin_name = "";
+
+		if (obj_spec_n_bins(&args->obj_spec) > 1) {
+			fprintf(stderr, "Single bin database, but obj_spec has > 1 bin\n");
+			ret = -1;
+		}
+	}
+	else {
+		data.bin_name = args->bin_name;
+	}
+
+	if (ret == 0) {
+		ret = initialize_histograms(&data, args, &start_time, &start_timespec);
+	}
+
+	if (ret == 0) {
+		ret = _run(&data);
+
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+		// don't worry, will be initialized (would have to make args const
+		// to suppress)
+		record_summary_data(&data, args, start_time, &start_timespec);
+#pragma GCC diagnostic pop
+
+		free_histograms(&data, args);
+	}
+
+	as_error err;
+	aerospike_close(&data.client, &err);
+	aerospike_destroy(&data.client);
+	
+	if (stages_contain_async(&args->stages)) {
+		as_event_close_loops();
+	}
+
+	obj_spec_free(&data.obj_spec);
+	free_workload_config(&data.stages);
+	
+	return ret;
+}
+
+
+//==========================================================
+// Local helpers.
+//
 
 static bool
-as_client_log_callback(as_log_level level, const char * func, const char * file, uint32_t line, const char * fmt, ...)
+as_client_log_cb(as_log_level level, const char* func, const char* file,
+		uint32_t line, const char* fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
 	blog_detailv(level, fmt, ap);
 	va_end(ap);
+	blog_line("");
 	return true;
 }
 
 static int
-connect_to_server(arguments* args, aerospike* client)
+connect_to_server(args_t* args, aerospike* client)
 {
-	if (args->async) {
-		as_monitor_init(&monitor);
-
+	if (stages_contain_async(&args->stages)) {
 #if AS_EVENT_LIB_DEFINED
 		if (! as_event_create_loops(args->event_loop_capacity)) {
-			blog_error("Failed to create asynchronous event loops");
+			blog_error("Failed to create asynchronous event loops\n");
 			return 2;
 		}
 #else
-		blog_error("Must 'make EVENT_LIB=<libname>' to use asynchronous functions.");
+		blog_error("Must 'make EVENT_LIB=<libname>' to use asynchronous functions.\n");
 		return 2;
 #endif
 	}
@@ -66,7 +174,7 @@ connect_to_server(arguments* args, aerospike* client)
 	as_config_init(&cfg);
 	
 	if (! as_config_add_hosts(&cfg, args->hosts, args->port)) {
-		blog_error("Invalid host(s) %s", args->hosts);
+		blog_error("Invalid host(s) %s\n", args->hosts);
 		return 3;
 	}
 
@@ -138,7 +246,7 @@ connect_to_server(arguments* args, aerospike* client)
 	as_error err;
 	
 	if (aerospike_connect(client, &err) != AEROSPIKE_OK) {
-		blog_error("%s", err.message);
+		blog_error("%s\n", err.message);
 		aerospike_destroy(client);
 		return 1;
 	}
@@ -161,7 +269,8 @@ is_single_bin(aerospike* client, const char* namespace)
 		char* p = strstr(res, search);
 		
 		if (p) {
-			// The compiler (with -O3 flag) will know search is a literal and optimize strlen accordingly.
+			// The compiler (with -O3 flag) will know search is a literal and
+			// optimize strlen accordingly.
 			p += strlen(search);
 			char* q = strchr(p, ';');
 			
@@ -176,370 +285,141 @@ is_single_bin(aerospike* client, const char* namespace)
 		free(res);
 	}
 	else {
-		blog_error("Info request failed: %d - %s", err.code, err.message);
+		blog_error("Info request failed: %d - %s\n", err.code, err.message);
 	}
 	return single_bin;
 }
 
-bool
-is_stop_writes(aerospike* client, const char* namespace)
+/*
+ * allocates and initializes a new threaddata struct, returning a pointer to it
+ */
+static tdata_t*
+init_tdata(cdata_t* cdata, thr_coord_t* coord,
+		uint32_t t_idx)
 {
-	char filter[256];
-	sprintf(filter, "namespace/%s", namespace);
-	
-	char* res = 0;
-	as_error err;
-	as_status rc = aerospike_info_any(client, &err, NULL, filter, &res);
-	bool stop_writes = false;
-	
-	if (rc == AEROSPIKE_OK) {
-		static const char* search = "stop-writes=";
-		char* p = strstr(res, search);
-		
-		if (p) {
-			// The compiler (with -O3 flag) will know search is a literal and optimize strlen accordingly.
-			p += strlen(search);
-			char* q = strchr(p, ';');
-			
-			if (q) {
-				*q = 0;
-				
-				if (strcmp(p, "true") == 0) {
-					stop_writes = true;
-				}
-			}
-		}
-	}
-	else {
-		blog_error("Info request failed: %d - %s", err.code, err.message);
-	}
-	free(res);
-	return stop_writes;
+	tdata_t* tdata = (tdata_t*) cf_malloc(sizeof(tdata_t));
+
+	tdata->cdata = cdata;
+	tdata->coord = coord;
+	tdata->random = as_random_instance();
+	tdata->t_idx = t_idx;
+	// always start on the first stage
+	tdata->stage_idx = 0;
+
+	tdata->do_work = true;
+	tdata->finished = false;
+
+	return tdata;
+}
+
+static void
+destroy_tdata(tdata_t* tdata)
+{
 }
 
 static int
-initialize_histograms(clientdata* data, arguments* args,
-		time_t* start_time, hdr_timespec* start_timespec) {
-	int valid = 1;
-
-	if (args->latency) {
-		latency_init(&data->write_latency, args->latency_columns, args->latency_shift);
-		hdr_init(1, 1000000, 3, &data->write_hdr);
-		as_vector_init(&data->latency_percentiles, args->latency_percentiles.item_size,
-				args->latency_percentiles.capacity);
-		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
-			as_vector_append(&data->latency_percentiles,
-					as_vector_get(&args->latency_percentiles, i));
-		}
-
-		if (! args->init) {
-			latency_init(&data->read_latency, args->latency_columns, args->latency_shift);
-			hdr_init(1, 1000000, 3, &data->read_hdr);
-		}
-	}
-	
-	if (args->latency_histogram) {
-		data->histogram_output = fopen(args->histogram_output, "a");
-		if (!data->histogram_output) {
-			fprintf(stderr, "Unable to open %s in append mode\n",
-					args->histogram_output);
-			valid = 0;
-			// follow through with initialization, so cleanup won't segfault
-		}
-
-		histogram_init(&data->write_histogram, 3, 100, (rangespec_t[]) {
-				{ .upper_bound = 4000,   .bucket_width = 100  },
-				{ .upper_bound = 64000,  .bucket_width = 1000 },
-				{ .upper_bound = 128000, .bucket_width = 4000 }
-				});
-		histogram_set_name(&data->write_histogram, "write_hist");
-		histogram_print_info(&data->write_histogram, data->histogram_output);
-		
-		if (! args->init) {
-			histogram_init(&data->read_histogram, 3, 100, (rangespec_t[]) {
-					{ .upper_bound = 4000,   .bucket_width = 100  },
-					{ .upper_bound = 64000,  .bucket_width = 1000 },
-					{ .upper_bound = 128000, .bucket_width = 4000 }
-					});
-			histogram_set_name(&data->read_histogram, "read_hist");
-			histogram_print_info(&data->read_histogram, data->histogram_output);
-		}
-
-		data->histogram_period = args->histogram_period;
-
-	}
-	
-	if (args->hdr_output) {
-		const static char write_output_prefix[] = "/write_";
-		const static char read_output_prefix[] = "/read_";
-		const static char compressed_output_suffix[] = ".hdrhist";
-		const static char text_output_suffix[] = ".txt";
-
-		*start_time = time(NULL);
-		const char* utc_time = utc_time_str(*start_time);
-
-		size_t prefix_len = strlen(args->hdr_output);
-		size_t write_output_size =
-			prefix_len + (sizeof(write_output_prefix) - 1) +
-			UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
-
-		as_string_builder cmp_write_output_b;
-		as_string_builder txt_write_output_b;
-		as_string_builder_inita(&cmp_write_output_b, write_output_size, false);
-		as_string_builder_inita(&txt_write_output_b, write_output_size, false);
-
-		as_string_builder_append(&cmp_write_output_b, args->hdr_output);
-		as_string_builder_append(&cmp_write_output_b, write_output_prefix);
-		as_string_builder_append(&cmp_write_output_b, utc_time);
-
-		// duplicate the current buffer into txt (since only the extension differs
-		as_string_builder_append(&txt_write_output_b, cmp_write_output_b.data);
-
-		as_string_builder_append(&cmp_write_output_b, compressed_output_suffix);
-		as_string_builder_append(&txt_write_output_b, text_output_suffix);
-
-		data->hdr_comp_write_output = fopen(cmp_write_output_b.data, "a");
-		if (!data->hdr_comp_write_output) {
-			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
-					cmp_write_output_b.data, strerror(errno));
-			valid = 0;
-		}
-
-		data->hdr_text_write_output = fopen(txt_write_output_b.data, "a");
-		if (!data->hdr_text_write_output) {
-			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
-					cmp_write_output_b.data, strerror(errno));
-			valid = 0;
-		}
-
-		as_string_builder_destroy(&cmp_write_output_b);
-		as_string_builder_destroy(&txt_write_output_b);
-
-		hdr_init(1, 1000000, 3, &data->summary_write_hdr);
-
-		if (! args->init) {
-			size_t read_output_size =
-				prefix_len + (sizeof(read_output_prefix) - 1) +
-				UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
-
-			as_string_builder cmp_read_output_b;
-			as_string_builder txt_read_output_b;
-			as_string_builder_inita(&cmp_read_output_b, read_output_size, false);
-			as_string_builder_inita(&txt_read_output_b, read_output_size, false);
-
-			as_string_builder_append(&cmp_read_output_b, args->hdr_output);
-			as_string_builder_append(&cmp_read_output_b, read_output_prefix);
-			as_string_builder_append(&cmp_read_output_b, utc_time);
-
-			// duplicate the current buffer into txt (since only the extension differs
-			as_string_builder_append(&txt_read_output_b, cmp_read_output_b.data);
-
-			as_string_builder_append(&cmp_read_output_b, compressed_output_suffix);
-			as_string_builder_append(&txt_read_output_b, text_output_suffix);
-
-			data->hdr_comp_read_output = fopen(cmp_read_output_b.data, "a");
-			if (!data->hdr_comp_read_output) {
-				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
-						cmp_read_output_b.data, strerror(errno));
-				valid = 0;
-			}
-
-			data->hdr_text_read_output = fopen(txt_read_output_b.data, "a");
-			if (!data->hdr_text_read_output) {
-				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
-						cmp_read_output_b.data, strerror(errno));
-				valid = 0;
-			}
-
-			as_string_builder_destroy(&cmp_read_output_b);
-			as_string_builder_destroy(&txt_read_output_b);
-
-			hdr_init(1, 1000000, 3, &data->summary_read_hdr);
-		}
-
-		hdr_gettime(start_timespec);
-	}
-	return valid;
-}
-
-static void
-free_histograms(clientdata* data, arguments* args)
+_run(cdata_t* cdata)
 {
-	if (args->latency) {
-		latency_free(&data->write_latency);
-		hdr_close(data->write_hdr);
+	int ret = 0;
+	thr_coord_t coord;
 
-		as_vector_destroy(&data->latency_percentiles);
+	// first figure out how many threads we'll be spawning
+	uint32_t n_threads;
+	void* (*worker_fn)(void*);
 
-		if (!args->init) {
-			latency_free(&data->read_latency);
-			hdr_close(data->read_hdr);
+	// output thread + all the worker threads
+	n_threads = 1 + cdata->transaction_worker_threads;
+	worker_fn = transaction_worker;
+
+	// initialize the list of all thread pointers/data pointers
+	tdata_t** tdatas = (tdata_t**) cf_malloc(n_threads * sizeof(tdata_t*));
+
+	for (uint32_t i = 0; i < n_threads; i++) {
+		tdatas[i] = init_tdata(cdata, &coord, i);
+	}
+
+	// pause before the first workload stage (using the logger thread's
+	// as_random)
+	stage_random_pause(tdatas[n_threads - 1]->random, &cdata->stages.stages[0]);
+
+	// then initialize the thread coordinator struct, before spawning any
+	// threads which will be referencing it
+	thr_coordinator_init(&coord, n_threads);
+
+	pthread_t* threads = (pthread_t*) cf_malloc(n_threads * sizeof(pthread_t));
+
+	// then initialize periodic output thread
+	tdata_t* out_worker_tdata = tdatas[n_threads - 1];
+	if (pthread_create(&threads[n_threads - 1], NULL, periodic_output_worker,
+				out_worker_tdata) != 0) {
+		blog_error("Failed to create output thread\n");
+		cf_free(threads);
+		cf_free(tdatas);
+		thr_coordinator_free(&coord);
+		return -1;
+	}
+
+	// then create all the worker threads
+	blog_info("Start %d transaction threads\n", n_threads - 1);
+
+	uint32_t i;
+	// since the output worker threaddata is in slot 0
+	for (i = 0; i < n_threads - 1; i++) {
+		tdata_t* tdata = tdatas[i];
+
+		if (pthread_create(&threads[i], NULL, worker_fn, tdata) != 0) {
+			blog_error("Failed to create transaction worker thread\n");
+			ret = -1;
+
+			// go to clean up the rest of the threads that have already
+			// been spawned
+			break;
 		}
 	}
 
-	if (args->latency_histogram) {
-		histogram_free(&data->write_histogram);
-		
-		if (!args->init) {
-			histogram_free(&data->read_histogram);
+	if (ret == 0) {
+		struct coordinator_worker_args_s coord_args = {
+			.coord = &coord,
+			.cdata = cdata,
+			.tdatas = tdatas,
+			.n_threads = n_threads
+		};
+		// and now enter the coordinator funtion
+		coordinator_worker(&coord_args);
+	}
+
+	i--;
+	for (;;) {
+		if (i >= n_threads) {
+			// go back and free the logger thread
+			i = n_threads - 1;
 		}
 
-		fclose(data->histogram_output);
-	}
-
-	if (args->hdr_output) {
-		hdr_close(data->summary_write_hdr);
-		if (data->hdr_comp_write_output) {
-			fclose(data->hdr_comp_write_output);
+		// by this point, if all went well, the coordinator thread should have
+		// already closed all of these threads, but in the case that something
+		// went wrong before we started the coordinator, we need to tell each
+		// of these threads to exit
+		if (ret != 0) {
+			// make thread exit
+			// note that we must update finished before do_work, since we don't
+			// want any of the threads to enter the pthread barrier 
+			as_store_uint8((uint8_t*) &tdatas[i]->finished, true);
+			as_store_uint8((uint8_t*) &tdatas[i]->do_work, false);
 		}
-		if (data->hdr_text_write_output) {
-			fclose(data->hdr_text_write_output);
+		pthread_join(threads[i], NULL);
+		destroy_tdata(tdatas[i]);
+		cf_free(tdatas[i]);
+
+		if (i == n_threads - 1) {
+			break;
 		}
-
-		if (!args->init) {
-			hdr_close(data->summary_read_hdr);
-			if (data->hdr_comp_read_output) {
-				fclose(data->hdr_comp_read_output);
-			}
-			if (data->hdr_text_read_output) {
-				fclose(data->hdr_text_read_output);
-			}
-		}
-	}
-}
-
-static void
-record_summary_data(clientdata* data, arguments* args, time_t start_time,
-		hdr_timespec* start_timespec) {
-	static const int32_t ticks_per_half_distance = 5;
-
-	// now record summary HDR hist if enabled
-	if (args->hdr_output) {
-		hdr_timespec end_timespec;
-		hdr_gettime(&end_timespec);
-
-		struct hdr_log_writer writer;
-		hdr_log_writer_init(&writer);
-
-		const char* utc_time = utc_time_str(start_time);
-		hdr_log_write_header(&writer, data->hdr_comp_write_output,
-				utc_time, start_timespec);
-
-		hdr_log_write(&writer, data->hdr_comp_write_output,
-				start_timespec, &end_timespec, data->summary_write_hdr);
-
-		hdr_percentiles_print(data->summary_write_hdr, data->hdr_text_write_output,
-				ticks_per_half_distance, 1., CLASSIC);
-
-		if (! args->init) {
-			hdr_log_write_header(&writer, data->hdr_comp_read_output,
-					utc_time, start_timespec);
-
-			hdr_log_write(&writer, data->hdr_comp_read_output,
-					start_timespec, &end_timespec, data->summary_read_hdr);
-
-			hdr_percentiles_print(data->summary_read_hdr, data->hdr_text_read_output,
-					ticks_per_half_distance, 1., CLASSIC);
-		}
-	}
-}
-
-int
-run_benchmark(arguments* args)
-{
-	clientdata data;
-	memset(&data, 0, sizeof(clientdata));
-	data.namespace = args->namespace;
-	data.set = args->set;
-	data.threads = args->threads;
-	data.throughput = args->throughput;
-	data.batch_size = args->batch_size;
-	data.read_pct = args->read_pct;
-	data.del_bin = args->del_bin;
-	data.compression_ratio = args->compression_ratio;
-	data.bintype = args->bintype;
-	data.binlen = args->binlen;
-	data.binlen_type = args->binlen_type;
-	data.numbins = args->numbins;
-	data.random = args->random;
-	data.transactions_limit = args->transactions_limit;
-	data.transactions_count = 0;
-	data.latency = args->latency;
-	data.debug = args->debug;
-	data.valid = 1;
-	data.async = args->async;
-	data.async_max_commands = args->async_max_commands;
-	data.fixed_value = NULL;
-
-	// set to 0 when any step in initialization fails
-	int valid = 1;
-	time_t start_time;
-	hdr_timespec start_timespec;
-
-	if (args->debug) {
-		as_log_set_level(AS_LOG_LEVEL_DEBUG);
-	}
-	else {
-		as_log_set_level(AS_LOG_LEVEL_INFO);
+		i--;
 	}
 
-	as_log_set_callback(as_client_log_callback);
+	cf_free(threads);
+	cf_free(tdatas);
+	thr_coordinator_free(&coord);
 
-	int ret = connect_to_server(args, &data.client);
-	
-	if (ret != 0) {
-		return ret;
-	}
-	
-	bool single_bin = is_single_bin(&data.client, args->namespace);
-	
-	if (single_bin) {
-		data.bin_name = "";
-	}
-	else {
-		data.bin_name = "testbin";
-	}
-
-	if (! args->random) {
-		gen_value(args, &data.fixed_value);
-	}
-
-	valid = initialize_histograms(&data, args, &start_time, &start_timespec);
-
-	data.key_start = args->start_key;
-	data.key_count = 0;
-
-	if (valid) {
-		if (args->init) {
-			data.n_keys = (uint64_t)((double)args->keys / 100.0 * args->init_pct + 0.5);
-			ret = linear_write(&data);
-		}
-		else {
-			data.n_keys = args->keys;
-			ret = random_read_write(&data);
-		}
-
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-		// don't worry, will be initialized (would have to make args const
-		// to suppress)
-		record_summary_data(&data, args, start_time, &start_timespec);
-#pragma GCC diagnostic pop
-	}
-
-	if (!args->random) {
-		as_val_destroy(data.fixed_value);
-	}
-
-	free_histograms(&data, args);
-
-	as_error err;
-	aerospike_close(&data.client, &err);
-	aerospike_destroy(&data.client);
-	
-	if (args->async) {
-		as_event_close_loops();
-		as_monitor_destroy(&monitor);
-	}
-	
 	return ret;
 }
+
