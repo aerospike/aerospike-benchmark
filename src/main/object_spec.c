@@ -80,9 +80,6 @@ struct consumer_state_s {
 // Forward declarations.
 //
 
-static void bin_spec_set_key_and_type(struct bin_spec_s* b, struct bin_spec_s* key);
-static uint8_t bin_spec_get_type(const struct bin_spec_s* b);
-static struct bin_spec_s* bin_spec_get_key(const struct bin_spec_s* b);
 static uint32_t bin_spec_map_n_entries(const struct bin_spec_s* b);
 static void _print_parse_error(const char* err_msg, const char* obj_spec_str,
 		const char* err_loc);
@@ -480,7 +477,7 @@ finished_validating:;
 void
 _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 {
-	switch (bin_spec_get_type(bin_spec)) {
+	switch (bin_spec->type) {
 		case BIN_SPEC_TYPE_INT:
 			_dbg_validate_int(bin_spec->integer.range, as_integer_fromval(val));
 			break;
@@ -500,8 +497,7 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 			_dbg_validate_map(bin_spec, as_map_fromval(val));
 			break;
 		default:
-			ck_assert_msg(0, "unknown bin_spec type (%d)",
-					bin_spec_get_type(bin_spec));
+			ck_assert_msg(0, "unknown bin_spec type (%d)", bin_spec->type);
 	}
 }
 
@@ -512,31 +508,13 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 // Local helpers.
 //
 
-static void
-bin_spec_set_key_and_type(struct bin_spec_s* b, struct bin_spec_s* key)
-{
-	b->map.key = (struct bin_spec_s*) (((uint64_t) key) | BIN_SPEC_TYPE_MAP);
-}
-
-static uint8_t
-bin_spec_get_type(const struct bin_spec_s* b)
-{
-	return b->type & BIN_SPEC_TYPE_MASK;
-}
-
-static struct bin_spec_s*
-bin_spec_get_key(const struct bin_spec_s* b)
-{
-	return (struct bin_spec_s*) (((uint64_t) b->map.key) & ~BIN_SPEC_TYPE_MASK);
-}
-
 /*
  * gives the number of entries to put in the map
  */
 static uint32_t
 bin_spec_map_n_entries(const struct bin_spec_s* b)
 {
-	return bin_spec_get_key(b)->n_repeats;
+	return b->map.key->n_repeats;
 }
 
 static void
@@ -692,7 +670,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							_destroy_consumer_states(state);
 							return -1;
 						}
-						bin_spec_set_key_and_type(bin_spec, state->key);
+						bin_spec->type = BIN_SPEC_TYPE_MAP;
+						bin_spec->map.key = state->key;
 						bin_spec->map.val = state->value;
 						break;
 					default:
@@ -980,8 +959,7 @@ _destroy_state:
 static void
 bin_spec_free(struct bin_spec_s* bin_spec)
 {
-	struct bin_spec_s* key;
-	switch (bin_spec_get_type(bin_spec)) {
+	switch (bin_spec->type) {
 		case BIN_SPEC_TYPE_INT:
 		case BIN_SPEC_TYPE_STR:
 		case BIN_SPEC_TYPE_BYTES:
@@ -996,9 +974,8 @@ bin_spec_free(struct bin_spec_s* bin_spec)
 			cf_free(bin_spec->list.list);
 			break;
 		case BIN_SPEC_TYPE_MAP:
-			key = bin_spec_get_key(bin_spec);
-			bin_spec_free(key);
-			cf_free(key);
+			bin_spec_free(bin_spec->map.key);
+			cf_free(bin_spec->map.key);
 			bin_spec_free(bin_spec->map.val);
 			cf_free(bin_spec->map.val);
 			break;
@@ -1204,7 +1181,7 @@ _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 	for (uint32_t i = 0; i < n_entries; i++) {
 		as_val* key;
 		do {
-			key = bin_spec_random_val(bin_spec_get_key(bin_spec), random,
+			key = bin_spec_random_val(bin_spec->map.key, random,
 					compression_ratio);
 		} while (as_hashmap_get(map, key) != NULL &&
 				retry_count++ < MAX_KEY_ENTRY_RETRIES);
@@ -1224,7 +1201,7 @@ bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
 		float compression_ratio)
 {
 	as_val* val;
-	switch (bin_spec_get_type(bin_spec)) {
+	switch (bin_spec->type) {
 		case BIN_SPEC_TYPE_INT:
 			val = _gen_random_int(bin_spec->integer.range, random);
 			break;
@@ -1245,8 +1222,7 @@ bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
 			val = _gen_random_map(bin_spec, random, compression_ratio);
 			break;
 		default:
-			fprintf(stderr, "Unknown bin_spec type (%d)\n",
-					bin_spec_get_type(bin_spec));
+			fprintf(stderr, "Unknown bin_spec type (%d)\n", bin_spec->type);
 			val = NULL;
 	}
 
@@ -1259,7 +1235,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 	if (bin->n_repeats != 1) {
 		sprint(out_str, str_size, "%d*", bin->n_repeats);
 	}
-	switch (bin_spec_get_type(bin)) {
+	switch (bin->type) {
 		case BIN_SPEC_TYPE_INT:
 			sprint(out_str, str_size, "I%d", bin->integer.range + 1);
 			break;
@@ -1285,7 +1261,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			break;
 		case BIN_SPEC_TYPE_MAP:
 			sprint(out_str, str_size, "{");
-			str_size = _sprint_bin(bin_spec_get_key(bin), out_str, str_size);
+			str_size = _sprint_bin(bin->map.key, out_str, str_size);
 			sprint(out_str, str_size, ":");
 			str_size = _sprint_bin(bin->map.val, out_str, str_size);
 			sprint(out_str, str_size, "}");
@@ -1393,7 +1369,7 @@ _dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val)
 	uint32_t map_size = as_map_size(val);
 	ck_assert_int_eq(map_size, bin_spec_map_n_entries(bin_spec));
 
-	const struct bin_spec_s* key_spec = bin_spec_get_key(bin_spec);
+	const struct bin_spec_s* key_spec = bin_spec->map.key;
 	const struct bin_spec_s* val_spec = bin_spec->map.val;
 
 	for (as_hashmap_iterator_init(&iter, (as_hashmap*) val);

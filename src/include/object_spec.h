@@ -68,22 +68,23 @@
 
 struct bin_spec_s {
 
+	/*
+	 * one of the four main types of bins:
+	 *	int: a random int, within certain bounds (described below)
+	 *	string: a string of fixed length, consisting of [a-z]{1,9}
+	 *			space-separated words
+	 *	bytes array: array of random bytes of data
+	 *	double: any 8-byte double floating point
+	 *	list: a list of bin_specs
+	 *	map: a map from some type of scalar bin_spec to another bin_spec
+	 */
+	uint8_t type;
+
+	uint32_t n_repeats;
+
 	union {
 
-		/*
-		 * one of the four main types of bins:
-		 *	int: a random int, within certain bounds (described below)
-		 *	string: a string of fixed length, consisting of [a-z]{1,9}
-		 *			space-separated words
-		 *	bytes array: array of random bytes of data
-		 *	double: any 8-byte double floating point
-		 *	list: a list of bin_specs
-		 *	map: a map from some type of scalar bin_spec to another bin_spec
-		 */
-		uint8_t type;
-
 		struct {
-			uint64_t __unused;
 			/*
 			 * integer range is between 0-7, and are defined as follows:
 			 * 	0: values from 0 - 255
@@ -99,7 +100,6 @@ struct bin_spec_s {
 		} integer;
 
 		struct {
-			uint64_t __unused;
 			/*
 			 * length of strings to be generated (excluding the
 			 * null-terminating bit)
@@ -108,7 +108,6 @@ struct bin_spec_s {
 		} string;
 
 		struct {
-			uint64_t __unused;
 			/*
 			 * number of random bytes
 			 */
@@ -138,9 +137,6 @@ struct bin_spec_s {
 
 			/*
 			 * a pointer to the key type
-			 *
-			 * the key pointers must be aligned by 8 bytes, since the first 3
-			 * bits of this pointer is aliased by the type of this bin_spec
 			 */
 			struct bin_spec_s* key;
 			/*
@@ -150,9 +146,6 @@ struct bin_spec_s {
 		} map;
 
 	};
-
-	// FIXME move n_repeats
-	uint32_t n_repeats;
 };
 
 typedef struct obj_spec_s {
