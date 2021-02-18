@@ -5,6 +5,7 @@
 #include <cyaml/cyaml.h>
 
 #include <benchmark.h>
+#include <common.h>
 #include <object_spec.h>
 
 
@@ -58,8 +59,9 @@ START_TEST(test_free_after_move)
 	obj_spec_free(&o);
 
 	as_record_init(&rec, obj_spec_n_bins(&p));
-	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", 1.f);
-	_dbg_obj_spec_assert_valid(&p, &rec, "test");
+	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", NULL, 0,
+			1.f);
+	_dbg_obj_spec_assert_valid(&p, &rec, NULL, 0, "test");
 	obj_spec_free(&p);
 }
 END_TEST
@@ -74,8 +76,9 @@ START_TEST(test_shallow_copy)
 	obj_spec_shallow_copy(&p, &o);
 
 	as_record_init(&rec, obj_spec_n_bins(&p));
-	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", 1.f);
-	_dbg_obj_spec_assert_valid(&p, &rec, "test");
+	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", NULL, 0,
+			1.f);
+	_dbg_obj_spec_assert_valid(&p, &rec, NULL, 0, "test");
 	obj_spec_free(&p);
 	obj_spec_free(&o);
 }
@@ -92,8 +95,9 @@ START_TEST(test_free_after_shallow_copy)
 	obj_spec_free(&p);
 
 	as_record_init(&rec, obj_spec_n_bins(&o));
-	obj_spec_populate_bins(&o, &rec, as_random_instance(), "test", 1.f);
-	_dbg_obj_spec_assert_valid(&o, &rec, "test");
+	obj_spec_populate_bins(&o, &rec, as_random_instance(), "test", NULL, 0,
+			1.f);
+	_dbg_obj_spec_assert_valid(&o, &rec, NULL, 0, "test");
 	obj_spec_free(&o);
 }
 END_TEST
@@ -102,7 +106,8 @@ END_TEST
 /*
  * test-case definining macros
  */
-#define DEFINE_TCASE_DIFF(test_name, obj_spec_str, expected_out_str) \
+#define DEFINE_TCASE_DIFF_WRITE_BINS(test_name, obj_spec_str, \
+		expected_out_str, write_bins, n_write_bins) \
 START_TEST(test_name ## _str_cmp) \
 { \
 	struct obj_spec_s o; \
@@ -117,17 +122,45 @@ END_TEST \
 START_TEST(test_name ## _valid) \
 { \
 	struct obj_spec_s o; \
-	as_random random; \
+	as_random random, random2; \
 	as_record rec; \
+	as_val* val; \
+	as_list* list; \
 	as_random_init(&random); \
+	memcpy(&random2, &random, sizeof(as_random)); \
 	ck_assert_int_eq(obj_spec_parse(&o, obj_spec_str), 0); \
 	as_record_init(&rec, obj_spec_n_bins(&o)); \
 	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
-				"test", 1.f), 0); \
-	_dbg_obj_spec_assert_valid(&o, &rec, "test"); \
+				"test", write_bins, n_write_bins, 1.f), 0); \
+	_dbg_obj_spec_assert_valid(&o, &rec, write_bins, n_write_bins, "test"); \
+	\
+	val = obj_spec_gen_value(&o, &random2, write_bins, n_write_bins); \
+	ck_assert_ptr_ne(val, NULL); \
+	list = as_list_fromval(val); \
+	ck_assert_ptr_ne(list, NULL); \
+	if (write_bins != NULL) { \
+		ck_assert_int_eq(as_list_size(list), n_write_bins); \
+	} \
+	\
+	for (uint32_t i = 0; i < as_list_size(list); i++) { \
+		as_bin_name bin; \
+		gen_bin_name(bin, "test", \
+				(write_bins ? ((uint32_t*) write_bins)[i] : i)); \
+		ck_assert(as_val_cmp(as_list_get(list, i), \
+					(as_val*) as_record_get(&rec, bin)) == 0); \
+	} \
 	as_record_destroy(&rec); \
 	obj_spec_free(&o); \
 }
+
+#define DEFINE_TCASE_DIFF(test_name, obj_spec_str, expected_out_str) \
+	DEFINE_TCASE_DIFF_WRITE_BINS(test_name, obj_spec_str, expected_out_str, \
+			NULL, 0)
+
+#define DEFINE_TCASE_WRITE_BINS(test_name, obj_spec_str, write_bins, \
+		n_write_bins) \
+	DEFINE_TCASE_DIFF_WRITE_BINS(test_name, obj_spec_str, obj_spec_str, \
+			write_bins, n_write_bins)
 
 #define DEFINE_TCASE(test_name, obj_spec_str) \
 	DEFINE_TCASE_DIFF(test_name, obj_spec_str, obj_spec_str)
@@ -295,6 +328,20 @@ DEFINE_FAILING_TCASE(test_mult_list_too_many_elements, "[3000000000*I4,300000000
 
 
 /*
+ * write-bins test cases
+ */
+DEFINE_TCASE_WRITE_BINS(test_wb_simple, "I4,D", ((uint32_t[]) { 0, 1 }), 2);
+DEFINE_TCASE_WRITE_BINS(test_wb_odds, "I1,I2,I3,I4,I5,I6,I7,I8",
+		((uint32_t[]) { 0, 2, 4, 6 }), 4);
+DEFINE_TCASE_WRITE_BINS(test_wb_evens, "I1,I2,I3,I4,I5,I6,I7,I8",
+		((uint32_t[]) { 1, 3, 5, 7 }), 4);
+DEFINE_TCASE_WRITE_BINS(test_wb_lists, "I4,[I6,B10],B20,[[S20,I8],S10]",
+		((uint32_t[]) { 1, 3 }), 2);
+DEFINE_TCASE_WRITE_BINS(test_wb_maps, "{5*S10:B20},[3*{I4:S5},D],B10,{I4:I8}",
+		((uint32_t[]) { 0, 1, 3 }), 3);
+
+
+/*
  * Bin name test cases
  */
 #define DEFINE_BIN_NAME_OK(test_name, n_bins, bin_name) \
@@ -307,7 +354,7 @@ START_TEST(test_name) \
 	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
 	as_record_init(&rec, obj_spec_n_bins(&o)); \
 	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
-				bin_name, 1.f), 0); \
+				bin_name, NULL, 0, 1.f), 0); \
 	as_record_destroy(&rec); \
 	obj_spec_free(&o); \
 } \
@@ -323,7 +370,7 @@ START_TEST(test_name) \
 	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
 	as_record_init(&rec, obj_spec_n_bins(&o)); \
 	ck_assert_int_ne(obj_spec_populate_bins(&o, &rec, &random, \
-				bin_name, 1.f), 0); \
+				bin_name, NULL, 0, 1.f), 0); \
 	as_record_destroy(&rec); \
 } \
 END_TEST
@@ -362,6 +409,7 @@ obj_spec_suite(void)
 	TCase* tc_multi_bins;
 	TCase* tc_nested;
 	TCase* tc_multipliers;
+	TCase* tc_write_bins;
 	TCase* tc_bin_names;
 	TCase* tc_spacing;
 
@@ -567,6 +615,20 @@ obj_spec_suite(void)
 	tcase_add_test(tc_multipliers, test_mult_list_overflow2);
 	tcase_add_test(tc_multipliers, test_mult_list_too_many_elements);
 	suite_add_tcase(s, tc_multipliers);
+
+	tc_write_bins = tcase_create("Write bins");
+	tcase_add_checked_fixture(tc_write_bins, simple_setup, simple_teardown);
+	tcase_add_test(tc_write_bins, test_wb_simple_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_odds_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_evens_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_lists_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_maps_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_simple_valid);
+	tcase_add_test(tc_write_bins, test_wb_odds_valid);
+	tcase_add_test(tc_write_bins, test_wb_evens_valid);
+	tcase_add_test(tc_write_bins, test_wb_lists_valid);
+	tcase_add_test(tc_write_bins, test_wb_maps_valid);
+	suite_add_tcase(s, tc_write_bins);
 
 	tc_bin_names = tcase_create("Bin names");
 	tcase_add_checked_fixture(tc_bin_names, simple_setup, simple_teardown);

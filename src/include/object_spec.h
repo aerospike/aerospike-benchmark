@@ -28,8 +28,132 @@
 #include <aerospike/as_random.h>
 
 
-// forward declaration (defined only in source file)
-struct bin_spec_s;
+//==========================================================
+// Typedefs & constants.
+//
+
+#define DEFAULT_LIST_BUILDER_CAPACITY 8
+
+
+#define BIN_SPEC_TYPE_INT    0x0
+#define BIN_SPEC_TYPE_STR    0x1
+#define BIN_SPEC_TYPE_BYTES  0x2
+#define BIN_SPEC_TYPE_DOUBLE 0x3
+#define BIN_SPEC_TYPE_LIST   0x4
+#define BIN_SPEC_TYPE_MAP    0x5
+
+#define BIN_SPEC_TYPE_MASK 0x7
+
+/*
+ * the maximum int range is "I8", or a range index of 7
+ */
+#define BIN_SPEC_MAX_INT_RANGE 7
+/*
+ * the default int range for an unspecified int value (just "I") is "I4"
+ */
+#define BIN_SPEC_DEFAULT_INT_RANGE 3
+
+/*
+ * the maximum length of a word in randomly generated strings
+ */
+#define BIN_SPEC_MAX_STR_LEN 9
+
+/*
+ * when generating random map values, the maximum number of times we'll try
+ * regenerating a new key for keys that already exist in the map before giving
+ * up and just inserting whatever key is made
+ */
+#define MAX_KEY_ENTRY_RETRIES 1024
+
+
+struct bin_spec_s {
+
+	union {
+
+		/*
+		 * one of the four main types of bins:
+		 *	int: a random int, within certain bounds (described below)
+		 *	string: a string of fixed length, consisting of [a-z]{1,9}
+		 *			space-separated words
+		 *	bytes array: array of random bytes of data
+		 *	double: any 8-byte double floating point
+		 *	list: a list of bin_specs
+		 *	map: a map from some type of scalar bin_spec to another bin_spec
+		 */
+		uint8_t type;
+
+		struct {
+			uint64_t __unused;
+			/*
+			 * integer range is between 0-7, and are defined as follows:
+			 * 	0: values from 0 - 255
+			 * 	1: values from 256 - 65536
+			 * 	2: values from 65536 - 2^24-1
+			 * 	3: values from 2^24 - 2^32-1
+			 * 	4: values from 2^32 - 2^40-1
+			 * 	5: values from 2^40 - 2^48-1
+			 * 	6: values from 2^48 - 2^56-1
+			 * 	7: values from 2^56 - 2^64-1
+			 */
+			uint8_t range;
+		} integer;
+
+		struct {
+			uint64_t __unused;
+			/*
+			 * length of strings to be generated (excluding the
+			 * null-terminating bit)
+			 */
+			uint32_t length;
+		} string;
+
+		struct {
+			uint64_t __unused;
+			/*
+			 * number of random bytes
+			 */
+			uint32_t length;
+		} bytes;
+
+		struct {
+			uint32_t __unused;
+			/*
+			 * a list of the types of elements in this list (in the order they
+			 * appear in the list)
+			 *
+			 * note that this is the length of the list accounting for multiples
+			 * of elements, and the true length of the list (as in the number of
+			 * struct bin_spec pointers) is <= this value
+			 */
+			uint32_t length;
+			struct bin_spec_s* list;
+		} list;
+
+		struct {
+			/*
+			 * the number of entries in a map is specified by the key's
+			 * n_repeats field, so we don't need to put the number of elements
+			 * to be generated this level of the struct
+			 */
+
+			/*
+			 * a pointer to the key type
+			 *
+			 * the key pointers must be aligned by 8 bytes, since the first 3
+			 * bits of this pointer is aliased by the type of this bin_spec
+			 */
+			struct bin_spec_s* key;
+			/*
+			 * a pointer to the value type
+			 */
+			struct bin_spec_s* val;
+		} map;
+
+	};
+
+	// FIXME move n_repeats
+	uint32_t n_repeats;
+};
 
 typedef struct obj_spec_s {
 	struct bin_spec_s* bin_specs;
@@ -148,7 +272,10 @@ void snprint_obj_spec(const obj_spec_t* obj_spec, char* out_str,
  * obj_spec and is fully initialized
  */
 void _dbg_obj_spec_assert_valid(const obj_spec_t*, const as_record*,
-		const char* bin_name);
+		uint32_t* write_bins, uint32_t n_write_bins, const char* bin_name);
+
+void _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec,
+		const as_val* val);
 
 #endif /* _TEST */
 

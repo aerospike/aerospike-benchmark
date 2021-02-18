@@ -31,130 +31,6 @@
 // Typedefs & constants.
 //
 
-#define DEFAULT_LIST_BUILDER_CAPACITY 8
-
-
-#define BIN_SPEC_TYPE_INT    0x0
-#define BIN_SPEC_TYPE_STR    0x1
-#define BIN_SPEC_TYPE_BYTES  0x2
-#define BIN_SPEC_TYPE_DOUBLE 0x3
-#define BIN_SPEC_TYPE_LIST   0x4
-#define BIN_SPEC_TYPE_MAP    0x5
-
-#define BIN_SPEC_TYPE_MASK 0x7
-
-/*
- * the maximum int range is "I8", or a range index of 7
- */
-#define BIN_SPEC_MAX_INT_RANGE 7
-/*
- * the default int range for an unspecified int value (just "I") is "I4"
- */
-#define BIN_SPEC_DEFAULT_INT_RANGE 3
-
-/*
- * the maximum length of a word in randomly generated strings
- */
-#define BIN_SPEC_MAX_STR_LEN 9
-
-/*
- * when generating random map values, the maximum number of times we'll try
- * regenerating a new key for keys that already exist in the map before giving
- * up and just inserting whatever key is made
- */
-#define MAX_KEY_ENTRY_RETRIES 1024
-
-
-struct bin_spec_s {
-
-	union {
-
-		/*
-		 * one of the four main types of bins:
-		 *	int: a random int, within certain bounds (described below)
-		 *	string: a string of fixed length, consisting of [a-z]{1,9}
-		 *			space-separated words
-		 *	bytes array: array of random bytes of data
-		 *	double: any 8-byte double floating point
-		 *	list: a list of bin_specs
-		 *	map: a map from some type of scalar bin_spec to another bin_spec
-		 */
-		uint8_t type;
-
-		struct {
-			uint64_t __unused;
-			/*
-			 * integer range is between 0-7, and are defined as follows:
-			 * 	0: values from 0 - 255
-			 * 	1: values from 256 - 65536
-			 * 	2: values from 65536 - 2^24-1
-			 * 	3: values from 2^24 - 2^32-1
-			 * 	4: values from 2^32 - 2^40-1
-			 * 	5: values from 2^40 - 2^48-1
-			 * 	6: values from 2^48 - 2^56-1
-			 * 	7: values from 2^56 - 2^64-1
-			 */
-			uint8_t range;
-		} integer;
-
-		struct {
-			uint64_t __unused;
-			/*
-			 * length of strings to be generated (excluding the
-			 * null-terminating bit)
-			 */
-			uint32_t length;
-		} string;
-
-		struct {
-			uint64_t __unused;
-			/*
-			 * number of random bytes
-			 */
-			uint32_t length;
-		} bytes;
-
-		struct {
-			uint32_t __unused;
-			/*
-			 * a list of the types of elements in this list (in the order they
-			 * appear in the list)
-			 *
-			 * note that this is the length of the list accounting for multiples
-			 * of elements, and the true length of the list (as in the number of
-			 * struct bin_spec pointers) is <= this value
-			 */
-			uint32_t length;
-			struct bin_spec_s* list;
-		} list;
-
-		struct {
-			/*
-			 * the number of entries in a map is specified by the key's
-			 * n_repeats field, so we don't need to put the number of elements
-			 * to be generated this level of the struct
-			 */
-
-			/*
-			 * a pointer to the key type
-			 *
-			 * the key pointers must be aligned by 8 bytes, since the first 3
-			 * bits of this pointer is aliased by the type of this bin_spec
-			 */
-			struct bin_spec_s* key;
-			/*
-			 * a pointer to the value type
-			 */
-			struct bin_spec_s* val;
-		} map;
-
-	};
-
-	// FIXME move n_repeats
-	uint32_t n_repeats;
-};
-
-
 // parsing a list currently
 #define CONSUMER_TYPE_LIST 0x0
 // parsing a map currently
@@ -234,12 +110,11 @@ static size_t _sprint_bin(const struct bin_spec_s* bin, char** out_str,
 static void _dbg_validate_int(uint8_t range, as_integer* as_val);
 static void _dbg_validate_string(uint32_t length, as_string* as_val);
 static void _dbg_validate_bytes(uint32_t length, as_bytes* as_val);
+static void _dbg_validate_double(as_double* as_val);
 static void _dbg_validate_list(const struct bin_spec_s* bin_spec,
 		const as_list* as_val);
 static void _dbg_validate_map(const struct bin_spec_s* bin_spec,
 		const as_map* val);
-static void _dbg_validate_obj_spec(const struct bin_spec_s* bin_spec,
-		const as_val* val);
 #endif /* _TEST */
 
 
@@ -437,11 +312,12 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 						return -1;
 					}
 
+					k++;
 					if (k >= n_write_bins) {
 						goto finished_generating;
 					}
 
-					next_idx = write_bins[k++];
+					next_idx = write_bins[k];
 				}
 			}
 		}
@@ -486,13 +362,13 @@ obj_spec_gen_compressible_value(const struct obj_spec_s* obj_spec,
 		uint32_t tot = 0;
 		uint32_t next_idx = write_bins[k];
 
-		as_arraylist* list = as_arraylist_new(obj_spec->n_bin_specs, 0);
+		as_arraylist* list = as_arraylist_new(n_write_bins, 0);
 
 		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
 			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
 
 			for (;;) {
-				if (tot + bin_spec->n_repeats < next_idx) {
+				if (tot + bin_spec->n_repeats <= next_idx) {
 					tot += bin_spec->n_repeats;
 					break;
 				}
@@ -507,11 +383,12 @@ obj_spec_gen_compressible_value(const struct obj_spec_s* obj_spec,
 
 					as_list_append((as_list*) list, val);
 
+					k++;
 					if (k >= n_write_bins) {
 						goto finished_generating_val;
 					}
 
-					next_idx = write_bins[k++];
+					next_idx = write_bins[k];
 				}
 			}
 		}
@@ -547,20 +424,84 @@ snprint_obj_spec(const struct obj_spec_s* obj_spec, char* out_str,
 
 void
 _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
-		const as_record* rec, const char* bin_name)
+		const as_record* rec, uint32_t* write_bins, uint32_t n_write_bins,
+		const char* bin_name)
 {
 	as_bin_name name;
 
-	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
-		const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
+	if (write_bins == NULL) {
+		for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
+			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
 
-		for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
-			gen_bin_name(name, bin_name, cnt);
+			for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
+				gen_bin_name(name, bin_name, cnt);
 
-			as_val* val = (as_val*) as_record_get(rec, name);
-			ck_assert_msg(val != NULL, "expected a record in bin \"%s\"", name);
-			_dbg_validate_obj_spec(bin_spec, val);
+				as_val* val = (as_val*) as_record_get(rec, name);
+				ck_assert_msg(val != NULL, "expected a record in bin \"%s\"",
+						name);
+				_dbg_validate_bin_spec(bin_spec, val);
+			}
 		}
+	}
+	else {
+		uint32_t k = 0;
+		uint32_t tot = 0;
+		uint32_t next_idx = write_bins[k];
+
+		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
+			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
+
+			for (;;) {
+				if (tot + bin_spec->n_repeats <= next_idx) {
+					tot += bin_spec->n_repeats;
+					break;
+				}
+				else {
+					gen_bin_name(name, bin_name, next_idx);
+
+					as_val* val = (as_val*) as_record_get(rec, name);
+					ck_assert_msg(val != NULL, "expected a record in bin "
+							"\"%s\"", name);
+					_dbg_validate_bin_spec(bin_spec, val);
+
+					if (k >= n_write_bins) {
+						goto finished_validating;
+					}
+
+					next_idx = write_bins[k++];
+				}
+			}
+		}
+
+finished_validating:;
+	}
+}
+
+void
+_dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
+{
+	switch (bin_spec_get_type(bin_spec)) {
+		case BIN_SPEC_TYPE_INT:
+			_dbg_validate_int(bin_spec->integer.range, as_integer_fromval(val));
+			break;
+		case BIN_SPEC_TYPE_STR:
+			_dbg_validate_string(bin_spec->string.length, as_string_fromval(val));
+			break;
+		case BIN_SPEC_TYPE_BYTES:
+			_dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val));
+			break;
+		case BIN_SPEC_TYPE_DOUBLE:
+			_dbg_validate_double(as_double_fromval(val));
+			break;
+		case BIN_SPEC_TYPE_LIST:
+			_dbg_validate_list(bin_spec, as_list_fromval((as_val*) val));
+			break;
+		case BIN_SPEC_TYPE_MAP:
+			_dbg_validate_map(bin_spec, as_map_fromval(val));
+			break;
+		default:
+			ck_assert_msg(0, "unknown bin_spec type (%d)",
+					bin_spec_get_type(bin_spec));
 	}
 }
 
@@ -1437,7 +1378,7 @@ _dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val)
 		const struct bin_spec_s* ele_bin = &bin_spec->list.list[i];
 
 		for (uint32_t j = 0; j < ele_bin->n_repeats; j++, cnt++) {
-			_dbg_validate_obj_spec(ele_bin, as_list_get(as_val, cnt));
+			_dbg_validate_bin_spec(ele_bin, as_list_get(as_val, cnt));
 		}
 	}
 }
@@ -1461,36 +1402,8 @@ _dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val)
 		const as_val* key = as_pair_1((as_pair*) kv_pair);
 		const as_val* val = as_pair_2((as_pair*) kv_pair);
 
-		_dbg_validate_obj_spec(key_spec, key);
-		_dbg_validate_obj_spec(val_spec, val);
-	}
-}
-
-static void
-_dbg_validate_obj_spec(const struct bin_spec_s* bin_spec, const as_val* val)
-{
-	switch (bin_spec_get_type(bin_spec)) {
-		case BIN_SPEC_TYPE_INT:
-			_dbg_validate_int(bin_spec->integer.range, as_integer_fromval(val));
-			break;
-		case BIN_SPEC_TYPE_STR:
-			_dbg_validate_string(bin_spec->string.length, as_string_fromval(val));
-			break;
-		case BIN_SPEC_TYPE_BYTES:
-			_dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val));
-			break;
-		case BIN_SPEC_TYPE_DOUBLE:
-			_dbg_validate_double(as_double_fromval(val));
-			break;
-		case BIN_SPEC_TYPE_LIST:
-			_dbg_validate_list(bin_spec, as_list_fromval((as_val*) val));
-			break;
-		case BIN_SPEC_TYPE_MAP:
-			_dbg_validate_map(bin_spec, as_map_fromval(val));
-			break;
-		default:
-			ck_assert_msg(0, "unknown bin_spec type (%d)",
-					bin_spec_get_type(bin_spec));
+		_dbg_validate_bin_spec(key_spec, key);
+		_dbg_validate_bin_spec(val_spec, val);
 	}
 }
 
