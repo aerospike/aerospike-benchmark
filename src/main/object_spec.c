@@ -150,6 +150,7 @@ struct bin_spec_s {
 
 	};
 
+	// FIXME move n_repeats
 	uint32_t n_repeats;
 };
 
@@ -357,9 +358,11 @@ obj_spec_n_bins(const struct obj_spec_s* obj_spec)
 
 int
 obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
-		as_random* random, const char* bin_name, float compression_ratio)
+		as_random* random, const char* bin_name, uint32_t* write_bins,
+		uint32_t n_write_bins, float compression_ratio)
 {
-	uint32_t n_bin_specs = obj_spec->n_bin_specs;
+	uint32_t n_bin_specs =
+		write_bins == NULL ? obj_spec->n_bin_specs : n_write_bins;
 	as_bins* bins = &rec->bins;
 
 	if (n_bin_specs > bins->capacity) {
@@ -370,52 +373,159 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 	if (bin_name_too_large(strlen(bin_name), obj_spec->n_bin_specs)) {
 		// if the key name is too long to fit every key we'll end up generating
 		// in an as_bin_name, return an error
-		fprintf(stderr, "Key name \"%s\" will exceed the maximum number of "
-				"allowed characters in a single bin (%s_%d)\n",
-				bin_name, bin_name, obj_spec->n_bin_specs);
+		if (obj_spec->n_bin_specs == 1) {
+			fprintf(stderr, "Key name \"%s\" will exceed the maximum number of "
+					"allowed characters in a single bin (%s)\n",
+					bin_name, bin_name);
+		}
+		else {
+			fprintf(stderr, "Key name \"%s\" will exceed the maximum number of "
+					"allowed characters in a single bin (%s_%d)\n",
+					bin_name, bin_name, obj_spec->n_bin_specs);
+		}
 		return -1;
 	}
 
-	for (uint32_t i = 0, cnt = 0; cnt < n_bin_specs; i++) {
-		const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
+	if (write_bins == NULL) {
+		for (uint32_t i = 0, cnt = 0; cnt < n_bin_specs; i++) {
+			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
 
-		for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
-			as_val* val = bin_spec_random_val(bin_spec, random,
-					compression_ratio);
+			for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
+				as_val* val = bin_spec_random_val(bin_spec, random,
+						compression_ratio);
 
-			if (val == NULL) {
-				return -1;
-			}
+				if (val == NULL) {
+					return -1;
+				}
 
-			as_bin_name name;
-			gen_bin_name(name, bin_name, cnt);
-			if (!as_record_set(rec, name, (as_bin_value*) val)) {
-				// failed to set a record, meaning we ran out of space
-				fprintf(stderr, "Not enough free bin slots in record\n");
-				return -1;
+				as_bin_name name;
+				gen_bin_name(name, bin_name, cnt);
+				if (!as_record_set(rec, name, (as_bin_value*) val)) {
+					// failed to set a record, meaning we ran out of space
+					fprintf(stderr, "Not enough free bin slots in record\n");
+					return -1;
+				}
 			}
 		}
 	}
+	else {
+		uint32_t k = 0;
+		uint32_t tot = 0;
+		uint32_t next_idx = write_bins[k];
+
+		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
+			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
+
+			for (;;) {
+				if (tot + bin_spec->n_repeats <= next_idx) {
+					tot += bin_spec->n_repeats;
+					break;
+				}
+				else {
+					as_val* val = bin_spec_random_val(bin_spec, random,
+							compression_ratio);
+
+					if (val == NULL) {
+						return -1;
+					}
+
+					as_bin_name name;
+					gen_bin_name(name, bin_name, next_idx);
+					if (!as_record_set(rec, name, (as_bin_value*) val)) {
+						// failed to set a record, meaning we ran out of space
+						fprintf(stderr, "Not enough free bin slots in record\n");
+						return -1;
+					}
+
+					if (k >= n_write_bins) {
+						goto finished_generating;
+					}
+
+					next_idx = write_bins[k++];
+				}
+			}
+		}
+
+		if (tot == n_bin_specs) {
+			// this should never happen if write_bins are valid (which is
+			// checked for during initialization)
+			fprintf(stderr, "Failed to generate record with write-bins\n");
+			return -1;
+		}
+
+finished_generating: ;
+	}
+
 	return 0;
 }
 
 
 as_val*
-obj_spec_gen_value(const struct obj_spec_s* obj_spec, as_random* random)
+obj_spec_gen_value(const struct obj_spec_s* obj_spec, as_random* random,
+		uint32_t* write_bins, uint32_t n_write_bins)
 {
-	return obj_spec_gen_compressible_value(obj_spec, random, 1.f);
+	return obj_spec_gen_compressible_value(obj_spec, random, write_bins,
+			n_write_bins, 1.f);
 }
 
 as_val*
 obj_spec_gen_compressible_value(const struct obj_spec_s* obj_spec,
-		as_random* random, float compression_ratio)
+		as_random* random, uint32_t* write_bins, uint32_t n_write_bins,
+		float compression_ratio)
 {
-	struct bin_spec_s tmp_list;
-	tmp_list.type = BIN_SPEC_TYPE_LIST;
-	tmp_list.list.length = obj_spec->n_bin_specs;
-	tmp_list.list.list = obj_spec->bin_specs;
 
-	return bin_spec_random_val(&tmp_list, random, compression_ratio);
+	if (write_bins == NULL) {
+		struct bin_spec_s tmp_list;
+		tmp_list.type = BIN_SPEC_TYPE_LIST;
+		tmp_list.list.length = obj_spec->n_bin_specs;
+		tmp_list.list.list = obj_spec->bin_specs;
+		return bin_spec_random_val(&tmp_list, random, compression_ratio);
+	}
+	else {
+		uint32_t k = 0;
+		uint32_t tot = 0;
+		uint32_t next_idx = write_bins[k];
+
+		as_arraylist* list = as_arraylist_new(obj_spec->n_bin_specs, 0);
+
+		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
+			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
+
+			for (;;) {
+				if (tot + bin_spec->n_repeats < next_idx) {
+					tot += bin_spec->n_repeats;
+					break;
+				}
+				else {
+					as_val* val = bin_spec_random_val(bin_spec, random,
+							compression_ratio);
+
+					if (val == NULL) {
+						as_list_destroy((as_list*) list);
+						return NULL;
+					}
+
+					as_list_append((as_list*) list, val);
+
+					if (k >= n_write_bins) {
+						goto finished_generating_val;
+					}
+
+					next_idx = write_bins[k++];
+				}
+			}
+		}
+
+		if (tot == obj_spec->n_bin_specs) {
+			// this should never happen if write_bins are valid (which is
+			// checked for during initialization)
+			fprintf(stderr, "Failed to generate value with write-bins\n");
+			as_list_destroy((as_list*) list);
+			return NULL;
+		}
+finished_generating_val:
+		return (as_val*) list;
+	}
 }
 
 void
@@ -775,7 +885,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						goto _destroy_state;
 					}
 					bin_spec->type = BIN_SPEC_TYPE_STR;
-					bin_spec->string.length = (uint32_t) str_len;;
+					bin_spec->string.length = (uint32_t) str_len;
 
 					str = endptr;
 					break;
@@ -980,7 +1090,7 @@ _gen_random_int(uint8_t range, as_random* random)
 	 * 	    0xff << (8*range), with the exception of range 0, which has one
 	 * 	    extra possible value (0)
 	 */
-	min = (0x001LU << (range * 8)) & ~0x1LU;
+	min = (0x1LU << (range * 8)) & ~0x1LU;
 	range_size = (0xffLU << (range * 8)) + !range;
 
 	r = gen_rand_range_64(random, range_size) + min;
@@ -1160,7 +1270,7 @@ _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 
 		as_val* val = bin_spec_random_val(bin_spec->map.val, random,
 				compression_ratio);
-		
+
 		as_hashmap_set(map, key, val);
 	}
 

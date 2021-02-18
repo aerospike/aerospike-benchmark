@@ -264,15 +264,13 @@ stages_set_defaults_and_parse(stages_t* stages, const args_t* args)
 			stage->read_bins_str = NULL;
 			ret = -1;
 		}
-		else if (bins_str != NULL &&
-				(stage->read_bins = _parse_bins_selection(bins_str,
-														 &stage->obj_spec,
-														 args->bin_name,
-														 &stage->n_read_bins,
-														 PARSE_BINS_STR))
-				== NULL) {
-			stage->read_bins_str = NULL;
-			ret = -1;
+		else if (bins_str != NULL) {
+			stage->read_bins = _parse_bins_selection(bins_str, &stage->obj_spec,
+					args->bin_name, &stage->n_read_bins, PARSE_BINS_STR);
+			if (stage->read_bins == NULL) {
+				stage->read_bins_str = NULL;
+				ret = -1;
+			}
 		}
 		cf_free(bins_str);
 
@@ -286,15 +284,14 @@ stages_set_defaults_and_parse(stages_t* stages, const args_t* args)
 			stage->write_bins_str = NULL;
 			ret = -1;
 		}
-		else if (bins_str != NULL &&
-				(stage->write_bins = _parse_bins_selection(bins_str,
-														  &stage->obj_spec,
-														  args->bin_name,
-														  &stage->n_write_bins,
-														  PARSE_BINS_INT))
-				== NULL) {
-			stage->write_bins_str = NULL;
-			ret = -1;
+		else if (bins_str != NULL) {
+			stage->write_bins = _parse_bins_selection(bins_str,
+					&stage->obj_spec, args->bin_name, &stage->n_write_bins,
+					PARSE_BINS_INT);
+			if (stage->write_bins == NULL) {
+				stage->write_bins_str = NULL;
+				ret = -1;
+			}
 		}
 		cf_free(bins_str);
 
@@ -311,7 +308,6 @@ stages_set_defaults_and_parse(stages_t* stages, const args_t* args)
 
 	return ret;
 }
-
 
 int parse_workload_config_file(const char* file, stages_t* stages,
 		const args_t* args)
@@ -430,7 +426,7 @@ void stages_print(const stages_t* stages)
 
 		printf( "  workload: %s",
 				workloads[stage->workload.type]);
-		if (stage->workload.type != WORKLOAD_TYPE_DELETE) {
+		if (stage->workload.type == WORKLOAD_TYPE_RANDOM) {
 			printf(",%g%%\n", stage->workload.pct);
 		}
 		else {
@@ -493,6 +489,7 @@ _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
 
 	uint32_t n_bins = obj_spec_n_bins(obj_spec);
 	void* bin_list;
+	uint64_t prev_bin_num = 0;
 	as_vector bins;
 
 	uint32_t element_size;
@@ -526,6 +523,13 @@ _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
 			_parse_bins_destroy(&bins, mode);
 			return NULL;
 		}
+		if (bin_num <= prev_bin_num) {
+			fprintf(stderr, "Bins must appear in ascending order "
+					"(%lu <= %lu)\n",
+					bin_num, prev_bin_num);
+			_parse_bins_destroy(&bins, mode);
+			return NULL;
+		}
 
 		if (mode == PARSE_BINS_STR) {
 			// form bin name
@@ -537,6 +541,7 @@ _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
 			uint32_t* bin_idx = (uint32_t*) as_vector_reserve(&bins);
 			*bin_idx = bin_num - 1;
 		}
+		prev_bin_num = bin_num;
 
 		bins_str = endptr;
 		if (*bins_str == ',') {

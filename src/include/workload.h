@@ -131,12 +131,6 @@ typedef struct stages_s {
 } stages_t;
 
 
-/*
- * given a workload string, populates the workload struct pointed to by the
- * first argument
- */
-int parse_workload_type(workload_t*, const char* workload_str);
-
 static inline bool workload_is_random(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
@@ -187,6 +181,12 @@ static inline void fprint_stage(FILE* out_file, const stages_t* stages,
 	const char* desc = stages->stages[stage_idx].desc;
 	fprintf(out_file, "Stage %d: %s\n", stage_idx + 1, desc ? desc : "");
 }
+
+/*
+ * given a workload string, populates the workload struct pointed to by the
+ * first argument
+ */
+int parse_workload_type(workload_t*, const char* workload_str);
 
 /*
  * set stages struct to default values if they were not supplied

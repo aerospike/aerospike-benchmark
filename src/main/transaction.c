@@ -427,7 +427,8 @@ _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
 		as_record_init(rec, n_objs);
 
 		obj_spec_populate_bins(&stage->obj_spec, rec, random,
-				cdata->bin_name, cdata->compression_ratio);
+				cdata->bin_name, stage->write_bins, stage->n_write_bins,
+				cdata->compression_ratio);
 	}
 	else {
 		as_list* list = as_list_fromval(tdata->fixed_value);
@@ -439,7 +440,8 @@ _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
 			as_val_reserve(val);
 
 			as_bin* bin = &rec->bins.entries[i];
-			gen_bin_name(bin->name, cdata->bin_name, i + 1);
+			gen_bin_name(bin->name, cdata->bin_name,
+					stage->write_bins == NULL ? i : stage->write_bins[i]);
 			as_record_set(rec, bin->name, (as_bin_value*) val);
 		}
 	}
@@ -1007,7 +1009,8 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 
 	if (!stage->random) {
 		tdata->fixed_value = obj_spec_gen_compressible_value(&stage->obj_spec,
-				tdata->random, cdata->compression_ratio);
+				tdata->random, stage->write_bins, stage->n_write_bins,
+				cdata->compression_ratio);
 	}
 }
 
