@@ -1,7 +1,7 @@
 name: Build:Main
 on:
   push:
-    branches: [ main ]
+    branches: [ main, arrowplum/actions-upload ]
 jobs:
   build-libraries:
     runs-on: ubuntu-latest
@@ -62,6 +62,11 @@ jobs:
         if [ "${NAME}" = "-" ]; then NAME="" ; fi
         echo "::set-output name=name::benchmarks$NAME"
       id: get_name
+    - name: find_artifact
+      run: |
+        set -e
+        echo ${{steps.get_name.outputs.name}}
+        find main
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
