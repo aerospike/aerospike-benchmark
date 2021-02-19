@@ -106,6 +106,14 @@ typedef struct stage_s {
 			uint32_t n_read_bins;
 		};
 	};
+
+	union {
+		char* write_bins_str;
+		struct {
+			uint32_t* write_bins;
+			uint32_t n_write_bins;
+		};
+	};
 } stage_t;
 
 
@@ -123,12 +131,6 @@ typedef struct stages_s {
 } stages_t;
 
 
-/*
- * given a workload string, populates the workload struct pointed to by the
- * first argument
- */
-int parse_workload_type(workload_t*, const char* workload_str);
-
 static inline bool workload_is_random(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
@@ -137,6 +139,11 @@ static inline bool workload_is_random(const workload_t* workload)
 static inline bool workload_contains_reads(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
+}
+
+static inline bool workload_contains_writes(const workload_t* workload)
+{
+	return workload->type != WORKLOAD_TYPE_RANDOM || workload->pct != 100;
 }
 
 static inline bool stages_contain_async(const stages_t* stages)
@@ -176,18 +183,10 @@ static inline void fprint_stage(FILE* out_file, const stages_t* stages,
 }
 
 /*
- * reads and parses bins_str, a comma-separated list of bin numbers
- * (1-based indexed) and populates the read_bins field of stage
- *
- * note: this must be done after the obj_spec has already been parsed
+ * given a workload string, populates the workload struct pointed to by the
+ * first argument
  */
-int parse_bins_selection(stage_t* stage, const char* bins_str,
-		const char* bin_name);
-
-/*
- * frees the bins selection array created from parse_bins_selection
- */
-void free_bins_selection(stage_t* stage);
+int parse_workload_type(workload_t*, const char* workload_str);
 
 /*
  * set stages struct to default values if they were not supplied

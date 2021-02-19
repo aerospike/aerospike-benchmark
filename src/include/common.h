@@ -44,7 +44,7 @@ typedef uint64_t ptr_int_t;
 
 #define as_assert(expr) \
 	do { \
-		if (!__builtin_expect((expr), 1)) { \
+		if (UNLIKELY(!(expr))) { \
 			fprintf(stderr, __FILE__ ":" STR(__LINE__) " assertion failed: " \
 					"%s\n", STR(expr)); \
 			abort(); \
@@ -54,6 +54,9 @@ typedef uint64_t ptr_int_t;
 
 #define MIN(a, b) ((a) > (b) ? (b) : (a))
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
+
+#define LIKELY(expr) __builtin_expect((expr), 1)
+#define UNLIKELY(expr) __builtin_expect((expr), 0)
 
 /*
  * returns a if a is positive and 0 if a is negative
@@ -124,6 +127,12 @@ uint32_t gen_rand_range(as_random*, uint32_t max);
  * same as gen_rand_range, but for 64-bit numbers
  */
 uint64_t gen_rand_range_64(as_random*, uint64_t max);
+
+/*
+ * compares two as_val's, returning true if they are the same
+ */
+int
+as_val_cmp(const as_val* v1, const as_val* v2);
 
 
 /*

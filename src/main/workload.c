@@ -45,6 +45,10 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
 			stage_t, read_bins_str,
 			0, CYAML_UNLIMITED),
+	CYAML_FIELD_STRING_PTR("write-bins",
+			CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
+			stage_t, write_bins_str,
+			0, CYAML_UNLIMITED),
 	CYAML_FIELD_UINT("pause", CYAML_FLAG_OPTIONAL,
 			stage_t, pause),
 	CYAML_FIELD_UINT("batch-size", CYAML_FLAG_OPTIONAL,
@@ -83,7 +87,34 @@ static const cyaml_config_t config = {
 // Forward declarations.
 //
 
-static void _parse_bins_destroy(as_vector* read_bins);
+
+/*
+ * tells _parse_bins_selection to generate a list of bin names
+ */
+#define PARSE_BINS_STR 0x0
+/*
+ * tells _parse_bins_selection to generate a list of bin indices
+ */
+#define PARSE_BINS_INT 0x1
+
+/*
+ * reads and parses bins_str, a comma-separated list of bin numbers
+ * (1-based indexed) and populates the read_bins field of stage
+ *
+ * the list of bin names will be returned, and n_bins will be populated with
+ * the number of bins in the returned array
+ */
+static void* _parse_bins_selection(const char* bins_str,
+		const obj_spec_t* obj_spec, const char* stage_bin_name,
+		uint32_t* n_bins_ptr, uint8_t mode);
+/*
+ * cleanup helper used by _parse_bins_selection on failure
+ */
+static void _parse_bins_destroy(as_vector* read_bins, uint8_t mode);
+/*
+ * frees the bins selection array created from parse_bins_selection in STR mode
+ */
+static void _free_bins_selection(char** bins);
 
 
 //==========================================================
@@ -139,80 +170,6 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 			return -1;
 	}
 	return 0;
-}
-
-/*
- * note: this must be done after the obj_spec has already been parsed
- */
-int
-parse_bins_selection(stage_t* stage, const char* bins_str,
-		const char* stage_bin_name)
-{
-	if (bins_str == NULL) {
-		return 0;
-	}
-
-	uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
-	const char* read_bins_str = bins_str;
-	as_vector read_bins;
-	as_vector_init(&read_bins, sizeof(char*), 8);
-
-	while (*read_bins_str != '\0') {
-		char* endptr;
-		uint64_t bin_num = strtoul(read_bins_str, &endptr, 10);
-		if ((*endptr != '\0' && *endptr != ',') || (endptr == read_bins_str)) {
-			fprintf(stderr, "Element %u of read-bins list not a positive "
-					"number\n", read_bins.size + 1);
-			_parse_bins_destroy(&read_bins);
-			return -1;
-		}
-
-		if (bin_num == 0) {
-			fprintf(stderr, "Invalid bin number: 0\n");
-			_parse_bins_destroy(&read_bins);
-			return -1;
-		}
-		if (bin_num > n_bins) {
-			fprintf(stderr, "No such bin %lu (there are only %u bins)\n",
-					bin_num, n_bins);
-			_parse_bins_destroy(&read_bins);
-			return -1;
-		}
-
-		// form bin name
-		char** bin_name = (char**) as_vector_reserve(&read_bins);
-		*bin_name = (char*) cf_malloc(sizeof(as_bin_name));
-		gen_bin_name(*bin_name, stage_bin_name, bin_num - 1);
-
-		read_bins_str = endptr;
-		if (*read_bins_str == ',') {
-			read_bins_str++;
-		}
-	}
-
-	// this will append one last slot to the vector and zero that slot out
-	// (null-terminating the list)
-	as_vector_reserve(&read_bins);
-
-	// and now copy the vector to read_bins
-	stage->read_bins = (char**) as_vector_to_array(&read_bins, &stage->n_read_bins);
-	// don't count the null-terminating pointer
-	stage->n_read_bins--;
-
-	as_vector_destroy(&read_bins);
-	return 0;
-}
-
-void
-free_bins_selection(stage_t* stage)
-{
-	char** read_bins = stage->read_bins;
-	if (read_bins != NULL) {
-		for (uint64_t i = 0; read_bins[i] != NULL; i++) {
-			cf_free(read_bins[i]);
-		}
-		cf_free(read_bins);
-	}
 }
 
 int
@@ -307,9 +264,34 @@ stages_set_defaults_and_parse(stages_t* stages, const args_t* args)
 			stage->read_bins_str = NULL;
 			ret = -1;
 		}
-		else if (parse_bins_selection(stage, bins_str, args->bin_name) != 0) {
-			stage->read_bins_str = NULL;
+		else if (bins_str != NULL) {
+			stage->read_bins = _parse_bins_selection(bins_str, &stage->obj_spec,
+					args->bin_name, &stage->n_read_bins, PARSE_BINS_STR);
+			if (stage->read_bins == NULL) {
+				stage->read_bins_str = NULL;
+				ret = -1;
+			}
+		}
+		cf_free(bins_str);
+
+		// now parse write bins
+		bins_str = stage->write_bins_str;
+		if (stage->write_bins_str != NULL &&
+				!workload_contains_writes(&stage->workload)) {
+			fprintf(stderr, "Stage %d: cannot specify write-bins on workload "
+					"without writes\n",
+					i + 1);
+			stage->write_bins_str = NULL;
 			ret = -1;
+		}
+		else if (bins_str != NULL) {
+			stage->write_bins = _parse_bins_selection(bins_str,
+					&stage->obj_spec, args->bin_name, &stage->n_write_bins,
+					PARSE_BINS_INT);
+			if (stage->write_bins == NULL) {
+				stage->write_bins_str = NULL;
+				ret = -1;
+			}
 		}
 		cf_free(bins_str);
 
@@ -326,7 +308,6 @@ stages_set_defaults_and_parse(stages_t* stages, const args_t* args)
 
 	return ret;
 }
-
 
 int parse_workload_config_file(const char* file, stages_t* stages,
 		const args_t* args)
@@ -364,8 +345,11 @@ void free_workload_config(stages_t* stages)
 			// so cyaml_free doesn't try freeing whatever garbage is left here
 			stage->obj_spec_str = NULL;
 
-			free_bins_selection(stage);
+			_free_bins_selection(stage->read_bins);
 			stage->read_bins_str = NULL;
+
+			cf_free(stage->write_bins);
+			stage->write_bins_str = NULL;
 		}
 		cyaml_free(&config, &top_schema, stages->stages, stages->n_stages);
 	}
@@ -442,7 +426,7 @@ void stages_print(const stages_t* stages)
 
 		printf( "  workload: %s",
 				workloads[stage->workload.type]);
-		if (stage->workload.type != WORKLOAD_TYPE_DELETE) {
+		if (stage->workload.type == WORKLOAD_TYPE_RANDOM) {
 			printf(",%g%%\n", stage->workload.pct);
 		}
 		else {
@@ -455,10 +439,10 @@ void stages_print(const stages_t* stages)
 
 
 		if (stage->read_bins) {
-			printf( "  read_bins: ");
-			for (uint32_t i = 0; i < 10; i++) {
+			printf( "  read-bins: ");
+			for (uint32_t i = 0; i < stage->n_read_bins; i++) {
 				printf("%s", stage->read_bins[i]);
-				if (stage->read_bins[i + 1] != NULL) {
+				if (i < stage->n_read_bins - 1) {
 					printf(", ");
 				}
 				else {
@@ -468,7 +452,24 @@ void stages_print(const stages_t* stages)
 			}
 		}
 		else {
-			printf("  read_bins: (null)\n");
+			printf("  read-bins: (null)\n");
+		}
+
+		if (stage->write_bins) {
+			printf( "  write-bins: ");
+			for (uint32_t i = 0; i < stage->n_write_bins; i++) {
+				printf("%d", stage->write_bins[i] + 1);
+				if (i < stage->n_write_bins - 1) {
+					printf(", ");
+				}
+				else {
+					printf("\n");
+					break;
+				}
+			}
+		}
+		else {
+			printf("  write-bins: (null)\n");
 		}
 	}
 }
@@ -478,15 +479,111 @@ void stages_print(const stages_t* stages)
 // Local helpers.
 //
 
-static void _parse_bins_destroy(as_vector* read_bins)
+static void*
+_parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
+		const char* stage_bin_name, uint32_t* n_bins_ptr, uint8_t mode)
+{
+	if (bins_str == NULL) {
+		return NULL;
+	}
+
+	uint32_t n_bins = obj_spec_n_bins(obj_spec);
+	void* bin_list;
+	uint64_t prev_bin_num = 0;
+	as_vector bins;
+
+	uint32_t element_size;
+	if (mode == PARSE_BINS_STR) {
+		element_size = sizeof(char*);
+	}
+	else {
+		element_size = sizeof(uint32_t);
+	}
+
+	as_vector_init(&bins, element_size, 8);
+
+	while (*bins_str != '\0') {
+		char* endptr;
+		uint64_t bin_num = strtoul(bins_str, &endptr, 10);
+		if ((*endptr != '\0' && *endptr != ',') || (endptr == bins_str)) {
+			fprintf(stderr, "Element %u of read-bins list not a positive "
+					"number\n", bins.size + 1);
+			_parse_bins_destroy(&bins, mode);
+			return NULL;
+		}
+
+		if (bin_num == 0) {
+			fprintf(stderr, "Invalid bin number: 0\n");
+			_parse_bins_destroy(&bins, mode);
+			return NULL;
+		}
+		if (bin_num > n_bins) {
+			fprintf(stderr, "No such bin %lu (there are only %u bins)\n",
+					bin_num, n_bins);
+			_parse_bins_destroy(&bins, mode);
+			return NULL;
+		}
+		if (bin_num <= prev_bin_num) {
+			fprintf(stderr, "Bins must appear in ascending order "
+					"(%lu <= %lu)\n",
+					bin_num, prev_bin_num);
+			_parse_bins_destroy(&bins, mode);
+			return NULL;
+		}
+
+		if (mode == PARSE_BINS_STR) {
+			// form bin name
+			char** bin_name = (char**) as_vector_reserve(&bins);
+			*bin_name = (char*) cf_malloc(sizeof(as_bin_name));
+			gen_bin_name(*bin_name, stage_bin_name, bin_num - 1);
+		}
+		else {
+			uint32_t* bin_idx = (uint32_t*) as_vector_reserve(&bins);
+			*bin_idx = bin_num - 1;
+		}
+		prev_bin_num = bin_num;
+
+		bins_str = endptr;
+		if (*bins_str == ',') {
+			bins_str++;
+		}
+	}
+
+	// this will append one last slot to the vector and zero that slot out
+	// (null-terminating the list)
+	as_vector_reserve(&bins);
+
+	// and now copy the vector to bins
+	bin_list = as_vector_to_array(&bins, n_bins_ptr);
+	// don't count the null-terminating pointer
+	(*n_bins_ptr)--;
+
+	as_vector_destroy(&bins);
+	return bin_list;
+}
+
+static void
+_parse_bins_destroy(as_vector* read_bins, uint8_t mode)
 {
 
-	// free all the as_bin_names reserved so far
-	for (uint32_t d_idx = read_bins->size - 1; d_idx < read_bins->size;
-			d_idx--) {
-		cf_free(as_vector_get_ptr(read_bins, d_idx));
+	if (mode == PARSE_BINS_STR) {
+		// free all the as_bin_names reserved so far
+		for (uint32_t d_idx = read_bins->size - 1; d_idx < read_bins->size;
+				d_idx--) {
+			cf_free(as_vector_get_ptr(read_bins, d_idx));
+		}
 	}
 	// then free the vector itself
 	as_vector_destroy(read_bins);
 }
 
+static void
+_free_bins_selection(char** bins)
+{
+	if (bins != NULL) {
+		for (uint64_t i = 0; bins[i] != NULL; i++) {
+			cf_free(bins[i]);
+		}
+		cf_free(bins);
+	}
+}
