@@ -71,7 +71,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with: 
         name: ${{steps.get_name.outputs.name}}
-        path: main/target/benchmarks
+        path: main/target/benchmark
   pre-release:
     needs: build-libraries
     runs-on: ubuntu-latest
