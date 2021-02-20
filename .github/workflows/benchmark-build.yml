@@ -2,9 +2,9 @@ name: Build and Test All
 
 on:
   push:
-    branches: [ main, arrowplum/actions-upload ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, arrowplum/actions-upload ]
+    branches: [ main ]
 jobs:
   build:
     runs-on: ubuntu-latest
