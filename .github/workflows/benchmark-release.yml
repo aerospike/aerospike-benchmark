@@ -52,7 +52,7 @@ jobs:
         repository: aerospike/aerospike-client-c
         submodules: recursive
         path: client
-    - name: Checkout benchmarks 
+    - name: Checkout benchmark
       uses: actions/checkout@v2
       with: 
         path: main
@@ -68,19 +68,20 @@ jobs:
         set -e
         NAME=-${{ matrix.ev-lib}}
         if [ "${NAME}" = "-" ]; then NAME="" ; fi
-        echo "::set-output name=name::benchmarks$NAME"
+        echo "::set-output name=name::benchmark$NAME"
       id: get_name
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
         name: ${{steps.get_name.outputs.name}}
-        path: main/target/benchmarks
+        path: main/target/benchmark
+        if-no-files-found: error
   release:
     needs: build-libraries
     runs-on: ubuntu-latest
     
     steps: 
-      - name: Checkout benchmarks 
+      - name: Checkout benchmark
         uses: actions/checkout@v2
         with: 
           submodules: recursive
