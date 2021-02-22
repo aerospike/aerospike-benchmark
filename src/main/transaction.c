@@ -99,6 +99,7 @@ static void _async_write_listener(as_error* err, void* udata,
 		as_event_loop* event_loop);
 static void _async_batch_read_listener(as_error* err,
 		as_batch_read_records* records, void* udata, as_event_loop* event_loop);
+static struct async_data_s* queue_pop_wait(queue_t* adata_q);
 static void linear_writes_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, stage_t* stage, queue_t* adata_q);
 static void rand_read_write_async(tdata_t* tdata, cdata_t* cdata,
@@ -728,6 +729,22 @@ _async_batch_read_listener(as_error* err, as_batch_read_records* records,
 	}
 }
 
+static struct async_data_s*
+queue_pop_wait(queue_t* adata_q)
+{
+	struct async_data_s* adata;
+
+	while (1) {
+		adata = queue_pop(adata_q);
+		if (adata == NULL) {
+			_mm_pause();
+			continue;
+		}
+		break;
+	}
+	return adata;
+}
+
 static void
 linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, queue_t* adata_q)
@@ -743,11 +760,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
 			key_val < end_key) {
 
-		adata = queue_pop(adata_q);
-		if (adata == NULL) {
-			_mm_pause();
-			continue;
-		}
+		adata = queue_pop_wait(adata_q);
 
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
@@ -797,11 +810,7 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 
-		adata = queue_pop(adata_q);
-		if (adata == NULL) {
-			_mm_pause();
-			continue;
-		}
+		adata = queue_pop_wait(adata_q);
 
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
@@ -878,11 +887,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
 			key_val < end_key) {
 
-		adata = queue_pop(adata_q);
-		if (adata == NULL) {
-			_mm_pause();
-			continue;
-		}
+		adata = queue_pop_wait(adata_q);
 
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
@@ -978,13 +983,8 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	// wait for all the async calls to finish
-	for (uint32_t i = 0; i < n_adatas;) {
-		struct async_data_s* adata = queue_pop(&adata_q);
-		if (adata == NULL) {
-			_mm_pause();
-			continue;
-		}
-		i++;
+	for (uint32_t i = 0; i < n_adatas; i++) {
+		queue_pop_wait(&adata_q);
 	}
 
 	// free the async_data structs

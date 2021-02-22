@@ -1,4 +1,5 @@
 
+
 //==========================================================
 // Includes.
 //
@@ -191,7 +192,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		stage_def_t* stage_def = &stage_defs->stages[i];
 		stage_t* stage = &stages->stages[i];
 
-		stage->desc = strdup(stage_def->desc);
+		stage->desc = stage_def->desc ? strdup(stage_def->desc) : stage_def->desc;
 		stage->tps = stage_def->tps;
 		stage->pause = stage_def->pause;
 		stage->async = stage_def->async;
