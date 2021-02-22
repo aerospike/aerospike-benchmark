@@ -114,7 +114,7 @@ run_benchmark(args_t* args)
 	if (ret == 0) {
 		for (uint32_t i = 0; i < data.stages.n_stages && ret == 0; i++) {
 			ret = obj_spec_bin_name_compatible(&data.stages.stages[i].obj_spec,
-					data.bin_name);
+					data.bin_name) ? 0 : -1;
 		}
 	}
 

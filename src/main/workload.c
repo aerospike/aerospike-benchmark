@@ -469,7 +469,8 @@ void stages_print(const stages_t* stages)
 	}
 }
 
-void stages_print_defs(const stage_defs_t* stage_defs)
+void stages_print_defs(const stage_defs_t* stage_defs,
+		const struct args_s* args)
 {
 	for (uint32_t i = 0; i < stage_defs->n_stages; i++) {
 		const stage_def_t* stage = &stage_defs->stages[i];

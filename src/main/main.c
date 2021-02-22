@@ -138,7 +138,7 @@ main(int argc, char * const * argv)
 
 	if (ret == 0) {
 		print_args(&args);
-		run_benchmark(&args);
+		ret = run_benchmark(&args);
 	}
 	else if (ret != -1) {
 		blog_line("Run with --help for usage information and flag options.");
@@ -506,7 +506,7 @@ print_args(args_t* args)
 	snprint_obj_spec(&args->obj_spec, buf, sizeof(buf));
 	blog_line("object spec:            %s", buf);
 
-	stages_print_defs(&args->stage_defs);
+	stages_print(&args->stages);
 
 	blog_line("threads:                %d", args->transaction_worker_threads);
 

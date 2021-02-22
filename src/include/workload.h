@@ -255,5 +255,3 @@ void stage_random_pause(as_random* random, const stage_t* stage);
 
 void stages_print(const stages_t* stages);
 
-void stages_print_defs(const stage_defs_t* stage_defs);
-
