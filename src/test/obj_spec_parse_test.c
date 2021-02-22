@@ -349,14 +349,8 @@ DEFINE_TCASE_WRITE_BINS(test_wb_maps, "{5*S10:B20},[3*{I4:S5},D],B10,{I4:I8}",
 START_TEST(test_name) \
 { \
 	struct obj_spec_s o; \
-	as_random random; \
-	as_record rec; \
-	as_random_init(&random); \
 	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
-	as_record_init(&rec, obj_spec_n_bins(&o)); \
-	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
-				bin_name, NULL, 0, 1.f), 0); \
-	as_record_destroy(&rec); \
+	ck_assert(obj_spec_bin_name_compatible(&o, bin_name)); \
 	obj_spec_free(&o); \
 } \
 END_TEST
@@ -365,14 +359,9 @@ END_TEST
 START_TEST(test_name) \
 { \
 	struct obj_spec_s o; \
-	as_random random; \
-	as_record rec; \
-	as_random_init(&random); \
 	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
-	as_record_init(&rec, obj_spec_n_bins(&o)); \
-	ck_assert_int_ne(obj_spec_populate_bins(&o, &rec, &random, \
-				bin_name, NULL, 0, 1.f), 0); \
-	as_record_destroy(&rec); \
+	ck_assert(!obj_spec_bin_name_compatible(&o, bin_name)); \
+	obj_spec_free(&o); \
 } \
 END_TEST
 

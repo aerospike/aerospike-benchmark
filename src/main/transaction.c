@@ -78,7 +78,8 @@ static void _calculate_subrange(uint64_t key_start, uint64_t key_end,
 static void _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata);
 static void _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
 		tdata_t* tdata, stage_t* stage);
-static void _gen_nil_record(as_record* rec, const cdata_t* cdata);
+static void _gen_nil_record(as_record* rec, const cdata_t* cdata,
+		stage_t* stage);
 static void throttle(tdata_t* tdata, thr_coord_t* coord);
 
 // Synchronous workload methods
@@ -451,9 +452,9 @@ _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
  * generates a record with all nil bins (used to remove records)
  */
 static void
-_gen_nil_record(as_record* rec, const cdata_t* cdata)
+_gen_nil_record(as_record* rec, const cdata_t* cdata, stage_t* stage)
 {
-	uint32_t n_objs = obj_spec_n_bins(&cdata->obj_spec);
+	uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
 	as_record_init(rec, n_objs);
 
 	for (uint32_t i = 0; i < n_objs; i++) {
@@ -622,7 +623,7 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		// create a record with given key
 		_gen_key(key_val, &key, cdata);
-		_gen_nil_record(&rec, cdata);
+		_gen_nil_record(&rec, cdata, stage);
 
 		// delete this record from the database
 		_write_record_sync(tdata, cdata, coord, &key, &rec);
@@ -889,7 +890,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		as_record rec;
 		_gen_key(key_val, &adata->key, cdata);
-		_gen_nil_record(&rec, cdata);
+		_gen_nil_record(&rec, cdata, stage);
 		adata->op = delete;
 
 		_write_record_async(&adata->key, &rec, adata, cdata);

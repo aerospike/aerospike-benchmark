@@ -217,12 +217,17 @@ void obj_spec_move(obj_spec_t* dst, obj_spec_t* src);
  */
 void obj_spec_shallow_copy(obj_spec_t* dst, const obj_spec_t* src);
 
-
 /*
  * returns the number of bins required to fit all the objects in the obj_spec
  */
 uint32_t obj_spec_n_bins(const obj_spec_t*);
 
+/*
+ * returns true if the given bin name base is compatible with the obj_spec, i.e.
+ * if no bin names will be too long given the number of bins in the obj_spec
+ * and the length of the name base
+ */
+bool obj_spec_bin_name_compatible(const obj_spec_t*, const char* bin_name);
 
 /*
  * generates random values for each of the bings based on the object spec
@@ -250,7 +255,6 @@ as_val* obj_spec_gen_value(const obj_spec_t*, as_random*, uint32_t* write_bins,
  */
 as_val* obj_spec_gen_compressible_value(const obj_spec_t*, as_random*,
 		uint32_t* write_bins, uint32_t n_write_bins, float compression_ratio);
-
 
 void snprint_obj_spec(const obj_spec_t* obj_spec, char* out_str,
 		size_t str_size);

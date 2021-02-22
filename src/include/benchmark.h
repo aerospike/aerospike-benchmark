@@ -127,7 +127,6 @@ typedef struct clientdata_s {
 	int async_max_commands;
 	int transaction_worker_threads;
 	int read_pct;
-	struct obj_spec_s obj_spec;
 
 	float compression_ratio;
 	bool latency;

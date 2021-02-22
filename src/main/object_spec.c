@@ -228,20 +228,9 @@ obj_spec_n_bins(const struct obj_spec_s* obj_spec)
 	return obj_spec->n_bin_specs;
 }
 
-int
-obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
-		as_random* random, const char* bin_name, uint32_t* write_bins,
-		uint32_t n_write_bins, float compression_ratio)
+bool
+obj_spec_bin_name_compatible(const obj_spec_t* obj_spec, const char* bin_name)
 {
-	uint32_t n_bin_specs =
-		write_bins == NULL ? obj_spec->n_bin_specs : n_write_bins;
-	as_bins* bins = &rec->bins;
-
-	if (n_bin_specs > bins->capacity) {
-		fprintf(stderr, "Not enough bins allocated for obj_spec\n");
-		return -1;
-	}
-
 	if (bin_name_too_large(strlen(bin_name), obj_spec->n_bin_specs)) {
 		// if the key name is too long to fit every key we'll end up generating
 		// in an as_bin_name, return an error
@@ -255,6 +244,22 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 					"allowed characters in a single bin (%s_%d)\n",
 					bin_name, bin_name, obj_spec->n_bin_specs);
 		}
+		return false;
+	}
+	return true;
+}
+
+int
+obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
+		as_random* random, const char* bin_name, uint32_t* write_bins,
+		uint32_t n_write_bins, float compression_ratio)
+{
+	uint32_t n_bin_specs =
+		write_bins == NULL ? obj_spec->n_bin_specs : n_write_bins;
+	as_bins* bins = &rec->bins;
+
+	if (n_bin_specs > bins->capacity) {
+		fprintf(stderr, "Not enough bins allocated for obj_spec\n");
 		return -1;
 	}
 

@@ -70,7 +70,6 @@ run_benchmark(args_t* args)
 	data.transaction_worker_threads = args->transaction_worker_threads;
 	data.compression_ratio = args->compression_ratio;
 	stages_move(&data.stages, &args->stages);
-	obj_spec_move(&data.obj_spec, &args->obj_spec);
 	data.transactions_count = 0;
 	data.latency = args->latency;
 	data.debug = args->debug;
@@ -113,6 +112,13 @@ run_benchmark(args_t* args)
 	}
 
 	if (ret == 0) {
+		for (uint32_t i = 0; i < data.stages.n_stages && ret == 0; i++) {
+			ret = obj_spec_bin_name_compatible(&data.stages.stages[i].obj_spec,
+					data.bin_name);
+		}
+	}
+
+	if (ret == 0) {
 		ret = _run(&data);
 
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
@@ -132,7 +138,6 @@ run_benchmark(args_t* args)
 		as_event_close_loops();
 	}
 
-	obj_spec_free(&data.obj_spec);
 	free_workload_config(&data.stages);
 	
 	return ret;
