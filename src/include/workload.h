@@ -60,6 +60,49 @@ typedef struct workload_s {
 } workload_t;
 
 
+typedef struct stage_def_s {
+	// minimum stage duration in seconds
+	uint64_t duration;
+
+	// string desctriptor for the stage, printed when the stage begins
+	const char* desc;
+
+	// max transactions per second
+	uint64_t tps;
+
+	uint64_t key_start;
+	uint64_t key_end;
+
+	// max number of seconds to pause between stage starts, randomly selected
+	// between 1 and pause
+	uint64_t pause;
+
+	// batch size of reads to use
+	uint32_t batch_size;
+	// whether or not this stage should be run in async mode
+	bool async;
+	// whether or not random objects should be created for each write op (as
+	// opposed to using a single fixed object over and over)
+	bool random;
+
+	uint16_t stage_idx;
+
+	char* workload_str;
+
+	char* obj_spec_str;
+
+	char* read_bins_str;
+
+	char* write_bins_str;
+} stage_def_t;
+
+
+typedef struct stage_defs_s {
+	stage_def_t* stages;
+	uint32_t n_stages;
+} stage_defs_t;
+
+
 typedef struct stage_s {
 	// minimum stage duration in seconds
 	uint64_t duration;
@@ -85,35 +128,15 @@ typedef struct stage_s {
 	// opposed to using a single fixed object over and over)
 	bool random;
 
-	union {
-		char* workload_str;
-		workload_t workload;
-	};
+	workload_t workload;
 
-	union {
-		struct {
-			char* obj_spec_str;
-			// only used temporarily to verify that stages are indexed properly
-			uint16_t stage_idx;
-		};
-		obj_spec_t obj_spec;
-	};
+	obj_spec_t obj_spec;
 
-	union {
-		char* read_bins_str;
-		struct {
-			char** read_bins;
-			uint32_t n_read_bins;
-		};
-	};
+	char** read_bins;
+	uint32_t n_read_bins;
 
-	union {
-		char* write_bins_str;
-		struct {
-			uint32_t* write_bins;
-			uint32_t n_write_bins;
-		};
-	};
+	uint32_t* write_bins;
+	uint32_t n_write_bins;
 } stage_t;
 
 
@@ -192,7 +215,7 @@ int parse_workload_type(workload_t*, const char* workload_str);
  * set stages struct to default values if they were not supplied
  */
 int stages_set_defaults_and_parse(stages_t* stages,
-		const struct args_s* args);
+		const stage_defs_t* stage_defs, const struct args_s* args);
 
 /*
  * parses the given file into the stages struct

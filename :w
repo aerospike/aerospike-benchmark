@@ -184,25 +184,16 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 
 	int ret = 0;
 
-	stages->stages = (stage_t*) cf_malloc(stage_defs->n_stages * sizeof(stage_t));
-	stages->n_stages = stage_defs->n_stages;
-
 	for (uint32_t i = 0; i < n_stages; i++) {
 		stage_def_t* stage_def = &stage_defs->stages[i];
 		stage_t* stage = &stages->stages[i];
-
-		stage->desc = strdup(stage_def->desc);
-		stage->tps = stage_def->tps;
-		stage->pause = stage_def->pause;
-		stage->async = stage_def->async;
-		stage->random = stage_def->random;
 
 		if (stage_def->key_start == -1LU) {
 			// if key_start wasn't specified, then inherit from the global context
 			stage->key_start = args->start_key;
 		}
 		else {
-			stage->key_start = stage_def->key_start;
+			stage->key_start = stage_def->key_start
 		}
 
 		if (stage_def->key_end == -1LU) {
@@ -284,7 +275,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		}
 
 		// now parse write bins
-		bins_str = stage_def->write_bins_str;
+		bins_str = stage->write_bins_str;
 		if (bins_str != NULL && !workload_contains_writes(&stage->workload)) {
 			fprintf(stderr, "Stage %d: cannot specify write-bins on workload "
 					"without writes\n",
@@ -301,11 +292,6 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		}
 	}
 
-	if (ret != 0) {
-		free_workload_config(stages);
-		stages->valid = false;
-	}
-
 	return ret;
 }
 
@@ -316,16 +302,18 @@ int parse_workload_config_file(const char* file, stages_t* stages,
 	stage_defs_t stage_defs;
 
 	err = cyaml_load_file(file, &config,
-			&top_schema, (cyaml_data_t **)&stage_defs.stages,
-			&stage_defs.n_stages);
+			&top_schema, (cyaml_data_t **)&stage_defs->stages,
+			&stage_defs->n_stages);
 	if (err != CYAML_OK) {
 		fprintf(stderr, "ERROR: %s\n", cyaml_strerror(err));
 		return -1;
 	}
 	stages->valid = true;
 
-	int ret = stages_set_defaults_and_parse(stages, &stage_defs, args);
-	cyaml_free(&config, &top_schema, stage_defs.stages, stage_defs.n_stages);
+	int ret = stages_set_defaults_and_parse(stages, args);
+	if (ret != 0) {
+		free_workload_config(stages);
+	}
 	return ret;
 }
 
@@ -335,10 +323,22 @@ void free_workload_config(stages_t* stages)
 		// first go through and free the parts that aren't part of the yaml struct
 		for (uint32_t i = 0; i < stages->n_stages; i++) {
 			stage_t* stage = &stages->stages[i];
+
+			// no freeing needed to be done for workload, so just set workload_str
+			// to NULL
+			stage->workload_str = NULL;
+
 			obj_spec_free(&stage->obj_spec);
+			// so cyaml_free doesn't try freeing whatever garbage is left here
+			stage->obj_spec_str = NULL;
+
 			_free_bins_selection(stage->read_bins);
+			stage->read_bins_str = NULL;
+
 			cf_free(stage->write_bins);
+			stage->write_bins_str = NULL;
 		}
+		cyaml_free(&config, &top_schema, stages->stages, stages->n_stages);
 	}
 }
 
@@ -422,7 +422,7 @@ void stages_print(const stages_t* stages)
 
 		printf( "  stage: %u\n"
 				"  object-spec: %s\n",
-				i + 1, obj_spec_buf);
+				stage->stage_idx, obj_spec_buf);
 
 
 		if (stage->read_bins) {
