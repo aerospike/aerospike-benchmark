@@ -646,12 +646,6 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			if (bin_spec != NULL) {
 				switch (type) {
 					case CONSUMER_TYPE_LIST:
-						if (state->list_builder->size == 0) {
-							_print_parse_error("Cannot have empty list",
-									obj_spec_str, str);
-							_destroy_consumer_states(state);
-							return -1;
-						}
 						bin_spec->type = BIN_SPEC_TYPE_LIST;
 						bin_spec->list.list =
 							as_vector_to_array(state->list_builder,
@@ -662,17 +656,25 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						as_vector_destroy(state->list_builder);
 						break;
 					case CONSUMER_TYPE_MAP:
-						if (map_state != MAP_DONE) {
-							_print_parse_error("Unexpected token '}' before "
-									"both key and value have been provided "
-									"for a map",
-									obj_spec_str, str);
-							_destroy_consumer_states(state);
-							return -1;
-						}
 						bin_spec->type = BIN_SPEC_TYPE_MAP;
-						bin_spec->map.key = state->key;
-						bin_spec->map.val = state->value;
+						if (map_state != MAP_DONE) {
+							// create an empty map (i.e. a map with n_keys == 0)
+							bin_spec->map.key = (struct bin_spec_s*)
+								cf_malloc(sizeof(struct bin_spec_s));
+							bin_spec->map.key->n_repeats = 0;
+							// also create a val since it will be freed
+							bin_spec->map.val = (struct bin_spec_s*)
+								cf_malloc(sizeof(struct bin_spec_s));
+
+							// set the types of both key and val to be scalar so
+							// they are not recursively freed
+							bin_spec->map.key->type = BIN_SPEC_TYPE_INT;
+							bin_spec->map.val->type = BIN_SPEC_TYPE_INT;
+						}
+						else {
+							bin_spec->map.key = state->key;
+							bin_spec->map.val = state->value;
+						}
 						break;
 					default:
 						// this is an impossible condition
@@ -731,11 +733,19 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			uint64_t mult;
 			char* endptr;
 			mult = strtoul(str, &endptr, 10);
-			if (*str >= '1' && *str <= '9' && endptr != str) {
+			if (*str >= '0' && *str <= '9' && endptr != str) {
 
 				if (type == CONSUMER_TYPE_MAP && map_state == MAP_VAL &&
 						mult != 1) {
 					_print_parse_error("Map value cannot have a multiplier",
+							obj_spec_str, str);
+					goto _destroy_state;
+				}
+
+				if ((type != CONSUMER_TYPE_MAP || map_state != MAP_KEY) &&
+						mult == 0) {
+					_print_parse_error("Cannot have a multiplier of 0 except "
+							"on map keys (to indicate an empty map)",
 							obj_spec_str, str);
 					goto _destroy_state;
 				}
@@ -805,7 +815,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 								obj_spec_str, str + 1);
 						goto _destroy_state;
 					}
-					if (str_len == 0 || str_len != (uint32_t) str_len) {
+					if (str_len != (uint32_t) str_len) {
 						_print_parse_error("Invalid string length",
 								obj_spec_str, str + 1);
 						goto _destroy_state;
@@ -825,7 +835,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 								obj_spec_str, str + 1);
 						goto _destroy_state;
 					}
-					if (bytes_len == 0 || bytes_len != (uint32_t) bytes_len) {
+					if (bytes_len != (uint32_t) bytes_len) {
 						_print_parse_error("Invalid bytes length",
 								obj_spec_str, str + 1);
 						goto _destroy_state;
@@ -1288,9 +1298,11 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			break;
 		case BIN_SPEC_TYPE_MAP:
 			sprint(out_str, str_size, "{");
-			str_size = _sprint_bin(bin->map.key, out_str, str_size);
-			sprint(out_str, str_size, ":");
-			str_size = _sprint_bin(bin->map.val, out_str, str_size);
+			if (bin_spec_map_n_entries(bin) != 0) {
+				str_size = _sprint_bin(bin->map.key, out_str, str_size);
+				sprint(out_str, str_size, ":");
+				str_size = _sprint_bin(bin->map.val, out_str, str_size);
+			}
 			sprint(out_str, str_size, "}");
 			break;
 	}
