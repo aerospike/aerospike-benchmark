@@ -276,6 +276,7 @@ periodic_output_worker(void* udata)
 	uint64_t start_time = timespec_to_us(&wake_up);
 	uint64_t time = start_time;
 	uint64_t prev_time = start_time;
+	uint64_t prev_time_hist = start_time;
 	uint64_t pause_us;
 
 	// first indicate that this thread has no required work to do
@@ -333,6 +334,9 @@ periodic_output_worker(void* udata)
 		// print latency information at the very end of the stage no matter what
 		if (status == COORD_SLEEP_INTERRUPTED ||
 				((gen_count % cdata->histogram_period) == 0)) {
+			int64_t elapsed_hist = time - prev_time_hist;
+			prev_time_hist = time;
+
 			if (latency) {
 				uint64_t elapsed_s = (time - start_time) / 1000000;
 				print_hdr_percentiles(cdata->write_hdr, "write", elapsed_s,
@@ -347,10 +351,10 @@ periodic_output_worker(void* udata)
 					fprint_stage(histogram_output, &cdata->stages,
 							tdata->stage_idx);
 				}
-				histogram_print_clear(write_histogram, elapsed,
+				histogram_print_clear(write_histogram, elapsed_hist,
 						histogram_output);
 				if (has_reads) {
-					histogram_print_clear(read_histogram, elapsed,
+					histogram_print_clear(read_histogram, elapsed_hist,
 							histogram_output);
 				}
 				fflush(histogram_output);

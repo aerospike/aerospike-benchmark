@@ -396,6 +396,11 @@ DEFINE_TCASE_DIFF(test_space_in_list, "I, [B12, S15]", "I4,[B12,S15]");
 DEFINE_TCASE_DIFF(test_space_map_after_key, "{S12 :I7}", "{S12:I7}");
 DEFINE_TCASE_DIFF(test_space_map_before_value, "{B8: D}", "{B8:D}");
 DEFINE_TCASE_DIFF(test_space_map_both, "{I2 : S1}", "{I2:S1}");
+DEFINE_TCASE_DIFF(test_space_mult_before, "4 *I, [ 3 *D, 2 *{3 *S10:B20}]", "4*I4,[3*D,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_after, "4* I, [3* D, 2* {3* S10:B20}]", "4*I4,[3*D,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_both, "4 * I, [3 * D, 2 * {3 * S10:B20}]", "4*I4,[3*D,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_list, "[ I, D, S20 ]", "[I4,D,S20]");
+DEFINE_TCASE_DIFF(test_space_map, "{ S20 : B10 }", "{S20:B10}");
 
 
 Suite*
@@ -655,6 +660,16 @@ obj_spec_suite(void)
 	tcase_add_test(tc_spacing, test_space_map_before_value_valid);
 	tcase_add_test(tc_spacing, test_space_map_both_str_cmp);
 	tcase_add_test(tc_spacing, test_space_map_both_valid);
+	tcase_add_test(tc_spacing, test_space_mult_before_str_cmp);
+	tcase_add_test(tc_spacing, test_space_mult_before_valid);
+	tcase_add_test(tc_spacing, test_space_mult_after_str_cmp);
+	tcase_add_test(tc_spacing, test_space_mult_after_valid);
+	tcase_add_test(tc_spacing, test_space_mult_both_str_cmp);
+	tcase_add_test(tc_spacing, test_space_mult_both_valid);
+	tcase_add_test(tc_spacing, test_space_list_str_cmp);
+	tcase_add_test(tc_spacing, test_space_list_valid);
+	tcase_add_test(tc_spacing, test_space_map_str_cmp);
+	tcase_add_test(tc_spacing, test_space_map_valid);
 	suite_add_tcase(s, tc_spacing);
 
 	return s;

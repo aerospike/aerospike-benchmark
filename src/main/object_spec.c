@@ -750,12 +750,18 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 				// a multiplier has been specified, expect a '*' next, followed by
 				// the bin_spec
 				str = endptr;
+				if (*str == ' ') {
+					str++;
+				}
 				if (*str != '*') {
 					_print_parse_error("Expect a '*' to follow a multiplier",
 							obj_spec_str, str);
 					goto _destroy_state;
 				}
 				str++;
+				if (*str == ' ') {
+					str++;
+				}
 			}
 			else {
 				// no multiplier has been specified, default to 1
@@ -855,6 +861,11 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 
 					str++;
 					state = list_state;
+
+					// allow a space after the '['
+					if (*str == ' ') {
+						str++;
+					}
 					continue;
 				}
 				case '{': {
@@ -875,6 +886,11 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 
 					str++;
 					state = map_state;
+
+					// allow a space after the '{'
+					if (*str == ' ') {
+						str++;
+					}
 					continue;
 				}
 				default:
@@ -904,11 +920,18 @@ _destroy_state:
 						str++;
 					}
 				}
-				else if (*str != delim) {
-					_print_parse_error("Expect ',' separating bin specifiers in a list",
-							obj_spec_str, str);
-					_destroy_consumer_states(state);
-					return -1;
+				else {
+					// allow a space before the ']'
+					if (*str == ' ') {
+						str++;
+					}
+
+					if (*str != delim) {
+						_print_parse_error("Expect ',' separating bin specifiers in a list",
+								obj_spec_str, str);
+						_destroy_consumer_states(state);
+						return -1;
+					}
 				}
 				break;
 			case CONSUMER_TYPE_MAP:
@@ -936,6 +959,10 @@ _destroy_state:
 						}
 						break;
 					case MAP_VAL:
+						// allow a space before the '}'
+						if (*str == ' ') {
+							str++;
+						}
 						if (*str != delim) {
 							_print_parse_error("Expect '}' after key/value "
 									"pair specifier in a map",
