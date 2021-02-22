@@ -282,6 +282,10 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 				ret = -1;
 			}
 		}
+		else {
+			stage->read_bins = NULL;
+			stage->n_read_bins = 0;
+		}
 
 		// now parse write bins
 		bins_str = stage_def->write_bins_str;
@@ -298,6 +302,10 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			if (stage->write_bins == NULL) {
 				ret = -1;
 			}
+		}
+		else {
+			stage->write_bins = NULL;
+			stage->n_write_bins = 0;
 		}
 	}
 
@@ -458,6 +466,34 @@ void stages_print(const stages_t* stages)
 		else {
 			printf("  write-bins: (null)\n");
 		}
+	}
+}
+
+void stages_print_defs(const stage_defs_t* stage_defs)
+{
+	for (uint32_t i = 0; i < stage_defs->n_stages; i++) {
+		const stage_def_t* stage = &stage_defs->stages[i];
+
+		printf( "- stage: %u\n"
+				"  duration: %lu\n"
+				"  desc: %s\n"
+				"  tps: %lu\n"
+				"  key-start: %lu\n"
+				"  key-end: %lu\n"
+				"  pause: %lu\n"
+				"  batch-size: %u\n"
+				"  async: %s\n"
+				"  random: %s\n"
+				"  workload: %s\n"
+				"  object-spec: %s\n"
+				"  read-bins: %s\n"
+				"  write-bins: %s\n",
+				i + 1, stage->duration, stage->desc, stage->tps,
+				stage->key_start, stage->key_end, stage->pause,
+				stage->batch_size, boolstring(stage->async),
+				boolstring(stage->random), stage->workload_str,
+				stage->obj_spec_str, stage->read_bins_str,
+				stage->write_bins_str);
 	}
 }
 

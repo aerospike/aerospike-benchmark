@@ -88,7 +88,7 @@ CC = cc
 AR = ar
 
 BUILD_CFLAGS = $(CFLAGS) -g
-TEST_CFLAGS = $(CFLAGS) -D_TEST -g
+TEST_CFLAGS = $(CFLAGS) -D_TEST
 
 ###############################################################################
 ##  OBJECTS                                                                  ##

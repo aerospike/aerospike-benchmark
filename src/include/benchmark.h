@@ -47,6 +47,7 @@ typedef struct args_s {
 	uint64_t start_key;
 	uint64_t keys;
 
+	struct stage_defs_s stage_defs;
 	struct stages_s stages;
 	char* workload_stages_file;
 

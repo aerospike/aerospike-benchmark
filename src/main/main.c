@@ -114,7 +114,7 @@ static struct option long_options[] = {
 static void print_usage(const char* program);
 static void print_args(args_t* args);
 static int validate_args(args_t* args);
-static stage_t* get_or_init_stage(args_t* args);
+static stage_def_t* get_or_init_stage(args_t* args);
 static int set_args(int argc, char * const* argv, args_t* args);
 static void _load_defaults(args_t* args);
 static int _load_defaults_post(args_t* args);
@@ -139,8 +139,6 @@ main(int argc, char * const * argv)
 	if (ret == 0) {
 		print_args(&args);
 		run_benchmark(&args);
-
-		free_workload_config(&args.stages);
 	}
 	else if (ret != -1) {
 		blog_line("Run with --help for usage information and flag options.");
@@ -508,7 +506,7 @@ print_args(args_t* args)
 	snprint_obj_spec(&args->obj_spec, buf, sizeof(buf));
 	blog_line("object spec:            %s", buf);
 
-	stages_print(&args->stages);
+	stages_print_defs(&args->stage_defs);
 
 	blog_line("threads:                %d", args->transaction_worker_threads);
 
@@ -764,20 +762,20 @@ validate_args(args_t* args)
 	return 0;
 }
 
-static stage_t*
+static stage_def_t*
 get_or_init_stage(args_t* args)
 {
-	if (args->stages.stages == NULL) {
-		args->stages.stages = (struct stage_s*) cf_calloc(1, sizeof(struct stage_s));
-		args->stages.n_stages = 1;
-		args->stages.valid = true;
+	if (args->stage_defs.stages == NULL) {
+		args->stage_defs.stages =
+			(struct stage_def_s*) cf_calloc(1, sizeof(struct stage_def_s));
+		args->stage_defs.n_stages = 1;
 
-		args->stages.stages[0].stage_idx = 1;
-		args->stages.stages[0].duration = -1LU;
-		args->stages.stages[0].key_start = -1LU;
-		args->stages.stages[0].key_end = -1LU;
+		args->stage_defs.stages[0].stage_idx = 1;
+		args->stage_defs.stages[0].duration = -1LU;
+		args->stage_defs.stages[0].key_start = -1LU;
+		args->stage_defs.stages[0].key_end = -1LU;
 	}
-	return &args->stages.stages[0];
+	return &args->stage_defs.stages[0];
 }
 
 static int
@@ -842,7 +840,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the random flag\n");
 					return -1;
 				}
-				struct stage_s* stage = get_or_init_stage(args);
+				struct stage_def_s* stage = get_or_init_stage(args);
 				stage->random = true;
 				break;
 
@@ -852,7 +850,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the duration flag\n");
 					return -1;
 				}
-				struct stage_s* stage = get_or_init_stage(args);
+				struct stage_def_s* stage = get_or_init_stage(args);
 				char* endptr;
 				stage->duration = strtoull(optarg, &endptr, 10);
 				if (*optarg == '\0' || *endptr != '\0') {
@@ -869,13 +867,13 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the workload flag\n");
 					return -1;
 				}
-				struct stage_s* stage = get_or_init_stage(args);
+				struct stage_def_s* stage = get_or_init_stage(args);
 				stage->workload_str = strdup(optarg);
 				break;
 			}
 
 			case '.': {
-				if (args->stages.stages != NULL) {
+				if (args->stage_defs.stages != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the workload flag\n");
 					return -1;
@@ -890,7 +888,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the readBins flag\n");
 					return -1;
 				}
-				struct stage_s* stage = get_or_init_stage(args);
+				struct stage_def_s* stage = get_or_init_stage(args);
 				stage->read_bins_str = strdup(optarg);
 				break;
 			}
@@ -901,7 +899,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the writeBins flag\n");
 					return -1;
 				}
-				struct stage_s* stage = get_or_init_stage(args);
+				struct stage_def_s* stage = get_or_init_stage(args);
 				stage->write_bins_str = strdup(optarg);
 				break;
 			}
@@ -916,7 +914,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the throughput flag\n");
 					return -1;
 				}
-				struct stage_s* stage = get_or_init_stage(args);
+				struct stage_def_s* stage = get_or_init_stage(args);
 				stage->tps = atoi(optarg);
 				break;
 			}
@@ -927,7 +925,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the workload flag\n");
 					return -1;
 				}
-				struct stage_s* stage = get_or_init_stage(args);
+				struct stage_def_s* stage = get_or_init_stage(args);
 				stage->batch_size = atoi(optarg);
 				break;
 			}
@@ -1102,7 +1100,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							"file and the async flag\n");
 					return -1;
 				}
-				struct stage_s* stage = get_or_init_stage(args);
+				struct stage_def_s* stage = get_or_init_stage(args);
 				stage->async = true;
 				break;
 			}
@@ -1190,7 +1188,7 @@ _load_defaults(args_t* args)
 	args->bin_name = "testbin";
 	args->start_key = 1;
 	args->keys = 1000000;
-	__builtin_memset(&args->stages, 0, sizeof(struct stages_s));
+	__builtin_memset(&args->stage_defs, 0, sizeof(struct stage_defs_s));
 	args->workload_stages_file = NULL;
 	obj_spec_parse(&args->obj_spec, "I");
 	args->transaction_worker_threads = 16;
@@ -1244,7 +1242,7 @@ _load_defaults_post(args_t* args)
 				&args->stages, args);
 	}
 	else {
-		struct stage_s* stage = get_or_init_stage(args);
+		struct stage_def_s* stage = get_or_init_stage(args);
 
 		stage->desc = strdup("default config (specify your own with "
 				"--workloadStages)");
@@ -1253,7 +1251,8 @@ _load_defaults_post(args_t* args)
 			stage->workload_str = strdup("RU");
 		}
 
-		res = stages_set_defaults_and_parse(&args->stages, args);
+		res = stages_set_defaults_and_parse(&args->stages, &args->stage_defs,
+				args);
 	}
 
 	return res;
