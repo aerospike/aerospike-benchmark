@@ -75,32 +75,32 @@ static void assert_workloads_eq(const stages_t* parsed,
 #define DEFINE_TEST(test_name, file_contents, stages_struct, obj_specs) \
 START_TEST(test_name) \
 { \
-	FILE* tmp = fopen(TMP_FILE_LOC "/test.yml", "w+");					\
-	ck_assert_ptr_ne(tmp, NULL);										\
-	stages_t expected = stages_struct;									\
-	stages_t parsed;													\
-	args_t args;														\
+	FILE* tmp = fopen(TMP_FILE_LOC "/test.yml", "w+"); \
+	ck_assert_ptr_ne(tmp, NULL); \
+	stages_t expected = stages_struct; \
+	stages_t parsed; \
+	args_t args; \
 	\
-	for (uint32_t i = 0; i < expected.n_stages; i++) {					\
-		ck_assert_int_eq(obj_spec_parse(&expected.stages[i].obj_spec,	\
-					(obj_specs)[i]), 0);								\
-	}																	\
+	for (uint32_t i = 0; i < expected.n_stages; i++) { \
+		ck_assert_int_eq(obj_spec_parse(&expected.stages[i].obj_spec, \
+					(obj_specs)[i]), 0); \
+	} \
 	\
-	args.start_key = 1;													\
-	args.keys = 100000;													\
-	args.bin_name = "testbin";											\
-	obj_spec_parse(&args.obj_spec, "I");								\
+	args.start_key = 1; \
+	args.keys = 100000; \
+	args.bin_name = "testbin"; \
+	obj_spec_parse(&args.obj_spec, "I"); \
 	\
-	fwrite(file_contents, 1, sizeof(file_contents) - 1,					\
-			tmp);														\
-	fclose(tmp);														\
-	ck_assert_int_eq(parse_workload_config_file(						\
-				TMP_FILE_LOC "/test.yml", &parsed,						\
-				&args), 0);												\
-	assert_workloads_eq(&parsed, &expected);							\
+	fwrite(file_contents, 1, sizeof(file_contents) - 1, \
+			tmp); \
+	fclose(tmp); \
+	ck_assert_int_eq(parse_workload_config_file( \
+				TMP_FILE_LOC "/test.yml", &parsed, \
+				&args), 0); \
+	assert_workloads_eq(&parsed, &expected); \
 	\
-	free_workload_config(&parsed);										\
-	remove(TMP_FILE_LOC "/test.yml");									\
+	free_workload_config(&parsed); \
+	remove(TMP_FILE_LOC "/test.yml"); \
 } \
 END_TEST
 
