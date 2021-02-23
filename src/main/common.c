@@ -88,22 +88,6 @@ int dec_display_len(size_t number)
 }
 
 void
-blog_line(const char* fmt, ...)
-{
-	char fmtbuf[1024];
-	size_t len = strlen(fmt);
-	memcpy(fmtbuf, fmt, len);
-	char* p = fmtbuf + len;
-	*p++ = '\n';
-	*p = 0;
-	
-	va_list ap;
-	va_start(ap, fmt);
-	vprintf(fmtbuf, ap);
-	va_end(ap);
-}
-
-void
 blog_detailv(as_log_level level, const char* fmt, va_list ap)
 {
 	// Write message all at once so messages generated from multiple threads
@@ -275,14 +259,14 @@ void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 	total_cnt = hdr_total_count(h);
 	min = hdr_min(h);
 	max = hdr_max(h);
-	fblog(out_file, "hdr: %-5s %.24s %lu, %lu, %ld, %ld", name,
+	fprintf(out_file, "hdr: %-5s %.24s %lu, %lu, %ld, %ld", name,
 			utc_time_str(time(NULL)), elapsed_s, total_cnt, min, max);
 	for (uint32_t i = 0; i < percentiles->size; i++) {
 		double p = *(double *) as_vector_get(percentiles, i);
 		uint64_t cnt = hdr_value_at_percentile(h, p);
-		fblog(out_file, ", %lu", cnt);
+		fprintf(out_file, ", %lu", cnt);
 	}
-	fblog(out_file, "\n");
+	fprintf(out_file, "\n");
 }
 
 

@@ -87,12 +87,9 @@ static inline void timespec_add_us(struct timespec* ts, uint64_t us)
 int dec_display_len(size_t number);
 
 
-void blog_line(const char* fmt, ...);
 void blog_detailv(as_log_level level, const char* fmt, va_list ap);
 void blog_detail(as_log_level level, const char* fmt, ...);
 
-#define blog(_fmt, ...) { printf(_fmt, ##__VA_ARGS__); }
-#define fblog(_file, _fmt, ...) { fprintf(_file, _fmt, ##__VA_ARGS__); }
 #define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
 #define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }
 

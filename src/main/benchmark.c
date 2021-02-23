@@ -156,7 +156,7 @@ as_client_log_cb(as_log_level level, const char* func, const char* file,
 	va_start(ap, fmt);
 	blog_detailv(level, fmt, ap);
 	va_end(ap);
-	blog_line("");
+	printf("\n");
 	return true;
 }
 

@@ -322,10 +322,10 @@ periodic_output_worker(void* udata)
 		blog_info("write(tps=%d timeouts=%d errors=%d) ",
 				write_tps, write_timeout_current, write_error_current);
 		if (has_reads) {
-			blog("read(tps=%d timeouts=%d errors=%d) ",
+			printf("read(tps=%d timeouts=%d errors=%d) ",
 					read_tps, read_timeout_current, read_error_current);
 		}
-		blog_line("total(tps=%d timeouts=%d errors=%d)",
+		printf("total(tps=%d timeouts=%d errors=%d)\n",
 				write_tps + read_tps, write_timeout_current + read_timeout_current,
 				write_error_current + read_error_current);
 

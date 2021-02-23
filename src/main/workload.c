@@ -396,7 +396,7 @@ void stage_random_pause(as_random* random, const stage_t* stage)
 		// generate a random pause amount between 1 and the specified pause
 		// amount
 		pause = gen_rand_range(random, pause) + 1;
-		blog_line("Pause for %u seconds", pause);
+		printf("Pause for %u seconds\n", pause);
 		as_sleep(pause * 1000LU);
 	}
 }

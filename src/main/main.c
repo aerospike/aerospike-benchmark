@@ -141,7 +141,7 @@ main(int argc, char * const * argv)
 		ret = run_benchmark(&args);
 	}
 	else if (ret != -1) {
-		blog_line("Run with --help for usage information and flag options.");
+		printf("Run with --help for usage information and flag options.\n");
 	}
 
 	obj_spec_free(&args.obj_spec);
@@ -168,401 +168,401 @@ main(int argc, char * const * argv)
 static void
 print_usage(const char* program)
 {
-	blog_line("Usage: %s <options>", program);
-	blog_line("options:");
-	blog_line("");
+	printf("Usage: %s <options>\n", program);
+	printf("options:\n");
+	printf("\n");
 
-	blog_line("   --help");
-	blog_line("   Prints this message");
-	blog_line("");
+	printf("   --help\n");
+	printf("   Prints this message\n");
+	printf("\n");
 
-	blog_line("-h --hosts <host1>[:<tlsname1>][:<port1>],...  # Default: localhost");
-	blog_line("   Server seed hostnames or IP addresses.");
-	blog_line("   The tlsname is only used when connecting with a secure TLS enabled server.");
-	blog_line("   If the port is not specified, the default port is used. Examples:");
-	blog_line("");
-	blog_line("   host1");
-	blog_line("   host1:3000,host2:3000");
-	blog_line("   192.168.1.10:cert1:3000,192.168.1.20:cert2:3000");
-	blog_line("");
+	printf("-h --hosts <host1>[:<tlsname1>][:<port1>],...  # Default: localhost\n");
+	printf("   Server seed hostnames or IP addresses.\n");
+	printf("   The tlsname is only used when connecting with a secure TLS enabled server.\n");
+	printf("   If the port is not specified, the default port is used. Examples:\n");
+	printf("\n");
+	printf("   host1\n");
+	printf("   host1:3000,host2:3000\n");
+	printf("   192.168.1.10:cert1:3000,192.168.1.20:cert2:3000\n");
+	printf("\n");
 
-	blog_line("-p --port <port> # Default: 3000");
-	blog_line("   Server default port.");
-	blog_line("");
+	printf("-p --port <port> # Default: 3000\n");
+	printf("   Server default port.\n");
+	printf("\n");
 
-	blog_line("-U --user <user name> # Default: empty");
-	blog_line("   User name for Aerospike servers that require authentication.");
-	blog_line("");
+	printf("-U --user <user name> # Default: empty\n");
+	printf("   User name for Aerospike servers that require authentication.\n");
+	printf("\n");
 
-	blog_line("-P[<password>]  # Default: empty");
-	blog_line("   User's password for Aerospike servers that require authentication.");
-	blog_line("   If -P is set, the actual password if optional. If the password is not given,");
-	blog_line("   the user will be prompted on the command line.");
-	blog_line("   If the password is given, it must be provided directly after -P with no");
-	blog_line("   intervening space (ie. -Pmypass).");
-	blog_line("");
+	printf("-P[<password>]  # Default: empty\n");
+	printf("   User's password for Aerospike servers that require authentication.\n");
+	printf("   If -P is set, the actual password if optional. If the password is not given,\n");
+	printf("   the user will be prompted on the command line.\n");
+	printf("   If the password is given, it must be provided directly after -P with no\n");
+	printf("   intervening space (ie. -Pmypass).\n");
+	printf("\n");
 
-	blog_line("-n --namespace <ns>   # Default: test");
-	blog_line("   Aerospike namespace.");
-	blog_line("");
+	printf("-n --namespace <ns>   # Default: test\n");
+	printf("   Aerospike namespace.\n");
+	printf("\n");
 
-	blog_line("-s --set <set name>   # Default: testset");
-	blog_line("   Aerospike set name.");
-	blog_line("");
+	printf("-s --set <set name>   # Default: testset\n");
+	printf("   Aerospike set name.\n");
+	printf("\n");
 
-	blog_line("   --workloadStages <path/to/workload_stages.yml>");
-	blog_line("   Accepts a path to a workload stages yml file, which should contain a list of");
-	blog_line("       workload stages to run through.");
-	blog_line("   Each stage must include:");
-	blog_line("     duration: in seconds");
-	blog_line("     workload: Workload type");
-	blog_line("   Optionally each stage should include:");
-	blog_line("     tps : max possible with 0 (default), or specified transactions per second");
-	blog_line("     object-spec: Object spec for the stage. Otherwise, inherits from the previous");
-	blog_line("         stage, with the first stage inheriting the global object spec.");
-	blog_line("     key-start: Key start, otherwise inheriting from the global context");
-	blog_line("     key-end: Key end, otherwise inheriting from the global context");
-	blog_line("     read-bins: Which bins to read if the workload includes reads");
-	blog_line("     pause: max number of seconds to pause before the stage starts. Waits a random");
-	blog_line("         number of seconds between 1 and the pause.");
-	blog_line("     async: when true/yes, uses asynchronous commands for this stage. Default is false");
-	blog_line("     random: when true/yes, randomly generates new objects for each write. Default is false");
-	blog_line("     batch-size: specifies the batch size of reads for this stage. Default is 1");
-	blog_line("");
+	printf("   --workloadStages <path/to/workload_stages.yml>\n");
+	printf("   Accepts a path to a workload stages yml file, which should contain a list of\n");
+	printf("       workload stages to run through.\n");
+	printf("   Each stage must include:\n");
+	printf("     duration: in seconds\n");
+	printf("     workload: Workload type\n");
+	printf("   Optionally each stage should include:\n");
+	printf("     tps : max possible with 0 (default), or specified transactions per second\n");
+	printf("     object-spec: Object spec for the stage. Otherwise, inherits from the previous\n");
+	printf("         stage, with the first stage inheriting the global object spec.\n");
+	printf("     key-start: Key start, otherwise inheriting from the global context\n");
+	printf("     key-end: Key end, otherwise inheriting from the global context\n");
+	printf("     read-bins: Which bins to read if the workload includes reads\n");
+	printf("     pause: max number of seconds to pause before the stage starts. Waits a random\n");
+	printf("         number of seconds between 1 and the pause.\n");
+	printf("     async: when true/yes, uses asynchronous commands for this stage. Default is false\n");
+	printf("     random: when true/yes, randomly generates new objects for each write. Default is false\n");
+	printf("     batch-size: specifies the batch size of reads for this stage. Default is 1\n");
+	printf("\n");
 
-	blog_line("-K --startKey <start> # Default: 0");
-	blog_line("   Set the starting value of the working set of keys. If using an");
-	blog_line("   'insert' workload, the start_value indicates the first value to");
-	blog_line("   write. Otherwise, the start_value indicates the smallest value in");
-	blog_line("   the working set of keys.");
-	blog_line("");
+	printf("-K --startKey <start> # Default: 0\n");
+	printf("   Set the starting value of the working set of keys. If using an\n");
+	printf("   'insert' workload, the start_value indicates the first value to\n");
+	printf("   write. Otherwise, the start_value indicates the smallest value in\n");
+	printf("   the working set of keys.\n");
+	printf("\n");
 
-	blog_line("-k --keys <count>     # Default: 1000000");
-	blog_line("   Set the number of keys the client is dealing with. If using an");
-	blog_line("   'insert' workload (detailed below), the client will write this");
-	blog_line("   number of keys, starting from value = startKey. Otherwise, the");
-	blog_line("   client will read and update randomly across the values between");
-	blog_line("   startKey and startKey + num_keys.  startKey can be set using");
-	blog_line("   '-K' or '--startKey'.");
-	blog_line("");
+	printf("-k --keys <count>     # Default: 1000000\n");
+	printf("   Set the number of keys the client is dealing with. If using an\n");
+	printf("   'insert' workload (detailed below), the client will write this\n");
+	printf("   number of keys, starting from value = startKey. Otherwise, the\n");
+	printf("   client will read and update randomly across the values between\n");
+	printf("   startKey and startKey + num_keys.  startKey can be set using\n");
+	printf("   '-K' or '--startKey'.\n");
+	printf("\n");
 
-	blog_line("-o --objectSpec describes a comma-separated bin specification");
-	blog_line("   Scalar bins:");
-	blog_line("      I<bytes> | B<size> | S<length> | D # Default: I");
-	blog_line("");
-	blog_line("      I) Generate an integer bin or value in a specific byte range");
-	blog_line("            (treat I as I4)");
-	blog_line("         I1 for 0 - 255");
-	blog_line("         I2 for 256 - 65535");
-	blog_line("         I3 for 65536 - 2**24-1");
-	blog_line("         I4 for 2**24 - 2**32-1");
-	blog_line("         I5 for 2**32 - 2**40-1");
-	blog_line("         I6 for 2**40 - 2**48-1");
-	blog_line("         I7 for 2**48 - 2**56-1");
-	blog_line("         I8 for 2**56 - 2**64-1");
-	blog_line("      B) Generate a bytes bin or value with an bytearray of random bytes");
-	blog_line("         B12 - generates a bytearray of 12 random bytes");
-	blog_line("      S) Generate a string bin or value made of space-separated a-z{1,9} words");
-	blog_line("         S16 - a string with a 16 character length. ex: \"uir a mskd poiur\"");
-	blog_line("      D) Generate a Double bin or value (8 byte)");
-	blog_line("");
-	blog_line("   Collection bins:");
-	blog_line("      [] - a list");
-	blog_line("         [3*I2] - ex: [312, 1651, 756]");
-	blog_line("         [I2, S4, I2] - ex: [892, \"sf8h\", 8712]");
-	blog_line("         [2*S12, 3*I1] - ex: [\"bf90wek1a0cv\", \"pl3k2dkfi0sn\", 18, 109, 212]");
-	blog_line("         [3*[I1, I1]] - ex: [[1,11],[123,221],[78,241]]");
-	blog_line("");
-	blog_line("      {} - a map");
-	blog_line("         {5*S1:I1} - ex {\"a\":1, \"b\":2, \"d\":4, \"z\":26, \"e\":5}");
-	blog_line("         {2*S1:[3*I:1]} - ex {\"a\": [1,2,3], \"b\": [6,7,8]}");
-	blog_line("");
-	blog_line("   Example:");
-	blog_line("      -o I2,S12,[3*I1] => b1: 478; b2: \"a09dfwu3ji2r\"; b3: [12, 45, 209])");
-	blog_line("");
+	printf("-o --objectSpec describes a comma-separated bin specification\n");
+	printf("   Scalar bins:\n");
+	printf("      I<bytes> | B<size> | S<length> | D # Default: I\n");
+	printf("\n");
+	printf("      I) Generate an integer bin or value in a specific byte range\n");
+	printf("            (treat I as I4)\n");
+	printf("         I1 for 0 - 255\n");
+	printf("         I2 for 256 - 65535\n");
+	printf("         I3 for 65536 - 2**24-1\n");
+	printf("         I4 for 2**24 - 2**32-1\n");
+	printf("         I5 for 2**32 - 2**40-1\n");
+	printf("         I6 for 2**40 - 2**48-1\n");
+	printf("         I7 for 2**48 - 2**56-1\n");
+	printf("         I8 for 2**56 - 2**64-1\n");
+	printf("      B) Generate a bytes bin or value with an bytearray of random bytes\n");
+	printf("         B12 - generates a bytearray of 12 random bytes\n");
+	printf("      S) Generate a string bin or value made of space-separated a-z{1,9} words\n");
+	printf("         S16 - a string with a 16 character length. ex: \"uir a mskd poiur\"\n");
+	printf("      D) Generate a Double bin or value (8 byte)\n");
+	printf("\n");
+	printf("   Collection bins:\n");
+	printf("      [] - a list\n");
+	printf("         [3*I2] - ex: [312, 1651, 756]\n");
+	printf("         [I2, S4, I2] - ex: [892, \"sf8h\", 8712]\n");
+	printf("         [2*S12, 3*I1] - ex: [\"bf90wek1a0cv\", \"pl3k2dkfi0sn\", 18, 109, 212]\n");
+	printf("         [3*[I1, I1]] - ex: [[1,11],[123,221],[78,241]]\n");
+	printf("\n");
+	printf("      {} - a map\n");
+	printf("         {5*S1:I1} - ex {\"a\":1, \"b\":2, \"d\":4, \"z\":26, \"e\":5}\n");
+	printf("         {2*S1:[3*I:1]} - ex {\"a\": [1,2,3], \"b\": [6,7,8]}\n");
+	printf("\n");
+	printf("   Example:\n");
+	printf("      -o I2,S12,[3*I1] => b1: 478; b2: \"a09dfwu3ji2r\"; b3: [12, 45, 209])\n");
+	printf("\n");
 
-	blog_line("   --readBins        # Default: all bins");
-	blog_line("   Specifies which bins from the object-spec to load from the database on read ");
-	blog_line("   transactions. Must be given as a comma-separated list of bin numbers, ");
-	blog_line("   starting from 1 (i.e. \"1,3,4,6\".");
-	blog_line("");
+	printf("   --readBins        # Default: all bins\n");
+	printf("   Specifies which bins from the object-spec to load from the database on read \n");
+	printf("   transactions. Must be given as a comma-separated list of bin numbers, \n");
+	printf("   starting from 1 (i.e. \"1,3,4,6\".\n");
+	printf("\n");
 
-	blog_line("   --writeBins        # Default: all bins");
-	blog_line("   Specifies which bins from the object-spec to generate and store in the ");
-	blog_line("   database on write transactions. Must be given as a comma-separated list ");
-	blog_line("   of bin numbers, starting from 1 (i.e. \"1,3,4,6\".");
-	blog_line("");
+	printf("   --writeBins        # Default: all bins\n");
+	printf("   Specifies which bins from the object-spec to generate and store in the \n");
+	printf("   database on write transactions. Must be given as a comma-separated list \n");
+	printf("   of bin numbers, starting from 1 (i.e. \"1,3,4,6\".\n");
+	printf("\n");
 
-	blog_line("-R --random          # Default: static fixed bin values");
-	blog_line("   Use dynamically generated random bin values instead of default static fixed bin values.");
-	blog_line("");
+	printf("-R --random          # Default: static fixed bin values\n");
+	printf("   Use dynamically generated random bin values instead of default static fixed bin values.\n");
+	printf("\n");
 
-	blog_line("-t --duration        # Default: 10s (for random read/write workload)");
-	blog_line("    Specifies the minimum amount of time the benchmark will run for.");
-	blog_line("");
+	printf("-t --duration        # Default: 10s (for random read/write workload)\n");
+	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
+	printf("\n");
 
-	blog_line("-w --workload I,<percent> | RU,<read percent> | DB  # Default: RU,50");
-	blog_line("   Desired workload.");
-	blog_line("   -w I,60  : Linear 'insert' workload initializing 60%% of the keys.");
-	blog_line("   -w RU,80 : Random read/update workload with 80%% reads and 20%% writes.");
-	blog_line("   -w DB    : Bin delete workload.");
-	blog_line("");
+	printf("-w --workload I,<percent> | RU,<read percent> | DB  # Default: RU,50\n");
+	printf("   Desired workload.\n");
+	printf("   -w I,60  : Linear 'insert' workload initializing 60%% of the keys.\n");
+	printf("   -w RU,80 : Random read/update workload with 80%% reads and 20%% writes.\n");
+	printf("   -w DB    : Bin delete workload.\n");
+	printf("\n");
 
-	blog_line("-z --threads <count> # Default: 16");
-	blog_line("   Load generating thread count.");
-	blog_line("");
+	printf("-z --threads <count> # Default: 16\n");
+	printf("   Load generating thread count.\n");
+	printf("\n");
 
-	blog_line("-g --throughput <tps> # Default: 0");
-	blog_line("   Throttle transactions per second to a maximum value.");
-	blog_line("   If tps is zero, do not throttle throughput.");
-	blog_line("   Used in read/write mode only.");
-	blog_line("");
+	printf("-g --throughput <tps> # Default: 0\n");
+	printf("   Throttle transactions per second to a maximum value.\n");
+	printf("   If tps is zero, do not throttle throughput.\n");
+	printf("   Used in read/write mode only.\n");
+	printf("\n");
 
-	blog_line("   --batchSize <size> # Default: 0");
-	blog_line("   Enable batch mode with number of records to process in each batch get call.");
-	blog_line("   Batch mode is valid only for RU (read update) workloads. Batch mode is disabled by default.");
-	blog_line("");
+	printf("   --batchSize <size> # Default: 0\n");
+	printf("   Enable batch mode with number of records to process in each batch get call.\n");
+	printf("   Batch mode is valid only for RU (read update) workloads. Batch mode is disabled by default.\n");
+	printf("\n");
 
-	blog_line("   --compress");
-	blog_line("   Enable binary data compression through the aerospike client.");
-	blog_line("   Internally, this sets the compression policy to true.");
-	blog_line("");
+	printf("   --compress\n");
+	printf("   Enable binary data compression through the aerospike client.\n");
+	printf("   Internally, this sets the compression policy to true.\n");
+	printf("\n");
 
-	blog_line("   --compressionRatio <ratio> # Default: 1");
-	blog_line("   Sets the desired compression ratio for binary data.");
-	blog_line("   Causes the benchmark tool to generate data which will roughly compress by this proportion.");
-	blog_line("");
+	printf("   --compressionRatio <ratio> # Default: 1\n");
+	printf("   Sets the desired compression ratio for binary data.\n");
+	printf("   Causes the benchmark tool to generate data which will roughly compress by this proportion.\n");
+	printf("\n");
 
-	blog_line("   --socketTimeout <ms> # Default: 30000");
-	blog_line("   Read/Write socket timeout in milliseconds.");
-	blog_line("");
+	printf("   --socketTimeout <ms> # Default: 30000\n");
+	printf("   Read/Write socket timeout in milliseconds.\n");
+	printf("\n");
 
-	blog_line("   --readSocketTimeout <ms> # Default: 30000");
-	blog_line("   Read socket timeout in milliseconds.");
-	blog_line("");
+	printf("   --readSocketTimeout <ms> # Default: 30000\n");
+	printf("   Read socket timeout in milliseconds.\n");
+	printf("\n");
 
-	blog_line("   --writeSocketTimeout <ms> # Default: 30000");
-	blog_line("   Write socket timeout in milliseconds.");
-	blog_line("");
+	printf("   --writeSocketTimeout <ms> # Default: 30000\n");
+	printf("   Write socket timeout in milliseconds.\n");
+	printf("\n");
 
-	blog_line("-T --timeout <ms>    # Default: 0");
-	blog_line("   Read/Write total timeout in milliseconds.");
-	blog_line("");
+	printf("-T --timeout <ms>    # Default: 0\n");
+	printf("   Read/Write total timeout in milliseconds.\n");
+	printf("\n");
 
-	blog_line("   --readTimeout <ms> # Default: 0");
-	blog_line("   Read total timeout in milliseconds.");
-	blog_line("");
+	printf("   --readTimeout <ms> # Default: 0\n");
+	printf("   Read total timeout in milliseconds.\n");
+	printf("\n");
 
-	blog_line("   --writeTimeout <ms> # Default: 0");
-	blog_line("   Write total timeout in milliseconds.");
-	blog_line("");
+	printf("   --writeTimeout <ms> # Default: 0\n");
+	printf("   Write total timeout in milliseconds.\n");
+	printf("\n");
 
-	blog_line("   --maxRetries <number> # Default: 1");
-	blog_line("   Maximum number of retries before aborting the current transaction.");
-	blog_line("");
+	printf("   --maxRetries <number> # Default: 1\n");
+	printf("   Maximum number of retries before aborting the current transaction.\n");
+	printf("\n");
 
-	blog_line("-d --debug           # Default: debug mode is false.");
-	blog_line("   Run benchmarks in debug mode.");
-	blog_line("");
+	printf("-d --debug           # Default: debug mode is false.\n");
+	printf("   Run benchmarks in debug mode.\n");
+	printf("\n");
 
-	blog_line("-L --latency");
-	blog_line("   Enables the periodic HDR histogram summary of latency data.");
-	blog_line("");
+	printf("-L --latency\n");
+	printf("   Enables the periodic HDR histogram summary of latency data.\n");
+	printf("\n");
 
-	blog_line("   --percentiles <p1>[,<p2>[,<p3>...]] # Default: \"50,90,99,99.9,99.99\".");
-	blog_line("   Specifies the latency percentiles to display in the periodic latency");
-	blog_line("   histogram.");
-	blog_line("");
+	printf("   --percentiles <p1>[,<p2>[,<p3>...]] # Default: \"50,90,99,99.9,99.99\".\n");
+	printf("   Specifies the latency percentiles to display in the periodic latency\n");
+	printf("   histogram.\n");
+	printf("\n");
 
-	blog_line("   --outputFile  # Default: stdout");
-	blog_line("   Specifies an output file to write periodic latency data, which enables");
-	blog_line("   the tracking of transaction latencies in microseconds in a histogram.");
-	blog_line("   Currently uses the default layout.");
-	blog_line("   The file is opened in append mode.");
-	blog_line("");
+	printf("   --outputFile  # Default: stdout\n");
+	printf("   Specifies an output file to write periodic latency data, which enables\n");
+	printf("   the tracking of transaction latencies in microseconds in a histogram.\n");
+	printf("   Currently uses the default layout.\n");
+	printf("   The file is opened in append mode.\n");
+	printf("\n");
 
-	blog_line("   --outputPeriod  # Default: 1s");
-	blog_line("   Specifies the period between successive snapshots of the periodic");
-	blog_line("   latency histogram.");
-	blog_line("");
+	printf("   --outputPeriod  # Default: 1s\n");
+	printf("   Specifies the period between successive snapshots of the periodic\n");
+	printf("   latency histogram.\n");
+	printf("\n");
 
-	blog_line("   --hdrHist=<path/to/output>  # Default: off");
-	blog_line("   Enables the cumulative HDR histogram and specifies the directory to");
-	blog_line("   dump the cumulative HDR histogram summary.");
-	blog_line("");
+	printf("   --hdrHist=<path/to/output>  # Default: off\n");
+	printf("   Enables the cumulative HDR histogram and specifies the directory to\n");
+	printf("   dump the cumulative HDR histogram summary.\n");
+	printf("\n");
 
-	blog_line("-S --shared          # Default: false");
-	blog_line("   Use shared memory cluster tending.");
-	blog_line("");
+	printf("-S --shared          # Default: false\n");
+	printf("   Use shared memory cluster tending.\n");
+	printf("\n");
 
-	blog_line("-C --replica {master,any,sequence} # Default: master");
-	blog_line("   Which replica to use for reads.");
-	blog_line("");
+	printf("-C --replica {master,any,sequence} # Default: master\n");
+	printf("   Which replica to use for reads.\n");
+	printf("\n");
 
-	blog_line("-N --readModeAP {one,all} # Default: one");
-	blog_line("   Read mode for AP (availability) namespaces.");
-	blog_line("");
+	printf("-N --readModeAP {one,all} # Default: one\n");
+	printf("   Read mode for AP (availability) namespaces.\n");
+	printf("\n");
 
-	blog_line("-B --readModeSC {session,linearize,allowReplica,allowUnavailable} # Default: session");
-	blog_line("   Read mode for SC (strong consistency) namespaces.");
-	blog_line("");
+	printf("-B --readModeSC {session,linearize,allowReplica,allowUnavailable} # Default: session\n");
+	printf("   Read mode for SC (strong consistency) namespaces.\n");
+	printf("\n");
 
-	blog_line("-M --commitLevel {all,master} # Default: all");
-	blog_line("   Write commit guarantee level.");
-	blog_line("");
+	printf("-M --commitLevel {all,master} # Default: all\n");
+	printf("   Write commit guarantee level.\n");
+	printf("\n");
 
-	blog_line("-Y --connPoolsPerNode <num>  # Default: 1");
-	blog_line("   Number of connection pools per node.");
-	blog_line("");
+	printf("-Y --connPoolsPerNode <num>  # Default: 1\n");
+	printf("   Number of connection pools per node.\n");
+	printf("\n");
 
-	blog_line("-D --durableDelete  # Default: durableDelete mode is false.");
-	blog_line("   All transactions will set the durable-delete flag which indicates");
-	blog_line("   to the server that if the transaction results in a delete, to generate");
-	blog_line("   a tombstone for the deleted record.");
-	blog_line("");
+	printf("-D --durableDelete  # Default: durableDelete mode is false.\n");
+	printf("   All transactions will set the durable-delete flag which indicates\n");
+	printf("   to the server that if the transaction results in a delete, to generate\n");
+	printf("   a tombstone for the deleted record.\n");
+	printf("\n");
 
-	blog_line("-a --async # Default: synchronous mode");
-	blog_line("   Enable asynchronous mode.");
-	blog_line("");
+	printf("-a --async # Default: synchronous mode\n");
+	printf("   Enable asynchronous mode.\n");
+	printf("\n");
 
-	blog_line("-c --asyncMaxCommands <command count> # Default: 50");
-	blog_line("   Maximum number of concurrent asynchronous commands that are active at any point");
-	blog_line("   in time.");
-	blog_line("");
+	printf("-c --asyncMaxCommands <command count> # Default: 50\n");
+	printf("   Maximum number of concurrent asynchronous commands that are active at any point\n");
+	printf("   in time.\n");
+	printf("\n");
 
-	blog_line("-W --eventLoops <thread count> # Default: 1");
-	blog_line("   Number of event loops (or selector threads) when running in asynchronous mode.");
-	blog_line("");
+	printf("-W --eventLoops <thread count> # Default: 1\n");
+	printf("   Number of event loops (or selector threads) when running in asynchronous mode.\n");
+	printf("\n");
 
-	blog_line("   --tlsEnable         # Default: TLS disabled");
-	blog_line("   Enable TLS.");
-	blog_line("");
+	printf("   --tlsEnable         # Default: TLS disabled\n");
+	printf("   Enable TLS.\n");
+	printf("\n");
 
-	blog_line("   --tlsCaFile <path>");
-	blog_line("   Set the TLS certificate authority file.");
-	blog_line("");
+	printf("   --tlsCaFile <path>\n");
+	printf("   Set the TLS certificate authority file.\n");
+	printf("\n");
 
-	blog_line("   --tlsCaPath <path>");
-	blog_line("   Set the TLS certificate authority directory.");
-	blog_line("");
+	printf("   --tlsCaPath <path>\n");
+	printf("   Set the TLS certificate authority directory.\n");
+	printf("\n");
 
-	blog_line("   --tlsProtocols <protocols>");
-	blog_line("   Set the TLS protocol selection criteria.");
-	blog_line("");
+	printf("   --tlsProtocols <protocols>\n");
+	printf("   Set the TLS protocol selection criteria.\n");
+	printf("\n");
 
-	blog_line("   --tlsCipherSuite <suite>");
-	blog_line("   Set the TLS cipher selection criteria.");
-	blog_line("");
+	printf("   --tlsCipherSuite <suite>\n");
+	printf("   Set the TLS cipher selection criteria.\n");
+	printf("\n");
 
-	blog_line("   --tlsCrlCheck");
-	blog_line("   Enable CRL checking for leaf certs.");
-	blog_line("");
+	printf("   --tlsCrlCheck\n");
+	printf("   Enable CRL checking for leaf certs.\n");
+	printf("\n");
 
-	blog_line("   --tlsCrlCheckAll");
-	blog_line("   Enable CRL checking for all certs.");
-	blog_line("");
+	printf("   --tlsCrlCheckAll\n");
+	printf("   Enable CRL checking for all certs.\n");
+	printf("\n");
 
-	blog_line("   --tlsCertBlackList <path>");
-	blog_line("   Path to a certificate blacklist file.");
-	blog_line("");
+	printf("   --tlsCertBlackList <path>\n");
+	printf("   Path to a certificate blacklist file.\n");
+	printf("\n");
 
-	blog_line("   --tlsLogSessionInfo");
-	blog_line("   Log TLS connected session info.");
-	blog_line("");
+	printf("   --tlsLogSessionInfo\n");
+	printf("   Log TLS connected session info.\n");
+	printf("\n");
 
-	blog_line("   --tlsKeyFile <path>");
-	blog_line("   Set the TLS client key file for mutual authentication.");
-	blog_line("");
+	printf("   --tlsKeyFile <path>\n");
+	printf("   Set the TLS client key file for mutual authentication.\n");
+	printf("\n");
 
-	blog_line("   --tlsCertFile <path>");
-	blog_line("   Set the TLS client certificate chain file for mutual authentication.");
-	blog_line("");
+	printf("   --tlsCertFile <path>\n");
+	printf("   Set the TLS client certificate chain file for mutual authentication.\n");
+	printf("\n");
 
-	blog_line("   --tlsLoginOnly");
-	blog_line("   Use TLS for node login only.");
-	blog_line("");
+	printf("   --tlsLoginOnly\n");
+	printf("   Use TLS for node login only.\n");
+	printf("\n");
 
-	blog_line("   --auth {INTERNAL,EXTERNAL,EXTERNAL_SECURE} # Default: INTERNAL");
-	blog_line("   Set authentication mode when user/password is defined.");
-	blog_line("");
+	printf("   --auth {INTERNAL,EXTERNAL,EXTERNAL_SECURE} # Default: INTERNAL\n");
+	printf("   Set authentication mode when user/password is defined.\n");
+	printf("\n");
 
-	blog_line("-u --usage           # Default: usage not printed.");
-	blog_line("   Display program usage.");
-	blog_line("");
+	printf("-u --usage           # Default: usage not printed.\n");
+	printf("   Display program usage.\n");
+	printf("\n");
 }
 
 static void
 print_args(args_t* args)
 {
-	blog_line("hosts:                  %s", args->hosts);
-	blog_line("port:                   %d", args->port);
-	blog_line("user:                   %s", args->user);
-	blog_line("namespace:              %s", args->namespace);
-	blog_line("set:                    %s", args->set);
-	blog_line("startKey:               %" PRIu64, args->start_key);
-	blog_line("keys/records:           %" PRIu64, args->keys);
+	printf("hosts:                  %s\n", args->hosts);
+	printf("port:                   %d\n", args->port);
+	printf("user:                   %s\n", args->user);
+	printf("namespace:              %s\n", args->namespace);
+	printf("set:                    %s\n", args->set);
+	printf("startKey:               %lu\n" PRIu64, args->start_key);
+	printf("keys/records:           %lu\n" PRIu64, args->keys);
 
 	char buf[1024];
 	snprint_obj_spec(&args->obj_spec, buf, sizeof(buf));
-	blog_line("object spec:            %s", buf);
+	printf("object spec:            %s\n", buf);
 
 	stages_print(&args->stages);
 
-	blog_line("threads:                %d", args->transaction_worker_threads);
+	printf("threads:                %d\n", args->transaction_worker_threads);
 
-	blog_line("enable compression:     %s", boolstring(args->enable_compression));
+	printf("enable compression:     %s\n", boolstring(args->enable_compression));
 	if (args->enable_compression) {
-		blog_line("compression ratio:      %f", args->compression_ratio);
+		printf("compression ratio:      %f\n", args->compression_ratio);
 	}
-	blog_line("read socket timeout:    %d ms", args->read_socket_timeout);
-	blog_line("write socket timeout:   %d ms", args->write_socket_timeout);
-	blog_line("read total timeout:     %d ms", args->read_total_timeout);
-	blog_line("write total timeout:    %d ms", args->write_total_timeout);
-	blog_line("max retries:            %d", args->max_retries);
-	blog_line("debug:                  %s", boolstring(args->debug));
+	printf("read socket timeout:    %d ms\n", args->read_socket_timeout);
+	printf("write socket timeout:   %d ms\n", args->write_socket_timeout);
+	printf("read total timeout:     %d ms\n", args->read_total_timeout);
+	printf("write total timeout:    %d ms\n", args->write_total_timeout);
+	printf("max retries:            %d\n", args->max_retries);
+	printf("debug:                  %s\n", boolstring(args->debug));
 
 	if (args->latency) {
-		blog_line("latency:                %d columns, shift exponent %d",
+		printf("latency:                %d columns, shift exponent %d\n",
 				args->latency_columns, args->latency_shift);
 
-		blog("hdr histogram format:   UTC-time, seconds-running, total, "
+		printf("hdr histogram format:   UTC-time, seconds-running, total, "
 				"min-latency, max-latency, ");
 		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
 			if (i == 0) {
-				blog("%g%%",
+				printf("%g%%",
 						*(double*) as_vector_get(&args->latency_percentiles, i));
 			}
 			else {
-				blog(",%g%%",
+				printf(",%g%%",
 						*(double*) as_vector_get(&args->latency_percentiles, i));
 			}
 		}
-		blog_line("");
-		blog_line("latency period:         %ds", args->histogram_period);
+		printf("\n");
+		printf("latency period:         %ds\n", args->histogram_period);
 	}
 	else {
-		blog_line("latency:                false");
+		printf("latency:                false\n");
 	}
 
 	if (args->latency_histogram) {
-		blog_line("latency histogram:      true");
-		blog_line("histogram output file:  %s",
+		printf("latency histogram:      true\n");
+		printf("histogram output file:  %s\n",
 				(args->histogram_output ? args->histogram_output : "stdout"));
-		blog_line("histogram period:       %ds", args->histogram_period);
+		printf("histogram period:       %ds\n", args->histogram_period);
 	}
 	else {
-		blog_line("latency histogram:      false");
+		printf("latency histogram:      false\n");
 	}
 
 	if (args->hdr_output) {
-		blog_line("cumulative HDR hist:    true");
-		blog_line("cumulative HDR output:  %s", args->hdr_output);
+		printf("cumulative HDR hist:    true\n");
+		printf("cumulative HDR output:  %s\n", args->hdr_output);
 	}
 	else {
-		blog_line("cumulative HDR hist:    false");
+		printf("cumulative HDR hist:    false\n");
 	}
 
-	blog_line("shared memory:          %s", boolstring(args->use_shm));
+	printf("shared memory:          %s\n", boolstring(args->use_shm));
 
 	const char* str;
 	switch (args->replica) {
@@ -580,8 +580,8 @@ print_args(args_t* args)
 			break;
 	}
 
-	blog_line("read replica:           %s", str);
-	blog_line("read mode AP:           %s",
+	printf("read replica:           %s\n", str);
+	printf("read mode AP:           %s\n",
 			(AS_POLICY_READ_MODE_AP_ONE == args->read_mode_ap ? "one" : "all"));
 
 	switch (args->read_mode_sc) {
@@ -602,28 +602,28 @@ print_args(args_t* args)
 			break;
 	}
 
-	blog_line("read mode SC:           %s", str);
-	blog_line("write commit level:     %s",
+	printf("read mode SC:           %s\n", str);
+	printf("write commit level:     %s\n",
 			(AS_POLICY_COMMIT_LEVEL_ALL == args->write_commit_level ?
 			 "all" : "master"));
-	blog_line("conn pools per node:    %d", args->conn_pools_per_node);
+	printf("conn pools per node:    %d\n", args->conn_pools_per_node);
 
-	blog_line("async max commands:     %d", args->async_max_commands);
-	blog_line("event loops:            %d", args->event_loop_capacity);
+	printf("async max commands:     %d\n", args->async_max_commands);
+	printf("event loops:            %d\n", args->event_loop_capacity);
 
 	if (args->tls.enable) {
-		blog_line("TLS:                    enabled");
-		blog_line("TLS cafile:             %s", args->tls.cafile);
-		blog_line("TLS capath:             %s", args->tls.capath);
-		blog_line("TLS protocols:          %s", args->tls.protocols);
-		blog_line("TLS cipher suite:       %s", args->tls.cipher_suite);
-		blog_line("TLS crl check:          %s", boolstring(args->tls.crl_check));
-		blog_line("TLS crl check all:      %s", boolstring(args->tls.crl_check_all));
-		blog_line("TLS cert blacklist:     %s", args->tls.cert_blacklist);
-		blog_line("TLS log session info:   %s", boolstring(args->tls.log_session_info));
-		blog_line("TLS keyfile:            %s", args->tls.keyfile);
-		blog_line("TLS certfile:           %s", args->tls.certfile);
-		blog_line("TLS login only:         %s", boolstring(args->tls.for_login_only));
+		printf("TLS:                    enabled\n");
+		printf("TLS cafile:             %s\n", args->tls.cafile);
+		printf("TLS capath:             %s\n", args->tls.capath);
+		printf("TLS protocols:          %s\n", args->tls.protocols);
+		printf("TLS cipher suite:       %s\n", args->tls.cipher_suite);
+		printf("TLS crl check:          %s\n", boolstring(args->tls.crl_check));
+		printf("TLS crl check all:      %s\n", boolstring(args->tls.crl_check_all));
+		printf("TLS cert blacklist:     %s\n", args->tls.cert_blacklist);
+		printf("TLS log session info:   %s\n", boolstring(args->tls.log_session_info));
+		printf("TLS keyfile:            %s\n", args->tls.keyfile);
+		printf("TLS certfile:           %s\n", args->tls.certfile);
+		printf("TLS login only:         %s\n", boolstring(args->tls.for_login_only));
 	}
 
 	char* s;
@@ -641,72 +641,72 @@ print_args(args_t* args)
 			s = "unknown";
 			break;
 	}
-	blog_line("auth mode:              %s", s);
+	printf("auth mode:              %s\n", s);
 }
 
 static int
 validate_args(args_t* args)
 {
 	if (args->start_key == ULLONG_MAX) {
-		blog_line("Invalid start key: %" PRIu64, args->start_key);
+		printf("Invalid start key: %lu\n" PRIu64, args->start_key);
 		return 1;
 	}
 
 	if (args->keys == ULLONG_MAX) {
-		blog_line("Invalid number of keys: %" PRIu64, args->keys);
+		printf("Invalid number of keys: %lu\n" PRIu64, args->keys);
 		return 1;
 	}
 
 	if (args->transaction_worker_threads <= 0 ||
 			args->transaction_worker_threads > 10000) {
-		blog_line("Invalid number of threads: %d  Valid values: [1-10000]",
+		printf("Invalid number of threads: %d  Valid values: [1-10000]\n",
 				args->transaction_worker_threads);
 		return 1;
 	}
 
 	if (!args->enable_compression && args->compression_ratio != 1.f) {
-		blog_line("Compression ratio specified without enabling compression, "
+		printf("Compression ratio specified without enabling compression, \n"
 				"add the --compress option when running");
 		return 1;
 	}
 
 	if (args->compression_ratio < 0.001 || args->compression_ratio > 1) {
-		blog_line("Compression ratio must be in the range [0.001, 1]\n");
+		printf("Compression ratio must be in the range [0.001, 1]\n\n");
 		return 1;
 	}
 
 	if (args->read_socket_timeout < 0) {
-		blog_line("Invalid read socket timeout: %d  Valid values: [>= 0]",
+		printf("Invalid read socket timeout: %d  Valid values: [>= 0]\n",
 				args->read_socket_timeout);
 		return 1;
 	}
 
 	if (args->write_socket_timeout < 0) {
-		blog_line("Invalid write socket timeout: %d  Valid values: [>= 0]",
+		printf("Invalid write socket timeout: %d  Valid values: [>= 0]\n",
 				args->write_socket_timeout);
 		return 1;
 	}
 
 	if (args->read_total_timeout < 0) {
-		blog_line("Invalid read total timeout: %d  Valid values: [>= 0]",
+		printf("Invalid read total timeout: %d  Valid values: [>= 0]\n",
 				args->read_total_timeout);
 		return 1;
 	}
 
 	if (args->write_total_timeout < 0) {
-		blog_line("Invalid write total timeout: %d  Valid values: [>= 0]",
+		printf("Invalid write total timeout: %d  Valid values: [>= 0]\n",
 				args->write_total_timeout);
 		return 1;
 	}
 
 	if (args->latency_columns < 0 || args->latency_columns > 16) {
-		blog_line("Invalid latency columns: %d  Valid values: [1-16]",
+		printf("Invalid latency columns: %d  Valid values: [1-16]\n",
 				args->latency_columns);
 		return 1;
 	}
 
 	if (args->latency_shift < 0 || args->latency_shift > 5) {
-		blog_line("Invalid latency shift: %d  Valid values: [1-5]",
+		printf("Invalid latency shift: %d  Valid values: [1-5]\n",
 				args->latency_shift);
 		return 1;
 	}
@@ -722,7 +722,7 @@ validate_args(args_t* args)
 		for (uint32_t i = 0; i < perc->size; i++) {
 			double itm = *(double*) as_vector_get(perc, i);
 			if (itm < 0 || itm >= 100) {
-				blog_line("Invalid percentile \"%f\"\n", itm);
+				printf("Invalid percentile \"%f\"\n", itm);
 				return 1;
 			}
 		}
@@ -730,7 +730,7 @@ validate_args(args_t* args)
 			double l = *(double*) as_vector_get(perc, i - 1);
 			double r = *(double*) as_vector_get(perc, i);
 			if (l >= r) {
-				blog_line("%f >= %f, out of order in percentile list", l, r);
+				printf("%f >= %f, out of order in percentile list\n", l, r);
 				return 1;
 			}
 		}
@@ -738,24 +738,24 @@ validate_args(args_t* args)
 
 	if ((args->latency_histogram || args->latency) &&
 			args->histogram_period <= 0) {
-		blog_line("Invalid histogram period: %ds", args->histogram_period);
+		printf("Invalid histogram period: %ds\n", args->histogram_period);
 		return 1;
 	}
 
 	if (args->conn_pools_per_node <= 0 || args->conn_pools_per_node > 1000) {
-		blog_line("Invalid connPoolsPerNode: %d  Valid values: [1-1000]",
+		printf("Invalid connPoolsPerNode: %d  Valid values: [1-1000]\n",
 				args->conn_pools_per_node);
 		return 1;
 	}
 
 	if (args->async_max_commands <= 0 || args->async_max_commands > 5000) {
-		blog_line("Invalid asyncMaxCommands: %d  Valid values: [1-5000]",
+		printf("Invalid asyncMaxCommands: %d  Valid values: [1-5000]\n",
 				args->async_max_commands);
 		return 1;
 	}
 
 	if (args->event_loop_capacity <= 0 || args->event_loop_capacity > 1000) {
-		blog_line("Invalid eventLoops: %d  Valid values: [1-1000]",
+		printf("Invalid eventLoops: %d  Valid values: [1-1000]\n",
 				args->event_loop_capacity);
 		return 1;
 	}
@@ -854,7 +854,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				char* endptr;
 				stage->duration = strtoull(optarg, &endptr, 10);
 				if (*optarg == '\0' || *endptr != '\0') {
-					blog_line("string \"%s\" is not a decimal point number",
+					printf("string \"%s\" is not a decimal point number\n",
 							optarg);
 					return -1;
 				}
@@ -977,7 +977,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 
 			case '8':
-				; // TODO make a comment
+				; // parse percentiles as a comma-separated list
 				as_vector * perc = &args->latency_percentiles;
 				as_vector_clear(perc);
 				char* _tmp = strdup(optarg);
@@ -992,7 +992,7 @@ set_args(int argc, char * const* argv, args_t* args)
 					char* endptr;
 					double val = strtod(tmp, &endptr);
 					if (*tmp == '\0' || *endptr != '\0') {
-						blog_line("string \"%s\" is not a floating point number",
+						printf("string \"%s\" is not a floating point number\n",
 								tmp);
 						// so that when validate_args is called, it will fail
 						as_vector_clear(perc);
@@ -1035,7 +1035,7 @@ set_args(int argc, char * const* argv, args_t* args)
 					args->replica = AS_POLICY_REPLICA_SEQUENCE;
 				}
 				else {
-					blog_line("replica must be master | any | sequence");
+					printf("replica must be master | any | sequence\n");
 					return 1;
 				}
 				break;
@@ -1048,7 +1048,7 @@ set_args(int argc, char * const* argv, args_t* args)
 					args->read_mode_ap = AS_POLICY_READ_MODE_AP_ALL;
 				}
 				else {
-					blog_line("readModeAP must be one or all");
+					printf("readModeAP must be one or all\n");
 					return 1;
 				}
 				break;
@@ -1067,8 +1067,8 @@ set_args(int argc, char * const* argv, args_t* args)
 					args->read_mode_sc = AS_POLICY_READ_MODE_SC_ALLOW_UNAVAILABLE;
 				}
 				else {
-					blog_line("readModeSC must be session | linearize | "
-							"allowReplica | allowUnavailable");
+					printf("readModeSC must be session | linearize | "
+							"allowReplica | allowUnavailable\n");
 					return 1;
 				}
 				break;
@@ -1081,7 +1081,7 @@ set_args(int argc, char * const* argv, args_t* args)
 					args->write_commit_level = AS_POLICY_COMMIT_LEVEL_MASTER;
 				}
 				else {
-					blog_line("commitLevel be all or master");
+					printf("commitLevel be all or master\n");
 					return 1;
 				}
 				break;
@@ -1162,8 +1162,8 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 
 			case 'e':
-				if (! as_auth_mode_from_string(&args->auth_mode, optarg)) {
-					blog_line("invalid authentication mode: %s", optarg);
+				if (!as_auth_mode_from_string(&args->auth_mode, optarg)) {
+					printf("invalid authentication mode: %s\n", optarg);
 					return 1;
 				}
 				break;
