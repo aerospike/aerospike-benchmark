@@ -1253,6 +1253,8 @@ _load_defaults_post(args_t* args)
 
 		res = stages_set_defaults_and_parse(&args->stages, &args->stage_defs,
 				args);
+		args->stages.valid = true;
+		free_stage_defs(&args->stage_defs);
 	}
 
 	return res;

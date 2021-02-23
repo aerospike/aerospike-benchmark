@@ -65,7 +65,7 @@ typedef struct stage_def_s {
 	uint64_t duration;
 
 	// string desctriptor for the stage, printed when the stage begins
-	const char* desc;
+	char* desc;
 
 	// max transactions per second
 	uint64_t tps;
@@ -108,7 +108,7 @@ typedef struct stage_s {
 	uint64_t duration;
 
 	// string desctriptor for the stage, printed when the stage begins
-	const char* desc;
+	char* desc;
 
 	// max transactions per second
 	uint64_t tps;
@@ -222,6 +222,8 @@ int stages_set_defaults_and_parse(stages_t* stages,
  */
 int parse_workload_config_file(const char* file, stages_t* stages,
 		const struct args_s* args);
+
+void free_stage_defs(stage_defs_t* stage_defs);
 
 void free_workload_config(stages_t* stages);
 

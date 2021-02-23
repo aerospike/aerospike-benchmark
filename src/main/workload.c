@@ -334,8 +334,13 @@ int parse_workload_config_file(const char* file, stages_t* stages,
 	stages->valid = true;
 
 	int ret = stages_set_defaults_and_parse(stages, &stage_defs, args);
-	cyaml_free(&config, &top_schema, stage_defs.stages, stage_defs.n_stages);
+	free_stage_defs(&stage_defs);
 	return ret;
+}
+
+void free_stage_defs(stage_defs_t* stage_defs)
+{
+	cyaml_free(&config, &top_schema, stage_defs->stages, stage_defs->n_stages);
 }
 
 void free_workload_config(stages_t* stages)
@@ -344,6 +349,7 @@ void free_workload_config(stages_t* stages)
 		// first go through and free the parts that aren't part of the yaml struct
 		for (uint32_t i = 0; i < stages->n_stages; i++) {
 			stage_t* stage = &stages->stages[i];
+			cf_free(stage->desc);
 			obj_spec_free(&stage->obj_spec);
 			_free_bins_selection(stage->read_bins);
 			cf_free(stage->write_bins);
