@@ -276,6 +276,7 @@ periodic_output_worker(void* udata)
 	uint64_t start_time = timespec_to_us(&wake_up);
 	uint64_t time = start_time;
 	uint64_t prev_time = start_time;
+	uint64_t prev_time_hist = start_time;
 	uint64_t pause_us;
 
 	// first indicate that this thread has no required work to do
@@ -311,49 +312,58 @@ periodic_output_worker(void* udata)
 		uint32_t read_current = as_fas_uint32(&cdata->read_count, 0);
 		uint32_t read_timeout_current = as_fas_uint32(&cdata->read_timeout_count, 0);
 		uint32_t read_error_current = as_fas_uint32(&cdata->read_error_count, 0);
-		//uint64_t transactions_current = as_load_uint64(&cdata->transactions_count);
 
 		cdata->period_begin = time;
 
 		uint32_t write_tps = (uint32_t)((double)write_current * 1000000 / elapsed + 0.5);
 		uint32_t read_tps = (uint32_t)((double)read_current * 1000000 / elapsed + 0.5);
 
-		blog_info("write(tps=%d timeouts=%d errors=%d) ",
-				write_tps, write_timeout_current, write_error_current);
-		if (has_reads) {
-			blog("read(tps=%d timeouts=%d errors=%d) ",
-					read_tps, read_timeout_current, read_error_current);
+		bool any_records = write_current + write_timeout_current + write_error_current +
+			read_current + read_timeout_current + read_error_current != 0;
+		if (any_records) {
+			blog_info("write(tps=%d timeouts=%d errors=%d) ",
+					write_tps, write_timeout_current, write_error_current);
+			if (has_reads) {
+				printf("read(tps=%d timeouts=%d errors=%d) ",
+						read_tps, read_timeout_current, read_error_current);
+			}
+			printf("total(tps=%d timeouts=%d errors=%d)\n",
+					write_tps + read_tps, write_timeout_current + read_timeout_current,
+					write_error_current + read_error_current);
 		}
-		blog_line("total(tps=%d timeouts=%d errors=%d)",
-				write_tps + read_tps, write_timeout_current + read_timeout_current,
-				write_error_current + read_error_current);
 
 		++gen_count;
 
 		// print latency information at the very end of the stage no matter what
 		if (status == COORD_SLEEP_INTERRUPTED ||
 				((gen_count % cdata->histogram_period) == 0)) {
-			if (latency) {
-				uint64_t elapsed_s = (time - start_time) / 1000000;
-				print_hdr_percentiles(cdata->write_hdr, "write", elapsed_s,
-						&cdata->latency_percentiles, stdout);
-				if (has_reads) {
-					print_hdr_percentiles(cdata->read_hdr,  "read",  elapsed_s,
+			int64_t elapsed_hist = time - prev_time_hist;
+			prev_time_hist = time;
+
+			if (any_records) {
+				if (latency) {
+					uint64_t elapsed_s = (time - start_time) / 1000000;
+					print_hdr_percentiles(cdata->write_hdr, "write", elapsed_s,
 							&cdata->latency_percentiles, stdout);
+
+					if (has_reads) {
+						print_hdr_percentiles(cdata->read_hdr,  "read",  elapsed_s,
+								&cdata->latency_percentiles, stdout);
+					}
 				}
-			}
-			if (histogram_output != NULL) {
-				if (first_log_of_stage) {
-					fprint_stage(histogram_output, &cdata->stages,
-							tdata->stage_idx);
-				}
-				histogram_print_clear(write_histogram, elapsed,
-						histogram_output);
-				if (has_reads) {
-					histogram_print_clear(read_histogram, elapsed,
+				if (histogram_output != NULL) {
+					if (first_log_of_stage) {
+						fprint_stage(histogram_output, &cdata->stages,
+								tdata->stage_idx);
+					}
+					histogram_print_clear(write_histogram, elapsed_hist,
 							histogram_output);
+					if (has_reads) {
+						histogram_print_clear(read_histogram, elapsed_hist,
+								histogram_output);
+					}
+					fflush(histogram_output);
 				}
-				fflush(histogram_output);
 			}
 		}
 
@@ -373,6 +383,10 @@ periodic_output_worker(void* udata)
 				clock_gettime(COORD_CLOCK, &wake_up);
 				time = timespec_to_us(&wake_up);
 				dyn_throttle_reset_time(&tdata->dyn_throttle, time);
+
+				prev_time = time;
+				prev_time_hist = time;
+				gen_count = 0;
 			}
 			else {
 				// no need to check again

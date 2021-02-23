@@ -37,9 +37,11 @@ static void assert_workloads_eq(const stages_t* parsed,
 			ck_assert_float_eq(a->workload.pct, b->workload.pct);
 		}
 
-		char buf[1024];
-		snprint_obj_spec(&a->obj_spec, buf, sizeof(buf));
-		ck_assert_str_eq(buf, b->obj_spec_str);
+		char bufa[1024];
+		char bufb[1024];
+		snprint_obj_spec(&a->obj_spec, bufa, sizeof(bufa));
+		snprint_obj_spec(&b->obj_spec, bufb, sizeof(bufb));
+		ck_assert_str_eq(bufa, bufb);
 
 		ck_assert_uint_eq(a->n_read_bins, b->n_read_bins);
 		if (a->read_bins == NULL || b->read_bins == NULL) {
@@ -54,34 +56,51 @@ static void assert_workloads_eq(const stages_t* parsed,
 			ck_assert_ptr_eq(a->read_bins[j], NULL);
 			ck_assert_ptr_eq(b->read_bins[j], NULL);
 		}
+
+		ck_assert_uint_eq(a->n_write_bins, b->n_write_bins);
+		if (a->write_bins == NULL || b->write_bins == NULL) {
+			ck_assert_ptr_eq(a->write_bins, NULL);
+			ck_assert_ptr_eq(b->write_bins, NULL);
+		}
+		else {
+			uint32_t j;
+			for (j = 0; j < a->n_write_bins; j++) {
+				ck_assert_int_eq(a->write_bins[j], b->write_bins[j]);
+			}
+		}
 	}
 }
 
 
-#define DEFINE_TEST(test_name, file_contents, stages_struct) \
+#define DEFINE_TEST(test_name, file_contents, stages_struct, obj_specs) \
 START_TEST(test_name) \
 { \
-	FILE* tmp = fopen(TMP_FILE_LOC "/test.yml", "w+");		\
-	ck_assert_ptr_ne(tmp, NULL);							\
-	stages_t expected = stages_struct;					\
-	stages_t parsed;									\
-	args_t args;											\
+	FILE* tmp = fopen(TMP_FILE_LOC "/test.yml", "w+"); \
+	ck_assert_ptr_ne(tmp, NULL); \
+	stages_t expected = stages_struct; \
+	stages_t parsed; \
+	args_t args; \
 	\
-	args.start_key = 1;										\
-	args.keys = 100000;										\
-	args.bin_name = "testbin";								\
-	obj_spec_parse(&args.obj_spec, "I");					\
+	for (uint32_t i = 0; i < expected.n_stages; i++) { \
+		ck_assert_int_eq(obj_spec_parse(&expected.stages[i].obj_spec, \
+					(obj_specs)[i]), 0); \
+	} \
 	\
-	fwrite(file_contents, 1, sizeof(file_contents) - 1,		\
-			tmp);											\
-	fclose(tmp);											\
-	ck_assert_int_eq(parse_workload_config_file(			\
-				TMP_FILE_LOC "/test.yml", &parsed,			\
-				&args), 0);									\
-	assert_workloads_eq(&parsed, &expected);				\
+	args.start_key = 1; \
+	args.keys = 100000; \
+	args.bin_name = "testbin"; \
+	obj_spec_parse(&args.obj_spec, "I"); \
 	\
-	free_workload_config(&parsed);							\
-	remove(TMP_FILE_LOC "/test.yml");						\
+	fwrite(file_contents, 1, sizeof(file_contents) - 1, \
+			tmp); \
+	fclose(tmp); \
+	ck_assert_int_eq(parse_workload_config_file( \
+				TMP_FILE_LOC "/test.yml", &parsed, \
+				&args), 0); \
+	assert_workloads_eq(&parsed, &expected); \
+	\
+	free_workload_config(&parsed); \
+	remove(TMP_FILE_LOC "/test.yml"); \
 } \
 END_TEST
 
@@ -105,12 +124,15 @@ DEFINE_TEST(test_simple,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 DEFINE_TEST(test_tps,
@@ -133,12 +155,15 @@ DEFINE_TEST(test_tps,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 DEFINE_TEST(test_key_start,
@@ -161,12 +186,15 @@ DEFINE_TEST(test_key_start,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 DEFINE_TEST(test_key_end,
@@ -189,12 +217,15 @@ DEFINE_TEST(test_key_end,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 DEFINE_TEST(test_pause,
@@ -217,12 +248,15 @@ DEFINE_TEST(test_pause,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 DEFINE_TEST(test_batch_size,
@@ -245,12 +279,15 @@ DEFINE_TEST(test_batch_size,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 DEFINE_TEST(test_async,
@@ -273,12 +310,15 @@ DEFINE_TEST(test_async,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 DEFINE_TEST(test_random,
@@ -301,12 +341,15 @@ DEFINE_TEST(test_random,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}))
+		}),
+		(char*[]) {
+			"I4"
+		})
 
 
 DEFINE_TEST(test_workload_ru_default,
@@ -329,12 +372,15 @@ DEFINE_TEST(test_workload_ru_default,
 					.type = WORKLOAD_TYPE_RANDOM,
 					.pct = 50
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 DEFINE_TEST(test_workload_ru_pct,
@@ -357,12 +403,15 @@ DEFINE_TEST(test_workload_ru_pct,
 					.type = WORKLOAD_TYPE_RANDOM,
 					.pct = 75.2
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 DEFINE_TEST(test_workload_db,
@@ -384,12 +433,15 @@ DEFINE_TEST(test_workload_db,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_DELETE
 				},
-				.obj_spec_str = "I4",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4"
+		});
 
 
 
@@ -413,12 +465,15 @@ DEFINE_TEST(test_obj_spec,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_LINEAR,
 				},
-				.obj_spec_str = "I4,D,{3*S10:[B20,D,I8]}",
-				.read_bins = NULL
+				.read_bins = NULL,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4,D,{3*S10:[B20,D,I8]}"
+		});
 
 
 DEFINE_TEST(test_read_bins,
@@ -443,18 +498,59 @@ DEFINE_TEST(test_read_bins,
 					.type = WORKLOAD_TYPE_RANDOM,
 					.pct = 50
 				},
-				.obj_spec_str = "I4,I4,I4,I4,I4",
 				.read_bins = (char*[]) {
 					"testbin",
 					"testbin_3",
 					"testbin_5",
 					NULL
 				},
-				.n_read_bins = 3
+				.n_read_bins = 3,
+				.write_bins = NULL
 			},},
 			1,
 			true
-		}));
+		}),
+		(char*[]) {
+			"I4,I4,I4,I4,I4"
+		});
+
+
+DEFINE_TEST(test_write_bins,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RU\n"
+		"  object-spec: I,I,I,I,I\n"
+		"  write-bins: 1,3,5",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RANDOM,
+					.pct = 50
+				},
+				.read_bins = NULL,
+				.write_bins = (uint32_t[]) {
+					0,
+					2,
+					4
+				},
+				.n_write_bins = 3
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4,I4,I4,I4,I4"
+		});
 
 
 Suite*
@@ -479,6 +575,7 @@ yaml_parse_suite(void)
 	tcase_add_test(tc_simple, test_workload_db);
 	tcase_add_test(tc_simple, test_obj_spec);
 	tcase_add_test(tc_simple, test_read_bins);
+	tcase_add_test(tc_simple, test_write_bins);
 	suite_add_tcase(s, tc_simple);
 
 	return s;

@@ -44,7 +44,7 @@ typedef uint64_t ptr_int_t;
 
 #define as_assert(expr) \
 	do { \
-		if (!__builtin_expect((expr), 1)) { \
+		if (UNLIKELY(!(expr))) { \
 			fprintf(stderr, __FILE__ ":" STR(__LINE__) " assertion failed: " \
 					"%s\n", STR(expr)); \
 			abort(); \
@@ -54,6 +54,9 @@ typedef uint64_t ptr_int_t;
 
 #define MIN(a, b) ((a) > (b) ? (b) : (a))
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
+
+#define LIKELY(expr) __builtin_expect((expr), 1)
+#define UNLIKELY(expr) __builtin_expect((expr), 0)
 
 /*
  * returns a if a is positive and 0 if a is negative
@@ -84,12 +87,9 @@ static inline void timespec_add_us(struct timespec* ts, uint64_t us)
 int dec_display_len(size_t number);
 
 
-void blog_line(const char* fmt, ...);
 void blog_detailv(as_log_level level, const char* fmt, va_list ap);
 void blog_detail(as_log_level level, const char* fmt, ...);
 
-#define blog(_fmt, ...) { printf(_fmt, ##__VA_ARGS__); }
-#define fblog(_file, _fmt, ...) { fprintf(_file, _fmt, ##__VA_ARGS__); }
 #define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
 #define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }
 
@@ -124,6 +124,12 @@ uint32_t gen_rand_range(as_random*, uint32_t max);
  * same as gen_rand_range, but for 64-bit numbers
  */
 uint64_t gen_rand_range_64(as_random*, uint64_t max);
+
+/*
+ * compares two as_val's, returning true if they are the same
+ */
+int
+as_val_cmp(const as_val* v1, const as_val* v2);
 
 
 /*

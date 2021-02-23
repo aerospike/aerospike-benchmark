@@ -47,6 +47,7 @@ typedef struct args_s {
 	uint64_t start_key;
 	uint64_t keys;
 
+	struct stage_defs_s stage_defs;
 	struct stages_s stages;
 	char* workload_stages_file;
 
@@ -91,7 +92,6 @@ typedef struct clientdata_s {
 	const char* bin_name;
 	struct stages_s stages;
 
-	uint64_t transactions_count;
 	uint64_t period_begin;
 
 	aerospike client;
@@ -126,7 +126,6 @@ typedef struct clientdata_s {
 	int async_max_commands;
 	int transaction_worker_threads;
 	int read_pct;
-	struct obj_spec_s obj_spec;
 
 	float compression_ratio;
 	bool latency;

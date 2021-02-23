@@ -78,7 +78,8 @@ static void _calculate_subrange(uint64_t key_start, uint64_t key_end,
 static void _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata);
 static void _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
 		tdata_t* tdata, stage_t* stage);
-static void _gen_nil_record(as_record* rec, const cdata_t* cdata);
+static void _gen_nil_record(as_record* rec, const cdata_t* cdata,
+		stage_t* stage);
 static void throttle(tdata_t* tdata, thr_coord_t* coord);
 
 // Synchronous workload methods
@@ -98,6 +99,7 @@ static void _async_write_listener(as_error* err, void* udata,
 		as_event_loop* event_loop);
 static void _async_batch_read_listener(as_error* err,
 		as_batch_read_records* records, void* udata, as_event_loop* event_loop);
+static struct async_data_s* queue_pop_wait(queue_t* adata_q);
 static void linear_writes_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, stage_t* stage, queue_t* adata_q);
 static void rand_read_write_async(tdata_t* tdata, cdata_t* cdata,
@@ -162,18 +164,14 @@ transaction_worker(void* udata)
 static void
 _record_read(cdata_t* cdata, uint64_t dt_us)
 {
-	if (cdata->latency || cdata->histogram_output != NULL ||
-			cdata->hdr_comp_write_output != NULL) {
-		if (cdata->latency) {
-			//latency_add(&cdata->read_latency, dt_us / 1000);
-			hdr_record_value_atomic(cdata->read_hdr, dt_us);
-		}
-		if (cdata->histogram_output != NULL) {
-			histogram_add(&cdata->read_histogram, dt_us);
-		}
-		if (cdata->hdr_comp_write_output != NULL) {
-			hdr_record_value_atomic(cdata->summary_read_hdr, dt_us);
-		}
+	if (cdata->latency) {
+		hdr_record_value_atomic(cdata->read_hdr, dt_us);
+	}
+	if (cdata->histogram_output != NULL) {
+		histogram_add(&cdata->read_histogram, dt_us);
+	}
+	if (cdata->hdr_comp_read_output != NULL) {
+		hdr_record_value_atomic(cdata->summary_read_hdr, dt_us);
 	}
 	as_incr_uint32(&cdata->read_count);
 }
@@ -181,18 +179,14 @@ _record_read(cdata_t* cdata, uint64_t dt_us)
 static void
 _record_write(cdata_t* cdata, uint64_t dt_us)
 {
-	if (cdata->latency || cdata->histogram_output != NULL ||
-			cdata->hdr_comp_write_output != NULL) {
-		if (cdata->latency) {
-			//latency_add(&cdata->write_latency, dt_us / 1000);
-			hdr_record_value_atomic(cdata->write_hdr, dt_us);
-		}
-		if (cdata->histogram_output != NULL) {
-			histogram_add(&cdata->write_histogram, dt_us);
-		}
-		if (cdata->hdr_comp_write_output != NULL) {
-			hdr_record_value_atomic(cdata->summary_write_hdr, dt_us);
-		}
+	if (cdata->latency) {
+		hdr_record_value_atomic(cdata->write_hdr, dt_us);
+	}
+	if (cdata->histogram_output != NULL) {
+		histogram_add(&cdata->write_histogram, dt_us);
+	}
+	if (cdata->hdr_comp_write_output != NULL) {
+		hdr_record_value_atomic(cdata->summary_write_hdr, dt_us);
 	}
 	as_incr_uint32(&cdata->write_count);
 }
@@ -427,7 +421,8 @@ _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
 		as_record_init(rec, n_objs);
 
 		obj_spec_populate_bins(&stage->obj_spec, rec, random,
-				cdata->bin_name, cdata->compression_ratio);
+				cdata->bin_name, stage->write_bins, stage->n_write_bins,
+				cdata->compression_ratio);
 	}
 	else {
 		as_list* list = as_list_fromval(tdata->fixed_value);
@@ -439,7 +434,8 @@ _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
 			as_val_reserve(val);
 
 			as_bin* bin = &rec->bins.entries[i];
-			gen_bin_name(bin->name, cdata->bin_name, i + 1);
+			gen_bin_name(bin->name, cdata->bin_name,
+					stage->write_bins == NULL ? i : stage->write_bins[i]);
 			as_record_set(rec, bin->name, (as_bin_value*) val);
 		}
 	}
@@ -449,9 +445,9 @@ _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
  * generates a record with all nil bins (used to remove records)
  */
 static void
-_gen_nil_record(as_record* rec, const cdata_t* cdata)
+_gen_nil_record(as_record* rec, const cdata_t* cdata, stage_t* stage)
 {
-	uint32_t n_objs = obj_spec_n_bins(&cdata->obj_spec);
+	uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
 	as_record_init(rec, n_objs);
 
 	for (uint32_t i = 0; i < n_objs; i++) {
@@ -620,7 +616,7 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		// create a record with given key
 		_gen_key(key_val, &key, cdata);
-		_gen_nil_record(&rec, cdata);
+		_gen_nil_record(&rec, cdata, stage);
 
 		// delete this record from the database
 		_write_record_sync(tdata, cdata, coord, &key, &rec);
@@ -725,6 +721,22 @@ _async_batch_read_listener(as_error* err, as_batch_read_records* records,
 	}
 }
 
+static struct async_data_s*
+queue_pop_wait(queue_t* adata_q)
+{
+	struct async_data_s* adata;
+
+	while (1) {
+		adata = queue_pop(adata_q);
+		if (adata == NULL) {
+			_mm_pause();
+			continue;
+		}
+		break;
+	}
+	return adata;
+}
+
 static void
 linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, queue_t* adata_q)
@@ -740,11 +752,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
 			key_val < end_key) {
 
-		adata = queue_pop(adata_q);
-		if (adata == NULL) {
-			_mm_pause();
-			continue;
-		}
+		adata = queue_pop_wait(adata_q);
 
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
@@ -794,11 +802,7 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 
-		adata = queue_pop(adata_q);
-		if (adata == NULL) {
-			_mm_pause();
-			continue;
-		}
+		adata = queue_pop_wait(adata_q);
 
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
@@ -875,11 +879,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
 			key_val < end_key) {
 
-		adata = queue_pop(adata_q);
-		if (adata == NULL) {
-			_mm_pause();
-			continue;
-		}
+		adata = queue_pop_wait(adata_q);
 
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
@@ -887,7 +887,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		as_record rec;
 		_gen_key(key_val, &adata->key, cdata);
-		_gen_nil_record(&rec, cdata);
+		_gen_nil_record(&rec, cdata, stage);
 		adata->op = delete;
 
 		_write_record_async(&adata->key, &rec, adata, cdata);
@@ -975,14 +975,10 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	// wait for all the async calls to finish
-	for (uint32_t i = 0; i < n_adatas;) {
-		struct async_data_s* adata = queue_pop(&adata_q);
-		if (adata == NULL) {
-			_mm_pause();
-			continue;
-		}
-		i++;
+	for (uint32_t i = 0; i < n_adatas; i++) {
+		queue_pop_wait(&adata_q);
 	}
+	queue_free(&adata_q);
 
 	// free the async_data structs
 	cf_free(adatas);
@@ -1007,7 +1003,8 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 
 	if (!stage->random) {
 		tdata->fixed_value = obj_spec_gen_compressible_value(&stage->obj_spec,
-				tdata->random, cdata->compression_ratio);
+				tdata->random, stage->write_bins, stage->n_write_bins,
+				cdata->compression_ratio);
 	}
 }
 

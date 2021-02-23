@@ -60,12 +60,12 @@ typedef struct workload_s {
 } workload_t;
 
 
-typedef struct stage_s {
+typedef struct stage_def_s {
 	// minimum stage duration in seconds
 	uint64_t duration;
 
 	// string desctriptor for the stage, printed when the stage begins
-	const char* desc;
+	char* desc;
 
 	// max transactions per second
 	uint64_t tps;
@@ -85,27 +85,58 @@ typedef struct stage_s {
 	// opposed to using a single fixed object over and over)
 	bool random;
 
-	union {
-		char* workload_str;
-		workload_t workload;
-	};
+	uint16_t stage_idx;
 
-	union {
-		struct {
-			char* obj_spec_str;
-			// only used temporarily to verify that stages are indexed properly
-			uint16_t stage_idx;
-		};
-		obj_spec_t obj_spec;
-	};
+	char* workload_str;
 
-	union {
-		char* read_bins_str;
-		struct {
-			char** read_bins;
-			uint32_t n_read_bins;
-		};
-	};
+	char* obj_spec_str;
+
+	char* read_bins_str;
+
+	char* write_bins_str;
+} stage_def_t;
+
+
+typedef struct stage_defs_s {
+	stage_def_t* stages;
+	uint32_t n_stages;
+} stage_defs_t;
+
+
+typedef struct stage_s {
+	// minimum stage duration in seconds
+	uint64_t duration;
+
+	// string desctriptor for the stage, printed when the stage begins
+	char* desc;
+
+	// max transactions per second
+	uint64_t tps;
+
+	uint64_t key_start;
+	uint64_t key_end;
+
+	// max number of seconds to pause between stage starts, randomly selected
+	// between 1 and pause
+	uint64_t pause;
+
+	// batch size of reads to use
+	uint32_t batch_size;
+	// whether or not this stage should be run in async mode
+	bool async;
+	// whether or not random objects should be created for each write op (as
+	// opposed to using a single fixed object over and over)
+	bool random;
+
+	workload_t workload;
+
+	obj_spec_t obj_spec;
+
+	char** read_bins;
+	uint32_t n_read_bins;
+
+	uint32_t* write_bins;
+	uint32_t n_write_bins;
 } stage_t;
 
 
@@ -123,12 +154,6 @@ typedef struct stages_s {
 } stages_t;
 
 
-/*
- * given a workload string, populates the workload struct pointed to by the
- * first argument
- */
-int parse_workload_type(workload_t*, const char* workload_str);
-
 static inline bool workload_is_random(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
@@ -137,6 +162,11 @@ static inline bool workload_is_random(const workload_t* workload)
 static inline bool workload_contains_reads(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RANDOM;
+}
+
+static inline bool workload_contains_writes(const workload_t* workload)
+{
+	return workload->type != WORKLOAD_TYPE_RANDOM || workload->pct != 100;
 }
 
 static inline bool stages_contain_async(const stages_t* stages)
@@ -176,30 +206,24 @@ static inline void fprint_stage(FILE* out_file, const stages_t* stages,
 }
 
 /*
- * reads and parses bins_str, a comma-separated list of bin numbers
- * (1-based indexed) and populates the read_bins field of stage
- *
- * note: this must be done after the obj_spec has already been parsed
+ * given a workload string, populates the workload struct pointed to by the
+ * first argument
  */
-int parse_bins_selection(stage_t* stage, const char* bins_str,
-		const char* bin_name);
-
-/*
- * frees the bins selection array created from parse_bins_selection
- */
-void free_bins_selection(stage_t* stage);
+int parse_workload_type(workload_t*, const char* workload_str);
 
 /*
  * set stages struct to default values if they were not supplied
  */
 int stages_set_defaults_and_parse(stages_t* stages,
-		const struct args_s* args);
+		const stage_defs_t* stage_defs, const struct args_s* args);
 
 /*
  * parses the given file into the stages struct
  */
 int parse_workload_config_file(const char* file, stages_t* stages,
 		const struct args_s* args);
+
+void free_stage_defs(stage_defs_t* stage_defs);
 
 void free_workload_config(stages_t* stages);
 

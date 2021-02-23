@@ -18,11 +18,9 @@ else
 	ARCH = $(shell uname -m)
 endif
 
-CFLAGS = -std=gnu99 -g -Wall -fPIC -O3 -MMD -MP
+CFLAGS = -std=gnu99 -Wall -fPIC -O1 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
-
-TEST_CFLAGS = $(CFLAGS) -D_TEST
 
 DIR_INCLUDE =  $(ROOT)/src/include
 DIR_INCLUDE += $(ROOT)/modules
@@ -88,6 +86,9 @@ LDFLAGS += -lm -lz -lcyaml -lyaml
 TEST_LDFLAGS = $(LDFLAGS) -lcheck 
 CC = cc
 AR = ar
+
+BUILD_CFLAGS = $(CFLAGS) -g
+TEST_CFLAGS = $(CFLAGS) -D_TEST
 
 ###############################################################################
 ##  OBJECTS                                                                  ##
@@ -177,10 +178,10 @@ target/obj/hdr_histogram: | target/obj
 	mkdir $@
 
 target/obj/%.o: src/main/%.c | target/obj
-	$(CC) $(CFLAGS) -o $@ -c $< $(INCLUDES)
+	$(CC) $(BUILD_CFLAGS) -o $@ -c $< $(INCLUDES)
 
 target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogram
-	$(CC) $(CFLAGS) -o $@ -c $< $(INCLUDES)
+	$(CC) $(BUILD_CFLAGS) -o $@ -c $< $(INCLUDES)
 
 target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | target/lib
 	cp $< $@

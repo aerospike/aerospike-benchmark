@@ -5,6 +5,7 @@
 #include <cyaml/cyaml.h>
 
 #include <benchmark.h>
+#include <common.h>
 #include <object_spec.h>
 
 
@@ -58,8 +59,9 @@ START_TEST(test_free_after_move)
 	obj_spec_free(&o);
 
 	as_record_init(&rec, obj_spec_n_bins(&p));
-	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", 1.f);
-	_dbg_obj_spec_assert_valid(&p, &rec, "test");
+	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", NULL, 0,
+			1.f);
+	_dbg_obj_spec_assert_valid(&p, &rec, NULL, 0, "test");
 	obj_spec_free(&p);
 }
 END_TEST
@@ -74,8 +76,9 @@ START_TEST(test_shallow_copy)
 	obj_spec_shallow_copy(&p, &o);
 
 	as_record_init(&rec, obj_spec_n_bins(&p));
-	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", 1.f);
-	_dbg_obj_spec_assert_valid(&p, &rec, "test");
+	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", NULL, 0,
+			1.f);
+	_dbg_obj_spec_assert_valid(&p, &rec, NULL, 0, "test");
 	obj_spec_free(&p);
 	obj_spec_free(&o);
 }
@@ -92,8 +95,9 @@ START_TEST(test_free_after_shallow_copy)
 	obj_spec_free(&p);
 
 	as_record_init(&rec, obj_spec_n_bins(&o));
-	obj_spec_populate_bins(&o, &rec, as_random_instance(), "test", 1.f);
-	_dbg_obj_spec_assert_valid(&o, &rec, "test");
+	obj_spec_populate_bins(&o, &rec, as_random_instance(), "test", NULL, 0,
+			1.f);
+	_dbg_obj_spec_assert_valid(&o, &rec, NULL, 0, "test");
 	obj_spec_free(&o);
 }
 END_TEST
@@ -102,7 +106,8 @@ END_TEST
 /*
  * test-case definining macros
  */
-#define DEFINE_TCASE_DIFF(test_name, obj_spec_str, expected_out_str) \
+#define DEFINE_TCASE_DIFF_WRITE_BINS(test_name, obj_spec_str, \
+		expected_out_str, write_bins, n_write_bins) \
 START_TEST(test_name ## _str_cmp) \
 { \
 	struct obj_spec_s o; \
@@ -117,17 +122,45 @@ END_TEST \
 START_TEST(test_name ## _valid) \
 { \
 	struct obj_spec_s o; \
-	as_random random; \
+	as_random random, random2; \
 	as_record rec; \
+	as_val* val; \
+	as_list* list; \
 	as_random_init(&random); \
+	memcpy(&random2, &random, sizeof(as_random)); \
 	ck_assert_int_eq(obj_spec_parse(&o, obj_spec_str), 0); \
 	as_record_init(&rec, obj_spec_n_bins(&o)); \
 	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
-				"test", 1.f), 0); \
-	_dbg_obj_spec_assert_valid(&o, &rec, "test"); \
+				"test", write_bins, n_write_bins, 1.f), 0); \
+	_dbg_obj_spec_assert_valid(&o, &rec, write_bins, n_write_bins, "test"); \
+	\
+	val = obj_spec_gen_value(&o, &random2, write_bins, n_write_bins); \
+	ck_assert_ptr_ne(val, NULL); \
+	list = as_list_fromval(val); \
+	ck_assert_ptr_ne(list, NULL); \
+	if (write_bins != NULL) { \
+		ck_assert_int_eq(as_list_size(list), n_write_bins); \
+	} \
+	\
+	for (uint32_t i = 0; i < as_list_size(list); i++) { \
+		as_bin_name bin; \
+		gen_bin_name(bin, "test", \
+				(write_bins ? ((uint32_t*) write_bins)[i] : i)); \
+		ck_assert(as_val_cmp(as_list_get(list, i), \
+					(as_val*) as_record_get(&rec, bin)) == 0); \
+	} \
 	as_record_destroy(&rec); \
 	obj_spec_free(&o); \
 }
+
+#define DEFINE_TCASE_DIFF(test_name, obj_spec_str, expected_out_str) \
+	DEFINE_TCASE_DIFF_WRITE_BINS(test_name, obj_spec_str, expected_out_str, \
+			NULL, 0)
+
+#define DEFINE_TCASE_WRITE_BINS(test_name, obj_spec_str, write_bins, \
+		n_write_bins) \
+	DEFINE_TCASE_DIFF_WRITE_BINS(test_name, obj_spec_str, obj_spec_str, \
+			write_bins, n_write_bins)
 
 #define DEFINE_TCASE(test_name, obj_spec_str) \
 	DEFINE_TCASE_DIFF(test_name, obj_spec_str, obj_spec_str)
@@ -168,8 +201,8 @@ DEFINE_TCASE(test_S1, "S1");
 DEFINE_TCASE(test_S10, "S10");
 DEFINE_TCASE(test_S100, "S100");
 DEFINE_TCASE(test_S123, "S123");
+DEFINE_TCASE(test_S0, "S0");
 DEFINE_FAILING_TCASE(test_S_, "S", "strings need a length specifier");
-DEFINE_FAILING_TCASE(test_S0, "S0", "0-length strings are not allowed");
 DEFINE_FAILING_TCASE(test_Sneg1, "S-1", "negative-length strings are not allowed");
 DEFINE_FAILING_TCASE(test_S4294967296, "S4294967296", "this is beyong the max "
 		"allowed string length (2^32 - 1)");
@@ -178,8 +211,8 @@ DEFINE_TCASE(test_B1, "B1");
 DEFINE_TCASE(test_B10, "B10");
 DEFINE_TCASE(test_B100, "B100");
 DEFINE_TCASE(test_B123, "B123");
+DEFINE_TCASE(test_B0, "B0");
 DEFINE_FAILING_TCASE(test_B_, "B", "binary data need a length specifier");
-DEFINE_FAILING_TCASE(test_B0, "B0", "0-length binary data are not allowed");
 DEFINE_FAILING_TCASE(test_Bneg1, "B-1", "negative-length binary data are not allowed");
 DEFINE_FAILING_TCASE(test_B4294967296, "B4294967296", "this is beyond the max "
 		"allowed binary data length (2^32 - 1)");
@@ -192,7 +225,7 @@ DEFINE_TCASE(test_singleton_list, "[I3]");
 DEFINE_TCASE(test_pair_list, "[I3,S5]");
 DEFINE_TCASE(test_long_list, "[B10,D,S22,I7,I8,S30,B110,I2,I4]");
 DEFINE_TCASE(test_repeated_list, "[D,D,D,D,D,B10,B10,B10,I4,I4,I4,I4]");
-DEFINE_FAILING_TCASE(test_empty_list, "[]", "empty list not allowed");
+DEFINE_TCASE(test_empty_list, "[]");
 DEFINE_FAILING_TCASE(test_unterminated_list, "[S10,I3", "unterminated list");
 DEFINE_FAILING_TCASE(test_unterminated_list_v2, "[S10,I3,", "unterminated list");
 DEFINE_FAILING_TCASE(test_unopened_list, "I3]", "unopened list");
@@ -217,8 +250,9 @@ DEFINE_TCASE(test_map_BI, "{B6:I2}");
 DEFINE_TCASE(test_map_BD, "{B6:D}");
 DEFINE_TCASE(test_map_BS, "{B6:S4}");
 DEFINE_TCASE(test_map_BB, "{B6:B5}");
+DEFINE_TCASE(test_empty_map, "{}");
+DEFINE_TCASE_DIFF(test_empty_map_v2, "{0*S10:B20}", "{}");
 
-DEFINE_FAILING_TCASE(test_empty_map, "{}", "empty map not allowed");
 DEFINE_FAILING_TCASE(test_map_with_no_value, "{I1}", "maps need key and value");
 DEFINE_FAILING_TCASE(test_map_multiple_keys, "{I3:I5:I7}", "map cannot have multiple keys");
 DEFINE_FAILING_TCASE(test_unterminated_map, "{", "unterminated map");
@@ -295,20 +329,28 @@ DEFINE_FAILING_TCASE(test_mult_list_too_many_elements, "[3000000000*I4,300000000
 
 
 /*
+ * write-bins test cases
+ */
+DEFINE_TCASE_WRITE_BINS(test_wb_simple, "I4,D", ((uint32_t[]) { 0, 1 }), 2);
+DEFINE_TCASE_WRITE_BINS(test_wb_odds, "I1,I2,I3,I4,I5,I6,I7,I8",
+		((uint32_t[]) { 0, 2, 4, 6 }), 4);
+DEFINE_TCASE_WRITE_BINS(test_wb_evens, "I1,I2,I3,I4,I5,I6,I7,I8",
+		((uint32_t[]) { 1, 3, 5, 7 }), 4);
+DEFINE_TCASE_WRITE_BINS(test_wb_lists, "I4,[I6,B10],B20,[[S20,I8],S10]",
+		((uint32_t[]) { 1, 3 }), 2);
+DEFINE_TCASE_WRITE_BINS(test_wb_maps, "{5*S10:B20},[3*{I4:S5},D],B10,{I4:I8}",
+		((uint32_t[]) { 0, 1, 3 }), 3);
+
+
+/*
  * Bin name test cases
  */
 #define DEFINE_BIN_NAME_OK(test_name, n_bins, bin_name) \
 START_TEST(test_name) \
 { \
 	struct obj_spec_s o; \
-	as_random random; \
-	as_record rec; \
-	as_random_init(&random); \
 	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
-	as_record_init(&rec, obj_spec_n_bins(&o)); \
-	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
-				bin_name, 1.f), 0); \
-	as_record_destroy(&rec); \
+	ck_assert(obj_spec_bin_name_compatible(&o, bin_name)); \
 	obj_spec_free(&o); \
 } \
 END_TEST
@@ -317,14 +359,9 @@ END_TEST
 START_TEST(test_name) \
 { \
 	struct obj_spec_s o; \
-	as_random random; \
-	as_record rec; \
-	as_random_init(&random); \
 	ck_assert_int_eq(obj_spec_parse(&o, #n_bins "*I1"), 0); \
-	as_record_init(&rec, obj_spec_n_bins(&o)); \
-	ck_assert_int_ne(obj_spec_populate_bins(&o, &rec, &random, \
-				bin_name, 1.f), 0); \
-	as_record_destroy(&rec); \
+	ck_assert(!obj_spec_bin_name_compatible(&o, bin_name)); \
+	obj_spec_free(&o); \
 } \
 END_TEST
 
@@ -349,6 +386,11 @@ DEFINE_TCASE_DIFF(test_space_in_list, "I, [B12, S15]", "I4,[B12,S15]");
 DEFINE_TCASE_DIFF(test_space_map_after_key, "{S12 :I7}", "{S12:I7}");
 DEFINE_TCASE_DIFF(test_space_map_before_value, "{B8: D}", "{B8:D}");
 DEFINE_TCASE_DIFF(test_space_map_both, "{I2 : S1}", "{I2:S1}");
+DEFINE_TCASE_DIFF(test_space_mult_before, "4 *I, [ 3 *D, 2 *{3 *S10:B20}]", "4*I4,[3*D,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_after, "4* I, [3* D, 2* {3* S10:B20}]", "4*I4,[3*D,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_both, "4 * I, [3 * D, 2 * {3 * S10:B20}]", "4*I4,[3*D,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_list, "[ I, D, S20 ]", "[I4,D,S20]");
+DEFINE_TCASE_DIFF(test_space_map, "{ S20 : B10 }", "{S20:B10}");
 
 
 Suite*
@@ -362,6 +404,7 @@ obj_spec_suite(void)
 	TCase* tc_multi_bins;
 	TCase* tc_nested;
 	TCase* tc_multipliers;
+	TCase* tc_write_bins;
 	TCase* tc_bin_names;
 	TCase* tc_spacing;
 
@@ -410,12 +453,13 @@ obj_spec_suite(void)
 	tcase_add_test(tc_simple, test_S10_str_cmp);
 	tcase_add_test(tc_simple, test_S100_str_cmp);
 	tcase_add_test(tc_simple, test_S123_str_cmp);
+	tcase_add_test(tc_simple, test_S0_str_cmp);
 	tcase_add_test(tc_simple, test_S1_valid);
 	tcase_add_test(tc_simple, test_S10_valid);
 	tcase_add_test(tc_simple, test_S100_valid);
 	tcase_add_test(tc_simple, test_S123_valid);
+	tcase_add_test(tc_simple, test_S0_valid);
 	tcase_add_test(tc_simple, test_S_);
-	tcase_add_test(tc_simple, test_S0);
 	tcase_add_test(tc_simple, test_Sneg1);
 	tcase_add_test(tc_simple, test_S4294967296);
 
@@ -423,12 +467,13 @@ obj_spec_suite(void)
 	tcase_add_test(tc_simple, test_B10_str_cmp);
 	tcase_add_test(tc_simple, test_B100_str_cmp);
 	tcase_add_test(tc_simple, test_B123_str_cmp);
+	tcase_add_test(tc_simple, test_B0_str_cmp);
 	tcase_add_test(tc_simple, test_B1_valid);
 	tcase_add_test(tc_simple, test_B10_valid);
 	tcase_add_test(tc_simple, test_B100_valid);
 	tcase_add_test(tc_simple, test_B123_valid);
+	tcase_add_test(tc_simple, test_B0_valid);
 	tcase_add_test(tc_simple, test_B_);
-	tcase_add_test(tc_simple, test_B0);
 	tcase_add_test(tc_simple, test_Bneg1);
 	tcase_add_test(tc_simple, test_B4294967296);
 	suite_add_tcase(s, tc_simple);
@@ -439,11 +484,12 @@ obj_spec_suite(void)
 	tcase_add_test(tc_list, test_pair_list_str_cmp);
 	tcase_add_test(tc_list, test_long_list_str_cmp);
 	tcase_add_test(tc_list, test_repeated_list_str_cmp);
+	tcase_add_test(tc_list, test_empty_list_str_cmp);
 	tcase_add_test(tc_list, test_singleton_list_valid);
 	tcase_add_test(tc_list, test_pair_list_valid);
 	tcase_add_test(tc_list, test_long_list_valid);
 	tcase_add_test(tc_list, test_repeated_list_valid);
-	tcase_add_test(tc_list, test_empty_list);
+	tcase_add_test(tc_list, test_empty_list_valid);
 	tcase_add_test(tc_list, test_unterminated_list);
 	tcase_add_test(tc_list, test_unterminated_list_v2);
 	tcase_add_test(tc_list, test_unopened_list);
@@ -467,6 +513,8 @@ obj_spec_suite(void)
 	tcase_add_test(tc_map, test_map_BD_str_cmp);
 	tcase_add_test(tc_map, test_map_BS_str_cmp);
 	tcase_add_test(tc_map, test_map_BB_str_cmp);
+	tcase_add_test(tc_map, test_empty_map_str_cmp);
+	tcase_add_test(tc_map, test_empty_map_v2_str_cmp);
 	tcase_add_test(tc_map, test_map_II_valid);
 	tcase_add_test(tc_map, test_map_ID_valid);
 	tcase_add_test(tc_map, test_map_IS_valid);
@@ -483,7 +531,8 @@ obj_spec_suite(void)
 	tcase_add_test(tc_map, test_map_BD_valid);
 	tcase_add_test(tc_map, test_map_BS_valid);
 	tcase_add_test(tc_map, test_map_BB_valid);
-	tcase_add_test(tc_map, test_empty_map);
+	tcase_add_test(tc_map, test_empty_map_valid);
+	tcase_add_test(tc_map, test_empty_map_v2_valid);
 	tcase_add_test(tc_map, test_map_with_no_value);
 	tcase_add_test(tc_map, test_map_multiple_keys);
 	tcase_add_test(tc_map, test_unterminated_map);
@@ -568,6 +617,20 @@ obj_spec_suite(void)
 	tcase_add_test(tc_multipliers, test_mult_list_too_many_elements);
 	suite_add_tcase(s, tc_multipliers);
 
+	tc_write_bins = tcase_create("Write bins");
+	tcase_add_checked_fixture(tc_write_bins, simple_setup, simple_teardown);
+	tcase_add_test(tc_write_bins, test_wb_simple_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_odds_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_evens_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_lists_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_maps_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_simple_valid);
+	tcase_add_test(tc_write_bins, test_wb_odds_valid);
+	tcase_add_test(tc_write_bins, test_wb_evens_valid);
+	tcase_add_test(tc_write_bins, test_wb_lists_valid);
+	tcase_add_test(tc_write_bins, test_wb_maps_valid);
+	suite_add_tcase(s, tc_write_bins);
+
 	tc_bin_names = tcase_create("Bin names");
 	tcase_add_checked_fixture(tc_bin_names, simple_setup, simple_teardown);
 	tcase_add_test(tc_bin_names, bin_name_single_ok);
@@ -593,6 +656,16 @@ obj_spec_suite(void)
 	tcase_add_test(tc_spacing, test_space_map_before_value_valid);
 	tcase_add_test(tc_spacing, test_space_map_both_str_cmp);
 	tcase_add_test(tc_spacing, test_space_map_both_valid);
+	tcase_add_test(tc_spacing, test_space_mult_before_str_cmp);
+	tcase_add_test(tc_spacing, test_space_mult_before_valid);
+	tcase_add_test(tc_spacing, test_space_mult_after_str_cmp);
+	tcase_add_test(tc_spacing, test_space_mult_after_valid);
+	tcase_add_test(tc_spacing, test_space_mult_both_str_cmp);
+	tcase_add_test(tc_spacing, test_space_mult_both_valid);
+	tcase_add_test(tc_spacing, test_space_list_str_cmp);
+	tcase_add_test(tc_spacing, test_space_list_valid);
+	tcase_add_test(tc_spacing, test_space_map_str_cmp);
+	tcase_add_test(tc_spacing, test_space_map_valid);
 	suite_add_tcase(s, tc_spacing);
 
 	return s;

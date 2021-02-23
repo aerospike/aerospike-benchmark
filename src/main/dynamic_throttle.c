@@ -40,7 +40,7 @@ dyn_throttle_pause_for(dyn_throttle_t* dt, uint64_t rec)
 	// this will only happen the first DYN_THROTTLE_N calls, after which it
 	// will never happen again, so go ahead and tell the compiler to expect
 	// the second case
-	if (__builtin_expect(n_records < DYN_THROTTLE_N, 0)) {
+	if (UNLIKELY(n_records < DYN_THROTTLE_N)) {
 		if (n_records == 0) {
 			pause_for = (uint64_t) nearbyintf(dt->target_period);
 		}

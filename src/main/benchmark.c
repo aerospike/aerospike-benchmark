@@ -70,8 +70,6 @@ run_benchmark(args_t* args)
 	data.transaction_worker_threads = args->transaction_worker_threads;
 	data.compression_ratio = args->compression_ratio;
 	stages_move(&data.stages, &args->stages);
-	obj_spec_move(&data.obj_spec, &args->obj_spec);
-	data.transactions_count = 0;
 	data.latency = args->latency;
 	data.debug = args->debug;
 	data.async_max_commands = args->async_max_commands;
@@ -113,6 +111,13 @@ run_benchmark(args_t* args)
 	}
 
 	if (ret == 0) {
+		for (uint32_t i = 0; i < data.stages.n_stages && ret == 0; i++) {
+			ret = obj_spec_bin_name_compatible(&data.stages.stages[i].obj_spec,
+					data.bin_name) ? 0 : -1;
+		}
+	}
+
+	if (ret == 0) {
 		ret = _run(&data);
 
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
@@ -132,7 +137,6 @@ run_benchmark(args_t* args)
 		as_event_close_loops();
 	}
 
-	obj_spec_free(&data.obj_spec);
 	free_workload_config(&data.stages);
 	
 	return ret;
@@ -151,7 +155,7 @@ as_client_log_cb(as_log_level level, const char* func, const char* file,
 	va_start(ap, fmt);
 	blog_detailv(level, fmt, ap);
 	va_end(ap);
-	blog_line("");
+	printf("\n");
 	return true;
 }
 
