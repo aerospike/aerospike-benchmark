@@ -499,8 +499,8 @@ print_args(args_t* args)
 	printf("user:                   %s\n", args->user);
 	printf("namespace:              %s\n", args->namespace);
 	printf("set:                    %s\n", args->set);
-	printf("startKey:               %lu\n" PRIu64, args->start_key);
-	printf("keys/records:           %lu\n" PRIu64, args->keys);
+	printf("startKey:               %" PRIu64 "\n", args->start_key);
+	printf("keys/records:           %" PRIu64 "\n", args->keys);
 
 	char buf[1024];
 	snprint_obj_spec(&args->obj_spec, buf, sizeof(buf));
@@ -648,12 +648,12 @@ static int
 validate_args(args_t* args)
 {
 	if (args->start_key == ULLONG_MAX) {
-		printf("Invalid start key: %lu\n" PRIu64, args->start_key);
+		printf("Invalid start key: %" PRIu64 "\n", args->start_key);
 		return 1;
 	}
 
 	if (args->keys == ULLONG_MAX) {
-		printf("Invalid number of keys: %lu\n" PRIu64, args->keys);
+		printf("Invalid number of keys: %" PRIu64 "\n", args->keys);
 		return 1;
 	}
 
