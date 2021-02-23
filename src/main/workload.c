@@ -348,6 +348,7 @@ void free_workload_config(stages_t* stages)
 			_free_bins_selection(stage->read_bins);
 			cf_free(stage->write_bins);
 		}
+		cf_free(stages->stages);
 	}
 }
 

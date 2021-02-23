@@ -986,6 +986,7 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	for (uint32_t i = 0; i < n_adatas; i++) {
 		queue_pop_wait(&adata_q);
 	}
+	queue_free(&adata_q);
 
 	// free the async_data structs
 	cf_free(adatas);
