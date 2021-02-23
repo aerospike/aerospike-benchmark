@@ -92,7 +92,6 @@ typedef struct clientdata_s {
 	const char* bin_name;
 	struct stages_s stages;
 
-	uint64_t transactions_count;
 	uint64_t period_begin;
 
 	aerospike client;

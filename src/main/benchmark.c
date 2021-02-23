@@ -70,7 +70,6 @@ run_benchmark(args_t* args)
 	data.transaction_worker_threads = args->transaction_worker_threads;
 	data.compression_ratio = args->compression_ratio;
 	stages_move(&data.stages, &args->stages);
-	data.transactions_count = 0;
 	data.latency = args->latency;
 	data.debug = args->debug;
 	data.async_max_commands = args->async_max_commands;
