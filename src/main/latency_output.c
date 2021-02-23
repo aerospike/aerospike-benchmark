@@ -345,6 +345,7 @@ periodic_output_worker(void* udata)
 					uint64_t elapsed_s = (time - start_time) / 1000000;
 					print_hdr_percentiles(cdata->write_hdr, "write", elapsed_s,
 							&cdata->latency_percentiles, stdout);
+
 					if (has_reads) {
 						print_hdr_percentiles(cdata->read_hdr,  "read",  elapsed_s,
 								&cdata->latency_percentiles, stdout);

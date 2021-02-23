@@ -257,7 +257,7 @@ void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 	int64_t total_cnt;
 
 	total_cnt = hdr_total_count(h);
-	min = hdr_min(h);
+	min = total_cnt == 0 ? 0 : hdr_min(h);
 	max = hdr_max(h);
 	fprintf(out_file, "hdr: %-5s %.24s %lu, %lu, %ld, %ld", name,
 			utc_time_str(time(NULL)), elapsed_s, total_cnt, min, max);

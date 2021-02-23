@@ -164,18 +164,14 @@ transaction_worker(void* udata)
 static void
 _record_read(cdata_t* cdata, uint64_t dt_us)
 {
-	if (cdata->latency || cdata->histogram_output != NULL ||
-			cdata->hdr_comp_write_output != NULL) {
-		if (cdata->latency) {
-			//latency_add(&cdata->read_latency, dt_us / 1000);
-			hdr_record_value_atomic(cdata->read_hdr, dt_us);
-		}
-		if (cdata->histogram_output != NULL) {
-			histogram_add(&cdata->read_histogram, dt_us);
-		}
-		if (cdata->hdr_comp_write_output != NULL) {
-			hdr_record_value_atomic(cdata->summary_read_hdr, dt_us);
-		}
+	if (cdata->latency) {
+		hdr_record_value_atomic(cdata->read_hdr, dt_us);
+	}
+	if (cdata->histogram_output != NULL) {
+		histogram_add(&cdata->read_histogram, dt_us);
+	}
+	if (cdata->hdr_comp_read_output != NULL) {
+		hdr_record_value_atomic(cdata->summary_read_hdr, dt_us);
 	}
 	as_incr_uint32(&cdata->read_count);
 }
@@ -183,18 +179,14 @@ _record_read(cdata_t* cdata, uint64_t dt_us)
 static void
 _record_write(cdata_t* cdata, uint64_t dt_us)
 {
-	if (cdata->latency || cdata->histogram_output != NULL ||
-			cdata->hdr_comp_write_output != NULL) {
-		if (cdata->latency) {
-			//latency_add(&cdata->write_latency, dt_us / 1000);
-			hdr_record_value_atomic(cdata->write_hdr, dt_us);
-		}
-		if (cdata->histogram_output != NULL) {
-			histogram_add(&cdata->write_histogram, dt_us);
-		}
-		if (cdata->hdr_comp_write_output != NULL) {
-			hdr_record_value_atomic(cdata->summary_write_hdr, dt_us);
-		}
+	if (cdata->latency) {
+		hdr_record_value_atomic(cdata->write_hdr, dt_us);
+	}
+	if (cdata->histogram_output != NULL) {
+		histogram_add(&cdata->write_histogram, dt_us);
+	}
+	if (cdata->hdr_comp_write_output != NULL) {
+		hdr_record_value_atomic(cdata->summary_write_hdr, dt_us);
 	}
 	as_incr_uint32(&cdata->write_count);
 }
