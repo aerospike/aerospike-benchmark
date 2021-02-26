@@ -39,6 +39,7 @@ struct thr_coordinator_s;
 typedef struct args_s {
 	char* hosts;
 	int port;
+	bool use_services_alternate;
 	const char* user;
 	char password[AS_PASSWORD_SIZE];
 	const char* namespace;

@@ -50,6 +50,7 @@ static struct option long_options[] = {
 	{"port",                 required_argument, 0, 'p'},
 	{"user",                 required_argument, 0, 'U'},
 	{"password",             optional_argument, 0, 'P'},
+	{"servicesAlternate",    no_argument,       0, '*'},
 	{"namespace",            required_argument, 0, 'n'},
 	{"set",                  required_argument, 0, 's'},
 	{"startKey",             required_argument, 0, 'K'},
@@ -102,7 +103,6 @@ static struct option long_options[] = {
 	{"tlsCertFile",          required_argument, 0, 'y'},
 	{"tlsLoginOnly",         no_argument,       0, 'f'},
 	{"auth",                 required_argument, 0, 'e'},
-	{"usage",                no_argument,       0, 'u'},
 	{0, 0, 0, 0}
 };
 
@@ -200,6 +200,10 @@ print_usage(const char* program)
 	printf("   the user will be prompted on the command line.\n");
 	printf("   If the password is given, it must be provided directly after -P with no\n");
 	printf("   intervening space (ie. -Pmypass).\n");
+	printf("\n");
+
+	printf("   --servicesAlternate\n");
+	printf("   Enables \"services-alternate\" instead of \"services\" when connecting to the server\n");
 	printf("\n");
 
 	printf("-n --namespace <ns>   # Default: test\n");
@@ -497,6 +501,7 @@ print_args(args_t* args)
 	printf("hosts:                  %s\n", args->hosts);
 	printf("port:                   %d\n", args->port);
 	printf("user:                   %s\n", args->user);
+	printf("services-alternate:     %s\n", boolstring(args->use_services_alternate));
 	printf("namespace:              %s\n", args->namespace);
 	printf("set:                    %s\n", args->set);
 	printf("startKey:               %" PRIu64 "\n", args->start_key);
@@ -806,6 +811,10 @@ set_args(int argc, char * const* argv, args_t* args)
 
 			case 'P':
 				as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
+				break;
+
+			case '*':
+				args->use_services_alternate = true;
 				break;
 
 			case 'n':
@@ -1168,7 +1177,6 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				break;
 
-			case 'u':
 			default:
 				return 1;
 		}
@@ -1183,6 +1191,7 @@ _load_defaults(args_t* args)
 	args->port = 3000;
 	args->user = 0;
 	args->password[0] = 0;
+	args->use_services_alternate = false;
 	args->namespace = "test";
 	args->set = "testset";
 	args->bin_name = "testbin";
