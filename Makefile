@@ -18,7 +18,7 @@ else
 	ARCH = $(shell uname -m)
 endif
 
-CFLAGS = -std=gnu99 -Wall -fPIC -O1 -MMD -MP
+CFLAGS = -std=gnu99 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
