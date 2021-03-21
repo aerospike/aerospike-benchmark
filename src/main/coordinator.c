@@ -5,8 +5,9 @@
 
 #include <coordinator.h>
 
+#include <errno.h>
+
 #include <aerospike/as_atomic.h>
-#include <aerospike/as_sleep.h>
 
 #include <common.h>
 #include <transaction.h>
@@ -17,6 +18,7 @@
 //
 
 static int _has_not_happened(const struct timespec* time);
+static int _sleep_for(uint64_t n_secs);
 static void _halt_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads);
 static void _terminate_threads(thr_coord_t* coord,
@@ -136,7 +138,7 @@ coordinator_worker(void* udata)
 
 		if (stage->duration > 0) {
 			// first sleep the minimum duration of the stage
-			as_sleep(stage->duration * 1000);
+			_sleep_for(stage->duration);
 		}
 		_finish_req_duration(coord);
 
@@ -185,6 +187,27 @@ _has_not_happened(const struct timespec* time)
 	clock_gettime(CLOCK_MONOTONIC, &now);
 	return now.tv_sec < time->tv_sec ||
 		(now.tv_sec == time->tv_sec && now.tv_nsec < time->tv_nsec);
+}
+
+/*
+ * sleep for at least the specified number of seconds, which is safe on signals
+ *
+ * returns 0 if the sleep was successful, otherwise -1 if an error occured
+ */
+static int
+_sleep_for(uint64_t n_secs)
+{
+	struct timespec sleep_time;
+	int res;
+
+	sleep_time.tv_sec = n_secs;
+	sleep_time.tv_nsec = 0;
+
+	do {
+		res = nanosleep(&sleep_time, &sleep_time);
+	} while (res != 0 && errno == EINTR);
+
+	return res;
 }
 
 /*
