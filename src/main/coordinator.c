@@ -203,9 +203,14 @@ _sleep_for(uint64_t n_secs)
 	sleep_time.tv_sec = n_secs;
 	sleep_time.tv_nsec = 0;
 
+	printf("start sleep at %lu for %lu secs\n", time(NULL), n_secs);
+
 	do {
 		res = nanosleep(&sleep_time, &sleep_time);
+		printf("sleep wake at %lu (res=%d, errno=%d (%s))\n", time(NULL), res, errno, strerror(errno));
 	} while (res != 0 && errno == EINTR);
+
+	printf("stop sleep at %lu\n", time(NULL));
 
 	return res;
 }
