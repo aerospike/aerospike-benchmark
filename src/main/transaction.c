@@ -540,8 +540,6 @@ random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	batch_size = stage->batch_size;
 
-	printf("thread %d start workload at %lu\n", tdata->t_idx, time(NULL));
-
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		// roll the die
 		uint32_t die = as_random_next_uint32(tdata->random);
@@ -594,7 +592,6 @@ random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			as_key_destroy(&key);
 		}
 	}
-	printf("thread %d stop workload at %lu\n", tdata->t_idx, time(NULL));
 }
 
 static void
