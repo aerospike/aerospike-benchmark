@@ -205,6 +205,11 @@ _sleep_for(uint64_t n_secs)
 
 	do {
 		res = nanosleep(&sleep_time, &sleep_time);
+
+		if (res != 0) {
+			blog_info("sleep interrupted (res=%d, errno=%d (%s))\n",
+					res, errno, strerror(errno));
+		}
 	} while (res != 0 && errno == EINTR);
 
 	return res;
