@@ -53,68 +53,68 @@ struct async_data_s {
 //
 
 // Latency recrding helpers
-static void _record_read(cdata_t* cdata, uint64_t dt_us);
-static void _record_write(cdata_t* cdata, uint64_t dt_us);
+LOCAL_HELPER void _record_read(cdata_t* cdata, uint64_t dt_us);
+LOCAL_HELPER void _record_write(cdata_t* cdata, uint64_t dt_us);
 
 // Read/Write singular/batch synchronous operations
-static int _write_record_sync(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER int _write_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_key* key, as_record* rec);
-static int _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+LOCAL_HELPER int _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, as_key* key);
-static int _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER int _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_batch_read_records* records);
 
 // Read/Write singular/batch asynchronous operations
-static int _write_record_async(as_key* key, as_record* rec,
+LOCAL_HELPER int _write_record_async(as_key* key, as_record* rec,
 		struct async_data_s* adata, cdata_t* cdata);
-static int _read_record_async(as_key* key, struct async_data_s* adata,
+LOCAL_HELPER int _read_record_async(as_key* key, struct async_data_s* adata,
 		cdata_t* cdata, stage_t* stage);
-static int _batch_read_record_async(as_batch_read_records* keys,
+LOCAL_HELPER int _batch_read_record_async(as_batch_read_records* keys,
 		struct async_data_s* adata, cdata_t* cdata);
 
 // Thread worker helper methods
-static void _calculate_subrange(uint64_t key_start, uint64_t key_end,
+LOCAL_HELPER void _calculate_subrange(uint64_t key_start, uint64_t key_end,
 		uint32_t t_idx, uint32_t n_threads, uint64_t* t_start, uint64_t* t_end);
-static void _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata);
-static void _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
+LOCAL_HELPER void _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata);
+LOCAL_HELPER void _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
 		tdata_t* tdata, stage_t* stage);
-static void _gen_nil_record(as_record* rec, const cdata_t* cdata,
+LOCAL_HELPER void _gen_nil_record(as_record* rec, const cdata_t* cdata,
 		stage_t* stage);
-static void throttle(tdata_t* tdata, thr_coord_t* coord);
+LOCAL_HELPER void throttle(tdata_t* tdata, thr_coord_t* coord);
 
 // Synchronous workload methods
-static void linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+LOCAL_HELPER void linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage);
-static void random_read_write(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void random_read_write(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, stage_t* stage);
-static void linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+LOCAL_HELPER void linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage);
 
 // Asynchronous workload methods
-static void _async_listener(as_error* err, void* udata,
+LOCAL_HELPER void _async_listener(as_error* err, void* udata,
 		as_event_loop* event_loop);
-static void _async_read_listener(as_error* err, as_record* rec, void* udata,
+LOCAL_HELPER void _async_read_listener(as_error* err, as_record* rec, void* udata,
 		as_event_loop* event_loop);
-static void _async_write_listener(as_error* err, void* udata,
+LOCAL_HELPER void _async_write_listener(as_error* err, void* udata,
 		as_event_loop* event_loop);
-static void _async_batch_read_listener(as_error* err,
+LOCAL_HELPER void _async_batch_read_listener(as_error* err,
 		as_batch_read_records* records, void* udata, as_event_loop* event_loop);
-static struct async_data_s* queue_pop_wait(queue_t* adata_q);
-static void linear_writes_async(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER struct async_data_s* queue_pop_wait(queue_t* adata_q);
+LOCAL_HELPER void linear_writes_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, stage_t* stage, queue_t* adata_q);
-static void rand_read_write_async(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void rand_read_write_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, stage_t* stage, queue_t* adata_q);
-static void linear_deletes_async(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void linear_deletes_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, stage_t* stage, queue_t* adata_q);
 
 // Main worker thread loop
-static void do_sync_workload(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void do_sync_workload(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, stage_t* stage);
-static void do_async_workload(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void do_async_workload(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, stage_t* stage);
-static void init_stage(const cdata_t* cdata, tdata_t* tdata,
+LOCAL_HELPER void init_stage(const cdata_t* cdata, tdata_t* tdata,
 		stage_t* stage);
-static void terminate_stage(const cdata_t* cdata, tdata_t* tdata,
+LOCAL_HELPER void terminate_stage(const cdata_t* cdata, tdata_t* tdata,
 		stage_t* stage);
 
 
@@ -161,7 +161,7 @@ transaction_worker(void* udata)
  * Latency recording helpers
  *****************************************************************************/
 
-static void
+LOCAL_HELPER void
 _record_read(cdata_t* cdata, uint64_t dt_us)
 {
 	if (cdata->latency) {
@@ -176,7 +176,7 @@ _record_read(cdata_t* cdata, uint64_t dt_us)
 	as_incr_uint32(&cdata->read_count);
 }
 
-static void
+LOCAL_HELPER void
 _record_write(cdata_t* cdata, uint64_t dt_us)
 {
 	if (cdata->latency) {
@@ -196,7 +196,7 @@ _record_write(cdata_t* cdata, uint64_t dt_us)
  * Read/Write singular/batch synchronous operations
  *****************************************************************************/
 
-static int
+LOCAL_HELPER int
 _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		as_key* key, as_record* rec)
 {
@@ -231,7 +231,7 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	return -1;
 }
 
-static int
+LOCAL_HELPER int
 _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, as_key* key)
 {
@@ -279,7 +279,7 @@ _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	return status;
 }
 
-static int
+LOCAL_HELPER int
 _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_batch_read_records* records)
 {
@@ -320,7 +320,7 @@ _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
  * Read/Write singular/batch asynchronous operations
  *****************************************************************************/
 
-static int
+LOCAL_HELPER int
 _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
 		cdata_t* cdata)
 {
@@ -339,7 +339,7 @@ _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
 	return status;
 }
 
-static int
+LOCAL_HELPER int
 _read_record_async(as_key* key, struct async_data_s* adata, cdata_t* cdata,
 		stage_t* stage)
 {
@@ -366,7 +366,7 @@ _read_record_async(as_key* key, struct async_data_s* adata, cdata_t* cdata,
 	return status;
 }
 
-static int
+LOCAL_HELPER int
 _batch_read_record_async(as_batch_read_records* keys, struct async_data_s* adata,
 		cdata_t* cdata)
 {
@@ -394,7 +394,7 @@ _batch_read_record_async(as_batch_read_records* keys, struct async_data_s* adata
  * calculates the subrange of keys that the given thread should operate on,
  * which is done by evenly dividing the interval into n_threads intervals
  */
-static void
+LOCAL_HELPER void
 _calculate_subrange(uint64_t key_start, uint64_t key_end, uint32_t t_idx,
 		uint32_t n_threads, uint64_t* t_start, uint64_t* t_end)
 {
@@ -403,7 +403,7 @@ _calculate_subrange(uint64_t key_start, uint64_t key_end, uint32_t t_idx,
 	*t_end   = key_start + ((n_keys * (t_idx + 1)) / n_threads);
 }
 
-static void
+LOCAL_HELPER void
 _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata)
 {
 	as_key_init_int64(key, cdata->namespace, cdata->set, key_val);
@@ -412,7 +412,7 @@ _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata)
 /*
  * generates a record with given key following the obj_spec in cdata
  */
-static void
+LOCAL_HELPER void
 _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
 		tdata_t* tdata, stage_t* stage)
 {
@@ -444,7 +444,7 @@ _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
 /*
  * generates a record with all nil bins (used to remove records)
  */
-static void
+LOCAL_HELPER void
 _gen_nil_record(as_record* rec, const cdata_t* cdata, stage_t* stage)
 {
 	uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
@@ -461,7 +461,7 @@ _gen_nil_record(as_record* rec, const cdata_t* cdata, stage_t* stage)
 /*
  * throttler to be called between every transaction
  */
-static void
+LOCAL_HELPER void
 throttle(tdata_t* tdata, thr_coord_t* coord)
 {
 	struct timespec wake_up;
@@ -482,7 +482,7 @@ throttle(tdata_t* tdata, thr_coord_t* coord)
  * TODO add work queue that threads can pull batches of keys from, rather than
  * having each thread take a predefined segment of the set of all keys
  */
-static void
+LOCAL_HELPER void
 linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
 {
@@ -520,7 +520,7 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	thr_coordinator_complete(coord);
 }
 
-static void
+LOCAL_HELPER void
 random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
 {
@@ -594,7 +594,7 @@ random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 }
 
-static void
+LOCAL_HELPER void
 linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
 {
@@ -637,7 +637,7 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
  * Asynchronous workload methods
  *****************************************************************************/
 
-static void
+LOCAL_HELPER void
 _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 {
 	struct async_data_s* adata = (struct async_data_s*) udata;
@@ -698,20 +698,20 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	queue_push(adata->adata_q, adata);
 }
 
-static void
+LOCAL_HELPER void
 _async_read_listener(as_error* err, as_record* rec, void* udata,
 		as_event_loop* event_loop)
 {
 	_async_listener(err, udata, event_loop);
 }
 
-static void
+LOCAL_HELPER void
 _async_write_listener(as_error* err, void* udata, as_event_loop* event_loop)
 {
 	_async_listener(err, udata, event_loop);
 }
 
-static void
+LOCAL_HELPER void
 _async_batch_read_listener(as_error* err, as_batch_read_records* records,
 		void* udata, as_event_loop* event_loop)
 {
@@ -721,7 +721,7 @@ _async_batch_read_listener(as_error* err, as_batch_read_records* records,
 	}
 }
 
-static struct async_data_s*
+LOCAL_HELPER struct async_data_s*
 queue_pop_wait(queue_t* adata_q)
 {
 	struct async_data_s* adata;
@@ -737,7 +737,7 @@ queue_pop_wait(queue_t* adata_q)
 	return adata;
 }
 
-static void
+LOCAL_HELPER void
 linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, queue_t* adata_q)
 {
@@ -780,7 +780,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	thr_coordinator_complete(coord);
 }
 
-static void
+LOCAL_HELPER void
 rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, queue_t* adata_q)
 {
@@ -864,7 +864,7 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 }
 
-static void
+LOCAL_HELPER void
 linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage, queue_t* adata_q)
 {
@@ -912,7 +912,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
  * Main worker thread loop
  *****************************************************************************/
 
-static void
+LOCAL_HELPER void
 do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
 {
@@ -929,7 +929,7 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 }
 
-static void
+LOCAL_HELPER void
 do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
 {
@@ -984,7 +984,7 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	cf_free(adatas);
 }
 
-static void
+LOCAL_HELPER void
 init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 {
 	if (stage->tps == 0) {
@@ -1008,7 +1008,7 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	}
 }
 
-static void
+LOCAL_HELPER void
 terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 {
 	dyn_throttle_free(&tdata->dyn_throttle);

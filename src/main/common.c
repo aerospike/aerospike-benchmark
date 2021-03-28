@@ -36,16 +36,16 @@
 // Forward declarations.
 //
 
-static int as_bytes_cmp(as_bytes* b1, as_bytes* b2);
-static int as_list_cmp_max(const as_list* list1, const as_list* list2,
+LOCAL_HELPER int as_bytes_cmp(as_bytes* b1, as_bytes* b2);
+LOCAL_HELPER int as_list_cmp_max(const as_list* list1, const as_list* list2,
 		uint32_t max, uint32_t fin);
-static int as_list_cmp(const as_list* list1, const as_list* list2);
-static int as_vector_cmp(as_vector* list1, as_vector* list2);
-static bool key_append(const as_val* key, const as_val* val, void* udata);
-static int key_cmp(const void* v1, const void* v2);
-static bool map_to_sorted_keys(const as_map* map, uint32_t size,
+LOCAL_HELPER int as_list_cmp(const as_list* list1, const as_list* list2);
+LOCAL_HELPER int as_vector_cmp(as_vector* list1, as_vector* list2);
+LOCAL_HELPER bool key_append(const as_val* key, const as_val* val, void* udata);
+LOCAL_HELPER int key_cmp(const void* v1, const void* v2);
+LOCAL_HELPER bool map_to_sorted_keys(const as_map* map, uint32_t size,
 		as_vector* list);
-static int as_map_cmp(const as_map* map1, const as_map* map2);
+LOCAL_HELPER int as_map_cmp(const as_map* map1, const as_map* map2);
 
 
 //==========================================================
@@ -274,7 +274,7 @@ void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 // Local helpers.
 //
 
-static int
+LOCAL_HELPER int
 as_bytes_cmp(as_bytes* b1, as_bytes* b2)
 {
 	if (b1->size == b2->size) {
@@ -290,7 +290,7 @@ as_bytes_cmp(as_bytes* b1, as_bytes* b2)
 	}
 }
 
-static int
+LOCAL_HELPER int
 as_list_cmp_max(const as_list* list1, const as_list* list2, uint32_t max, uint32_t fin)
 {
 	for (uint32_t i = 0; i < max; i++) {
@@ -303,7 +303,7 @@ as_list_cmp_max(const as_list* list1, const as_list* list2, uint32_t max, uint32
 	return fin;
 }
 
-static int
+LOCAL_HELPER int
 as_list_cmp(const as_list* list1, const as_list* list2)
 {
 	uint32_t size1 = as_list_size(list1);
@@ -320,7 +320,7 @@ as_list_cmp(const as_list* list1, const as_list* list2)
 	}
 }
 
-static int
+LOCAL_HELPER int
 as_vector_cmp(as_vector* list1, as_vector* list2)
 {
 	// Size of vectors should already be the same.
@@ -334,20 +334,20 @@ as_vector_cmp(as_vector* list1, as_vector* list2)
 	return 0;
 }
 
-static bool
+LOCAL_HELPER bool
 key_append(const as_val* key, const as_val* val, void* udata)
 {
 	as_vector_append(udata, (void*)&key);
 	return true;
 }
 
-static int
+LOCAL_HELPER int
 key_cmp(const void* v1, const void* v2)
 {
 	return as_val_cmp(*(as_val**)v1, *(as_val**)v2);
 }
 
-static bool
+LOCAL_HELPER bool
 map_to_sorted_keys(const as_map* map, uint32_t size, as_vector* list)
 {
 	as_vector_init(list, sizeof(as_val*), size);
@@ -361,7 +361,7 @@ map_to_sorted_keys(const as_map* map, uint32_t size, as_vector* list)
 	return true;
 }
 
-static int
+LOCAL_HELPER int
 as_map_cmp(const as_map* map1, const as_map* map2)
 {
 	// Map ordering documented at https://www.aerospike.com/docs/guide/cdt-ordering.html

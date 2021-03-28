@@ -111,13 +111,13 @@ static struct option long_options[] = {
 // Forward declarations.
 //
 
-static void print_usage(const char* program);
-static void print_args(args_t* args);
-static int validate_args(args_t* args);
-static stage_def_t* get_or_init_stage(args_t* args);
-static int set_args(int argc, char * const* argv, args_t* args);
-static void _load_defaults(args_t* args);
-static int _load_defaults_post(args_t* args);
+LOCAL_HELPER void print_usage(const char* program);
+LOCAL_HELPER void print_args(args_t* args);
+LOCAL_HELPER int validate_args(args_t* args);
+LOCAL_HELPER stage_def_t* get_or_init_stage(args_t* args);
+LOCAL_HELPER int set_args(int argc, char * const* argv, args_t* args);
+LOCAL_HELPER void _load_defaults(args_t* args);
+LOCAL_HELPER int _load_defaults_post(args_t* args);
 
 
 //==========================================================
@@ -165,7 +165,7 @@ main(int argc, char * const * argv)
 // Local helpers.
 //
 
-static void
+LOCAL_HELPER void
 print_usage(const char* program)
 {
 	printf("Usage: %s <options>\n", program);
@@ -495,7 +495,7 @@ print_usage(const char* program)
 	printf("\n");
 }
 
-static void
+LOCAL_HELPER void
 print_args(args_t* args)
 {
 	printf("hosts:                  %s\n", args->hosts);
@@ -649,7 +649,7 @@ print_args(args_t* args)
 	printf("auth mode:              %s\n", s);
 }
 
-static int
+LOCAL_HELPER int
 validate_args(args_t* args)
 {
 	if (args->start_key == ULLONG_MAX) {
@@ -767,7 +767,7 @@ validate_args(args_t* args)
 	return 0;
 }
 
-static stage_def_t*
+LOCAL_HELPER stage_def_t*
 get_or_init_stage(args_t* args)
 {
 	if (args->stage_defs.stages == NULL) {
@@ -783,7 +783,7 @@ get_or_init_stage(args_t* args)
 	return &args->stage_defs.stages[0];
 }
 
-static int
+LOCAL_HELPER int
 set_args(int argc, char * const* argv, args_t* args)
 {
 	int option_index = 0;
@@ -1184,7 +1184,7 @@ set_args(int argc, char * const* argv, args_t* args)
 	return validate_args(args);
 }
 
-static void
+LOCAL_HELPER void
 _load_defaults(args_t* args)
 {
 	args->hosts = strdup("127.0.0.1");
@@ -1241,7 +1241,7 @@ _load_defaults(args_t* args)
 	as_vector_append(&args->latency_percentiles, &p5);
 }
 
-static int
+LOCAL_HELPER int
 _load_defaults_post(args_t* args)
 {
 	int res = 0;

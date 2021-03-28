@@ -34,6 +34,20 @@
 
 #include <hdr_histogram/hdr_histogram.h>
 
+
+#ifdef _TEST
+
+// when testing, make all functions global symbols
+#define LOCAL_HELPER
+
+#else
+
+// normally local helper functions should be local symbols
+#define LOCAL_HELPER static
+
+#endif /* _TEST */
+
+
 #define _STR(x) #x
 #define STR(x) _STR(x)
 

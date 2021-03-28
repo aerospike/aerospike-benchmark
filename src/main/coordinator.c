@@ -17,16 +17,16 @@
 // Forward declarations.
 //
 
-static int _has_not_happened(const struct timespec* time);
-static int _sleep_for(uint64_t n_secs);
-static void _halt_threads(thr_coord_t* coord,
+LOCAL_HELPER int _has_not_happened(const struct timespec* time);
+LOCAL_HELPER int _sleep_for(uint64_t n_secs);
+LOCAL_HELPER void _halt_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads);
-static void _terminate_threads(thr_coord_t* coord,
+LOCAL_HELPER void _terminate_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads);
-static void _release_threads(thr_coord_t* coord,
+LOCAL_HELPER void _release_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads);
-static void _finish_req_duration(thr_coord_t* coord);
-static void clear_cdata_counts(cdata_t* cdata);
+LOCAL_HELPER void _finish_req_duration(thr_coord_t* coord);
+LOCAL_HELPER void clear_cdata_counts(cdata_t* cdata);
 
 
 //==========================================================
@@ -180,7 +180,7 @@ coordinator_worker(void* udata)
 /*
  * checks whether the time has not passed "time" yet
  */
-static int
+LOCAL_HELPER int
 _has_not_happened(const struct timespec* time)
 {
 	struct timespec now;
@@ -194,7 +194,7 @@ _has_not_happened(const struct timespec* time)
  *
  * returns 0 if the sleep was successful, otherwise -1 if an error occured
  */
-static int
+LOCAL_HELPER int
 _sleep_for(uint64_t n_secs)
 {
 	struct timespec sleep_time;
@@ -218,7 +218,7 @@ _sleep_for(uint64_t n_secs)
 /*
  * halt all threads and return once all threads have called thr_coordinator_wait
  */
-static void
+LOCAL_HELPER void
 _halt_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads)
 {
@@ -232,7 +232,7 @@ _halt_threads(thr_coord_t* coord,
  * signal to all threads to stop execution and return,
  * must be called after a call to _halt_threads
  */
-static void
+LOCAL_HELPER void
 _terminate_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads)
 {
@@ -246,7 +246,7 @@ _terminate_threads(thr_coord_t* coord,
  * signal to all threads to continue execution,
  * must be called after a call to _halt_threads
  */
-static void
+LOCAL_HELPER void
 _release_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads)
 {
@@ -262,7 +262,7 @@ _release_threads(thr_coord_t* coord,
  * the count of unfinished threads and wait on the condition variable until
  * all threads have finished their required tasks
  */
-static void
+LOCAL_HELPER void
 _finish_req_duration(thr_coord_t* coord)
 {
 	pthread_mutex_lock(&coord->c_lock);
@@ -295,7 +295,7 @@ _finish_req_duration(thr_coord_t* coord)
  * note: this is not thread safe, only call this when all other threads are
  * halted
  */
-static void
+LOCAL_HELPER void
 clear_cdata_counts(cdata_t* cdata)
 {
 	cdata->write_count = 0;

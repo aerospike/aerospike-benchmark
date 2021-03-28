@@ -56,8 +56,8 @@ typedef struct bucket_range_desc_s {
 // Forward declarations.
 //
 
-static int32_t _histogram_get_index(histogram_t* h, delay_t elapsed_us);
-static void _print_header(const histogram_t* h, uint64_t period_duration_us,
+LOCAL_HELPER int32_t _histogram_get_index(histogram_t* h, delay_t elapsed_us);
+LOCAL_HELPER void _print_header(const histogram_t* h, uint64_t period_duration_us,
 		uint64_t total_cnt, FILE* out_file);
 
 
@@ -306,7 +306,7 @@ histogram_print_info(const histogram_t* h, FILE* out_file)
 // Local helpers.
 //
 
-static int32_t
+LOCAL_HELPER int32_t
 _histogram_get_index(histogram_t* h, delay_t elapsed_us)
 {
 	int32_t bin_idx;
@@ -332,7 +332,7 @@ _histogram_get_index(histogram_t* h, delay_t elapsed_us)
 	return h->bounds[bin_idx].offset + bin_offset;
 }
 
-static void
+LOCAL_HELPER void
 _print_header(const histogram_t* h, uint64_t period_duration_us, uint64_t total_cnt,
 		FILE* out_file)
 {
