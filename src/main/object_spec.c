@@ -80,37 +80,37 @@ struct consumer_state_s {
 // Forward declarations.
 //
 
-static uint32_t bin_spec_map_n_entries(const struct bin_spec_s* b);
-static void _print_parse_error(const char* err_msg, const char* obj_spec_str,
+LOCAL_HELPER uint32_t bin_spec_map_n_entries(const struct bin_spec_s* b);
+LOCAL_HELPER void _print_parse_error(const char* err_msg, const char* obj_spec_str,
 		const char* err_loc);
-static void bin_spec_free(struct bin_spec_s* bin_spec);
-static void _destroy_consumer_states(struct consumer_state_s* state);
-static int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
+LOCAL_HELPER void _destroy_consumer_states(struct consumer_state_s* state);
+LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str);
-static void bin_spec_free(struct bin_spec_s* bin_spec);
-static as_val* _gen_random_int(uint8_t range, as_random* random);
-static uint64_t raw_to_alphanum(uint64_t n);
-static as_val* _gen_random_str(uint32_t length, as_random* random);
-static as_val* _gen_random_bytes(uint32_t length, as_random* random,
+LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
+LOCAL_HELPER as_val* _gen_random_int(uint8_t range, as_random* random);
+LOCAL_HELPER uint64_t raw_to_alphanum(uint64_t n);
+LOCAL_HELPER as_val* _gen_random_str(uint32_t length, as_random* random);
+LOCAL_HELPER as_val* _gen_random_bytes(uint32_t length, as_random* random,
 		float compression_ratio);
-static as_val* _gen_random_double(as_random* random);
-static as_val* _gen_random_list(const struct bin_spec_s* bin_spec,
+LOCAL_HELPER as_val* _gen_random_double(as_random* random);
+LOCAL_HELPER as_val* _gen_random_list(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio);
-static as_val* _gen_random_map(const struct bin_spec_s* bin_spec,
+LOCAL_HELPER as_val* _gen_random_map(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio);
-static as_val* bin_spec_random_val(const struct bin_spec_s* bin_spec,
+LOCAL_HELPER as_val* bin_spec_random_val(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio);
-static size_t _sprint_bin(const struct bin_spec_s* bin, char** out_str,
+LOCAL_HELPER size_t _sprint_bin(const struct bin_spec_s* bin, char** out_str,
 		size_t str_size);
 
 #ifdef _TEST
-static void _dbg_validate_int(uint8_t range, as_integer* as_val);
-static void _dbg_validate_string(uint32_t length, as_string* as_val);
-static void _dbg_validate_bytes(uint32_t length, as_bytes* as_val);
-static void _dbg_validate_double(as_double* as_val);
-static void _dbg_validate_list(const struct bin_spec_s* bin_spec,
+LOCAL_HELPER void _dbg_validate_int(uint8_t range, as_integer* as_val);
+LOCAL_HELPER void _dbg_validate_string(uint32_t length, as_string* as_val);
+LOCAL_HELPER void _dbg_validate_bytes(uint32_t length, as_bytes* as_val);
+LOCAL_HELPER void _dbg_validate_double(as_double* as_val);
+LOCAL_HELPER void _dbg_validate_list(const struct bin_spec_s* bin_spec,
 		const as_list* as_val);
-static void _dbg_validate_map(const struct bin_spec_s* bin_spec,
+LOCAL_HELPER void _dbg_validate_map(const struct bin_spec_s* bin_spec,
 		const as_map* val);
 #endif /* _TEST */
 
@@ -123,7 +123,7 @@ static void _dbg_validate_map(const struct bin_spec_s* bin_spec,
  * converts a bytevector of 8 values between 0-35 to a bytevector of 8
  * alphanumeric characters
  */
-static inline uint64_t
+LOCAL_HELPER inline uint64_t
 raw_to_alphanum(uint64_t n)
 {
 	uint64_t x, y;
@@ -516,13 +516,13 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 /*
  * gives the number of entries to put in the map
  */
-static uint32_t
+LOCAL_HELPER uint32_t
 bin_spec_map_n_entries(const struct bin_spec_s* b)
 {
 	return b->map.key->n_repeats;
 }
 
-static void
+LOCAL_HELPER void
 _print_parse_error(const char* err_msg, const char* obj_spec_str,
 		const char* err_loc)
 {
@@ -555,7 +555,7 @@ _print_parse_error(const char* err_msg, const char* obj_spec_str,
  * to be called when an error is encountered while parsing, and cleanup of the
  * consumer state managers and bin_specs is necessary
  */
-static void
+LOCAL_HELPER void
 _destroy_consumer_states(struct consumer_state_s* state)
 {
 	struct consumer_state_s* parent;
@@ -608,7 +608,7 @@ _destroy_consumer_states(struct consumer_state_s* state)
 }
 
 
-static int
+LOCAL_HELPER int
 _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str)
 {
@@ -998,7 +998,7 @@ _destroy_state:
 	return 0;
 }
 
-static void
+LOCAL_HELPER void
 bin_spec_free(struct bin_spec_s* bin_spec)
 {
 	switch (bin_spec->type) {
@@ -1024,7 +1024,7 @@ bin_spec_free(struct bin_spec_s* bin_spec)
 	}
 }
 
-static as_val*
+LOCAL_HELPER as_val*
 _gen_random_int(uint8_t range, as_random* random)
 {
 	as_integer* val;
@@ -1075,7 +1075,7 @@ _gen_random_int(uint8_t range, as_random* random)
  */
 #define MAX_SEED 4738381338321616896LU
 
-static as_val*
+LOCAL_HELPER as_val*
 _gen_random_str(uint32_t length, as_random* random)
 {
 	as_string* val;
@@ -1151,7 +1151,7 @@ _gen_random_str(uint32_t length, as_random* random)
 	return (as_val*) val;
 }
 
-static as_val*
+LOCAL_HELPER as_val*
 _gen_random_bytes(uint32_t length, as_random* random, float compression_ratio)
 {
 	as_bytes* val;
@@ -1165,7 +1165,7 @@ _gen_random_bytes(uint32_t length, as_random* random, float compression_ratio)
 	return (as_val*) val;
 }
 
-static as_val*
+LOCAL_HELPER as_val*
 _gen_random_double(as_random* random)
 {
 	as_double* val;
@@ -1175,7 +1175,7 @@ _gen_random_double(as_random* random)
 	return (as_val*) val;
 }
 
-static as_val*
+LOCAL_HELPER as_val*
 _gen_random_list(const struct bin_spec_s* bin_spec, as_random* random,
 		float compression_ratio)
 {
@@ -1209,7 +1209,7 @@ _gen_random_list(const struct bin_spec_s* bin_spec, as_random* random,
 	return (as_val*) list;
 }
 
-static as_val*
+LOCAL_HELPER as_val*
 _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 		float compression_ratio)
 {
@@ -1238,7 +1238,7 @@ _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 }
 
 
-static as_val*
+LOCAL_HELPER as_val*
 bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
 		float compression_ratio)
 {
@@ -1271,7 +1271,7 @@ bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
 	return val;
 }
 
-static size_t
+LOCAL_HELPER size_t
 _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 {
 	if (bin->n_repeats != 1) {
@@ -1316,7 +1316,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 
 #ifdef _TEST
 
-static void
+LOCAL_HELPER void
 _dbg_validate_int(uint8_t range, as_integer* as_val)
 {
 	ck_assert_msg(as_val != NULL, "Expected an integer, got something else");
@@ -1359,7 +1359,7 @@ _dbg_validate_int(uint8_t range, as_integer* as_val)
 	}
 }
 
-static void
+LOCAL_HELPER void
 _dbg_validate_string(uint32_t length, as_string* as_val)
 {
 	ck_assert_msg(as_val != NULL, "Expected a string, got something else");
@@ -1373,7 +1373,7 @@ _dbg_validate_string(uint32_t length, as_string* as_val)
 	}
 }
 
-static void
+LOCAL_HELPER void
 _dbg_validate_bytes(uint32_t length, as_bytes* as_val)
 {
 	ck_assert_msg(as_val != NULL, "Expected a bytes array, got something else");
@@ -1381,13 +1381,13 @@ _dbg_validate_bytes(uint32_t length, as_bytes* as_val)
 	ck_assert_int_eq(length, as_bytes_size(as_val));
 }
 
-static void
+LOCAL_HELPER void
 _dbg_validate_double(as_double* as_val)
 {
 	ck_assert_msg(as_val != NULL, "Expected a double, got something else");
 }
 
-static void
+LOCAL_HELPER void
 _dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val)
 {
 	ck_assert_msg(as_val != NULL, "Expected a list, got something else");
@@ -1404,7 +1404,7 @@ _dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val)
 }
 
 
-static void
+LOCAL_HELPER void
 _dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val)
 {
 	as_hashmap_iterator iter;

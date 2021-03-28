@@ -46,14 +46,14 @@
 // Forward declarations.
 //
 
-static bool as_client_log_cb(as_log_level level, const char* func,
+LOCAL_HELPER bool as_client_log_cb(as_log_level level, const char* func,
 		const char* file, uint32_t line, const char* fmt, ...);
-static int connect_to_server(args_t* args, aerospike* client);
-static bool is_single_bin(aerospike* client, const char* namespace);
-static tdata_t* init_tdata(cdata_t* cdata, thr_coord_t* coord,
+LOCAL_HELPER int connect_to_server(args_t* args, aerospike* client);
+LOCAL_HELPER bool is_single_bin(aerospike* client, const char* namespace);
+LOCAL_HELPER tdata_t* init_tdata(cdata_t* cdata, thr_coord_t* coord,
 		uint32_t t_idx);
-static void destroy_tdata(tdata_t* tdata);
-static int _run(cdata_t* cdata);
+LOCAL_HELPER void destroy_tdata(tdata_t* tdata);
+LOCAL_HELPER int _run(cdata_t* cdata);
 
 
 //==========================================================
@@ -147,7 +147,7 @@ run_benchmark(args_t* args)
 // Local helpers.
 //
 
-static bool
+LOCAL_HELPER bool
 as_client_log_cb(as_log_level level, const char* func, const char* file,
 		uint32_t line, const char* fmt, ...)
 {
@@ -159,7 +159,7 @@ as_client_log_cb(as_log_level level, const char* func, const char* file,
 	return true;
 }
 
-static int
+LOCAL_HELPER int
 connect_to_server(args_t* args, aerospike* client)
 {
 	if (stages_contain_async(&args->stages)) {
@@ -258,7 +258,7 @@ connect_to_server(args_t* args, aerospike* client)
 	return 0;
 }
 
-static bool
+LOCAL_HELPER bool
 is_single_bin(aerospike* client, const char* namespace)
 {
 	char filter[256];
@@ -298,7 +298,7 @@ is_single_bin(aerospike* client, const char* namespace)
 /*
  * allocates and initializes a new threaddata struct, returning a pointer to it
  */
-static tdata_t*
+LOCAL_HELPER tdata_t*
 init_tdata(cdata_t* cdata, thr_coord_t* coord,
 		uint32_t t_idx)
 {
@@ -317,12 +317,12 @@ init_tdata(cdata_t* cdata, thr_coord_t* coord,
 	return tdata;
 }
 
-static void
+LOCAL_HELPER void
 destroy_tdata(tdata_t* tdata)
 {
 }
 
-static int
+LOCAL_HELPER int
 _run(cdata_t* cdata)
 {
 	int ret = 0;

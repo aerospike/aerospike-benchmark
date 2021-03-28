@@ -15,6 +15,7 @@
 
 #include <hdr_histogram/hdr_histogram_log.h>
 
+#include <common.h>
 #include <transaction.h>
 
 

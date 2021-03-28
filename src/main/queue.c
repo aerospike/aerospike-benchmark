@@ -8,6 +8,7 @@
 #include <aerospike/as_atomic.h>
 #include <citrusleaf/alloc.h>
 
+#include <common.h>
 #include <queue.h>
 
 
@@ -15,7 +16,7 @@
 // Forward declarations.
 //
 
-static uint32_t next_pow2(uint32_t n);
+LOCAL_HELPER uint32_t next_pow2(uint32_t n);
 
 
 //==========================================================
@@ -77,7 +78,7 @@ queue_pop(queue_t* q)
 // Local helpers.
 //
 
-static uint32_t
+LOCAL_HELPER uint32_t
 next_pow2(uint32_t n)
 {
 	uint32_t leading_bits = __builtin_clz(n);

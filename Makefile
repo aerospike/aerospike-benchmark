@@ -210,10 +210,10 @@ test: | test_target/test
 	@./test_target/test
 
 test_target:
-	mkdir $@ 
+	mkdir $@
 
 test_target/obj: | test_target
-	mkdir $@ 
+	mkdir $@
 
 test_target/obj/hdr_histogram: | test_target/obj
 	mkdir $@

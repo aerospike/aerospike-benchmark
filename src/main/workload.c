@@ -105,17 +105,17 @@ static const cyaml_config_t config = {
  * the list of bin names will be returned, and n_bins will be populated with
  * the number of bins in the returned array
  */
-static void* _parse_bins_selection(const char* bins_str,
+LOCAL_HELPER void* _parse_bins_selection(const char* bins_str,
 		const obj_spec_t* obj_spec, const char* stage_bin_name,
 		uint32_t* n_bins_ptr, uint8_t mode);
 /*
  * cleanup helper used by _parse_bins_selection on failure
  */
-static void _parse_bins_destroy(as_vector* read_bins, uint8_t mode);
+LOCAL_HELPER void _parse_bins_destroy(as_vector* read_bins, uint8_t mode);
 /*
  * frees the bins selection array created from parse_bins_selection in STR mode
  */
-static void _free_bins_selection(char** bins);
+LOCAL_HELPER void _free_bins_selection(char** bins);
 
 
 //==========================================================
@@ -511,7 +511,7 @@ void stages_print_defs(const stage_defs_t* stage_defs,
 // Local helpers.
 //
 
-static void*
+LOCAL_HELPER void*
 _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
 		const char* stage_bin_name, uint32_t* n_bins_ptr, uint8_t mode)
 {
@@ -594,7 +594,7 @@ _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
 	return bin_list;
 }
 
-static void
+LOCAL_HELPER void
 _parse_bins_destroy(as_vector* read_bins, uint8_t mode)
 {
 
@@ -609,7 +609,7 @@ _parse_bins_destroy(as_vector* read_bins, uint8_t mode)
 	as_vector_destroy(read_bins);
 }
 
-static void
+LOCAL_HELPER void
 _free_bins_selection(char** bins)
 {
 	if (bins != NULL) {
