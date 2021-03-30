@@ -1178,6 +1178,8 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 
 			default:
+				fprintf(stderr, "Unknown parameter '%c'\n", c);
+			case '?':
 				return 1;
 		}
 	}
