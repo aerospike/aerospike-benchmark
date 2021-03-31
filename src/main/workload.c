@@ -237,6 +237,14 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			ret = -1;
 		}
 
+		if (stage->workload.type == WORKLOAD_TYPE_DELETE && stage->random) {
+			fprintf(stderr,
+					"Stage %d is a delete workload, so you cannot have random "
+					"records (set random to false)\n",
+					i + 1);
+			ret = -1;
+		}
+
 		if (stage_def->duration == -1LU) {
 			if (workload_is_infinite(&stage->workload)) {
 				stage->duration = DEFAULT_RANDOM_DURATION;

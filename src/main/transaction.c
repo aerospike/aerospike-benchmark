@@ -60,7 +60,7 @@ LOCAL_HELPER void _record_write(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER int _write_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_key* key, as_record* rec);
 LOCAL_HELPER int _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage, as_key* key);
+		const stage_t* stage, as_key* key);
 LOCAL_HELPER int _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_batch_read_records* records);
 
@@ -68,7 +68,7 @@ LOCAL_HELPER int _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 LOCAL_HELPER int _write_record_async(as_key* key, as_record* rec,
 		struct async_data_s* adata, cdata_t* cdata);
 LOCAL_HELPER int _read_record_async(as_key* key, struct async_data_s* adata,
-		cdata_t* cdata, stage_t* stage);
+		cdata_t* cdata, const stage_t* stage);
 LOCAL_HELPER int _batch_read_record_async(as_batch_read_records* keys,
 		struct async_data_s* adata, cdata_t* cdata);
 
@@ -76,19 +76,19 @@ LOCAL_HELPER int _batch_read_record_async(as_batch_read_records* keys,
 LOCAL_HELPER void _calculate_subrange(uint64_t key_start, uint64_t key_end,
 		uint32_t t_idx, uint32_t n_threads, uint64_t* t_start, uint64_t* t_end);
 LOCAL_HELPER void _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata);
-LOCAL_HELPER void _gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
-		tdata_t* tdata, stage_t* stage);
-LOCAL_HELPER void _gen_nil_record(as_record* rec, const cdata_t* cdata,
-		stage_t* stage);
+LOCAL_HELPER as_record* _gen_record(as_random* random, const cdata_t* cdata,
+		tdata_t* tdata, const stage_t* stage);
+LOCAL_HELPER as_record* _gen_nil_record(tdata_t* tdata);
+LOCAL_HELPER void _destroy_record(as_record* rec, const stage_t* stage);
 LOCAL_HELPER void throttle(tdata_t* tdata, thr_coord_t* coord);
 
 // Synchronous workload methods
 LOCAL_HELPER void linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage);
+		const stage_t* stage);
 LOCAL_HELPER void random_read_write(tdata_t* tdata, cdata_t* cdata,
-		thr_coord_t* coord, stage_t* stage);
+		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage);
+		const stage_t* stage);
 
 // Asynchronous workload methods
 LOCAL_HELPER void _async_listener(as_error* err, void* udata,
@@ -101,11 +101,11 @@ LOCAL_HELPER void _async_batch_read_listener(as_error* err,
 		as_batch_read_records* records, void* udata, as_event_loop* event_loop);
 LOCAL_HELPER struct async_data_s* queue_pop_wait(queue_t* adata_q);
 LOCAL_HELPER void linear_writes_async(tdata_t* tdata, cdata_t* cdata,
-	   thr_coord_t* coord, stage_t* stage, queue_t* adata_q);
+	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 LOCAL_HELPER void rand_read_write_async(tdata_t* tdata, cdata_t* cdata,
-	   thr_coord_t* coord, stage_t* stage, queue_t* adata_q);
+	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 LOCAL_HELPER void linear_deletes_async(tdata_t* tdata, cdata_t* cdata,
-	   thr_coord_t* coord, stage_t* stage, queue_t* adata_q);
+	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 
 // Main worker thread loop
 LOCAL_HELPER void do_sync_workload(tdata_t* tdata, cdata_t* cdata,
@@ -233,7 +233,7 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER int
 _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage, as_key* key)
+		const stage_t* stage, as_key* key)
 {
 	as_record* rec = NULL;
 	as_status status;
@@ -341,7 +341,7 @@ _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
 
 LOCAL_HELPER int
 _read_record_async(as_key* key, struct async_data_s* adata, cdata_t* cdata,
-		stage_t* stage)
+		const stage_t* stage)
 {
 	as_status status;
 	as_error err;
@@ -412,50 +412,42 @@ _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata)
 /*
  * generates a record with given key following the obj_spec in cdata
  */
-LOCAL_HELPER void
-_gen_record(as_record* rec, as_random* random, const cdata_t* cdata,
-		tdata_t* tdata, stage_t* stage)
+LOCAL_HELPER as_record*
+_gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
+		const stage_t* stage)
 {
+	as_record* rec;
+
 	if (stage->random) {
 		uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
-		as_record_init(rec, n_objs);
+		rec = as_record_new(n_objs);
 
 		obj_spec_populate_bins(&stage->obj_spec, rec, random,
 				cdata->bin_name, stage->write_bins, stage->n_write_bins,
 				cdata->compression_ratio);
 	}
 	else {
-		as_list* list = as_list_fromval(tdata->fixed_value);
-		uint32_t n_objs = as_list_size(list);
-		as_record_init(rec, n_objs);
-
-		for (uint32_t i = 0; i < n_objs; i++) {
-			as_val* val = as_list_get(list, i);
-			as_val_reserve(val);
-
-			as_bin* bin = &rec->bins.entries[i];
-			gen_bin_name(bin->name, cdata->bin_name,
-					stage->write_bins == NULL ? i : stage->write_bins[i]);
-			as_record_set(rec, bin->name, (as_bin_value*) val);
-		}
+		rec = &tdata->fixed_value;
 	}
+	return rec;
 }
 
 /*
  * generates a record with all nil bins (used to remove records)
  */
-LOCAL_HELPER void
-_gen_nil_record(as_record* rec, const cdata_t* cdata, stage_t* stage)
+LOCAL_HELPER as_record*
+_gen_nil_record(tdata_t* tdata)
 {
-	uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
-	as_record_init(rec, n_objs);
+	return &tdata->fixed_value;
+}
 
-	for (uint32_t i = 0; i < n_objs; i++) {
-		as_bin* bin = &rec->bins.entries[i];
-		gen_bin_name(bin->name, cdata->bin_name, i + 1);
-		// FIXME this does an extra strcpy
-		as_record_set_nil(rec, bin->name);
+LOCAL_HELPER void
+_destroy_record(as_record* rec, const stage_t* stage)
+{
+	if (stage->random) {
+		as_record_destroy(rec);
 	}
+	// don't destroy the records if the workload isn't randomized
 }
 
 /*
@@ -465,12 +457,15 @@ LOCAL_HELPER void
 throttle(tdata_t* tdata, thr_coord_t* coord)
 {
 	struct timespec wake_up;
-	clock_gettime(COORD_CLOCK, &wake_up);
 
-	uint64_t pause_for = dyn_throttle_pause_for(&tdata->dyn_throttle,
-			timespec_to_us(&wake_up));
-	timespec_add_us(&wake_up, pause_for);
-	thr_coordinator_sleep(coord, &wake_up);
+	if (tdata->dyn_throttle.target_period != 0) {
+		clock_gettime(COORD_CLOCK, &wake_up);
+
+		uint64_t pause_for = dyn_throttle_pause_for(&tdata->dyn_throttle,
+				timespec_to_us(&wake_up));
+		timespec_add_us(&wake_up, pause_for);
+		thr_coordinator_sleep(coord, &wake_up);
+	}
 }
 
 
@@ -484,14 +479,14 @@ throttle(tdata_t* tdata, thr_coord_t* coord)
  */
 LOCAL_HELPER void
 linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage)
+		const stage_t* stage)
 {
 	uint32_t t_idx = tdata->t_idx;
 	uint64_t start_key, end_key;
 	uint64_t key_val;
 
 	as_key key;
-	as_record rec;
+	as_record* rec;
 
 	// each worker thread takes a subrange of the total set of keys being
 	// inserted, all approximately equal in size
@@ -504,12 +499,12 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		// create a record with given key
 		_gen_key(key_val, &key, cdata);
-		_gen_record(&rec, tdata->random, cdata, tdata, stage);
+		rec = _gen_record(tdata->random, cdata, tdata, stage);
 
 		// write this record to the database
-		_write_record_sync(tdata, cdata, coord, &key, &rec);
+		_write_record_sync(tdata, cdata, coord, &key, rec);
 
-		as_record_destroy(&rec);
+		_destroy_record(rec, stage);
 		as_key_destroy(&key);
 
 		key_val++;
@@ -522,10 +517,10 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER void
 random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage)
+		const stage_t* stage)
 {
 	as_key key;
-	as_record rec;
+	as_record* rec;
 	uint32_t batch_size;
 
 	// multiply pct by 2**24 before dividing by 100 and casting to an int,
@@ -583,12 +578,12 @@ random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			_gen_key(key_val, &key, cdata);
 
 			// create a record
-			_gen_record(&rec, tdata->random, cdata, tdata, stage);
+			rec = _gen_record(tdata->random, cdata, tdata, stage);
 
 			// write this record to the database
-			_write_record_sync(tdata, cdata, coord, &key, &rec);
+			_write_record_sync(tdata, cdata, coord, &key, rec);
 
-			as_record_destroy(&rec);
+			_destroy_record(rec, stage);
 			as_key_destroy(&key);
 		}
 	}
@@ -596,14 +591,14 @@ random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER void
 linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage)
+		const stage_t* stage)
 {
 	uint32_t t_idx = tdata->t_idx;
 	uint64_t start_key, end_key;
 	uint64_t key_val;
 
 	as_key key;
-	as_record rec;
+	as_record* rec;
 
 	// each worker thread takes a subrange of the total set of keys being
 	// inserted, all approximately equal in size
@@ -616,12 +611,12 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		// create a record with given key
 		_gen_key(key_val, &key, cdata);
-		_gen_nil_record(&rec, cdata, stage);
+		rec = _gen_nil_record(tdata);
 
 		// delete this record from the database
-		_write_record_sync(tdata, cdata, coord, &key, &rec);
+		_write_record_sync(tdata, cdata, coord, &key, rec);
 
-		as_record_destroy(&rec);
+		_destroy_record(rec, stage);
 		as_key_destroy(&key);
 
 		key_val++;
@@ -739,7 +734,7 @@ queue_pop_wait(queue_t* adata_q)
 
 LOCAL_HELPER void
 linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage, queue_t* adata_q)
+		const stage_t* stage, queue_t* adata_q)
 {
 	uint64_t key_val, end_key;
 	struct async_data_s* adata;
@@ -758,14 +753,14 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		start_time = timespec_to_us(&wake_time);
 		adata->start_time = start_time;
 
-		as_record rec;
+		as_record* rec;
 		_gen_key(key_val, &adata->key, cdata);
-		_gen_record(&rec, tdata->random, cdata, tdata, stage);
+		rec = _gen_record(tdata->random, cdata, tdata, stage);
 		adata->op = write;
 
-		_write_record_async(&adata->key, &rec, adata, cdata);
+		_write_record_async(&adata->key, rec, adata, cdata);
 
-		as_record_destroy(&rec);
+		_destroy_record(rec, stage);
 
 		uint64_t pause_for =
 			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
@@ -782,7 +777,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER void
 rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage, queue_t* adata_q)
+		const stage_t* stage, queue_t* adata_q)
 {
 	struct async_data_s* adata;
 
@@ -844,17 +839,17 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			}
 		}
 		else {
-			as_record rec;
+			as_record* rec;
 			// generate a random key
 			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
 
 			_gen_key(key_val, &adata->key, cdata);
-			_gen_record(&rec, tdata->random, cdata, tdata, stage);
+			rec = _gen_record(tdata->random, cdata, tdata, stage);
 			adata->op = write;
 
-			_write_record_async(&adata->key, &rec, adata, cdata);
+			_write_record_async(&adata->key, rec, adata, cdata);
 
-			as_record_destroy(&rec);
+			_destroy_record(rec, stage);
 		}
 
 		uint64_t pause_for =
@@ -866,7 +861,7 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER void
 linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		stage_t* stage, queue_t* adata_q)
+		const stage_t* stage, queue_t* adata_q)
 {
 	uint64_t key_val, end_key;
 	struct async_data_s* adata;
@@ -885,14 +880,14 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		start_time = timespec_to_us(&wake_time);
 		adata->start_time = start_time;
 
-		as_record rec;
+		as_record* rec;
 		_gen_key(key_val, &adata->key, cdata);
-		_gen_nil_record(&rec, cdata, stage);
+		rec = _gen_nil_record(tdata);
 		adata->op = delete;
 
-		_write_record_async(&adata->key, &rec, adata, cdata);
+		_write_record_async(&adata->key, rec, adata, cdata);
 
-		as_record_destroy(&rec);
+		_destroy_record(rec, stage);
 
 		uint64_t pause_for =
 			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
@@ -1002,9 +997,10 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	}
 
 	if (!stage->random) {
-		tdata->fixed_value = obj_spec_gen_compressible_value(&stage->obj_spec,
-				tdata->random, stage->write_bins, stage->n_write_bins,
-				cdata->compression_ratio);
+		as_record_init(&tdata->fixed_value, obj_spec_n_bins(&stage->obj_spec));
+		obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_value,
+				tdata->random, cdata->bin_name, stage->write_bins,
+				stage->n_write_bins, cdata->compression_ratio);
 	}
 }
 
@@ -1014,7 +1010,7 @@ terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	dyn_throttle_free(&tdata->dyn_throttle);
 
 	if (!stage->random) {
-		as_val_destroy(tdata->fixed_value);
+		as_record_destroy(&tdata->fixed_value);
 	}
 }
 
