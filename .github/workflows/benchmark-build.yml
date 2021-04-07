@@ -100,5 +100,6 @@ jobs:
       uses: codecov/codecov-action@v1.0.15
       with:
         verbose: false
+        files: aerospike-benchmark.info
         directory: ./test_target
 
