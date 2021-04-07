@@ -11,21 +11,6 @@ jobs:
     env:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     steps:
-    - name: Download lcov
-      id: download-lcov
-      uses: dsaltares/fetch-gh-release-asset@0.0.5
-      with:
-        repo: "linux-test-project/lcov"
-        version: "tags/1.15"
-        file: lcov-1.15.tar.gz
-    - name: Build lcov
-      id: build-lcov
-      run: |
-        tar xvfz lcov-1.15.tar.gz
-    - name: install libcheck
-      run: |
-        cd lcov-1.15
-        sudo make install
     - name: Download libyaml
       uses: dsaltares/fetch-gh-release-asset@0.0.5
       with:
