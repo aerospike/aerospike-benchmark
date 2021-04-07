@@ -99,7 +99,7 @@ jobs:
       run: make
       working-directory: main
     - name: Test
-      run: make coverage
+      run: make test
       working-directory: main
     - name: clear temp directories
       run: |
