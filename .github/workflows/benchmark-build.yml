@@ -11,6 +11,12 @@ jobs:
     env:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     steps:
+    - name: install lcov
+      run: |
+        wget "https://github.com/linux-test-project/lcov/archive/master.zip"
+        unzip master.zip
+        cd lcov-master
+        sudo make install
     - name: Download libyaml
       uses: dsaltares/fetch-gh-release-asset@0.0.5
       with:
