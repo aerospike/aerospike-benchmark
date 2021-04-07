@@ -1,0 +1,478 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  ns/call  ns/call  name    
+ 10.17      0.06     0.06                             as_command_execute
+  8.47      0.11     0.05                             aerospike_key_put
+  8.47      0.16     0.05                             as_partition_reg_get_node
+  8.47      0.21     0.05                             as_partition_tables_get
+  8.47      0.26     0.05                             as_socket_write_deadline
+  6.78      0.30     0.04                             as_command_write_bin
+  5.08      0.33     0.03                             as_command_read_message
+  4.24      0.36     0.03   478567    52.24   114.93  _write_record_sync
+  3.39      0.38     0.02   477987    41.84    41.84  _record_write
+  3.39      0.40     0.02                             as_command_write_key
+  3.39      0.42     0.02                             as_integer_new
+  3.39      0.44     0.02                             as_key_set_digest
+  3.39      0.46     0.02                             as_socket_read_deadline
+  1.69      0.47     0.01   478471    20.90    20.90  throttle
+  1.69      0.48     0.01                             _async_read_listener
+  1.69      0.49     0.01                             aerospike_key_exists_async
+  1.69      0.50     0.01                             as_apply_write
+  1.69      0.51     0.01                             as_command_read_messages
+  1.69      0.52     0.01                             as_command_send
+  1.69      0.53     0.01                             as_command_write_header_write
+  1.69      0.54     0.01                             as_key_new_value
+  1.69      0.55     0.01                             as_msg_swap_header_from_be
+  1.69      0.56     0.01                             as_partition_info_init
+  1.69      0.57     0.01                             as_put_init
+  1.69      0.58     0.01                             as_val_val_destroy
+  1.69      0.59     0.01                             transaction_worker
+  0.85      0.59     0.01                             queue_pop_wait
+  0.00      0.59     0.00   478587     0.00     0.00  _destroy_record
+  0.00      0.59     0.00   476428     0.00     0.00  _gen_key
+  0.00      0.59     0.00   475913     0.00     0.00  _gen_record
+  0.00      0.59     0.00       48     0.00     0.00  thr_coordinator_wait
+  0.00      0.59     0.00       47     0.00     0.00  thr_coordinator_complete
+  0.00      0.59     0.00       45     0.00     0.00  dyn_throttle_init
+  0.00      0.59     0.00       43     0.00     0.00  gen_rand_range_64
+  0.00      0.59     0.00       43     0.00     0.00  obj_spec_n_bins
+  0.00      0.59     0.00       42     0.00     0.00  gen_bin_name
+  0.00      0.59     0.00       42     0.00     0.00  obj_spec_populate_bins
+  0.00      0.59     0.00       41     0.00     0.00  bin_spec_random_val
+  0.00      0.59     0.00        5     0.00     0.00  as_vector_append
+  0.00      0.59     0.00        5     0.00     0.00  blog_detailv
+  0.00      0.59     0.00        4     0.00     0.00  blog_detail
+  0.00      0.59     0.00        4     0.00     0.00  stages_contains_reads
+  0.00      0.59     0.00        3     0.00     0.00  dyn_throttle_pause_for
+  0.00      0.59     0.00        3     0.00     0.00  thr_coordinator_sleep
+  0.00      0.59     0.00        2     0.00     0.00  _sprint_bin
+  0.00      0.59     0.00        2     0.00     0.00  get_or_init_stage
+  0.00      0.59     0.00        2     0.00     0.00  obj_spec_free
+  0.00      0.59     0.00        2     0.00     0.00  snprint_obj_spec
+  0.00      0.59     0.00        1     0.00     0.00  as_client_log_cb
+  0.00      0.59     0.00        1     0.00     0.00  bin_name_too_large
+  0.00      0.59     0.00        1     0.00     0.00  bin_spec_free
+  0.00      0.59     0.00        1     0.00     0.00  coordinator_worker
+  0.00      0.59     0.00        1     0.00     0.00  free_histograms
+  0.00      0.59     0.00        1     0.00     0.00  free_stage_defs
+  0.00      0.59     0.00        1     0.00     0.00  free_workload_config
+  0.00      0.59     0.00        1     0.00     0.00  initialize_histograms
+  0.00      0.59     0.00        1     0.00     0.00  obj_spec_bin_name_compatible
+  0.00      0.59     0.00        1     0.00     0.00  obj_spec_parse
+  0.00      0.59     0.00        1     0.00     0.00  obj_spec_shallow_copy
+  0.00      0.59     0.00        1     0.00     0.00  parse_workload_type
+  0.00      0.59     0.00        1     0.00     0.00  record_summary_data
+  0.00      0.59     0.00        1     0.00     0.00  run_benchmark
+  0.00      0.59     0.00        1     0.00     0.00  stage_random_pause
+  0.00      0.59     0.00        1     0.00     0.00  stages_move
+  0.00      0.59     0.00        1     0.00     0.00  stages_print
+  0.00      0.59     0.00        1     0.00     0.00  stages_set_defaults_and_parse
+  0.00      0.59     0.00        1     0.00     0.00  thr_coordinator_free
+  0.00      0.59     0.00        1     0.00     0.00  thr_coordinator_init
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012-2020 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+		     Call graph (explanation follows)
+
+
+granularity: each sample hit covers 2 byte(s) for 1.69% of 0.59 seconds
+
+index % time    self  children    called     name
+                                                 <spontaneous>
+[1]     11.0    0.01    0.06                 transaction_worker [1]
+                0.03    0.03  478567/478567      _write_record_sync [3]
+                0.00    0.00  478587/478587      _destroy_record [1793]
+                0.00    0.00  476428/476428      _gen_key [1794]
+                0.00    0.00  475913/475913      _gen_record [1795]
+                0.00    0.00      47/48          thr_coordinator_wait [28]
+                0.00    0.00      46/47          thr_coordinator_complete [29]
+                0.00    0.00      44/45          dyn_throttle_init [30]
+                0.00    0.00      43/43          obj_spec_n_bins [32]
+                0.00    0.00      42/42          obj_spec_populate_bins [34]
+-----------------------------------------------
+                                                 <spontaneous>
+[2]     10.2    0.06    0.00                 as_command_execute [2]
+-----------------------------------------------
+                0.03    0.03  478567/478567      transaction_worker [1]
+[3]      9.3    0.03    0.03  478567         _write_record_sync [3]
+                0.02    0.00  477987/477987      _record_write [14]
+                0.01    0.00  478471/478471      throttle [15]
+-----------------------------------------------
+                                                 <spontaneous>
+[4]      8.5    0.05    0.00                 aerospike_key_put [4]
+-----------------------------------------------
+                                                 <spontaneous>
+[5]      8.5    0.05    0.00                 as_partition_reg_get_node [5]
+-----------------------------------------------
+                                                 <spontaneous>
+[6]      8.5    0.05    0.00                 as_partition_tables_get [6]
+-----------------------------------------------
+                                                 <spontaneous>
+[7]      8.5    0.05    0.00                 as_socket_write_deadline [7]
+-----------------------------------------------
+                                                 <spontaneous>
+[8]      6.8    0.04    0.00                 as_command_write_bin [8]
+-----------------------------------------------
+                                                 <spontaneous>
+[9]      5.1    0.03    0.00                 as_command_read_message [9]
+-----------------------------------------------
+                                                 <spontaneous>
+[10]     3.4    0.02    0.00                 as_command_write_key [10]
+-----------------------------------------------
+                                                 <spontaneous>
+[11]     3.4    0.02    0.00                 as_integer_new [11]
+-----------------------------------------------
+                                                 <spontaneous>
+[12]     3.4    0.02    0.00                 as_key_set_digest [12]
+-----------------------------------------------
+                                                 <spontaneous>
+[13]     3.4    0.02    0.00                 as_socket_read_deadline [13]
+-----------------------------------------------
+                0.02    0.00  477987/477987      _write_record_sync [3]
+[14]     3.4    0.02    0.00  477987         _record_write [14]
+-----------------------------------------------
+                0.01    0.00  478471/478471      _write_record_sync [3]
+[15]     1.7    0.01    0.00  478471         throttle [15]
+-----------------------------------------------
+                                                 <spontaneous>
+[16]     1.7    0.01    0.00                 aerospike_key_exists_async [16]
+-----------------------------------------------
+                                                 <spontaneous>
+[17]     1.7    0.01    0.00                 as_apply_write [17]
+-----------------------------------------------
+                                                 <spontaneous>
+[18]     1.7    0.01    0.00                 as_command_read_messages [18]
+-----------------------------------------------
+                                                 <spontaneous>
+[19]     1.7    0.01    0.00                 as_command_send [19]
+-----------------------------------------------
+                                                 <spontaneous>
+[20]     1.7    0.01    0.00                 as_command_write_header_write [20]
+-----------------------------------------------
+                                                 <spontaneous>
+[21]     1.7    0.01    0.00                 as_key_new_value [21]
+-----------------------------------------------
+                                                 <spontaneous>
+[22]     1.7    0.01    0.00                 as_msg_swap_header_from_be [22]
+-----------------------------------------------
+                                                 <spontaneous>
+[23]     1.7    0.01    0.00                 as_partition_info_init [23]
+-----------------------------------------------
+                                                 <spontaneous>
+[24]     1.7    0.01    0.00                 as_put_init [24]
+-----------------------------------------------
+                                                 <spontaneous>
+[25]     1.7    0.01    0.00                 as_val_val_destroy [25]
+-----------------------------------------------
+                                                 <spontaneous>
+[26]     1.7    0.01    0.00                 _async_read_listener [26]
+-----------------------------------------------
+                                                 <spontaneous>
+[27]     0.8    0.01    0.00                 queue_pop_wait [27]
+-----------------------------------------------
+                0.00    0.00       1/48          periodic_output_worker [1710]
+                0.00    0.00      47/48          transaction_worker [1]
+[28]     0.0    0.00    0.00      48         thr_coordinator_wait [28]
+-----------------------------------------------
+                0.00    0.00       1/47          periodic_output_worker [1710]
+                0.00    0.00      46/47          transaction_worker [1]
+[29]     0.0    0.00    0.00      47         thr_coordinator_complete [29]
+-----------------------------------------------
+                0.00    0.00       1/45          periodic_output_worker [1710]
+                0.00    0.00      44/45          transaction_worker [1]
+[30]     0.0    0.00    0.00      45         dyn_throttle_init [30]
+-----------------------------------------------
+                0.00    0.00      43/43          bin_spec_random_val [35]
+[31]     0.0    0.00    0.00      43         gen_rand_range_64 [31]
+-----------------------------------------------
+                0.00    0.00      43/43          transaction_worker [1]
+[32]     0.0    0.00    0.00      43         obj_spec_n_bins [32]
+-----------------------------------------------
+                0.00    0.00      42/42          obj_spec_populate_bins [34]
+[33]     0.0    0.00    0.00      42         gen_bin_name [33]
+-----------------------------------------------
+                0.00    0.00      42/42          transaction_worker [1]
+[34]     0.0    0.00    0.00      42         obj_spec_populate_bins [34]
+                0.00    0.00      42/42          gen_bin_name [33]
+                0.00    0.00      41/41          bin_spec_random_val [35]
+-----------------------------------------------
+                0.00    0.00      41/41          obj_spec_populate_bins [34]
+[35]     0.0    0.00    0.00      41         bin_spec_random_val [35]
+                0.00    0.00      43/43          gen_rand_range_64 [31]
+-----------------------------------------------
+                0.00    0.00       5/5           main [1496]
+[36]     0.0    0.00    0.00       5         as_vector_append [36]
+-----------------------------------------------
+                0.00    0.00       1/5           as_client_log_cb [45]
+                0.00    0.00       4/5           blog_detail [38]
+[37]     0.0    0.00    0.00       5         blog_detailv [37]
+-----------------------------------------------
+                0.00    0.00       1/4           run_benchmark [58]
+                0.00    0.00       3/4           periodic_output_worker [1710]
+[38]     0.0    0.00    0.00       4         blog_detail [38]
+                0.00    0.00       4/5           blog_detailv [37]
+-----------------------------------------------
+                0.00    0.00       1/4           initialize_histograms [52]
+                0.00    0.00       1/4           free_histograms [49]
+                0.00    0.00       1/4           record_summary_data [57]
+                0.00    0.00       1/4           periodic_output_worker [1710]
+[39]     0.0    0.00    0.00       4         stages_contains_reads [39]
+-----------------------------------------------
+                0.00    0.00       3/3           periodic_output_worker [1710]
+[40]     0.0    0.00    0.00       3         dyn_throttle_pause_for [40]
+-----------------------------------------------
+                0.00    0.00       3/3           periodic_output_worker [1710]
+[41]     0.0    0.00    0.00       3         thr_coordinator_sleep [41]
+-----------------------------------------------
+                0.00    0.00       2/2           main [1496]
+[42]     0.0    0.00    0.00       2         get_or_init_stage [42]
+-----------------------------------------------
+                0.00    0.00       1/2           main [1496]
+                0.00    0.00       1/2           free_workload_config [51]
+[43]     0.0    0.00    0.00       2         obj_spec_free [43]
+                0.00    0.00       1/1           bin_spec_free [47]
+-----------------------------------------------
+                0.00    0.00       1/2           main [1496]
+                0.00    0.00       1/2           stages_print [61]
+[44]     0.0    0.00    0.00       2         snprint_obj_spec [44]
+                0.00    0.00       2/2           _sprint_bin [1796]
+-----------------------------------------------
+                0.00    0.00       1/1           as_cluster_add_nodes_copy [240]
+[45]     0.0    0.00    0.00       1         as_client_log_cb [45]
+                0.00    0.00       1/5           blog_detailv [37]
+-----------------------------------------------
+                0.00    0.00       1/1           obj_spec_bin_name_compatible [53]
+[46]     0.0    0.00    0.00       1         bin_name_too_large [46]
+-----------------------------------------------
+                0.00    0.00       1/1           obj_spec_free [43]
+[47]     0.0    0.00    0.00       1         bin_spec_free [47]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[48]     0.0    0.00    0.00       1         coordinator_worker [48]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[49]     0.0    0.00    0.00       1         free_histograms [49]
+                0.00    0.00       1/4           stages_contains_reads [39]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1496]
+[50]     0.0    0.00    0.00       1         free_stage_defs [50]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[51]     0.0    0.00    0.00       1         free_workload_config [51]
+                0.00    0.00       1/2           obj_spec_free [43]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[52]     0.0    0.00    0.00       1         initialize_histograms [52]
+                0.00    0.00       1/4           stages_contains_reads [39]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[53]     0.0    0.00    0.00       1         obj_spec_bin_name_compatible [53]
+                0.00    0.00       1/1           bin_name_too_large [46]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1496]
+[54]     0.0    0.00    0.00       1         obj_spec_parse [54]
+-----------------------------------------------
+                0.00    0.00       1/1           stages_set_defaults_and_parse [62]
+[55]     0.0    0.00    0.00       1         obj_spec_shallow_copy [55]
+-----------------------------------------------
+                0.00    0.00       1/1           stages_set_defaults_and_parse [62]
+[56]     0.0    0.00    0.00       1         parse_workload_type [56]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[57]     0.0    0.00    0.00       1         record_summary_data [57]
+                0.00    0.00       1/4           stages_contains_reads [39]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1496]
+[58]     0.0    0.00    0.00       1         run_benchmark [58]
+                0.00    0.00       1/1           stages_move [60]
+                0.00    0.00       1/1           stage_random_pause [59]
+                0.00    0.00       1/1           thr_coordinator_init [64]
+                0.00    0.00       1/4           blog_detail [38]
+                0.00    0.00       1/1           coordinator_worker [48]
+                0.00    0.00       1/1           thr_coordinator_free [63]
+                0.00    0.00       1/1           free_histograms [49]
+                0.00    0.00       1/1           record_summary_data [57]
+                0.00    0.00       1/1           free_workload_config [51]
+                0.00    0.00       1/1           initialize_histograms [52]
+                0.00    0.00       1/1           obj_spec_bin_name_compatible [53]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[59]     0.0    0.00    0.00       1         stage_random_pause [59]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[60]     0.0    0.00    0.00       1         stages_move [60]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1496]
+[61]     0.0    0.00    0.00       1         stages_print [61]
+                0.00    0.00       1/2           snprint_obj_spec [44]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1496]
+[62]     0.0    0.00    0.00       1         stages_set_defaults_and_parse [62]
+                0.00    0.00       1/1           obj_spec_shallow_copy [55]
+                0.00    0.00       1/1           parse_workload_type [56]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[63]     0.0    0.00    0.00       1         thr_coordinator_free [63]
+-----------------------------------------------
+                0.00    0.00       1/1           run_benchmark [58]
+[64]     0.0    0.00    0.00       1         thr_coordinator_init [64]
+-----------------------------------------------
+                0.00    0.00  478587/478587      transaction_worker [1]
+[1793]   0.0    0.00    0.00  478587         _destroy_record [1793]
+-----------------------------------------------
+                0.00    0.00  476428/476428      transaction_worker [1]
+[1794]   0.0    0.00    0.00  476428         _gen_key [1794]
+-----------------------------------------------
+                0.00    0.00  475913/475913      transaction_worker [1]
+[1795]   0.0    0.00    0.00  475913         _gen_record [1795]
+-----------------------------------------------
+                0.00    0.00       2/2           snprint_obj_spec [44]
+[1796]   0.0    0.00    0.00       2         _sprint_bin [1796]
+-----------------------------------------------
+
+ This table describes the call tree of the program, and was sorted by
+ the total amount of time spent in each function and its children.
+
+ Each entry in this table consists of several lines.  The line with the
+ index number at the left hand margin lists the current function.
+ The lines above it list the functions that called this function,
+ and the lines below it list the functions this one called.
+ This line lists:
+     index	A unique number given to each element of the table.
+		Index numbers are sorted numerically.
+		The index number is printed next to every function name so
+		it is easier to look up where the function is in the table.
+
+     % time	This is the percentage of the `total' time that was spent
+		in this function and its children.  Note that due to
+		different viewpoints, functions excluded by options, etc,
+		these numbers will NOT add up to 100%.
+
+     self	This is the total amount of time spent in this function.
+
+     children	This is the total amount of time propagated into this
+		function by its children.
+
+     called	This is the number of times the function was called.
+		If the function called itself recursively, the number
+		only includes non-recursive calls, and is followed by
+		a `+' and the number of recursive calls.
+
+     name	The name of the current function.  The index number is
+		printed after it.  If the function is a member of a
+		cycle, the cycle number is printed between the
+		function's name and the index number.
+
+
+ For the function's parents, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the function into this parent.
+
+     children	This is the amount of time that was propagated from
+		the function's children into this parent.
+
+     called	This is the number of times this parent called the
+		function `/' the total number of times the function
+		was called.  Recursive calls to the function are not
+		included in the number after the `/'.
+
+     name	This is the name of the parent.  The parent's index
+		number is printed after it.  If the parent is a
+		member of a cycle, the cycle number is printed between
+		the name and the index number.
+
+ If the parents of the function cannot be determined, the word
+ `<spontaneous>' is printed in the `name' field, and all the other
+ fields are blank.
+
+ For the function's children, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the child into the function.
+
+     children	This is the amount of time that was propagated from the
+		child's children to the function.
+
+     called	This is the number of times the function called
+		this child `/' the total number of times the child
+		was called.  Recursive calls by the child are not
+		listed in the number after the `/'.
+
+     name	This is the name of the child.  The child's index
+		number is printed after it.  If the child is a
+		member of a cycle, the cycle number is printed
+		between the name and the index number.
+
+ If there are any cycles (circles) in the call graph, there is an
+ entry for the cycle-as-a-whole.  This entry shows who called the
+ cycle (as parents) and the members of the cycle (as children.)
+ The `+' recursive calls entry shows the number of function calls that
+ were internal to the cycle, and the calls entry for each member shows,
+ for that member, how many times it was called from other members of
+ the cycle.
+
+Copyright (C) 2012-2020 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+Index by function name
+
+  [26] _async_read_listener (transaction.c) [5] as_partition_reg_get_node [43] obj_spec_free
+ [1793] _destroy_record (transaction.c) [6] as_partition_tables_get [32] obj_spec_n_bins
+ [1794] _gen_key (transaction.c) [24] as_put_init (aerospike_key.c) [54] obj_spec_parse
+ [1795] _gen_record (transaction.c) [13] as_socket_read_deadline [34] obj_spec_populate_bins
+  [14] _record_write (transaction.c) [7] as_socket_write_deadline [55] obj_spec_shallow_copy
+ [1796] _sprint_bin (object_spec.c) [25] as_val_val_destroy [56] parse_workload_type
+   [3] _write_record_sync (transaction.c) [36] as_vector_append (as_vector.h) [27] queue_pop_wait (transaction.c)
+  [16] aerospike_key_exists_async [46] bin_name_too_large [57] record_summary_data
+   [4] aerospike_key_put      [47] bin_spec_free (object_spec.c) [58] run_benchmark
+  [17] as_apply_write (aerospike_key.c) [35] bin_spec_random_val (object_spec.c) [44] snprint_obj_spec
+  [45] as_client_log_cb (benchmark.c) [38] blog_detail    [59] stage_random_pause
+   [2] as_command_execute     [37] blog_detailv           [39] stages_contains_reads
+   [9] as_command_read_message (as_command.c) [48] coordinator_worker [60] stages_move
+  [18] as_command_read_messages (as_command.c) [30] dyn_throttle_init [61] stages_print
+  [19] as_command_send        [40] dyn_throttle_pause_for [62] stages_set_defaults_and_parse
+   [8] as_command_write_bin   [49] free_histograms        [29] thr_coordinator_complete
+  [20] as_command_write_header_write [50] free_stage_defs [63] thr_coordinator_free
+  [10] as_command_write_key   [51] free_workload_config   [64] thr_coordinator_init
+  [11] as_integer_new         [33] gen_bin_name           [41] thr_coordinator_sleep
+  [21] as_key_new_value       [31] gen_rand_range_64      [28] thr_coordinator_wait
+  [12] as_key_set_digest      [42] get_or_init_stage (main.c) [15] throttle (transaction.c)
+  [22] as_msg_swap_header_from_be [52] initialize_histograms [1] transaction_worker
+  [23] as_partition_info_init [53] obj_spec_bin_name_compatible

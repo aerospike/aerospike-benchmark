@@ -933,7 +933,6 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	uint64_t n_adatas;
 	queue_t adata_q;
 
-
 	// thread 0 is designated to handle async calls, the rest can immediately
 	// terminate
 	if (t_idx != 0) {
