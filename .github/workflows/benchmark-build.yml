@@ -11,6 +11,12 @@ jobs:
     env:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     steps:
+    - name: install lcov
+      run: |
+        wget "https://github.com/linux-test-project/lcov/archive/master.zip"
+        unzip master.zip
+        cd lcov-master
+        sudo make install
     - name: Download libyaml
       uses: dsaltares/fetch-gh-release-asset@0.0.5
       with:
@@ -84,7 +90,7 @@ jobs:
       run: make
       working-directory: main
     - name: Test
-      run: make test
+      run: make coverage
       working-directory: main
     - name: clear temp directories
       run: |
@@ -94,4 +100,5 @@ jobs:
       uses: codecov/codecov-action@v1.0.15
       with:
         verbose: false
+        directory: main
 

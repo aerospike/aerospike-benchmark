@@ -156,7 +156,7 @@ typedef struct threaddata_s {
 	// must also be set to false for this to work)
 	bool finished;
 
-	as_val* fixed_value;
+	as_record fixed_value;
 } tdata_t;
 
 
