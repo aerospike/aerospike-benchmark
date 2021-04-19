@@ -460,7 +460,7 @@ START_TEST(writes_and_reads_log)
 	struct hdr_log_reader reader;
 	struct hdr_histogram* read_cor_histogram;
 	struct hdr_histogram* read_raw_histogram;
-	const char* file_name = "src/test/histogram.log";
+	const char* file_name = "src/test/unit/histogram.log";
 	int rc = 0;
 	FILE* log_file;
 	const char* tag = "tag_value";
@@ -705,7 +705,7 @@ END_TEST
 
 START_TEST(decode_v1_log)
 {
-	const char* v1_log = "src/test/jHiccup-2.0.6.logV1.hlog";
+	const char* v1_log = "src/test/unit/jHiccup-2.0.6.logV1.hlog";
 	struct hdr_histogram* accum;
 	struct hdr_histogram* h = NULL;
 	struct hdr_log_reader reader;
@@ -763,7 +763,7 @@ START_TEST(decode_v2_log)
 	int64_t total_count = 0;
 	int rc;
 
-	const char* v2_log = "src/test/jHiccup-2.0.7S.logV2.hlog";
+	const char* v2_log = "src/test/unit/jHiccup-2.0.7S.logV2.hlog";
 
 	FILE* f = fopen(v2_log, "r");
 	ck_assert_msg(f != NULL, "Can not open v2 log file");
@@ -813,7 +813,7 @@ START_TEST(decode_v3_log)
 	int histogram_count = 0;
 	int64_t total_count = 0;
 
-	const char* v3_log = "src/test/jHiccup-2.0.7S.logV3.hlog";
+	const char* v3_log = "src/test/unit/jHiccup-2.0.7S.logV3.hlog";
 
 	FILE* f = fopen(v3_log, "r");
 	if (NULL == f)
@@ -879,16 +879,16 @@ static int parse_line_from_file(const char* filename)
 START_TEST(handle_invalid_log_lines)
 {
 	ck_assert_msg(
-			-EINVAL == parse_line_from_file("src/test/test_tagged_invalid_histogram.txt"),
+			-EINVAL == parse_line_from_file("src/test/unit/test_tagged_invalid_histogram.txt"),
 			"Should have invalid histogram");
 	ck_assert_msg(
-			-EINVAL == parse_line_from_file("src/test/test_tagged_invalid_tag_key.txt"),
+			-EINVAL == parse_line_from_file("src/test/unit/test_tagged_invalid_tag_key.txt"),
 			"Should have invalid tag key");
 	ck_assert_msg(
-			-EINVAL == parse_line_from_file("src/test/test_tagged_invalid_timestamp.txt"),
+			-EINVAL == parse_line_from_file("src/test/unit/test_tagged_invalid_timestamp.txt"),
 			"Should have invalid timestamp");
 	ck_assert_msg(
-			-EINVAL == parse_line_from_file("src/test/test_tagged_missing_histogram.txt"),
+			-EINVAL == parse_line_from_file("src/test/unit/test_tagged_missing_histogram.txt"),
 			"Should have missing histogram");
 }
 END_TEST
@@ -897,7 +897,7 @@ END_TEST
 START_TEST(decode_v0_log)
 {
 	struct hdr_histogram* accum;
-	const char* v1_log = "src/test/jHiccup-2.0.1.logV0.hlog";
+	const char* v1_log = "src/test/unit/jHiccup-2.0.1.logV0.hlog";
 	struct hdr_histogram* h = NULL;
 	struct hdr_log_reader reader;
 	hdr_timespec timestamp;
