@@ -996,10 +996,21 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	}
 
 	if (!stage->random) {
-		as_record_init(&tdata->fixed_value, obj_spec_n_bins(&stage->obj_spec));
-		obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_value,
-				tdata->random, cdata->bin_name, stage->write_bins,
-				stage->n_write_bins, cdata->compression_ratio);
+		uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+		as_record_init(&tdata->fixed_value, n_bins);
+
+		if (stage->workload.type == WORKLOAD_TYPE_DELETE) {
+			for (uint32_t i = 0; i < n_bins; i++) {
+				as_bin* bin = &tdata->fixed_value.bins.entries[i];
+				gen_bin_name(bin->name, cdata->bin_name, i + 1);
+				as_record_set_nil(&tdata->fixed_value, bin->name);
+			}
+		}
+		else {
+			obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_value,
+					tdata->random, cdata->bin_name, stage->write_bins,
+					stage->n_write_bins, cdata->compression_ratio);
+		}
 	}
 }
 
