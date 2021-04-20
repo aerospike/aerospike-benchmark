@@ -253,34 +253,57 @@ test_target/benchmark: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJE
 
 # integration testing
 .PHONY: integration
-integration:
+integration: test_target/benchmark coverage-init
 	@./integration_tests.sh $(DIR_ENV)
 
 # Summary requires the lcov tool to be installed
-.PHONY: coverage
-coverage: coverage-init do-test
+.PHONY: coverage-unit
+coverage-unit: do-unit
 	@echo
-	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark.info
-	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark.info
-	@lcov --summary test_target/aerospike-benchmark.info
+	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark-unit.info
+	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark-unit.info
+	@lcov --summary test_target/aerospike-benchmark-unit.info
+
+.PHONY: coverage-integration
+coverage-integration: do-integration
+	@echo
+	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark-integration.info
+	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark-integration.info
+	@lcov --summary test_target/aerospike-benchmark-integration.info
 
 .PHONY: coverage-init
 coverage-init:
 	@lcov --zerocounters --directory test_target
 
-.PHONY: do-test
-do-test: | coverage-init
+.PHONY: do-unit
+do-unit: | coverage-init
 	@$(MAKE) -C . unit
 
-.PHONY: report
-report: coverage
-	@lcov -l test_target/aerospike-benchmark.info
+.PHONY: do-integration
+do-integration: | coverage-init
+	@$(MAKE) -C . integration
 
-.PHONY: report-display
-report-display: | test_target/aerospike-benchmark.info
+.PHONY: report-unit
+report-unit: test_target/aerospike-benchmark-unit.info
+	@lcov -l test_target/aerospike-benchmark-unit.info
+
+.PHONY: report-integration
+report-integration: test_target/aerospike-benchmark-integration.info
+	@lcov -l test_target/aerospike-benchmark-integration.info
+
+.PHONY: report-display-unit
+report-display-unit: | test_target/aerospike-benchmark-unit.info
 	@echo
 	@rm -rf test_target/html
 	@mkdir -p test_target/html
-	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark.info --legend --title "test lcov" --output-directory test_target/html
+	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark-unit.info --legend --title "test lcov" --output-directory test_target/html
+	@xdg-open file://$(ROOT)/test_target/html/index.html
+
+.PHONY: report-display-integration
+report-display-integration: | test_target/aerospike-benchmark-integration.info
+	@echo
+	@rm -rf test_target/html
+	@mkdir -p test_target/html
+	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark-integration.info --legend --title "test lcov" --output-directory test_target/html
 	@xdg-open file://$(ROOT)/test_target/html/index.html
 
