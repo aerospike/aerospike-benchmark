@@ -1,7 +1,9 @@
 
+import lib
 import os
 
 def test_connect():
-	os.system("test_target/benchmark --help")
-	return 0
+	# the only reason this would fail is if the tool can't connect to the
+	# cluster
+	lib.run_benchmark("--duration 0 --workload RU")
 
