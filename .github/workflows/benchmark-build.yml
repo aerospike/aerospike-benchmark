@@ -101,5 +101,5 @@ jobs:
       with:
         verbose: false
         directory: main/test_target
-        files: aerospike-benchmark-all.info
+        files: main/test_target/aerospike-benchmark-all.info
 
