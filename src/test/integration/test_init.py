@@ -1,6 +1,5 @@
 
 import lib
-import os
 
 def test_no_connect():
 	# test's running the benchmark when the cluster is unreachable

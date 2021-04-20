@@ -53,6 +53,7 @@ static struct option long_options[] = {
 	{"servicesAlternate",    no_argument,       0, '*'},
 	{"namespace",            required_argument, 0, 'n'},
 	{"set",                  required_argument, 0, 's'},
+	{"bin",                  required_argument, 0, 'b'},
 	{"startKey",             required_argument, 0, 'K'},
 	{"keys",                 required_argument, 0, 'k'},
 	{"objectSpec",           required_argument, 0, 'o'},
@@ -154,6 +155,7 @@ main(int argc, char * const * argv)
 	if (args.histogram_output) {
 		cf_free(args.histogram_output);
 	}
+	cf_free(args.bin_name);
 	as_vector_destroy(&args.latency_percentiles);
 
 	free(args.hosts);
@@ -212,6 +214,11 @@ print_usage(const char* program)
 
 	printf("-s --set <set name>   # Default: testset\n");
 	printf("   Aerospike set name.\n");
+	printf("\n");
+
+	printf("-b --bin <bin name>   # Default: testbin\n");
+	printf("   The base name to use for bins. The first bin will be <bin_name>, the second will be\n");
+	printf("   <bin_name>_2, and so on.\n");
 	printf("\n");
 
 	printf("   --workloadStages <path/to/workload_stages.yml>\n");
@@ -825,6 +832,10 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->set = optarg;
 				break;
 
+			case 'b':
+				args->bin_name = strdup(optarg);
+				break;
+
 			case 'K':
 				args->start_key = strtoull(optarg, NULL, 10);
 				break;
@@ -1196,7 +1207,7 @@ _load_defaults(args_t* args)
 	args->use_services_alternate = false;
 	args->namespace = "test";
 	args->set = "testset";
-	args->bin_name = "testbin";
+	args->bin_name = strdup("testbin");
 	args->start_key = 1;
 	args->keys = 1000000;
 	__builtin_memset(&args->stage_defs, 0, sizeof(struct stage_defs_s));

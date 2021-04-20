@@ -44,7 +44,7 @@ typedef struct args_s {
 	char password[AS_PASSWORD_SIZE];
 	const char* namespace;
 	const char* set;
-	const char* bin_name;
+	char* bin_name;
 	uint64_t start_key;
 	uint64_t keys;
 

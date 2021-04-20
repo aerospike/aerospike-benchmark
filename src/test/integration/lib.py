@@ -320,6 +320,70 @@ def run_benchmark(args, ip=None, port=PORT, expect_success=True):
 		assert(os.system("test_target/benchmark -h %s:%d -n %s -s %s %s" %
 			(ip, port, NAMESPACE, SET, args)) != 0)
 
+def scan_records():
+	recs = []
+	CLIENT.scan(NAMESPACE, SET).foreach(lambda record: recs.append(record))
+	return recs
+
+def get_record(key):
+	return CLIENT.get((NAMESPACE, SET, key))
+
+
+# record structure validation
+def obj_spec_is_I1(val):
+	assert(type(val) is int)
+	assert(0 <= val < 256)
+
+def obj_spec_is_I2(val):
+	assert(type(val) is int)
+	assert(256 <= val < 65536)
+
+def obj_spec_is_I3(val):
+	assert(type(val) is int)
+	assert(65536 <= val < 2**24)
+
+def obj_spec_is_I4(val):
+	assert(type(val) is int)
+	assert(2**24 <= val < 2**32)
+
+def obj_spec_is_I5(val):
+	assert(type(val) is int)
+	assert(2**32 <= val < 2**40)
+
+def obj_spec_is_I6(val):
+	assert(type(val) is int)
+	assert(2**40 <= val < 2**48)
+
+def obj_spec_is_I7(val):
+	assert(type(val) is int)
+	assert(2**48 <= val < 2**56)
+
+def obj_spec_is_I8(val):
+	assert(type(val) is int)
+	assert(2**56 <= val < 2**63 or -2**63 <= val < 0)
+
+def obj_spec_is_D(val):
+	assert(type(val) is float)
+
+def obj_spec_is_S(val, size):
+	assert(type(val) is str)
+	assert(len(val) == size)
+
+def obj_spec_is_B(val, size):
+	assert(type(val) is bytearray)
+	assert(len(val) == size)
+
+def check_for_range(key_start, key_end, obj_checker=None):
+	assert(len(scan_records()) == key_end - key_start)
+
+	for key in range(key_start, key_end):
+		record = get_record(key)
+		assert(record is not None)
+
+		if obj_checker is not None:
+			print(record)
+			obj_checker(record)
+
 
 def stop_silent():
 	# silence stderr and stdout
