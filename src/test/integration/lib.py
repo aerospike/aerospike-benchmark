@@ -40,6 +40,7 @@ FILE_COUNT = 0
 SETS = []
 INDEXES = []
 UDFS = []
+SERVER_IP = None
 
 # set when the cluser is up and running
 RUNNING = False
@@ -163,7 +164,8 @@ def create_conf_file(temp_file, base, peer_addr, index):
 		"heartbeat_port": str(base + 2),
 		"info_port": str(base + 3),
 		"peer_connection": "# no peer connection" if not peer_addr \
-				else "mesh-seed-address-port " + peer_addr[0] + " " + str(peer_addr[1] + 2)
+				else "mesh-seed-address-port " + peer_addr[0] + " " + str(peer_addr[1] + 2),
+		"namespace": NAMESPACE
 	}
 
 	temp = string.Template(temp_content)
@@ -191,6 +193,7 @@ def start():
 	global CLIENT
 	global NODES
 	global RUNNING
+	global SERVER_IP
 
 	if not RUNNING:
 		RUNNING = True
@@ -203,11 +206,10 @@ def start():
 		mount_dir = absolute_path(WORK_DIRECTORY)
 
 		first_base = PORT
-		first_ip = None
 		for index in range(1, 3):
 			base = first_base + 1000 * (index - 1)
 			conf_file = create_conf_file(temp_file, base,
-					None if index == 1 else (first_ip, first_base),
+					None if index == 1 else (SERVER_IP, first_base),
 					index)
 			cmd = '/usr/bin/asd --foreground --config-file %s --instance %s' % ('/opt/aerospike/work/' + get_file(conf_file, base=mount_dir), str(index - 1))
 			print('running in docker: %s' % cmd)
@@ -224,10 +226,10 @@ def start():
 			NODES[index-1] = container
 			if index == 1:
 				container.reload()
-				first_ip = container.attrs["NetworkSettings"]["Networks"]["bridge"]["IPAddress"]
+				SERVER_IP = container.attrs["NetworkSettings"]["Networks"]["bridge"]["IPAddress"]
 
 		print("Connecting client")
-		config = {"hosts": [("127.0.0.1", PORT)]}
+		config = {"hosts": [(SERVER_IP, PORT)]}
 
 		for attempt in range(CLIENT_ATTEMPTS):
 			try:
@@ -240,6 +242,9 @@ def start():
 					raise
 
 		print("Client connected")
+	else:
+		# if the cluster is already up and running, reset it
+		reset()
 
 
 def stop():
@@ -300,9 +305,20 @@ def reset():
 	INDEXES = []
 
 
-def run_benchmark(args, expected_ret=0):
+def run_benchmark(args, ip=None, port=PORT, expect_success=True):
+	global SERVER_IP
+
 	start()
-	assert(os.system("test_target/benchmark %s" % args) == expected_ret)
+
+	if ip is None:
+		ip = SERVER_IP
+
+	if expect_success:
+		assert(os.system("test_target/benchmark -h %s:%d -n %s -s %s %s" %
+			(ip, port, NAMESPACE, SET, args)) == 0)
+	else:
+		assert(os.system("test_target/benchmark -h %s:%d -n %s -s %s %s" %
+			(ip, port, NAMESPACE, SET, args)) != 0)
 
 
 def stop_silent():
