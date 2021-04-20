@@ -90,8 +90,7 @@ jobs:
       run: make
       working-directory: main
     - name: Test
-      run: make coverage-unit
-      run: make coverage-integration
+      run: make coverage-all
       working-directory: main
     - name: clear temp directories
       run: |

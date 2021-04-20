@@ -253,7 +253,7 @@ test_target/benchmark: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJE
 
 # integration testing
 .PHONY: integration
-integration: test_target/benchmark coverage-init
+integration: test_target/benchmark
 	@./integration_tests.sh $(DIR_ENV)
 
 # Summary requires the lcov tool to be installed
@@ -270,6 +270,15 @@ coverage-integration: do-integration
 	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark-integration.info
 	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark-integration.info
 	@lcov --summary test_target/aerospike-benchmark-integration.info
+
+.PHONY: coverage-all
+coverage-all: | coverage-init
+	@$(MAKE) -C . unit
+	@$(MAKE) -C . integration
+	@echo
+	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark-all.info
+	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark-all.info
+	@lcov --summary test_target/aerospike-benchmark-all.info
 
 .PHONY: coverage-init
 coverage-init:
