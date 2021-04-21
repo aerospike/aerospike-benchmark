@@ -189,7 +189,7 @@ def get_file(path, base=None):
 		raise Exception('path %s is not in the directory %s' % (path, base))
 
 
-def start():
+def start(do_reset=True):
 	global CLIENT
 	global NODES
 	global RUNNING
@@ -243,8 +243,9 @@ def start():
 
 		print("Client connected")
 	else:
-		# if the cluster is already up and running, reset it
-		reset()
+		if do_reset:
+			# if the cluster is already up and running, reset it
+			reset()
 
 
 def stop():
@@ -305,10 +306,10 @@ def reset():
 	INDEXES = []
 
 
-def run_benchmark(args, ip=None, port=PORT, expect_success=True):
+def run_benchmark(args, ip=None, port=PORT, expect_success=True, do_reset=True):
 	global SERVER_IP
 
-	start()
+	start(do_reset=do_reset)
 
 	if ip is None:
 		ip = SERVER_IP
@@ -373,9 +374,7 @@ def obj_spec_is_B(val, size):
 	assert(type(val) is bytearray)
 	assert(len(val) == size)
 
-def check_for_range(key_start, key_end, obj_checker=None):
-	assert(len(scan_records()) == key_end - key_start)
-
+def check_recs_exist_in_range(key_start, key_end, obj_checker=None):
 	for key in range(key_start, key_end):
 		record = get_record(key)
 		assert(record is not None)
@@ -383,6 +382,10 @@ def check_for_range(key_start, key_end, obj_checker=None):
 		if obj_checker is not None:
 			print(record)
 			obj_checker(record)
+
+def check_for_range(key_start, key_end, obj_checker=None):
+	assert(len(scan_records()) == key_end - key_start)
+	check_recs_exist_in_range(key_start, key_end, obj_checker=obj_checker)
 
 
 def stop_silent():

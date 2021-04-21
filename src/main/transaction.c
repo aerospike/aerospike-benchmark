@@ -203,6 +203,8 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	as_status status;
 	as_error err;
 
+	printf("put %lu, %s -> %s\n", key->valuep->integer.value, rec->bins.entries[0].name, as_val_tostring(rec->bins.entries[0].valuep));
+
 	uint64_t start = cf_getus();
 	status = aerospike_key_put(&cdata->client, &err, NULL, key, rec);
 	uint64_t end = cf_getus();
@@ -1002,7 +1004,7 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 		if (stage->workload.type == WORKLOAD_TYPE_DELETE) {
 			for (uint32_t i = 0; i < n_bins; i++) {
 				as_bin* bin = &tdata->fixed_value.bins.entries[i];
-				gen_bin_name(bin->name, cdata->bin_name, i + 1);
+				gen_bin_name(bin->name, cdata->bin_name, i);
 				as_record_set_nil(&tdata->fixed_value, bin->name);
 			}
 		}
