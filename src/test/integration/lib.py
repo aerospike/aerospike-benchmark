@@ -369,6 +369,8 @@ def obj_spec_is_D(val):
 def obj_spec_is_S(val, size):
 	assert(type(val) is str)
 	assert(len(val) == size)
+	for ch in val:
+		assert('a' <= ch <= 'z' or '0' <= ch <= '9')
 
 def obj_spec_is_B(val, size):
 	assert(type(val) is bytearray)
@@ -380,8 +382,7 @@ def check_recs_exist_in_range(key_start, key_end, obj_checker=None):
 		assert(record is not None)
 
 		if obj_checker is not None:
-			print(record)
-			obj_checker(record)
+			obj_checker(*record)
 
 def check_for_range(key_start, key_end, obj_checker=None):
 	assert(len(scan_records()) == key_end - key_start)

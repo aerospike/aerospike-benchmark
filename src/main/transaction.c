@@ -203,8 +203,6 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	as_status status;
 	as_error err;
 
-	printf("put %lu, %s -> %s\n", key->valuep->integer.value, rec->bins.entries[0].name, as_val_tostring(rec->bins.entries[0].valuep));
-
 	uint64_t start = cf_getus();
 	status = aerospike_key_put(&cdata->client, &err, NULL, key, rec);
 	uint64_t end = cf_getus();
@@ -998,14 +996,30 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	}
 
 	if (!stage->random) {
-		uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+		uint32_t n_bins =
+			stage->write_bins == NULL ? obj_spec_n_bins(&stage->obj_spec) :
+			stage->n_write_bins;
 		as_record_init(&tdata->fixed_value, n_bins);
 
 		if (stage->workload.type == WORKLOAD_TYPE_DELETE) {
-			for (uint32_t i = 0; i < n_bins; i++) {
-				as_bin* bin = &tdata->fixed_value.bins.entries[i];
-				gen_bin_name(bin->name, cdata->bin_name, i);
-				as_record_set_nil(&tdata->fixed_value, bin->name);
+			if (stage->write_bins == NULL) {
+				for (uint32_t i = 0; i < n_bins; i++) {
+					as_bin* bin = &tdata->fixed_value.bins.entries[i];
+					gen_bin_name(bin->name, cdata->bin_name, i);
+					as_record_set_nil(&tdata->fixed_value, bin->name);
+				}
+			}
+			else {
+
+				FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
+						&stage->obj_spec, iter, idx, __bin_spec) {
+
+					as_bin* bin = &tdata->fixed_value.bins.entries[iter];
+					gen_bin_name(bin->name, cdata->bin_name, idx);
+					as_record_set_nil(&tdata->fixed_value, bin->name);
+				}
+				END_FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
+						iter, idx);
 			}
 		}
 		else {

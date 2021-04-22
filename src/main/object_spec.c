@@ -286,52 +286,23 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 		}
 	}
 	else {
-		uint32_t k = 0;
-		uint32_t tot = 0;
-		uint32_t next_idx = write_bins[k];
+		FOR_EACH_WRITE_BIN(write_bins, n_write_bins, obj_spec, _k, idx, bin_spec) {
+			as_val* val = bin_spec_random_val(bin_spec, random,
+					compression_ratio);
 
-		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
-			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
+			if (val == NULL) {
+				return -1;
+			}
 
-			for (;;) {
-				if (tot + bin_spec->n_repeats <= next_idx) {
-					tot += bin_spec->n_repeats;
-					break;
-				}
-				else {
-					as_val* val = bin_spec_random_val(bin_spec, random,
-							compression_ratio);
-
-					if (val == NULL) {
-						return -1;
-					}
-
-					as_bin_name name;
-					gen_bin_name(name, bin_name, next_idx);
-					if (!as_record_set(rec, name, (as_bin_value*) val)) {
-						// failed to set a record, meaning we ran out of space
-						fprintf(stderr, "Not enough free bin slots in record\n");
-						return -1;
-					}
-
-					k++;
-					if (k >= n_write_bins) {
-						goto finished_generating;
-					}
-
-					next_idx = write_bins[k];
-				}
+			as_bin_name name;
+			gen_bin_name(name, bin_name, idx);
+			if (!as_record_set(rec, name, (as_bin_value*) val)) {
+				// failed to set a record, meaning we ran out of space
+				fprintf(stderr, "Not enough free bin slots in record\n");
+				return -1;
 			}
 		}
-
-		if (tot == n_bin_specs) {
-			// this should never happen if write_bins are valid (which is
-			// checked for during initialization)
-			fprintf(stderr, "Failed to generate record with write-bins\n");
-			return -1;
-		}
-
-finished_generating: ;
+		END_FOR_EACH_WRITE_BIN(write_bins, n_write_bins, _k, idx);
 	}
 
 	return 0;

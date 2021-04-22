@@ -66,6 +66,45 @@
 #define MAX_KEY_ENTRY_RETRIES 1024
 
 
+/*
+ * defines a loop that goes over each of the write bins
+ *
+ * example usage:
+ *     FOR_EACH_WRITE_BIN(<write_bins>, <n_write_bins>, <obj_spec>, iter, idx, bin_spec) {
+ *         printf("Bin index %u is in slot %u in the record\n", idx, iter);
+ *     }
+ *     END_FOR_EACH_WRITE_BIN(iter, idx);
+ *
+ * iter_var: the variable which will hold the iteration index of the
+ *         iteration of the loop we're on
+ * idx_var: the variable which will hold the bin-index of the current bin
+ */
+#define FOR_EACH_WRITE_BIN(write_bins, n_write_bins, obj_spec, iter_var, idx_var, bin_spec_var) \
+	uint32_t iter_var = 0; \
+	uint32_t __tot = 0; \
+	uint32_t idx_var = (write_bins)[iter_var]; \
+	for (uint32_t __i = 0; __tot < (obj_spec)->n_bin_specs; __i++) { \
+		const struct bin_spec_s* bin_spec_var = &(obj_spec)->bin_specs[__i]; \
+		for (;;) { \
+			if (__tot + bin_spec_var->n_repeats <= idx_var) { \
+				__tot += bin_spec_var->n_repeats; \
+				break; \
+			} \
+			else {
+
+#define END_FOR_EACH_WRITE_BIN(write_bins, n_write_bins, iter_var, idx_var) \
+				iter_var++; \
+				if (iter_var >= (n_write_bins)) { \
+					goto __exit_loop; \
+				} \
+				idx_var = (write_bins)[iter_var]; \
+			} \
+		} \
+	} \
+	__builtin_unreachable(); \
+__exit_loop:
+
+
 struct bin_spec_s {
 
 	/*
