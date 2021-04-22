@@ -417,36 +417,26 @@ _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 		}
 	}
 	else {
-		uint32_t k = 0;
-		uint32_t tot = 0;
-		uint32_t next_idx = write_bins[k];
-
-		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
-			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
-
-			for (;;) {
-				if (tot + bin_spec->n_repeats <= next_idx) {
-					tot += bin_spec->n_repeats;
+		for (uint32_t i = 0; i < n_write_bins; i++) {
+			uint32_t bin_idx = write_bins[i];
+			// find the object spec this belongs to
+			uint32_t obj_spec_idx = 0;
+			uint32_t tot = 0;
+			while (1) {
+				uint32_t n_reps = obj_spec->bin_specs[obj_spec_idx].n_repeats;
+				if (tot + n_reps > bin_idx) {
 					break;
 				}
-				else {
-					gen_bin_name(name, bin_name, next_idx);
-
-					as_val* val = (as_val*) as_record_get(rec, name);
-					ck_assert_msg(val != NULL, "expected a record in bin "
-							"\"%s\"", name);
-					_dbg_validate_bin_spec(bin_spec, val);
-
-					if (k >= n_write_bins) {
-						goto finished_validating;
-					}
-
-					next_idx = write_bins[k++];
-				}
+				tot += n_reps;
+				obj_spec_idx++;
 			}
-		}
+			gen_bin_name(name, bin_name, bin_idx);
 
-finished_validating:;
+			as_val* val = (as_val*) as_record_get(rec, name);
+			ck_assert_msg(val != NULL, "expected a record in bin "
+					"\"%s\"", name);
+			_dbg_validate_bin_spec(&obj_spec->bin_specs[obj_spec_idx], val);
+		}
 	}
 }
 

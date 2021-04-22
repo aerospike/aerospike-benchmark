@@ -340,6 +340,8 @@ DEFINE_TCASE_WRITE_BINS(test_wb_lists, "I4,[I6,B10],B20,[[S20,I8],S10]",
 		((uint32_t[]) { 1, 3 }), 2);
 DEFINE_TCASE_WRITE_BINS(test_wb_maps, "{5*S10:B20},[3*{I4:S5},D],B10,{I4:I8}",
 		((uint32_t[]) { 0, 1, 3 }), 3);
+DEFINE_TCASE_WRITE_BINS(test_wb_repeats, "30*I3,27*S10,D,I1,I2,I4,I5,10*[5*I6]",
+		((uint32_t[]) { 14, 27, 30, 56, 57, 59, 63, 66, 71 }), 9);
 
 
 /*
@@ -624,11 +626,13 @@ obj_spec_suite(void)
 	tcase_add_test(tc_write_bins, test_wb_evens_str_cmp);
 	tcase_add_test(tc_write_bins, test_wb_lists_str_cmp);
 	tcase_add_test(tc_write_bins, test_wb_maps_str_cmp);
+	tcase_add_test(tc_write_bins, test_wb_repeats_str_cmp);
 	tcase_add_test(tc_write_bins, test_wb_simple_valid);
 	tcase_add_test(tc_write_bins, test_wb_odds_valid);
 	tcase_add_test(tc_write_bins, test_wb_evens_valid);
 	tcase_add_test(tc_write_bins, test_wb_lists_valid);
 	tcase_add_test(tc_write_bins, test_wb_maps_valid);
+	tcase_add_test(tc_write_bins, test_wb_repeats_valid);
 	suite_add_tcase(s, tc_write_bins);
 
 	tc_bin_names = tcase_create("Bin names");
