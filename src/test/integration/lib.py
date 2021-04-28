@@ -252,6 +252,7 @@ def stop():
 	global CLIENT
 	global RUNNING
 	global NODES
+
 	"""
 	Disconnects the client and stops the running asd process.
 	"""
@@ -314,12 +315,14 @@ def run_benchmark(args, ip=None, port=PORT, expect_success=True, do_reset=True):
 	if ip is None:
 		ip = SERVER_IP
 
+	cmd = "test_target/benchmark -h %s:%d -n %s -s %s %s" % \
+			(ip, port, NAMESPACE, SET, args)
+
+	print("executing:", cmd)
 	if expect_success:
-		assert(os.system("test_target/benchmark -h %s:%d -n %s -s %s %s" %
-			(ip, port, NAMESPACE, SET, args)) == 0)
+		assert(os.system(cmd) == 0)
 	else:
-		assert(os.system("test_target/benchmark -h %s:%d -n %s -s %s %s" %
-			(ip, port, NAMESPACE, SET, args)) != 0)
+		assert(os.system(cmd) != 0)
 
 def scan_records():
 	recs = []
