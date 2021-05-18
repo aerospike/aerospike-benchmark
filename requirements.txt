@@ -1,2 +1,3 @@
+aerospike
 docker
 pytest

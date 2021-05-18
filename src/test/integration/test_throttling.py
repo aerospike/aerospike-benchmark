@@ -21,13 +21,13 @@ def test_tps_read_write():
 	lib.run_benchmark("--workload RU,50 --duration 5 --startKey 0 " +
 			"--keys 1000000000 -o I --throughput 1000 -z 1")
 	n_records = len(lib.scan_records())
-	assert(2450 <= n_records <= 2550)
+	assert(2400 <= n_records <= 2600)
 
 def test_tps_read_write_high_variance():
 	# test throughput throttling writing complex objects and reading simple ones
 	lib.run_benchmark("--workload RU,50 --duration 5 --startKey 0 " +
-			"--keys 1000000000 -o \"I,{500*S64:[10*I,B128]}\" --throughput 1000 " +
+			"--keys 1000000000 -o \"I,{500*S64:[10*I,B128]}\" --throughput 500 " +
 			"-z 1 --readBins 1")
 	n_records = len(lib.scan_records())
-	assert(2450 <= n_records <= 2550)
+	assert(1150 <= n_records <= 1350)
 

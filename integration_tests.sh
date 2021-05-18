@@ -15,9 +15,6 @@ if [ ! -d "${1}" ]; then
 	virtualenv "${1}"
 	. "${1}"/bin/activate
 	pip install -r requirements.txt
-	cd "${1}"
-	../install_aerospike_python.sh
-	cd ..
 else
 	. "${1}"/bin/activate
 fi
