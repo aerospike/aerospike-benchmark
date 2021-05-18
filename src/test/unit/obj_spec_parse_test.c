@@ -179,6 +179,10 @@ END_TEST
  * Simple test cases
  */
 
+DEFINE_TCASE(test_b, "b");
+DEFINE_FAILING_TCASE(test_b1, "b1", "Booleans cannot have numeric quantifiers");
+DEFINE_FAILING_TCASE(test_b0, "b0", "Booleans cannot have numeric quantifiers");
+
 DEFINE_TCASE(test_I1, "I1");
 DEFINE_TCASE(test_I2, "I2");
 DEFINE_TCASE(test_I3, "I3");
@@ -194,8 +198,8 @@ DEFINE_FAILING_TCASE(test_Ia, "Ia", "Ia is an invalid integer specifier");
 DEFINE_FAILING_TCASE(test_Ineg1, "I-1", "I-1 is an invalid integer specifier");
 
 DEFINE_TCASE(test_D, "D");
-DEFINE_FAILING_TCASE(test_D1, "D1", "Decimal numbers cannot have numeric quantifiers");
-DEFINE_FAILING_TCASE(test_D0, "D0", "Decimal numbers cannot have numeric quantifiers");
+DEFINE_FAILING_TCASE(test_D1, "D1", "Floating point numbers cannot have numeric quantifiers");
+DEFINE_FAILING_TCASE(test_D0, "D0", "Floating point numbers cannot have numeric quantifiers");
 
 DEFINE_TCASE(test_S1, "S1");
 DEFINE_TCASE(test_S10, "S10");
@@ -224,7 +228,7 @@ DEFINE_FAILING_TCASE(test_B4294967296, "B4294967296", "this is beyond the max "
 DEFINE_TCASE(test_singleton_list, "[I3]");
 DEFINE_TCASE(test_pair_list, "[I3,S5]");
 DEFINE_TCASE(test_long_list, "[B10,D,S22,I7,I8,S30,B110,I2,I4]");
-DEFINE_TCASE(test_repeated_list, "[D,D,D,D,D,B10,B10,B10,I4,I4,I4,I4]");
+DEFINE_TCASE(test_repeated_list, "[D,D,D,D,D,b,B10,B10,B10,I4,I4,I4,I4]");
 DEFINE_TCASE(test_empty_list, "[]");
 DEFINE_FAILING_TCASE(test_unterminated_list, "[S10,I3", "unterminated list");
 DEFINE_FAILING_TCASE(test_unterminated_list_v2, "[S10,I3,", "unterminated list");
@@ -234,18 +238,27 @@ DEFINE_FAILING_TCASE(test_unopened_list, "I3]", "unopened list");
 /*
  * Map test cases
  */
+DEFINE_FAILING_TCASE(test_map_bb, "{b:b}", "maps cannot have boolean keys");
+DEFINE_FAILING_TCASE(test_map_bI, "{b:I2}", "maps cannot have boolean keys");
+DEFINE_FAILING_TCASE(test_map_bD, "{b:D}", "maps cannot have boolean keys");
+DEFINE_FAILING_TCASE(test_map_bS, "{b:S4}", "maps cannot have boolean keys");
+DEFINE_FAILING_TCASE(test_map_bB, "{b:B5}", "maps cannot have boolean keys");
+DEFINE_TCASE(test_map_Ib, "{I1:b}");
 DEFINE_TCASE(test_map_II, "{I1:I2}");
 DEFINE_TCASE(test_map_ID, "{I1:D}");
 DEFINE_TCASE(test_map_IS, "{I1:S4}");
 DEFINE_TCASE(test_map_IB, "{I1:B5}");
+DEFINE_TCASE(test_map_Db, "{D:b}");
 DEFINE_TCASE(test_map_DI, "{D:I2}");
 DEFINE_TCASE(test_map_DD, "{D:D}");
 DEFINE_TCASE(test_map_DS, "{D:S4}");
 DEFINE_TCASE(test_map_DB, "{D:B5}");
+DEFINE_TCASE(test_map_Sb, "{S2:b}");
 DEFINE_TCASE(test_map_SI, "{S2:I2}");
 DEFINE_TCASE(test_map_SD, "{S2:D}");
 DEFINE_TCASE(test_map_SS, "{S2:S4}");
 DEFINE_TCASE(test_map_SB, "{S2:B5}");
+DEFINE_TCASE(test_map_Bb, "{B6:b}");
 DEFINE_TCASE(test_map_BI, "{B6:I2}");
 DEFINE_TCASE(test_map_BD, "{B6:D}");
 DEFINE_TCASE(test_map_BS, "{B6:S4}");
@@ -270,8 +283,8 @@ DEFINE_FAILING_TCASE(test_unopened_map_v4, "}", "unopened map");
 DEFINE_TCASE(test_two_bins, "I1,I2");
 DEFINE_TCASE(test_three_bins, "I1,I2,I3");
 DEFINE_TCASE(test_mixed_bins, "S12,I6,B20");
-DEFINE_TCASE(test_many_bins, "I1,I2,I3,I4,S1,S2,S3,S4,D,B1,B2,B3,B4");
-DEFINE_TCASE(test_repeated_bins, "I1,I1,D,D,S10,S10,B5,B5");
+DEFINE_TCASE(test_many_bins, "I1,I2,I3,I4,S1,S2,S3,S4,D,b,B1,B2,B3,B4");
+DEFINE_TCASE(test_repeated_bins, "I1,I1,D,D,S10,S10,B5,B5,b,b");
 DEFINE_FAILING_TCASE(test_no_commas, "I1D", "need commas separating tokens");
 DEFINE_FAILING_TCASE(test_spaces, "I1 D", "need commas separating tokens");
 
@@ -279,14 +292,14 @@ DEFINE_FAILING_TCASE(test_spaces, "I1 D", "need commas separating tokens");
 /*
  * Nested lists/maps test cases
  */
-DEFINE_TCASE(test_map_to_list, "{I5:[S10,B20,D]}");
+DEFINE_TCASE(test_map_to_list, "{I5:[S10,B20,D,b]}");
 DEFINE_TCASE(test_list_of_maps, "[{I5:I1},{S10:B20}]");
-DEFINE_TCASE(test_mixed_list_of_maps, "[{D:I3},S10,{S20:B1}]");
+DEFINE_TCASE(test_mixed_list_of_maps, "[{D:I3},S10,{S20:B1},b]");
 DEFINE_TCASE(test_nested_lists,
-		"[[S10,I4,[B10,B5,D],D],S20,[B100,I7,D],[[I3],[I4,I5,I6]]]");
-DEFINE_TCASE(test_nested_maps, "{I5:{S30:{D:{B123:I1}}}}");
+		"[[S10,I4,[B10,B5,D],D],S20,[B100,I7,D,b],[[I3],[I4,I5,I6]]]");
+DEFINE_TCASE(test_nested_maps, "{I5:{S30:{D:{B123:b}}}}");
 DEFINE_TCASE(test_nested_mix,
-		"[{S10:D},[I3,{S10:B20},{I3:{D:[I1,I2]}},B10],{B32:[I3,I5,{I7:D}]}]");
+		"[{S10:D},[I3,{S10:B20},{I3:{D:[I1,I2,b]}},B10,b],{B32:[b,I3,I5,{I7:D}]}]");
 DEFINE_FAILING_TCASE(test_map_key_list, "{[I3,I5]:I6}", "map key cannot be a list");
 DEFINE_FAILING_TCASE(test_map_key_map, "{{S20:I4}:I1}", "map key cannot be a map");
 DEFINE_FAILING_TCASE(test_map_to_undeclared_list, "{I4:I1,I2}", "map value must be single type");
@@ -295,6 +308,7 @@ DEFINE_FAILING_TCASE(test_map_to_undeclared_list, "{I4:I1,I2}", "map value must 
 /*
  * Multipliers test cases
  */
+DEFINE_TCASE(test_mult_b, "8*b");
 DEFINE_TCASE(test_mult_I, "2*I3");
 DEFINE_TCASE(test_mult_D, "5*D");
 DEFINE_TCASE(test_mult_S, "3*S10");
@@ -308,6 +322,8 @@ DEFINE_TCASE(test_mult_map_key_D, "{5*D:S3}");
 DEFINE_TCASE(test_mult_map_key_S, "{2*S2:S3}");
 DEFINE_TCASE(test_mult_map_key_B, "{700*B5:S3}");
 DEFINE_FAILING_TCASE(test_mult_no_star, "3I2", "multipliers must be followed with a '*'");
+DEFINE_FAILING_TCASE(test_mult_map_val_b, "{I1:4*b}",
+		"no multipliers on map values allowed");
 DEFINE_FAILING_TCASE(test_mult_map_val_I, "{I1:3*I2}",
 		"no multipliers on map values allowed");
 DEFINE_FAILING_TCASE(test_mult_map_val_D, "{I2:5*D}",
@@ -340,7 +356,7 @@ DEFINE_TCASE_WRITE_BINS(test_wb_lists, "I4,[I6,B10],B20,[[S20,I8],S10]",
 		((uint32_t[]) { 1, 3 }), 2);
 DEFINE_TCASE_WRITE_BINS(test_wb_maps, "{5*S10:B20},[3*{I4:S5},D],B10,{I4:I8}",
 		((uint32_t[]) { 0, 1, 3 }), 3);
-DEFINE_TCASE_WRITE_BINS(test_wb_repeats, "30*I3,27*S10,D,I1,I2,I4,I5,10*[5*I6]",
+DEFINE_TCASE_WRITE_BINS(test_wb_repeats, "30*I3,27*S10,D,I1,I2,b,I5,10*[5*I6]",
 		((uint32_t[]) { 14, 27, 30, 56, 57, 59, 63, 66, 71 }), 9);
 
 
@@ -386,11 +402,11 @@ DEFINE_BIN_NAME_TOO_LARGE(bin_name_4_dig_too_large, 8192, "abcdefghijk");
 DEFINE_TCASE_DIFF(test_space, "I, D", "I4,D");
 DEFINE_TCASE_DIFF(test_space_in_list, "I, [B12, S15]", "I4,[B12,S15]");
 DEFINE_TCASE_DIFF(test_space_map_after_key, "{S12 :I7}", "{S12:I7}");
-DEFINE_TCASE_DIFF(test_space_map_before_value, "{B8: D}", "{B8:D}");
+DEFINE_TCASE_DIFF(test_space_map_before_value, "{B8: b}", "{B8:b}");
 DEFINE_TCASE_DIFF(test_space_map_both, "{I2 : S1}", "{I2:S1}");
-DEFINE_TCASE_DIFF(test_space_mult_before, "4 *I, [ 3 *D, 2 *{3 *S10:B20}]", "4*I4,[3*D,2*{3*S10:B20}]");
-DEFINE_TCASE_DIFF(test_space_mult_after, "4* I, [3* D, 2* {3* S10:B20}]", "4*I4,[3*D,2*{3*S10:B20}]");
-DEFINE_TCASE_DIFF(test_space_mult_both, "4 * I, [3 * D, 2 * {3 * S10:B20}]", "4*I4,[3*D,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_before, "4 *I, [ 3 *b, 2 *{3 *S10:B20}]", "4*I4,[3*b,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_after, "4* I, [3* b, 2* {3* S10:B20}]", "4*I4,[3*b,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_both, "4 * I, [3 * b, 2 * {3 * S10:B20}]", "4*I4,[3*b,2*{3*S10:B20}]");
 DEFINE_TCASE_DIFF(test_space_list, "[ I, D, S20 ]", "[I4,D,S20]");
 DEFINE_TCASE_DIFF(test_space_map, "{ S20 : B10 }", "{S20:B10}");
 
@@ -423,6 +439,11 @@ obj_spec_suite(void)
 
 	tc_simple = tcase_create("Simple");
 	tcase_add_checked_fixture(tc_simple, simple_setup, simple_teardown);
+	tcase_add_test(tc_simple, test_b_str_cmp);
+	tcase_add_test(tc_simple, test_b_valid);
+	tcase_add_test(tc_simple, test_b0);
+	tcase_add_test(tc_simple, test_b1);
+
 	tcase_add_test(tc_simple, test_I1_str_cmp);
 	tcase_add_test(tc_simple, test_I2_str_cmp);
 	tcase_add_test(tc_simple, test_I3_str_cmp);
@@ -499,36 +520,49 @@ obj_spec_suite(void)
 
 	tc_map = tcase_create("Map");
 	tcase_add_checked_fixture(tc_map, simple_setup, simple_teardown);
+	tcase_add_test(tc_map, test_map_bb);
+	tcase_add_test(tc_map, test_map_bI);
+	tcase_add_test(tc_map, test_map_bD);
+	tcase_add_test(tc_map, test_map_bS);
+	tcase_add_test(tc_map, test_map_bB);
+	tcase_add_test(tc_map, test_map_Ib_str_cmp);
 	tcase_add_test(tc_map, test_map_II_str_cmp);
 	tcase_add_test(tc_map, test_map_ID_str_cmp);
 	tcase_add_test(tc_map, test_map_IS_str_cmp);
 	tcase_add_test(tc_map, test_map_IB_str_cmp);
+	tcase_add_test(tc_map, test_map_Db_str_cmp);
 	tcase_add_test(tc_map, test_map_DI_str_cmp);
 	tcase_add_test(tc_map, test_map_DD_str_cmp);
 	tcase_add_test(tc_map, test_map_DS_str_cmp);
 	tcase_add_test(tc_map, test_map_DB_str_cmp);
+	tcase_add_test(tc_map, test_map_Sb_str_cmp);
 	tcase_add_test(tc_map, test_map_SI_str_cmp);
 	tcase_add_test(tc_map, test_map_SD_str_cmp);
 	tcase_add_test(tc_map, test_map_SS_str_cmp);
 	tcase_add_test(tc_map, test_map_SB_str_cmp);
+	tcase_add_test(tc_map, test_map_Bb_str_cmp);
 	tcase_add_test(tc_map, test_map_BI_str_cmp);
 	tcase_add_test(tc_map, test_map_BD_str_cmp);
 	tcase_add_test(tc_map, test_map_BS_str_cmp);
 	tcase_add_test(tc_map, test_map_BB_str_cmp);
 	tcase_add_test(tc_map, test_empty_map_str_cmp);
 	tcase_add_test(tc_map, test_empty_map_v2_str_cmp);
+	tcase_add_test(tc_map, test_map_Ib_valid);
 	tcase_add_test(tc_map, test_map_II_valid);
 	tcase_add_test(tc_map, test_map_ID_valid);
 	tcase_add_test(tc_map, test_map_IS_valid);
 	tcase_add_test(tc_map, test_map_IB_valid);
+	tcase_add_test(tc_map, test_map_Db_valid);
 	tcase_add_test(tc_map, test_map_DI_valid);
 	tcase_add_test(tc_map, test_map_DD_valid);
 	tcase_add_test(tc_map, test_map_DS_valid);
 	tcase_add_test(tc_map, test_map_DB_valid);
+	tcase_add_test(tc_map, test_map_Sb_valid);
 	tcase_add_test(tc_map, test_map_SI_valid);
 	tcase_add_test(tc_map, test_map_SD_valid);
 	tcase_add_test(tc_map, test_map_SS_valid);
 	tcase_add_test(tc_map, test_map_SB_valid);
+	tcase_add_test(tc_map, test_map_Bb_valid);
 	tcase_add_test(tc_map, test_map_BI_valid);
 	tcase_add_test(tc_map, test_map_BD_valid);
 	tcase_add_test(tc_map, test_map_BS_valid);
@@ -583,6 +617,7 @@ obj_spec_suite(void)
 
 	tc_multipliers = tcase_create("Multipliers");
 	tcase_add_checked_fixture(tc_multipliers, simple_setup, simple_teardown);
+	tcase_add_test(tc_multipliers, test_mult_b_str_cmp);
 	tcase_add_test(tc_multipliers, test_mult_I_str_cmp);
 	tcase_add_test(tc_multipliers, test_mult_D_str_cmp);
 	tcase_add_test(tc_multipliers, test_mult_S_str_cmp);
@@ -595,6 +630,7 @@ obj_spec_suite(void)
 	tcase_add_test(tc_multipliers, test_mult_map_key_D_str_cmp);
 	tcase_add_test(tc_multipliers, test_mult_map_key_S_str_cmp);
 	tcase_add_test(tc_multipliers, test_mult_map_key_B_str_cmp);
+	tcase_add_test(tc_multipliers, test_mult_b_valid);
 	tcase_add_test(tc_multipliers, test_mult_I_valid);
 	tcase_add_test(tc_multipliers, test_mult_D_valid);
 	tcase_add_test(tc_multipliers, test_mult_S_valid);
@@ -608,6 +644,7 @@ obj_spec_suite(void)
 	tcase_add_test(tc_multipliers, test_mult_map_key_S_valid);
 	tcase_add_test(tc_multipliers, test_mult_map_key_B_valid);
 	tcase_add_test(tc_multipliers, test_mult_no_star);
+	tcase_add_test(tc_multipliers, test_mult_map_val_b);
 	tcase_add_test(tc_multipliers, test_mult_map_val_I);
 	tcase_add_test(tc_multipliers, test_mult_map_val_D);
 	tcase_add_test(tc_multipliers, test_mult_map_val_S);

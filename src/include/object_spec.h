@@ -35,12 +35,13 @@
 #define DEFAULT_LIST_BUILDER_CAPACITY 8
 
 
-#define BIN_SPEC_TYPE_INT    0x0
-#define BIN_SPEC_TYPE_STR    0x1
-#define BIN_SPEC_TYPE_BYTES  0x2
-#define BIN_SPEC_TYPE_DOUBLE 0x3
-#define BIN_SPEC_TYPE_LIST   0x4
-#define BIN_SPEC_TYPE_MAP    0x5
+#define BIN_SPEC_TYPE_BOOL   0x0
+#define BIN_SPEC_TYPE_INT    0x1
+#define BIN_SPEC_TYPE_STR    0x2
+#define BIN_SPEC_TYPE_BYTES  0x3
+#define BIN_SPEC_TYPE_DOUBLE 0x4
+#define BIN_SPEC_TYPE_LIST   0x5
+#define BIN_SPEC_TYPE_MAP    0x6
 
 #define BIN_SPEC_TYPE_MASK 0x7
 
@@ -208,8 +209,9 @@ typedef struct obj_spec_s {
  * where the possible bin types are:
  *
  * Scalar bins:
- *	   I<bytes> | B<size> | S<length> | D # Default: I
+ *	   b | I<bytes> | B<size> | S<length> | D # Default: I
  *
+ *    b) Generate a boolean bin
  *    I) Generate an integer bin or value in a specific byte range (treat I as I4)
  *        I1 for 0 - 255
  *        I2 for 256 - 65535

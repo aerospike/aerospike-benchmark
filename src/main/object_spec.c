@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #include <aerospike/as_arraylist.h>
+#include <aerospike/as_boolean.h>
 #include <aerospike/as_bytes.h>
 #include <aerospike/as_double.h>
 #include <aerospike/as_hashmap.h>
@@ -88,6 +89,7 @@ LOCAL_HELPER void _destroy_consumer_states(struct consumer_state_s* state);
 LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str);
 LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
+LOCAL_HELPER as_val* _gen_random_bool(as_random* random);
 LOCAL_HELPER as_val* _gen_random_int(uint8_t range, as_random* random);
 LOCAL_HELPER uint64_t raw_to_alphanum(uint64_t n);
 LOCAL_HELPER as_val* _gen_random_str(uint32_t length, as_random* random);
@@ -104,6 +106,7 @@ LOCAL_HELPER size_t _sprint_bin(const struct bin_spec_s* bin, char** out_str,
 		size_t str_size);
 
 #ifdef _TEST
+LOCAL_HELPER void _dbg_validate_bool(as_boolean* as_val);
 LOCAL_HELPER void _dbg_validate_int(uint8_t range, as_integer* as_val);
 LOCAL_HELPER void _dbg_validate_string(uint32_t length, as_string* as_val);
 LOCAL_HELPER void _dbg_validate_bytes(uint32_t length, as_bytes* as_val);
@@ -331,49 +334,21 @@ obj_spec_gen_compressible_value(const struct obj_spec_s* obj_spec,
 		return bin_spec_random_val(&tmp_list, random, compression_ratio);
 	}
 	else {
-		uint32_t k = 0;
-		uint32_t tot = 0;
-		uint32_t next_idx = write_bins[k];
-
 		as_arraylist* list = as_arraylist_new(n_write_bins, 0);
 
-		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
-			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
+		FOR_EACH_WRITE_BIN(write_bins, n_write_bins, obj_spec, _k, _idx, bin_spec) {
+			as_val* val = bin_spec_random_val(bin_spec, random,
+					compression_ratio);
 
-			for (;;) {
-				if (tot + bin_spec->n_repeats <= next_idx) {
-					tot += bin_spec->n_repeats;
-					break;
-				}
-				else {
-					as_val* val = bin_spec_random_val(bin_spec, random,
-							compression_ratio);
-
-					if (val == NULL) {
-						as_list_destroy((as_list*) list);
-						return NULL;
-					}
-
-					as_list_append((as_list*) list, val);
-
-					k++;
-					if (k >= n_write_bins) {
-						goto finished_generating_val;
-					}
-
-					next_idx = write_bins[k];
-				}
+			if (val == NULL) {
+				as_list_destroy((as_list*) list);
+				return NULL;
 			}
-		}
 
-		if (tot == obj_spec->n_bin_specs) {
-			// this should never happen if write_bins are valid (which is
-			// checked for during initialization)
-			fprintf(stderr, "Failed to generate value with write-bins\n");
-			as_list_destroy((as_list*) list);
-			return NULL;
+			as_list_append((as_list*) list, val);
 		}
-finished_generating_val:
+		END_FOR_EACH_WRITE_BIN(write_bins, n_write_bins, _k, _idx);
+
 		return (as_val*) list;
 	}
 }
@@ -444,6 +419,9 @@ void
 _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 {
 	switch (bin_spec->type) {
+		case BIN_SPEC_TYPE_BOOL:
+			_dbg_validate_bool(as_boolean_fromval(val));
+			break;
 		case BIN_SPEC_TYPE_INT:
 			_dbg_validate_int(bin_spec->integer.range, as_integer_fromval(val));
 			break;
@@ -757,6 +735,15 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			}
 			bin_spec->n_repeats = mult;
 			switch (*str) {
+				case 'b':
+					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
+						_print_parse_error("Map key cannot be boolean",
+								obj_spec_str, str);
+						goto _destroy_state;
+					}
+					bin_spec->type = BIN_SPEC_TYPE_BOOL;
+					str++;
+					break;
 				case 'I': {
 					uint8_t next_char = *(str + 1) - '1';
 					if (next_char > BIN_SPEC_MAX_INT_RANGE) {
@@ -963,6 +950,7 @@ LOCAL_HELPER void
 bin_spec_free(struct bin_spec_s* bin_spec)
 {
 	switch (bin_spec->type) {
+		case BIN_SPEC_TYPE_BOOL:
 		case BIN_SPEC_TYPE_INT:
 		case BIN_SPEC_TYPE_STR:
 		case BIN_SPEC_TYPE_BYTES:
@@ -983,6 +971,15 @@ bin_spec_free(struct bin_spec_s* bin_spec)
 			cf_free(bin_spec->map.val);
 			break;
 	}
+}
+
+LOCAL_HELPER as_val*
+_gen_random_bool(as_random* random)
+{
+	as_boolean* val;
+	uint32_t r = as_random_next_uint32(random);
+	val = as_boolean_new((bool) (r & 1));
+	return (as_val*) val;
 }
 
 LOCAL_HELPER as_val*
@@ -1205,6 +1202,9 @@ bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
 {
 	as_val* val;
 	switch (bin_spec->type) {
+		case BIN_SPEC_TYPE_BOOL:
+			val = _gen_random_bool(random);
+			break;
 		case BIN_SPEC_TYPE_INT:
 			val = _gen_random_int(bin_spec->integer.range, random);
 			break;
@@ -1239,6 +1239,9 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 		sprint(out_str, str_size, "%d*", bin->n_repeats);
 	}
 	switch (bin->type) {
+		case BIN_SPEC_TYPE_BOOL:
+			sprint(out_str, str_size, "b");
+			break;
 		case BIN_SPEC_TYPE_INT:
 			sprint(out_str, str_size, "I%d", bin->integer.range + 1);
 			break;
@@ -1276,6 +1279,12 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 }
 
 #ifdef _TEST
+
+LOCAL_HELPER void
+_dbg_validate_bool(as_boolean* as_val)
+{
+	ck_assert_msg(as_val != NULL, "Expected a boolean, got something else");
+}
 
 LOCAL_HELPER void
 _dbg_validate_int(uint8_t range, as_integer* as_val)
