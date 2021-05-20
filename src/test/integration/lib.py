@@ -6,6 +6,7 @@ import sys
 import aerospike
 import docker
 import atexit
+import shutil
 import signal
 import time
 
@@ -42,8 +43,13 @@ INDEXES = []
 UDFS = []
 SERVER_IP = None
 
+USE_DOCKER_SERVERS=True
+
 # set when the cluser is up and running
 RUNNING = False
+
+# where to mount work directory in the docker container
+CONTAINER_DIR = "/opt/work"
 
 def graceful_exit(sig, frame):
 	signal.signal(signal.SIGINT, g_orig_int_handler)
@@ -157,8 +163,8 @@ def create_conf_file(temp_file, base, peer_addr, index):
 		temp_content = file_obj.read()
 
 	params = {
-		"state_directory": "/opt/aerospike/work/state-" + str(index),
-		"udf_directory": "/opt/aerospike/work/udf-" + str(index),
+		"state_directory": CONTAINER_DIR + "/state-" + str(index),
+		"udf_directory": CONTAINER_DIR + "/udf-" + str(index),
 		"service_port": str(base),
 		"fabric_port": str(base + 1),
 		"heartbeat_port": str(base + 2),
@@ -197,36 +203,40 @@ def start(do_reset=True):
 
 	if not RUNNING:
 		RUNNING = True
-		print("Starting asd")
 
-		init_work_dir()
-		init_state_dirs()
+		if USE_DOCKER_SERVERS:
+			print("Starting asd")
 
-		temp_file = absolute_path("aerospike.conf")
-		mount_dir = absolute_path(WORK_DIRECTORY)
+			init_work_dir()
+			init_state_dirs()
 
-		first_base = PORT
-		for index in range(1, 3):
-			base = first_base + 1000 * (index - 1)
-			conf_file = create_conf_file(temp_file, base,
-					None if index == 1 else (SERVER_IP, first_base),
-					index)
-			cmd = '/usr/bin/asd --foreground --config-file %s --instance %s' % ('/opt/aerospike/work/' + get_file(conf_file, base=mount_dir), str(index - 1))
-			print('running in docker: %s' % cmd)
-			container = DOCKER_CLIENT.containers.run("aerospike/aerospike-server",
-					command=cmd,
-					ports={
-						str(base) + '/tcp': str(base),
-						str(base + 1) + '/tcp': str(base + 1),
-						str(base + 2) + '/tcp': str(base + 2),
-						str(base + 3) + '/tcp': str(base + 3)
-					},
-					volumes={ mount_dir: { 'bind': '/opt/aerospike/work', 'mode': 'rw' } },
-					tty=True, detach=True, name='aerospike-%d' % (index))
-			NODES[index-1] = container
-			if index == 1:
-				container.reload()
-				SERVER_IP = container.attrs["NetworkSettings"]["Networks"]["bridge"]["IPAddress"]
+			temp_file = absolute_path("aerospike.conf")
+			mount_dir = absolute_path(WORK_DIRECTORY)
+
+			first_base = PORT
+			for index in range(1, 3):
+				base = first_base + 1000 * (index - 1)
+				conf_file = create_conf_file(temp_file, base,
+						None if index == 1 else (SERVER_IP, first_base),
+						index)
+				cmd = '/usr/bin/asd --foreground --config-file %s --instance %s' % (CONTAINER_DIR + '/' + get_file(conf_file, base=mount_dir), str(index - 1))
+				print('running in docker: %s' % cmd)
+				container = DOCKER_CLIENT.containers.run("aerospike/aerospike-server",
+						command=cmd,
+						ports={
+							str(base) + '/tcp': str(base),
+							str(base + 1) + '/tcp': str(base + 1),
+							str(base + 2) + '/tcp': str(base + 2),
+							str(base + 3) + '/tcp': str(base + 3)
+						},
+						volumes={ mount_dir: { 'bind': CONTAINER_DIR, 'mode': 'rw' } },
+						tty=True, detach=True, name='aerospike-%d' % (index))
+				NODES[index-1] = container
+				if index == 1:
+					container.reload()
+					SERVER_IP = container.attrs["NetworkSettings"]["Networks"]["bridge"]["IPAddress"]
+		else:
+			SERVER_IP = "127.0.0.1"
 
 		print("Connecting client")
 		config = {"hosts": [(SERVER_IP, PORT)]}
@@ -334,6 +344,9 @@ def get_record(key):
 
 
 # record structure validation
+def obj_spec_is_b(val):
+	assert(type(val) is bool)
+
 def obj_spec_is_I1(val):
 	assert(type(val) is int)
 	assert(0 <= val < 256)

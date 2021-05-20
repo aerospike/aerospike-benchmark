@@ -1,6 +1,10 @@
 
 import lib
 
+def test_b():
+	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o b --random")
+	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_b(bins["testbin"]))
+
 def test_I1():
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o I1 --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_I1(bins["testbin"]))
@@ -120,15 +124,16 @@ def test_B10000():
 def test_list():
 	def check_bin(b):
 		assert(type(b) is list)
-		assert(len(b) == 6)
+		assert(len(b) == 7)
 		lib.obj_spec_is_I1(b[0])
 		lib.obj_spec_is_I2(b[1])
 		lib.obj_spec_is_I3(b[2])
 		lib.obj_spec_is_S(b[3], 10)
 		lib.obj_spec_is_B(b[4], 20)
 		lib.obj_spec_is_D(b[5])
+		lib.obj_spec_is_b(b[6])
 
-	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o [I1,I2,I3,S10,B20,D] --random")
+	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o [I1,I2,I3,S10,B20,D,b] --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: check_bin(bins["testbin"]))
 
 def test_map():
@@ -156,7 +161,7 @@ def test_compound():
 		lib.obj_spec_is_I3(b[1])
 
 		assert(type(b[2]) is list)
-		assert(len(b[2]) == 3)
+		assert(len(b[2]) == 4)
 
 		lib.obj_spec_is_D(b[2][0])
 		lib.obj_spec_is_I2(b[2][1])
@@ -165,27 +170,29 @@ def test_compound():
 		for key in b[2][2]:
 			lib.obj_spec_is_I5(key)
 			lib.obj_spec_is_S(b[2][2][key], 11)
+		lib.obj_spec_is_b(b[2][3])
 
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 " +
-			"-o [{50*S5:I4},I3,[D,I2,{10*I5:S11}]] --random")
+			"-o [{50*S5:I4},I3,[D,I2,{10*I5:S11},b]] --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: check_bin(bins["testbin"]))
 
 def test_multiple_bins():
 	def check_bins(b):
-		assert(len(b) == 6)
+		assert(len(b) == 7)
 		lib.obj_spec_is_I1(b["testbin"])
 		lib.obj_spec_is_I2(b["testbin_2"])
 		lib.obj_spec_is_I3(b["testbin_3"])
 		lib.obj_spec_is_S(b["testbin_4"], 10)
 		lib.obj_spec_is_B(b["testbin_5"], 20)
 		lib.obj_spec_is_D(b["testbin_6"])
+		lib.obj_spec_is_b(b["testbin_7"])
 
-	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o I1,I2,I3,S10,B20,D --random")
+	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o I1,I2,I3,S10,B20,D,b --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: check_bins(bins))
 
 def test_compound_multiple_bins():
 	def check_bins(b):
-		assert(len(b) == 6)
+		assert(len(b) == 7)
 
 		assert(type(b["testbin"]) is list)
 		lib.obj_spec_is_I1(b["testbin"][0])
@@ -211,7 +218,9 @@ def test_compound_multiple_bins():
 		for item in b["testbin_6"]:
 			lib.obj_spec_is_D(item)
 
+		lib.obj_spec_is_b(b["testbin_7"])
+
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 " +
-			"-o [I1,{45*S32:B20}],I2,I3,{S10:I4},B20,[10*D] --random")
+			"-o [I1,{45*S32:B20}],I2,I3,{S10:I4},B20,[10*D],b --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: check_bins(bins))
 

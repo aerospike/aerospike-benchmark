@@ -56,6 +56,12 @@ static struct option long_options[] = {
 	{"bin",                  required_argument, 0, 'b'},
 	{"startKey",             required_argument, 0, 'K'},
 	{"keys",                 required_argument, 0, 'k'},
+	{"udfPackageName",       required_argument, 0, ':'},
+	{"upn",                  required_argument, 0, ':'},
+	{"udfFunctionName",      required_argument, 0, ';'},
+	{"ufn",                  required_argument, 0, ';'},
+	{"udfFunctionValues",    required_argument, 0, '"'},
+	{"ufv",                  required_argument, 0, '"'},
 	{"objectSpec",           required_argument, 0, 'o'},
 	{"random",               no_argument,       0, 'R'},
 	{"duration",             required_argument, 0, 't'},
@@ -796,7 +802,7 @@ set_args(int argc, char * const* argv, args_t* args)
 	int option_index = 0;
 	int c;
 
-	while ((c = getopt_long(argc, argv, short_options, long_options,
+	while ((c = getopt_long_only(argc, argv, short_options, long_options,
 					&option_index)) != -1) {
 		switch (c) {
 			case '9':
@@ -842,6 +848,32 @@ set_args(int argc, char * const* argv, args_t* args)
 
 			case 'k':
 				args->keys = strtoull(optarg, NULL, 10);
+				break;
+
+			case ':':
+				// udf package name
+				if (strlen(optarg) > sizeof(args->udf_package_name)) {
+					fprintf(stderr, "UDF package name \"%s\" too long (max "
+							"length is %" PRIu64 " characters\n",
+							optarg, sizeof(args->udf_package_name));
+					return -1;
+				}
+				strcpy(args->udf_package_name, optarg);
+				break;
+
+			case ';':
+				// udf function name
+				if (strlen(optarg) > sizeof(args->udf_fn_name)) {
+					fprintf(stderr, "UDF function name \"%s\" too long (max "
+							"length is %" PRIu64 " characters\n",
+							optarg, sizeof(args->udf_fn_name));
+					return -1;
+				}
+				strcpy(args->udf_fn_name, optarg);
+				break;
+
+			case '"':
+				// udf function args
 				break;
 
 			case 'o': {

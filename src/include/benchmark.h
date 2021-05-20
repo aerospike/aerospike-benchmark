@@ -24,8 +24,10 @@
 #include <aerospike/aerospike.h>
 #include <aerospike/as_event.h>
 #include <aerospike/as_password.h>
+#include <aerospike/as_query.h>
 #include <aerospike/as_random.h>
 #include <aerospike/as_record.h>
+#include <aerospike/as_udf.h>
 
 #include <hdr_histogram/hdr_histogram.h>
 #include <dynamic_throttle.h>
@@ -59,6 +61,10 @@ typedef struct args_s {
 	int transaction_worker_threads;
 	bool enable_compression;
 	float compression_ratio;
+
+	as_udf_module_name udf_package_name;
+	as_udf_function_name udf_fn_name;
+	char* udf_fn_args;
 
 	int read_socket_timeout;
 	int write_socket_timeout;
@@ -105,6 +111,9 @@ typedef struct clientdata_s {
 	uint32_t read_count;
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
+
+	// query object used to perform UDF operations
+	as_query query;
 
 	struct hdr_histogram* read_hdr;
 	struct hdr_histogram* write_hdr;

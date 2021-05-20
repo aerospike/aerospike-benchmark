@@ -6,7 +6,7 @@ def test_tps_simple():
 	lib.run_benchmark("--workload RU,0.0001 --duration 5 --startKey 0 " +
 			"--keys 1000000000 -o I --throughput 1000 -z 1")
 	n_records = len(lib.scan_records())
-	assert(4990 <= n_records <= 5010)
+	assert(4950 <= n_records <= 5050)
 
 def test_tps_multithreaded():
 	# test throughput throttling with simple objects and one thread
