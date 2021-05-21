@@ -88,6 +88,7 @@ LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
 LOCAL_HELPER void _destroy_consumer_states(struct consumer_state_s* state);
 LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str);
+LOCAL_HELPER int _parse_const_val(const char** stream, struct bin_spec_s* bin_spec);
 LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
 LOCAL_HELPER as_val* _gen_random_bool(as_random* random);
 LOCAL_HELPER as_val* _gen_random_int(uint8_t range, as_random* random);
@@ -856,11 +857,26 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					}
 					continue;
 				}
-				default:
-					_print_parse_error("Expect 'I', 'S', 'B', or 'D' specifier, "
-							"or a list/map",
-							obj_spec_str, str);
-					goto _destroy_state;
+				default: {
+					const char* prev_str = str;
+					// try parsing as a constant value
+					if (_parse_const_val(&str, bin_spec) != 0) {
+						_print_parse_error("Expect 'I', 'S', 'B', or 'D' specifier, "
+								"a const value, or a list/map",
+								obj_spec_str, str);
+						goto _destroy_state;
+					}
+					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
+						_print_parse_error("Map key cannot be a constant value",
+								obj_spec_str, prev_str);
+						// since the bin_spec was already parsed by
+						// _parse_const_val, destroy it before freeing
+						// everything else
+						bin_spec_free(bin_spec);
+						goto _destroy_state;
+					}
+					break;
+				}
 			}
 
 			if (0) {
@@ -944,6 +960,12 @@ _destroy_state:
 	} while (state != NULL);
 
 	return 0;
+}
+
+LOCAL_HELPER int
+_parse_const_val(const char** str, struct bin_spec_s* bin_spec)
+{
+	return -1;
 }
 
 LOCAL_HELPER void

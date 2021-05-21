@@ -21,6 +21,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -44,6 +45,10 @@
 #define BIN_SPEC_TYPE_MAP    0x6
 
 #define BIN_SPEC_TYPE_MASK 0x7
+
+// indicates this field is a const
+// note that only scalar types can be const
+#define BIN_SPEC_TYPE_CONST 0x8
 
 /*
  * the maximum int range is "I8", or a range index of 7
@@ -109,7 +114,8 @@ __exit_loop:
 struct bin_spec_s {
 
 	/*
-	 * one of the four main types of bins:
+	 * one of the five main types of bins:
+	 * 	bool: a random boolean
 	 *	int: a random int, within certain bounds (described below)
 	 *	string: a string of fixed length, consisting of [a-z]{1,9}
 	 *			space-separated words
@@ -117,12 +123,19 @@ struct bin_spec_s {
 	 *	double: any 8-byte double floating point
 	 *	list: a list of bin_specs
 	 *	map: a map from some type of scalar bin_spec to another bin_spec
+	 *
+	 * may also include the const bit, which applies to scalar bins to indicate
+	 * that they have a fixed value
 	 */
 	uint8_t type;
 
 	uint32_t n_repeats;
 
 	union {
+
+		struct {
+			bool val;
+		} const_bool;
 
 		struct {
 			/*
@@ -140,6 +153,10 @@ struct bin_spec_s {
 		} integer;
 
 		struct {
+			int64_t integer;
+		} const_integer;
+
+		struct {
 			/*
 			 * length of strings to be generated (excluding the
 			 * null-terminating bit)
@@ -148,11 +165,19 @@ struct bin_spec_s {
 		} string;
 
 		struct {
+			const char* val;
+		} const_string;
+
+		struct {
 			/*
 			 * number of random bytes
 			 */
 			uint32_t length;
 		} bytes;
+
+		struct {
+			const uint8_t* val;
+		} const_bytes;
 
 		struct {
 			uint32_t __unused;
