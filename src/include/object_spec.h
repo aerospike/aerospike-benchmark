@@ -47,7 +47,7 @@
 #define BIN_SPEC_TYPE_MASK 0x7
 
 // indicates this field is a const
-// note that only scalar types can be const
+// note that only scalar types (aside from blobs) can be const
 #define BIN_SPEC_TYPE_CONST 0x8
 
 /*
@@ -134,7 +134,7 @@ struct bin_spec_s {
 	union {
 
 		struct {
-			bool val;
+			as_boolean val;
 		} const_bool;
 
 		struct {
@@ -153,7 +153,7 @@ struct bin_spec_s {
 		} integer;
 
 		struct {
-			int64_t integer;
+			as_integer val;
 		} const_integer;
 
 		struct {
@@ -165,7 +165,7 @@ struct bin_spec_s {
 		} string;
 
 		struct {
-			const char* val;
+			as_string val;
 		} const_string;
 
 		struct {
@@ -176,8 +176,8 @@ struct bin_spec_s {
 		} bytes;
 
 		struct {
-			const uint8_t* val;
-		} const_bytes;
+			as_double val;
+		} const_double;
 
 		struct {
 			uint32_t __unused;

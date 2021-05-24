@@ -250,6 +250,126 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_idx)
 	}
 }
 
+char* parse_string_literal(const char* restrict str,
+		const char** restrict endptr)
+{
+	if (str[0] != '"') {
+		fprintf(stderr, "Expected a '\"' at the beginning of the string\n");
+		return NULL;
+	}
+
+	// calculate the string length
+	uint64_t len = 0;
+	const char* end = str + 1;
+	while (*end != '"') {
+		if (*end == '\\') {
+			end++;
+			if (*end == '\0') {
+				fprintf(stderr, "Dangling escape character\n");
+				return NULL;
+			}
+		}
+		end++;
+		len++;
+	}
+
+	// allocate a buffer for the parsed string
+	char* res = (char*) cf_malloc(len);
+	uint64_t i = 0;
+	for (const char* s = str + 1; s != end; s++, i++) {
+		if (*s == '\\') {
+			switch (*(s + 1)) {
+				case 'a':
+					res[i] = '\a';
+					break;
+				case 'b':
+					res[i] = '\b';
+					break;
+				case 'e':
+					res[i] = '\e';
+					break;
+				case 'f':
+					res[i] = '\f';
+					break;
+				case 'n':
+					res[i] = '\n';
+					break;
+				case 'r':
+					res[i] = '\r';
+					break;
+				case 't':
+					res[i] = '\t';
+					break;
+				case 'v':
+					res[i] = '\v';
+					break;
+				case '\\':
+					res[i] = '\\';
+					break;
+				case '\'':
+					res[i] = '\'';
+					break;
+				case '"':
+					res[i] = '\"';
+					break;
+				case '?':
+					res[i] = '\?';
+					break;
+
+				case '0':
+				case '1':
+				case '2':
+				case '3':
+					// parse as octal
+					if (*(s + 2) < '0' || *(s + 2) > '7' ||
+							*(s + 3) < '0' || *(s + 3) > '7') {
+						fprintf(stderr, "Invalid octal string \"%.4s\"\n", s);
+						cf_free(res);
+						return NULL;
+					}
+					
+					uint16_t val = (*(s + 1) - '0') * 64 +
+						(*(s + 2) - '0') * 8 + (*(s + 3) - '0');
+					if (val > 0xff) {
+						fprintf(stderr, "Octal value \"%.4s\" out of range "
+								"(must be \\000 - \\377)\n", s);
+						cf_free(res);
+						return NULL;
+					}
+					res[i] = (int8_t) val;
+					s += 2;
+					break;
+
+				case 'x': {
+					char* endptr;
+					uint64_t val = strtoul(s + 1, &endptr, 16);
+					if (endptr != s + 3) {
+						fprintf(stderr, "Invalid hexadecimal escape sequence "
+								"\"\\%.3s\"\n", s + 1);
+						cf_free(res);
+						return NULL;
+					}
+					res[i] = (int8_t) val;
+					s += 2;
+					break;
+				}
+
+				default:
+					fprintf(stderr, "Unknown escape sequence \"\\%c\"\n",
+							*(s + 1));
+					cf_free(res);
+					return NULL;
+			}
+			s++;
+		}
+	}
+
+	if (endptr != NULL) {
+		*endptr = end + 1;
+	}
+	return res;
+}
+
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 		uint64_t elapsed_s, as_vector* percentiles, FILE *out_file)
 {

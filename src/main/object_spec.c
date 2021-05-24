@@ -88,7 +88,8 @@ LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
 LOCAL_HELPER void _destroy_consumer_states(struct consumer_state_s* state);
 LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str);
-LOCAL_HELPER int _parse_const_val(const char** stream, struct bin_spec_s* bin_spec);
+LOCAL_HELPER int _parse_const_val(const char* const obj_spec_str,
+		const char** stream, struct bin_spec_s* bin_spec);
 LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
 LOCAL_HELPER as_val* _gen_random_bool(as_random* random);
 LOCAL_HELPER as_val* _gen_random_int(uint8_t range, as_random* random);
@@ -122,6 +123,18 @@ LOCAL_HELPER void _dbg_validate_map(const struct bin_spec_s* bin_spec,
 //==========================================================
 // Inlines and macros.
 //
+
+LOCAL_HELPER inline uint8_t
+_bin_spec_get_type(const struct bin_spec_s* bin_spec)
+{
+	return bin_spec->type & BIN_SPEC_TYPE_MASK;
+}
+
+LOCAL_HELPER inline bool
+_bin_spec_is_const(const struct bin_spec_s* bin_spec)
+{
+	return (bin_spec->type & BIN_SPEC_TYPE_CONST) != 0;
+}
 
 /*
  * converts a bytevector of 8 values between 0-35 to a bytevector of 8
@@ -419,21 +432,37 @@ _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 void
 _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 {
-	switch (bin_spec->type) {
+	switch (_bin_spec_get_type(bin_spec)) {
 		case BIN_SPEC_TYPE_BOOL:
-			_dbg_validate_bool(as_boolean_fromval(val));
+			as_boolean* b = as_boolean_fromval(b);
+			_dbg_validate_bool(b);
+			if (_bin_spec_is_const(bin_spec)) {
+				ck_assert_uint_eq(bin_spec->const_bool.val.value, b->value);
+			}
 			break;
 		case BIN_SPEC_TYPE_INT:
-			_dbg_validate_int(bin_spec->integer.range, as_integer_fromval(val));
+			as_integer* b = as_integer_fromval(b);
+			_dbg_validate_int(bin_spec->integer.range, i);
+			if (_bin_spec_is_const(bin_spec)) {
+				ck_assert_uint_eq(bin_spec->const_integer.val.value, i->value);
+			}
 			break;
 		case BIN_SPEC_TYPE_STR:
-			_dbg_validate_string(bin_spec->string.length, as_string_fromval(val));
+			as_string* s = as_string_fromval(b);
+			_dbg_validate_string(bin_spec->string.length, s);
+			if (_bin_spec_is_const(bin_spec)) {
+				ck_assert_str_eq(bin_spec->const_string.val.value, s->value);
+			}
 			break;
 		case BIN_SPEC_TYPE_BYTES:
 			_dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val));
 			break;
 		case BIN_SPEC_TYPE_DOUBLE:
-			_dbg_validate_double(as_double_fromval(val));
+			as_string* d = as_double_fromval(b);
+			_dbg_validate_double(d);
+			if (_bin_spec_is_const(bin_spec)) {
+				ck_assert_float_eq(bin_spec->const_double.val.value, d->value);
+			}
 			break;
 		case BIN_SPEC_TYPE_LIST:
 			_dbg_validate_list(bin_spec, as_list_fromval((as_val*) val));
@@ -860,10 +889,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 				default: {
 					const char* prev_str = str;
 					// try parsing as a constant value
-					if (_parse_const_val(&str, bin_spec) != 0) {
-						_print_parse_error("Expect 'I', 'S', 'B', or 'D' specifier, "
-								"a const value, or a list/map",
-								obj_spec_str, str);
+					if (_parse_const_val(obj_spec_str, &str, bin_spec) != 0) {
 						goto _destroy_state;
 					}
 					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
@@ -963,22 +989,118 @@ _destroy_state:
 }
 
 LOCAL_HELPER int
-_parse_const_val(const char** str, struct bin_spec_s* bin_spec)
+_parse_const_val(const char* const obj_spec_str,
+		const char** str_ptr, struct bin_spec_s* bin_spec)
 {
+	const char* str = *str_ptr;
+	switch (*str) {
+		case 'T':
+			if (str[1] == '\0' || str[1] == ',') {
+				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_bool.val = true;
+				*str_ptr = str + 1;
+				return 0;
+			}
+		case 't':
+			if (strncasecmp(str, "true", 4) == 0 && (str[4] == '\0' || str[4] == ',')) {
+				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_bool.val = true;
+				*str_ptr = str + 4;
+				return 0;
+			}
+			break;
+
+		case 'f':
+			if (str[1] == '\0' || str[1] == ',') {
+				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_bool.val = false;
+				*str_ptr = str + 1;
+				return 0;
+			}
+		case 'F':
+			if (strncasecmp(str, "false", 5) == 0 && (str[5] == '\0' || str[5] == ',')) {
+				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_bool.val = false;
+				*str_ptr = str + 5;
+				return 0;
+			}
+			break;
+
+		case '"':
+			// try parsing as a string
+			const char* endptr;
+			char* str_literal = parse_string_literal(str, &endptr);
+			if (str_literal == NULL) {
+				return -1;
+			}
+
+			bin_spec->type = BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST;
+			bin_spec->const_string.val = str_literal;
+			str = endptr;
+			break;
+
+		default:
+			// try parsing as an int/float
+			const char* end = strchrnul(str, ',');
+			// the number is floating point iff it contains a '.'
+			if (memchr(str, end - str, '.') != NULL) {
+				char* endptr;
+				float val = strtod(str, &endptr);
+				if (endptr != end) {
+					_print_parse_error("Invalid floating point value",
+							obj_spec_str, str);
+					return -1;
+				}
+
+				bin_spec->type = BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_double.val = val;
+				*str_ptr = end;
+			}
+			else {
+				char* endptr;
+				int64_t val;
+
+				if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
+					val = (int64_t) strtoul(str, &endptr, 16);
+				}
+				else {
+					val = strtol(str, &endptr, 10);
+				}
+				if (endptr != end) {
+					_print_parse_error("Invalid integer value",
+							obj_spec_str, str);
+					return -1;
+				}
+
+				bin_spec->type = BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_integer.val = val;
+				*str_ptr = end;
+			}
+			return 0;
+	}
+	_print_parse_error("Expect 'I', 'S', 'B', or 'D' specifier, "
+			"a const value, or a list/map",
+			obj_spec_str, str);
 	return -1;
 }
 
 LOCAL_HELPER void
 bin_spec_free(struct bin_spec_s* bin_spec)
 {
-	switch (bin_spec->type) {
+	switch (_bin_spec_get_type(bin_spec)) {
 		case BIN_SPEC_TYPE_BOOL:
 		case BIN_SPEC_TYPE_INT:
-		case BIN_SPEC_TYPE_STR:
 		case BIN_SPEC_TYPE_BYTES:
 		case BIN_SPEC_TYPE_DOUBLE:
 			// no-op, scalar types use no disjointed memory
 			break;
+
+		case BIN_SPEC_TYPE_STR:
+			if (bin_spec->type & BIN_SPEC_TYPE_CONST) {
+				cf_free(bin_spec->const_string.val);
+			}
+			break;
+
 		case BIN_SPEC_TYPE_LIST:
 			for (uint32_t i = 0, cnt = 0; cnt < bin_spec->list.length; i++) {
 				cnt += bin_spec->list.list[i].n_repeats;
@@ -986,6 +1108,7 @@ bin_spec_free(struct bin_spec_s* bin_spec)
 			}
 			cf_free(bin_spec->list.list);
 			break;
+
 		case BIN_SPEC_TYPE_MAP:
 			bin_spec_free(bin_spec->map.key);
 			cf_free(bin_spec->map.key);
@@ -1227,25 +1350,52 @@ bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
 		case BIN_SPEC_TYPE_BOOL:
 			val = _gen_random_bool(random);
 			break;
+
+		case BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_bool.val;
+			as_val_reserve(val);
+			break;
+
 		case BIN_SPEC_TYPE_INT:
 			val = _gen_random_int(bin_spec->integer.range, random);
 			break;
+
+		case BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_integer.val;
+			as_val_reserve(val);
+			break;
+
 		case BIN_SPEC_TYPE_STR:
 			val = _gen_random_str(bin_spec->string.length, random);
 			break;
+
+		case BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_string.val;
+			as_val_reserve(val);
+			break;
+
 		case BIN_SPEC_TYPE_BYTES:
 			val = _gen_random_bytes(bin_spec->bytes.length, random,
 					compression_ratio);
 			break;
+
 		case BIN_SPEC_TYPE_DOUBLE:
 			val = _gen_random_double(random);
 			break;
+
+		case BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_double.val;
+			as_val_reserve(val);
+			break;
+
 		case BIN_SPEC_TYPE_LIST:
 			val = _gen_random_list(bin_spec, random, compression_ratio);
 			break;
+
 		case BIN_SPEC_TYPE_MAP:
 			val = _gen_random_map(bin_spec, random, compression_ratio);
 			break;
+
 		default:
 			fprintf(stderr, "Unknown bin_spec type (%d)\n", bin_spec->type);
 			val = NULL;
@@ -1264,18 +1414,27 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 		case BIN_SPEC_TYPE_BOOL:
 			sprint(out_str, str_size, "b");
 			break;
+
+		case BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST:
+			sprint(out_str, str_size, "%s", boolstring(bin->const_bool.val.value));
+			break;
+
 		case BIN_SPEC_TYPE_INT:
 			sprint(out_str, str_size, "I%d", bin->integer.range + 1);
 			break;
+
 		case BIN_SPEC_TYPE_STR:
 			sprint(out_str, str_size, "S%u", bin->string.length);
 			break;
+
 		case BIN_SPEC_TYPE_BYTES:
 			sprint(out_str, str_size, "B%u", bin->bytes.length);
 			break;
+
 		case BIN_SPEC_TYPE_DOUBLE:
 			sprint(out_str, str_size, "D");
 			break;
+
 		case BIN_SPEC_TYPE_LIST:
 			sprint(out_str, str_size, "[");
 			for (uint32_t i = 0, cnt = 0; cnt < bin->list.length; i++) {
@@ -1287,6 +1446,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			}
 			sprint(out_str, str_size, "]");
 			break;
+
 		case BIN_SPEC_TYPE_MAP:
 			sprint(out_str, str_size, "{");
 			if (bin_spec_map_n_entries(bin) != 0) {
