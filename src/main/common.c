@@ -253,7 +253,7 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_idx)
 char* parse_string_literal(const char* restrict str,
 		const char** restrict endptr)
 {
-	if (str[0] != '"') {
+	if (*str != '"') {
 		fprintf(stderr, "Expected a '\"' at the beginning of the string\n");
 		return NULL;
 	}
@@ -342,8 +342,8 @@ char* parse_string_literal(const char* restrict str,
 
 				case 'x': {
 					char* endptr;
-					uint64_t val = strtoul(s + 1, &endptr, 16);
-					if (endptr != s + 3) {
+					uint64_t val = strtoul(s + 2, &endptr, 16);
+					if (endptr != s + 4) {
 						fprintf(stderr, "Invalid hexadecimal escape sequence "
 								"\"\\%.3s\"\n", s + 1);
 						cf_free(res);
@@ -361,6 +361,9 @@ char* parse_string_literal(const char* restrict str,
 					return NULL;
 			}
 			s++;
+		}
+		else {
+			res[i] = *s;
 		}
 	}
 

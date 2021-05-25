@@ -437,21 +437,21 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 			as_boolean* b = as_boolean_fromval(val);
 			_dbg_validate_bool(b);
 			if (_bin_spec_is_const(bin_spec)) {
-				ck_assert_uint_eq(bin_spec->const_bool.val.value, b->value);
+				ck_assert_uint_eq(as_boolean_get(&bin_spec->const_bool.val), b->value);
 			}
 			break;
 		case BIN_SPEC_TYPE_INT:
 			as_integer* i = as_integer_fromval(val);
 			_dbg_validate_int(bin_spec->integer.range, i);
 			if (_bin_spec_is_const(bin_spec)) {
-				ck_assert_uint_eq(bin_spec->const_integer.val.value, i->value);
+				ck_assert_uint_eq(as_integer_get(&bin_spec->const_integer.val), i->value);
 			}
 			break;
 		case BIN_SPEC_TYPE_STR:
 			as_string* s = as_string_fromval(val);
 			_dbg_validate_string(bin_spec->string.length, s);
 			if (_bin_spec_is_const(bin_spec)) {
-				ck_assert_str_eq(bin_spec->const_string.val.value, s->value);
+				ck_assert_str_eq(as_string_get(&bin_spec->const_string.val), s->value);
 			}
 			break;
 		case BIN_SPEC_TYPE_BYTES:
@@ -461,7 +461,7 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 			as_double* d = as_double_fromval(val);
 			_dbg_validate_double(d);
 			if (_bin_spec_is_const(bin_spec)) {
-				ck_assert_float_eq(bin_spec->const_double.val.value, d->value);
+				ck_assert_float_eq(as_double_get(&bin_spec->const_double.val), d->value);
 			}
 			break;
 		case BIN_SPEC_TYPE_LIST:
@@ -708,43 +708,46 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			char* endptr;
 			mult = strtoul(str, &endptr, 10);
 			if (*str >= '0' && *str <= '9' && endptr != str) {
-
-				if (type == CONSUMER_TYPE_MAP && map_state == MAP_VAL &&
-						mult != 1) {
-					_print_parse_error("Map value cannot have a multiplier",
-							obj_spec_str, str);
-					goto _destroy_state;
+				// if a multiplier has been specified, expect a '*' next,
+				// followed by the bin_spec
+				if (*endptr == ' ') {
+					endptr++;
 				}
 
-				if ((type != CONSUMER_TYPE_MAP || map_state != MAP_KEY) &&
-						mult == 0) {
-					_print_parse_error("Cannot have a multiplier of 0 except "
-							"on map keys (to indicate an empty map)",
-							obj_spec_str, str);
-					goto _destroy_state;
-				}
+				// only parse this as a multiplier if there is a '*' following
+				// it, otherwise treat it as a constant integer
+				if (*endptr == '*') {
+					if (type == CONSUMER_TYPE_MAP && map_state == MAP_VAL &&
+							mult != 1) {
+						_print_parse_error("Map value cannot have a multiplier",
+								obj_spec_str, str);
+						goto _destroy_state;
+					}
 
-				if (((uint32_t) mult) != mult) {
-					_print_parse_error("Multiplier exceeds maximum unsigned "
-							"32-bit integer value",
-							obj_spec_str, str);
-					goto _destroy_state;
-				}
+					if ((type != CONSUMER_TYPE_MAP || map_state != MAP_KEY) &&
+							mult == 0) {
+						_print_parse_error("Cannot have a multiplier of 0 except "
+								"on map keys (to indicate an empty map)",
+								obj_spec_str, str);
+						goto _destroy_state;
+					}
 
-				// a multiplier has been specified, expect a '*' next, followed by
-				// the bin_spec
-				str = endptr;
-				if (*str == ' ') {
-					str++;
+					if (((uint32_t) mult) != mult) {
+						_print_parse_error("Multiplier exceeds maximum unsigned "
+								"32-bit integer value",
+								obj_spec_str, str);
+						goto _destroy_state;
+					}
+
+					endptr++;
+					if (*endptr == ' ') {
+						endptr++;
+					}
+					str = endptr;
 				}
-				if (*str != '*') {
-					_print_parse_error("Expect a '*' to follow a multiplier",
-							obj_spec_str, str);
-					goto _destroy_state;
-				}
-				str++;
-				if (*str == ' ') {
-					str++;
+				else {
+					// no '*' found, treat this as a constant integer
+					mult = 1;
 				}
 			}
 			else {
@@ -1031,13 +1034,13 @@ _parse_const_val(const char* const obj_spec_str,
 			const char* endptr;
 			char* str_literal = parse_string_literal(str, &endptr);
 			if (str_literal == NULL) {
-				return -1;
+				break;
 			}
 
 			bin_spec->type = BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST;
 			as_string_init(&bin_spec->const_string.val, str_literal, true);
-			str = endptr;
-			break;
+			*str_ptr = endptr;
+			return 0;
 
 		default:
 			// try parsing as an int/float
@@ -1416,7 +1419,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			break;
 
 		case BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST:
-			sprint(out_str, str_size, "%s", boolstring(bin->const_bool.val.value));
+			sprint(out_str, str_size, "%s", boolstring(as_boolean_get(&bin->const_bool.val)));
 			break;
 
 		case BIN_SPEC_TYPE_INT:
@@ -1424,7 +1427,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			break;
 
 		case BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST:
-			sprint(out_str, str_size, "I%" PRId64, bin->const_integer.val.value);
+			sprint(out_str, str_size, "%" PRId64, as_integer_get(&bin->const_integer.val));
 			break;
 
 		case BIN_SPEC_TYPE_STR:
@@ -1432,7 +1435,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			break;
 
 		case BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST:
-			sprint(out_str, str_size, "I%s", bin->const_string.val.value);
+			sprint(out_str, str_size, "\"%s\"", as_string_get(&bin->const_string.val));
 			break;
 
 		case BIN_SPEC_TYPE_BYTES:
@@ -1444,7 +1447,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			break;
 
 		case BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST:
-			sprint(out_str, str_size, "I%lf", bin->const_double.val.value);
+			sprint(out_str, str_size, "I%lf", as_double_get(&bin->const_double.val));
 			break;
 
 		case BIN_SPEC_TYPE_LIST:
