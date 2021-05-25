@@ -434,21 +434,21 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 {
 	switch (_bin_spec_get_type(bin_spec)) {
 		case BIN_SPEC_TYPE_BOOL:
-			as_boolean* b = as_boolean_fromval(b);
+			as_boolean* b = as_boolean_fromval(val);
 			_dbg_validate_bool(b);
 			if (_bin_spec_is_const(bin_spec)) {
 				ck_assert_uint_eq(bin_spec->const_bool.val.value, b->value);
 			}
 			break;
 		case BIN_SPEC_TYPE_INT:
-			as_integer* b = as_integer_fromval(b);
+			as_integer* i = as_integer_fromval(val);
 			_dbg_validate_int(bin_spec->integer.range, i);
 			if (_bin_spec_is_const(bin_spec)) {
 				ck_assert_uint_eq(bin_spec->const_integer.val.value, i->value);
 			}
 			break;
 		case BIN_SPEC_TYPE_STR:
-			as_string* s = as_string_fromval(b);
+			as_string* s = as_string_fromval(val);
 			_dbg_validate_string(bin_spec->string.length, s);
 			if (_bin_spec_is_const(bin_spec)) {
 				ck_assert_str_eq(bin_spec->const_string.val.value, s->value);
@@ -458,7 +458,7 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 			_dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val));
 			break;
 		case BIN_SPEC_TYPE_DOUBLE:
-			as_string* d = as_double_fromval(b);
+			as_double* d = as_double_fromval(val);
 			_dbg_validate_double(d);
 			if (_bin_spec_is_const(bin_spec)) {
 				ck_assert_float_eq(bin_spec->const_double.val.value, d->value);
@@ -997,14 +997,14 @@ _parse_const_val(const char* const obj_spec_str,
 		case 'T':
 			if (str[1] == '\0' || str[1] == ',') {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
-				bin_spec->const_bool.val = true;
+				bin_spec->const_bool.val = as_true;
 				*str_ptr = str + 1;
 				return 0;
 			}
 		case 't':
 			if (strncasecmp(str, "true", 4) == 0 && (str[4] == '\0' || str[4] == ',')) {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
-				bin_spec->const_bool.val = true;
+				bin_spec->const_bool.val = as_true;
 				*str_ptr = str + 4;
 				return 0;
 			}
@@ -1013,14 +1013,14 @@ _parse_const_val(const char* const obj_spec_str,
 		case 'f':
 			if (str[1] == '\0' || str[1] == ',') {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
-				bin_spec->const_bool.val = false;
+				bin_spec->const_bool.val = as_false;
 				*str_ptr = str + 1;
 				return 0;
 			}
 		case 'F':
 			if (strncasecmp(str, "false", 5) == 0 && (str[5] == '\0' || str[5] == ',')) {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
-				bin_spec->const_bool.val = false;
+				bin_spec->const_bool.val = as_false;
 				*str_ptr = str + 5;
 				return 0;
 			}
@@ -1035,7 +1035,7 @@ _parse_const_val(const char* const obj_spec_str,
 			}
 
 			bin_spec->type = BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST;
-			bin_spec->const_string.val = str_literal;
+			as_string_init(&bin_spec->const_string.val, str_literal, true);
 			str = endptr;
 			break;
 
@@ -1053,7 +1053,7 @@ _parse_const_val(const char* const obj_spec_str,
 				}
 
 				bin_spec->type = BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST;
-				bin_spec->const_double.val = val;
+				as_double_init(&bin_spec->const_double.val, val);
 				*str_ptr = end;
 			}
 			else {
@@ -1073,7 +1073,7 @@ _parse_const_val(const char* const obj_spec_str,
 				}
 
 				bin_spec->type = BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST;
-				bin_spec->const_integer.val = val;
+				as_integer_init(&bin_spec->const_integer.val, val);
 				*str_ptr = end;
 			}
 			return 0;
@@ -1097,7 +1097,7 @@ bin_spec_free(struct bin_spec_s* bin_spec)
 
 		case BIN_SPEC_TYPE_STR:
 			if (bin_spec->type & BIN_SPEC_TYPE_CONST) {
-				cf_free(bin_spec->const_string.val);
+				as_string_destroy(&bin_spec->const_string.val);
 			}
 			break;
 
@@ -1423,8 +1423,16 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			sprint(out_str, str_size, "I%d", bin->integer.range + 1);
 			break;
 
+		case BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST:
+			sprint(out_str, str_size, "I%" PRId64, bin->const_integer.val.value);
+			break;
+
 		case BIN_SPEC_TYPE_STR:
 			sprint(out_str, str_size, "S%u", bin->string.length);
+			break;
+
+		case BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST:
+			sprint(out_str, str_size, "I%s", bin->const_string.val.value);
 			break;
 
 		case BIN_SPEC_TYPE_BYTES:
@@ -1433,6 +1441,10 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 
 		case BIN_SPEC_TYPE_DOUBLE:
 			sprint(out_str, str_size, "D");
+			break;
+
+		case BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST:
+			sprint(out_str, str_size, "I%lf", bin->const_double.val.value);
 			break;
 
 		case BIN_SPEC_TYPE_LIST:
