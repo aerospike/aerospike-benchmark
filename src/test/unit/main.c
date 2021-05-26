@@ -36,15 +36,15 @@ main(void) {
 
 	s = sanity_suite();
 	g_sr = srunner_create(s);
-    srunner_add_suite(g_sr, setup_suite());
-    srunner_add_suite(g_sr, common_suite());
-    srunner_add_suite(g_sr, coordinator_suite());
-    srunner_add_suite(g_sr, dyn_throttle_suite());
-    srunner_add_suite(g_sr, hdr_histogram_suite());
-    srunner_add_suite(g_sr, hdr_histogram_log_suite());
-    srunner_add_suite(g_sr, histogram_suite());
+    //srunner_add_suite(g_sr, setup_suite());
+    //srunner_add_suite(g_sr, common_suite());
+    //srunner_add_suite(g_sr, coordinator_suite());
+    //srunner_add_suite(g_sr, dyn_throttle_suite());
+    //srunner_add_suite(g_sr, hdr_histogram_suite());
+    //srunner_add_suite(g_sr, hdr_histogram_log_suite());
+    //srunner_add_suite(g_sr, histogram_suite());
     srunner_add_suite(g_sr, obj_spec_suite());
-    srunner_add_suite(g_sr, yaml_parse_suite());
+    //srunner_add_suite(g_sr, yaml_parse_suite());
 
 	//srunner_set_fork_status(sr, CK_NOFORK);
 

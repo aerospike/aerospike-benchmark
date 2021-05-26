@@ -221,6 +221,40 @@ DEFINE_FAILING_TCASE(test_Bneg1, "B-1", "negative-length binary data are not all
 DEFINE_FAILING_TCASE(test_B4294967296, "B4294967296", "this is beyond the max "
 		"allowed binary data length (2^32 - 1)");
 
+/*
+ * Constants test cases
+ */
+
+DEFINE_TCASE(test_const_b_true,  "true");
+DEFINE_TCASE(test_const_b_false, "false");
+DEFINE_TCASE_DIFF(test_const_b_True,  "True", "true");
+DEFINE_TCASE_DIFF(test_const_b_TRUE,  "TRUE", "true");
+DEFINE_TCASE_DIFF(test_const_b_T,     "T", "true");
+DEFINE_TCASE_DIFF(test_const_b_False, "False", "false");
+DEFINE_TCASE_DIFF(test_const_b_FALSE, "FALSE", "false");
+DEFINE_TCASE_DIFF(test_const_b_F,     "F", "false");
+DEFINE_FAILING_TCASE(test_const_b_t, "t", "Single-character booleans must be capitalized");
+DEFINE_FAILING_TCASE(test_const_b_f, "f", "Single-character booleans must be capitalized");
+DEFINE_FAILING_TCASE(test_const_b_true1, "true1", "Booleans cannot have numeric quantifiers");
+DEFINE_FAILING_TCASE(test_const_b_false1, "false1", "Booleans cannot have numeric quantifiers");
+
+DEFINE_TCASE(test_const_I_0,  "0");
+DEFINE_TCASE(test_const_I_1, "1");
+DEFINE_TCASE(test_const_I_123, "123");
+DEFINE_TCASE_DIFF(test_const_I_0x40, "0x40", "64");
+DEFINE_TCASE(test_const_I_int64_max, "9223372036854775807");
+DEFINE_FAILING_TCASE(test_const_I_int64_max_1, "9223372036854775808",
+		"9223372036854775808 = INT64_MAX + 1, and therefore should be out of range");
+DEFINE_TCASE_DIFF(test_const_I_hex_int64_max, "0x7fffffffffffffff", "9223372036854775807");
+
+DEFINE_TCASE(test_const_I_n1, "-1");
+DEFINE_TCASE(test_const_I_n123, "-123");
+DEFINE_FAILING_TCASE(test_const_I_n0x40, "-0x40", "hex numbers can't be negative");
+DEFINE_TCASE(test_const_I_int64_min, "-9223372036854775808");
+DEFINE_FAILING_TCASE(test_const_I_int64_min_1, "-9223372036854775809",
+		"-9223372036854775809 = INT64_MIN - 1, and therefore should be out of range");
+DEFINE_TCASE_DIFF(test_const_I_hex_int64_min, "0x8000000000000000", "-9223372036854775808");
+
 
 /*
  * List test cases
@@ -411,12 +445,22 @@ DEFINE_TCASE_DIFF(test_space_list, "[ I, D, S20 ]", "[I4,D,S20]");
 DEFINE_TCASE_DIFF(test_space_map, "{ S20 : B10 }", "{S20:B10}");
 
 
+#define tcase_add_ptest(tcase, test_name) \
+	do { \
+		tcase_add_test(tcase, test_name ## _str_cmp); \
+		tcase_add_test(tcase, test_name ## _valid); \
+	} while (0)
+
+#define tcase_add_ftest(tcase, test_name) \
+	tcase_add_test(tcase, test_name)
+
 Suite*
 obj_spec_suite(void)
 {
 	Suite* s;
 	TCase* tc_memory;
 	TCase* tc_simple;
+	TCase* tc_constants;
 	TCase* tc_list;
 	TCase* tc_map;
 	TCase* tc_multi_bins;
@@ -439,237 +483,191 @@ obj_spec_suite(void)
 
 	tc_simple = tcase_create("Simple");
 	tcase_add_checked_fixture(tc_simple, simple_setup, simple_teardown);
-	tcase_add_test(tc_simple, test_b_str_cmp);
-	tcase_add_test(tc_simple, test_b_valid);
-	tcase_add_test(tc_simple, test_b0);
-	tcase_add_test(tc_simple, test_b1);
+	tcase_add_ptest(tc_simple, test_b);
+	tcase_add_ftest(tc_simple, test_b0);
+	tcase_add_ftest(tc_simple, test_b1);
 
-	tcase_add_test(tc_simple, test_I1_str_cmp);
-	tcase_add_test(tc_simple, test_I2_str_cmp);
-	tcase_add_test(tc_simple, test_I3_str_cmp);
-	tcase_add_test(tc_simple, test_I4_str_cmp);
-	tcase_add_test(tc_simple, test_I5_str_cmp);
-	tcase_add_test(tc_simple, test_I6_str_cmp);
-	tcase_add_test(tc_simple, test_I7_str_cmp);
-	tcase_add_test(tc_simple, test_I8_str_cmp);
-	tcase_add_test(tc_simple, test_I_str_cmp);
-	tcase_add_test(tc_simple, test_I1_valid);
-	tcase_add_test(tc_simple, test_I2_valid);
-	tcase_add_test(tc_simple, test_I3_valid);
-	tcase_add_test(tc_simple, test_I4_valid);
-	tcase_add_test(tc_simple, test_I5_valid);
-	tcase_add_test(tc_simple, test_I6_valid);
-	tcase_add_test(tc_simple, test_I7_valid);
-	tcase_add_test(tc_simple, test_I8_valid);
-	tcase_add_test(tc_simple, test_I_valid);
-	tcase_add_test(tc_simple, test_I0);
-	tcase_add_test(tc_simple, test_I9);
-	tcase_add_test(tc_simple, test_Ia);
-	tcase_add_test(tc_simple, test_Ineg1);
+	tcase_add_ptest(tc_simple, test_I1);
+	tcase_add_ptest(tc_simple, test_I2);
+	tcase_add_ptest(tc_simple, test_I3);
+	tcase_add_ptest(tc_simple, test_I4);
+	tcase_add_ptest(tc_simple, test_I5);
+	tcase_add_ptest(tc_simple, test_I6);
+	tcase_add_ptest(tc_simple, test_I7);
+	tcase_add_ptest(tc_simple, test_I8);
+	tcase_add_ptest(tc_simple, test_I);
+	tcase_add_ftest(tc_simple, test_I0);
+	tcase_add_ftest(tc_simple, test_I9);
+	tcase_add_ftest(tc_simple, test_Ia);
+	tcase_add_ftest(tc_simple, test_Ineg1);
 
-	tcase_add_test(tc_simple, test_D_str_cmp);
-	tcase_add_test(tc_simple, test_D_valid);
-	tcase_add_test(tc_simple, test_D1);
-	tcase_add_test(tc_simple, test_D0);
+	tcase_add_ptest(tc_simple, test_D);
+	tcase_add_ftest(tc_simple, test_D1);
+	tcase_add_ftest(tc_simple, test_D0);
 
-	tcase_add_test(tc_simple, test_S1_str_cmp);
-	tcase_add_test(tc_simple, test_S10_str_cmp);
-	tcase_add_test(tc_simple, test_S100_str_cmp);
-	tcase_add_test(tc_simple, test_S123_str_cmp);
-	tcase_add_test(tc_simple, test_S0_str_cmp);
-	tcase_add_test(tc_simple, test_S1_valid);
-	tcase_add_test(tc_simple, test_S10_valid);
-	tcase_add_test(tc_simple, test_S100_valid);
-	tcase_add_test(tc_simple, test_S123_valid);
-	tcase_add_test(tc_simple, test_S0_valid);
-	tcase_add_test(tc_simple, test_S_);
-	tcase_add_test(tc_simple, test_Sneg1);
-	tcase_add_test(tc_simple, test_S4294967296);
+	tcase_add_ptest(tc_simple, test_S1);
+	tcase_add_ptest(tc_simple, test_S10);
+	tcase_add_ptest(tc_simple, test_S100);
+	tcase_add_ptest(tc_simple, test_S123);
+	tcase_add_ptest(tc_simple, test_S0);
+	tcase_add_ftest(tc_simple, test_S_);
+	tcase_add_ftest(tc_simple, test_Sneg1);
+	tcase_add_ftest(tc_simple, test_S4294967296);
 
-	tcase_add_test(tc_simple, test_B1_str_cmp);
-	tcase_add_test(tc_simple, test_B10_str_cmp);
-	tcase_add_test(tc_simple, test_B100_str_cmp);
-	tcase_add_test(tc_simple, test_B123_str_cmp);
-	tcase_add_test(tc_simple, test_B0_str_cmp);
-	tcase_add_test(tc_simple, test_B1_valid);
-	tcase_add_test(tc_simple, test_B10_valid);
-	tcase_add_test(tc_simple, test_B100_valid);
-	tcase_add_test(tc_simple, test_B123_valid);
-	tcase_add_test(tc_simple, test_B0_valid);
-	tcase_add_test(tc_simple, test_B_);
-	tcase_add_test(tc_simple, test_Bneg1);
-	tcase_add_test(tc_simple, test_B4294967296);
+	tcase_add_ptest(tc_simple, test_B1);
+	tcase_add_ptest(tc_simple, test_B10);
+	tcase_add_ptest(tc_simple, test_B100);
+	tcase_add_ptest(tc_simple, test_B123);
+	tcase_add_ptest(tc_simple, test_B0);
+	tcase_add_ftest(tc_simple, test_B_);
+	tcase_add_ftest(tc_simple, test_Bneg1);
+	tcase_add_ftest(tc_simple, test_B4294967296);
 	suite_add_tcase(s, tc_simple);
+
+	tc_constants = tcase_create("Constants");
+	tcase_add_checked_fixture(tc_constants, simple_setup, simple_teardown);
+	tcase_add_ptest(tc_constants, test_const_b_true);
+	tcase_add_ptest(tc_constants, test_const_b_false);
+	tcase_add_ptest(tc_constants, test_const_b_True);
+	tcase_add_ptest(tc_constants, test_const_b_TRUE);
+	tcase_add_ptest(tc_constants, test_const_b_T);
+	tcase_add_ptest(tc_constants, test_const_b_False);
+	tcase_add_ptest(tc_constants, test_const_b_FALSE);
+	tcase_add_ptest(tc_constants, test_const_b_F);
+
+	tcase_add_ftest(tc_constants, test_const_b_t);
+	tcase_add_ftest(tc_constants, test_const_b_f);
+	tcase_add_ftest(tc_constants, test_const_b_true1);
+	tcase_add_ftest(tc_constants, test_const_b_false1);
+
+	tcase_add_ptest(tc_constants, test_const_I_0);
+	tcase_add_ptest(tc_constants, test_const_I_1);
+	tcase_add_ptest(tc_constants, test_const_I_123);
+	tcase_add_ptest(tc_constants, test_const_I_0x40);
+	tcase_add_ptest(tc_constants, test_const_I_int64_max);
+	tcase_add_ftest(tc_constants, test_const_I_int64_max_1);
+	tcase_add_ptest(tc_constants, test_const_I_hex_int64_max);
+
+	tcase_add_ptest(tc_constants, test_const_I_n1);
+	tcase_add_ptest(tc_constants, test_const_I_n123);
+	tcase_add_ftest(tc_constants, test_const_I_n0x40);
+	tcase_add_ptest(tc_constants, test_const_I_int64_min);
+	tcase_add_ftest(tc_constants, test_const_I_int64_min_1);
+	tcase_add_ptest(tc_constants, test_const_I_hex_int64_min);
+	suite_add_tcase(s, tc_constants);
 
 	tc_list = tcase_create("List");
 	tcase_add_checked_fixture(tc_list, simple_setup, simple_teardown);
-	tcase_add_test(tc_list, test_singleton_list_str_cmp);
-	tcase_add_test(tc_list, test_pair_list_str_cmp);
-	tcase_add_test(tc_list, test_long_list_str_cmp);
-	tcase_add_test(tc_list, test_repeated_list_str_cmp);
-	tcase_add_test(tc_list, test_empty_list_str_cmp);
-	tcase_add_test(tc_list, test_singleton_list_valid);
-	tcase_add_test(tc_list, test_pair_list_valid);
-	tcase_add_test(tc_list, test_long_list_valid);
-	tcase_add_test(tc_list, test_repeated_list_valid);
-	tcase_add_test(tc_list, test_empty_list_valid);
-	tcase_add_test(tc_list, test_unterminated_list);
-	tcase_add_test(tc_list, test_unterminated_list_v2);
-	tcase_add_test(tc_list, test_unopened_list);
+	tcase_add_ptest(tc_list, test_singleton_list);
+	tcase_add_ptest(tc_list, test_pair_list);
+	tcase_add_ptest(tc_list, test_long_list);
+	tcase_add_ptest(tc_list, test_repeated_list);
+	tcase_add_ptest(tc_list, test_empty_list);
+	tcase_add_ftest(tc_list, test_unterminated_list);
+	tcase_add_ftest(tc_list, test_unterminated_list_v2);
+	tcase_add_ftest(tc_list, test_unopened_list);
 	suite_add_tcase(s, tc_list);
 
 	tc_map = tcase_create("Map");
 	tcase_add_checked_fixture(tc_map, simple_setup, simple_teardown);
-	tcase_add_test(tc_map, test_map_bb);
-	tcase_add_test(tc_map, test_map_bI);
-	tcase_add_test(tc_map, test_map_bD);
-	tcase_add_test(tc_map, test_map_bS);
-	tcase_add_test(tc_map, test_map_bB);
-	tcase_add_test(tc_map, test_map_Ib_str_cmp);
-	tcase_add_test(tc_map, test_map_II_str_cmp);
-	tcase_add_test(tc_map, test_map_ID_str_cmp);
-	tcase_add_test(tc_map, test_map_IS_str_cmp);
-	tcase_add_test(tc_map, test_map_IB_str_cmp);
-	tcase_add_test(tc_map, test_map_Db_str_cmp);
-	tcase_add_test(tc_map, test_map_DI_str_cmp);
-	tcase_add_test(tc_map, test_map_DD_str_cmp);
-	tcase_add_test(tc_map, test_map_DS_str_cmp);
-	tcase_add_test(tc_map, test_map_DB_str_cmp);
-	tcase_add_test(tc_map, test_map_Sb_str_cmp);
-	tcase_add_test(tc_map, test_map_SI_str_cmp);
-	tcase_add_test(tc_map, test_map_SD_str_cmp);
-	tcase_add_test(tc_map, test_map_SS_str_cmp);
-	tcase_add_test(tc_map, test_map_SB_str_cmp);
-	tcase_add_test(tc_map, test_map_Bb_str_cmp);
-	tcase_add_test(tc_map, test_map_BI_str_cmp);
-	tcase_add_test(tc_map, test_map_BD_str_cmp);
-	tcase_add_test(tc_map, test_map_BS_str_cmp);
-	tcase_add_test(tc_map, test_map_BB_str_cmp);
-	tcase_add_test(tc_map, test_empty_map_str_cmp);
-	tcase_add_test(tc_map, test_empty_map_v2_str_cmp);
-	tcase_add_test(tc_map, test_map_Ib_valid);
-	tcase_add_test(tc_map, test_map_II_valid);
-	tcase_add_test(tc_map, test_map_ID_valid);
-	tcase_add_test(tc_map, test_map_IS_valid);
-	tcase_add_test(tc_map, test_map_IB_valid);
-	tcase_add_test(tc_map, test_map_Db_valid);
-	tcase_add_test(tc_map, test_map_DI_valid);
-	tcase_add_test(tc_map, test_map_DD_valid);
-	tcase_add_test(tc_map, test_map_DS_valid);
-	tcase_add_test(tc_map, test_map_DB_valid);
-	tcase_add_test(tc_map, test_map_Sb_valid);
-	tcase_add_test(tc_map, test_map_SI_valid);
-	tcase_add_test(tc_map, test_map_SD_valid);
-	tcase_add_test(tc_map, test_map_SS_valid);
-	tcase_add_test(tc_map, test_map_SB_valid);
-	tcase_add_test(tc_map, test_map_Bb_valid);
-	tcase_add_test(tc_map, test_map_BI_valid);
-	tcase_add_test(tc_map, test_map_BD_valid);
-	tcase_add_test(tc_map, test_map_BS_valid);
-	tcase_add_test(tc_map, test_map_BB_valid);
-	tcase_add_test(tc_map, test_empty_map_valid);
-	tcase_add_test(tc_map, test_empty_map_v2_valid);
-	tcase_add_test(tc_map, test_map_with_no_value);
-	tcase_add_test(tc_map, test_map_multiple_keys);
-	tcase_add_test(tc_map, test_unterminated_map);
-	tcase_add_test(tc_map, test_unterminated_map_v2);
-	tcase_add_test(tc_map, test_unterminated_map_v3);
-	tcase_add_test(tc_map, test_unopened_map);
-	tcase_add_test(tc_map, test_unopened_map_v2);
-	tcase_add_test(tc_map, test_unopened_map_v3);
-	tcase_add_test(tc_map, test_unopened_map_v4);
+	tcase_add_ftest(tc_map, test_map_bb);
+	tcase_add_ftest(tc_map, test_map_bI);
+	tcase_add_ftest(tc_map, test_map_bD);
+	tcase_add_ftest(tc_map, test_map_bS);
+	tcase_add_ftest(tc_map, test_map_bB);
+	tcase_add_ptest(tc_map, test_map_Ib);
+	tcase_add_ptest(tc_map, test_map_II);
+	tcase_add_ptest(tc_map, test_map_ID);
+	tcase_add_ptest(tc_map, test_map_IS);
+	tcase_add_ptest(tc_map, test_map_IB);
+	tcase_add_ptest(tc_map, test_map_Db);
+	tcase_add_ptest(tc_map, test_map_DI);
+	tcase_add_ptest(tc_map, test_map_DD);
+	tcase_add_ptest(tc_map, test_map_DS);
+	tcase_add_ptest(tc_map, test_map_DB);
+	tcase_add_ptest(tc_map, test_map_Sb);
+	tcase_add_ptest(tc_map, test_map_SI);
+	tcase_add_ptest(tc_map, test_map_SD);
+	tcase_add_ptest(tc_map, test_map_SS);
+	tcase_add_ptest(tc_map, test_map_SB);
+	tcase_add_ptest(tc_map, test_map_Bb);
+	tcase_add_ptest(tc_map, test_map_BI);
+	tcase_add_ptest(tc_map, test_map_BD);
+	tcase_add_ptest(tc_map, test_map_BS);
+	tcase_add_ptest(tc_map, test_map_BB);
+	tcase_add_ptest(tc_map, test_empty_map);
+	tcase_add_ptest(tc_map, test_empty_map_v2);
+	tcase_add_ftest(tc_map, test_map_with_no_value);
+	tcase_add_ftest(tc_map, test_map_multiple_keys);
+	tcase_add_ftest(tc_map, test_unterminated_map);
+	tcase_add_ftest(tc_map, test_unterminated_map_v2);
+	tcase_add_ftest(tc_map, test_unterminated_map_v3);
+	tcase_add_ftest(tc_map, test_unopened_map);
+	tcase_add_ftest(tc_map, test_unopened_map_v2);
+	tcase_add_ftest(tc_map, test_unopened_map_v3);
+	tcase_add_ftest(tc_map, test_unopened_map_v4);
 	suite_add_tcase(s, tc_map);
 
 	tc_multi_bins = tcase_create("Multiple Bins");
 	tcase_add_checked_fixture(tc_multi_bins, simple_setup, simple_teardown);
-	tcase_add_test(tc_multi_bins, test_two_bins_str_cmp);
-	tcase_add_test(tc_multi_bins, test_three_bins_str_cmp);
-	tcase_add_test(tc_multi_bins, test_mixed_bins_str_cmp);
-	tcase_add_test(tc_multi_bins, test_many_bins_str_cmp);
-	tcase_add_test(tc_multi_bins, test_repeated_bins_str_cmp);
-	tcase_add_test(tc_multi_bins, test_two_bins_valid);
-	tcase_add_test(tc_multi_bins, test_three_bins_valid);
-	tcase_add_test(tc_multi_bins, test_mixed_bins_valid);
-	tcase_add_test(tc_multi_bins, test_many_bins_valid);
-	tcase_add_test(tc_multi_bins, test_repeated_bins_valid);
-	tcase_add_test(tc_multi_bins, test_no_commas);
-	tcase_add_test(tc_multi_bins, test_spaces);
+	tcase_add_ptest(tc_multi_bins, test_two_bins);
+	tcase_add_ptest(tc_multi_bins, test_three_bins);
+	tcase_add_ptest(tc_multi_bins, test_mixed_bins);
+	tcase_add_ptest(tc_multi_bins, test_many_bins);
+	tcase_add_ptest(tc_multi_bins, test_repeated_bins);
+	tcase_add_ftest(tc_multi_bins, test_no_commas);
+	tcase_add_ftest(tc_multi_bins, test_spaces);
 	suite_add_tcase(s, tc_multi_bins);
 
 	tc_nested = tcase_create("Nested lists/maps");
 	tcase_add_checked_fixture(tc_nested, simple_setup, simple_teardown);
-	tcase_add_test(tc_nested, test_map_to_list_str_cmp);
-	tcase_add_test(tc_nested, test_list_of_maps_str_cmp);
-	tcase_add_test(tc_nested, test_mixed_list_of_maps_str_cmp);
-	tcase_add_test(tc_nested, test_nested_lists_str_cmp);
-	tcase_add_test(tc_nested, test_nested_maps_str_cmp);
-	tcase_add_test(tc_nested, test_nested_mix_str_cmp);
-	tcase_add_test(tc_nested, test_map_to_list_valid);
-	tcase_add_test(tc_nested, test_list_of_maps_valid);
-	tcase_add_test(tc_nested, test_mixed_list_of_maps_valid);
-	tcase_add_test(tc_nested, test_nested_lists_valid);
-	tcase_add_test(tc_nested, test_nested_maps_valid);
-	tcase_add_test(tc_nested, test_nested_mix_valid);
-	tcase_add_test(tc_nested, test_map_key_list);
-	tcase_add_test(tc_nested, test_map_key_map);
-	tcase_add_test(tc_nested, test_map_to_undeclared_list);
+	tcase_add_ptest(tc_nested, test_map_to_list);
+	tcase_add_ptest(tc_nested, test_list_of_maps);
+	tcase_add_ptest(tc_nested, test_mixed_list_of_maps);
+	tcase_add_ptest(tc_nested, test_nested_lists);
+	tcase_add_ptest(tc_nested, test_nested_maps);
+	tcase_add_ptest(tc_nested, test_nested_mix);
+	tcase_add_ftest(tc_nested, test_map_key_list);
+	tcase_add_ftest(tc_nested, test_map_key_map);
+	tcase_add_ftest(tc_nested, test_map_to_undeclared_list);
 	suite_add_tcase(s, tc_nested);
 
 	tc_multipliers = tcase_create("Multipliers");
 	tcase_add_checked_fixture(tc_multipliers, simple_setup, simple_teardown);
-	tcase_add_test(tc_multipliers, test_mult_b_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_I_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_D_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_S_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_B_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_list_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_map_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_within_list_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_within_map_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_map_key_I_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_map_key_D_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_map_key_S_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_map_key_B_str_cmp);
-	tcase_add_test(tc_multipliers, test_mult_b_valid);
-	tcase_add_test(tc_multipliers, test_mult_I_valid);
-	tcase_add_test(tc_multipliers, test_mult_D_valid);
-	tcase_add_test(tc_multipliers, test_mult_S_valid);
-	tcase_add_test(tc_multipliers, test_mult_B_valid);
-	tcase_add_test(tc_multipliers, test_mult_list_valid);
-	tcase_add_test(tc_multipliers, test_mult_map_valid);
-	tcase_add_test(tc_multipliers, test_mult_within_list_valid);
-	tcase_add_test(tc_multipliers, test_mult_within_map_valid);
-	tcase_add_test(tc_multipliers, test_mult_map_key_I_valid);
-	tcase_add_test(tc_multipliers, test_mult_map_key_D_valid);
-	tcase_add_test(tc_multipliers, test_mult_map_key_S_valid);
-	tcase_add_test(tc_multipliers, test_mult_map_key_B_valid);
-	tcase_add_test(tc_multipliers, test_mult_no_star);
-	tcase_add_test(tc_multipliers, test_mult_map_val_b);
-	tcase_add_test(tc_multipliers, test_mult_map_val_I);
-	tcase_add_test(tc_multipliers, test_mult_map_val_D);
-	tcase_add_test(tc_multipliers, test_mult_map_val_S);
-	tcase_add_test(tc_multipliers, test_mult_map_val_B);
-	tcase_add_test(tc_multipliers, test_mult_map_val_L);
-	tcase_add_test(tc_multipliers, test_mult_map_val_M);
-	tcase_add_test(tc_multipliers, test_mult_list_overflow);
-	tcase_add_test(tc_multipliers, test_mult_list_overflow2);
-	tcase_add_test(tc_multipliers, test_mult_list_too_many_elements);
+	tcase_add_ptest(tc_multipliers, test_mult_b);
+	tcase_add_ptest(tc_multipliers, test_mult_I);
+	tcase_add_ptest(tc_multipliers, test_mult_D);
+	tcase_add_ptest(tc_multipliers, test_mult_S);
+	tcase_add_ptest(tc_multipliers, test_mult_B);
+	tcase_add_ptest(tc_multipliers, test_mult_list);
+	tcase_add_ptest(tc_multipliers, test_mult_map);
+	tcase_add_ptest(tc_multipliers, test_mult_within_list);
+	tcase_add_ptest(tc_multipliers, test_mult_within_map);
+	tcase_add_ptest(tc_multipliers, test_mult_map_key_I);
+	tcase_add_ptest(tc_multipliers, test_mult_map_key_D);
+	tcase_add_ptest(tc_multipliers, test_mult_map_key_S);
+	tcase_add_ptest(tc_multipliers, test_mult_map_key_B);
+	tcase_add_ftest(tc_multipliers, test_mult_no_star);
+	tcase_add_ftest(tc_multipliers, test_mult_map_val_b);
+	tcase_add_ftest(tc_multipliers, test_mult_map_val_I);
+	tcase_add_ftest(tc_multipliers, test_mult_map_val_D);
+	tcase_add_ftest(tc_multipliers, test_mult_map_val_S);
+	tcase_add_ftest(tc_multipliers, test_mult_map_val_B);
+	tcase_add_ftest(tc_multipliers, test_mult_map_val_L);
+	tcase_add_ftest(tc_multipliers, test_mult_map_val_M);
+	tcase_add_ftest(tc_multipliers, test_mult_list_overflow);
+	tcase_add_ftest(tc_multipliers, test_mult_list_overflow2);
+	tcase_add_ftest(tc_multipliers, test_mult_list_too_many_elements);
 	suite_add_tcase(s, tc_multipliers);
 
 	tc_write_bins = tcase_create("Write bins");
 	tcase_add_checked_fixture(tc_write_bins, simple_setup, simple_teardown);
-	tcase_add_test(tc_write_bins, test_wb_simple_str_cmp);
-	tcase_add_test(tc_write_bins, test_wb_odds_str_cmp);
-	tcase_add_test(tc_write_bins, test_wb_evens_str_cmp);
-	tcase_add_test(tc_write_bins, test_wb_lists_str_cmp);
-	tcase_add_test(tc_write_bins, test_wb_maps_str_cmp);
-	tcase_add_test(tc_write_bins, test_wb_repeats_str_cmp);
-	tcase_add_test(tc_write_bins, test_wb_simple_valid);
-	tcase_add_test(tc_write_bins, test_wb_odds_valid);
-	tcase_add_test(tc_write_bins, test_wb_evens_valid);
-	tcase_add_test(tc_write_bins, test_wb_lists_valid);
-	tcase_add_test(tc_write_bins, test_wb_maps_valid);
-	tcase_add_test(tc_write_bins, test_wb_repeats_valid);
+	tcase_add_ptest(tc_write_bins, test_wb_simple);
+	tcase_add_ptest(tc_write_bins, test_wb_odds);
+	tcase_add_ptest(tc_write_bins, test_wb_evens);
+	tcase_add_ptest(tc_write_bins, test_wb_lists);
+	tcase_add_ptest(tc_write_bins, test_wb_maps);
+	tcase_add_ptest(tc_write_bins, test_wb_repeats);
 	suite_add_tcase(s, tc_write_bins);
 
 	tc_bin_names = tcase_create("Bin names");
@@ -687,26 +685,16 @@ obj_spec_suite(void)
 	suite_add_tcase(s, tc_bin_names);
 
 	tc_spacing = tcase_create("Spacing");
-	tcase_add_test(tc_spacing, test_space_str_cmp);
-	tcase_add_test(tc_spacing, test_space_valid);
-	tcase_add_test(tc_spacing, test_space_in_list_str_cmp);
-	tcase_add_test(tc_spacing, test_space_in_list_valid);
-	tcase_add_test(tc_spacing, test_space_map_after_key_str_cmp);
-	tcase_add_test(tc_spacing, test_space_map_after_key_valid);
-	tcase_add_test(tc_spacing, test_space_map_before_value_str_cmp);
-	tcase_add_test(tc_spacing, test_space_map_before_value_valid);
-	tcase_add_test(tc_spacing, test_space_map_both_str_cmp);
-	tcase_add_test(tc_spacing, test_space_map_both_valid);
-	tcase_add_test(tc_spacing, test_space_mult_before_str_cmp);
-	tcase_add_test(tc_spacing, test_space_mult_before_valid);
-	tcase_add_test(tc_spacing, test_space_mult_after_str_cmp);
-	tcase_add_test(tc_spacing, test_space_mult_after_valid);
-	tcase_add_test(tc_spacing, test_space_mult_both_str_cmp);
-	tcase_add_test(tc_spacing, test_space_mult_both_valid);
-	tcase_add_test(tc_spacing, test_space_list_str_cmp);
-	tcase_add_test(tc_spacing, test_space_list_valid);
-	tcase_add_test(tc_spacing, test_space_map_str_cmp);
-	tcase_add_test(tc_spacing, test_space_map_valid);
+	tcase_add_ptest(tc_spacing, test_space);
+	tcase_add_ptest(tc_spacing, test_space_in_list);
+	tcase_add_ptest(tc_spacing, test_space_map_after_key);
+	tcase_add_ptest(tc_spacing, test_space_map_before_value);
+	tcase_add_ptest(tc_spacing, test_space_map_both);
+	tcase_add_ptest(tc_spacing, test_space_mult_before);
+	tcase_add_ptest(tc_spacing, test_space_mult_after);
+	tcase_add_ptest(tc_spacing, test_space_mult_both);
+	tcase_add_ptest(tc_spacing, test_space_list);
+	tcase_add_ptest(tc_spacing, test_space_map);
 	suite_add_tcase(s, tc_spacing);
 
 	return s;

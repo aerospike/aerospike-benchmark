@@ -4,6 +4,7 @@
 //
 
 #include <assert.h>
+#include <errno.h>
 #include <stdio.h>
 
 #include <aerospike/as_arraylist.h>
@@ -432,46 +433,98 @@ _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 void
 _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 {
-	switch (_bin_spec_get_type(bin_spec)) {
-		case BIN_SPEC_TYPE_BOOL:
-			as_boolean* b = as_boolean_fromval(val);
-			_dbg_validate_bool(b);
-			if (_bin_spec_is_const(bin_spec)) {
-				ck_assert_uint_eq(as_boolean_get(&bin_spec->const_bool.val), b->value);
-			}
-			break;
-		case BIN_SPEC_TYPE_INT:
-			as_integer* i = as_integer_fromval(val);
-			_dbg_validate_int(bin_spec->integer.range, i);
-			if (_bin_spec_is_const(bin_spec)) {
-				ck_assert_uint_eq(as_integer_get(&bin_spec->const_integer.val), i->value);
-			}
-			break;
-		case BIN_SPEC_TYPE_STR:
-			as_string* s = as_string_fromval(val);
-			_dbg_validate_string(bin_spec->string.length, s);
-			if (_bin_spec_is_const(bin_spec)) {
-				ck_assert_str_eq(as_string_get(&bin_spec->const_string.val), s->value);
-			}
-			break;
-		case BIN_SPEC_TYPE_BYTES:
-			_dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val));
-			break;
-		case BIN_SPEC_TYPE_DOUBLE:
-			as_double* d = as_double_fromval(val);
-			_dbg_validate_double(d);
-			if (_bin_spec_is_const(bin_spec)) {
-				ck_assert_float_eq(as_double_get(&bin_spec->const_double.val), d->value);
-			}
-			break;
-		case BIN_SPEC_TYPE_LIST:
-			_dbg_validate_list(bin_spec, as_list_fromval((as_val*) val));
-			break;
-		case BIN_SPEC_TYPE_MAP:
-			_dbg_validate_map(bin_spec, as_map_fromval(val));
-			break;
-		default:
-			ck_assert_msg(0, "unknown bin_spec type (%d)", bin_spec->type);
+	if (_bin_spec_is_const(bin_spec)) {
+		switch (_bin_spec_get_type(bin_spec)) {
+			case BIN_SPEC_TYPE_BOOL:
+				as_boolean* b = as_boolean_fromval(val);
+				ck_assert_msg(b != NULL, "Expected a boolean, got something else");
+				ck_assert_uint_eq(as_boolean_get(b), as_boolean_get(&bin_spec->const_bool.val));
+				break;
+
+			case BIN_SPEC_TYPE_INT:
+				as_integer* i = as_integer_fromval(val);
+				ck_assert_msg(i != NULL, "Expected an integer, got something else");
+				ck_assert_int_eq(as_integer_get(i), as_integer_get(&bin_spec->const_integer.val));
+				break;
+
+			case BIN_SPEC_TYPE_STR:
+				as_string* s = as_string_fromval(val);
+				ck_assert_msg(s != NULL, "Expected a string, got something else");
+				ck_assert_str_eq(as_string_get(s), as_string_get(&bin_spec->const_string.val));
+				break;
+
+			case BIN_SPEC_TYPE_BYTES:
+				ck_assert_msg(0, "bytes may not be const");
+				break;
+
+			case BIN_SPEC_TYPE_DOUBLE:
+				as_double* d = as_double_fromval(val);
+				ck_assert_msg(d != NULL, "Expected a double, got something else");
+				ck_assert_float_eq(as_double_get(d), as_double_get(&bin_spec->const_double.val));
+				break;
+
+			case BIN_SPEC_TYPE_LIST:
+				ck_assert_msg(0, "lists may not be const");
+				break;
+
+			case BIN_SPEC_TYPE_MAP:
+				ck_assert_msg(0, "maps may not be const");
+				break;
+
+			default:
+				ck_assert_msg(0, "unknown bin_spec type (0x%x)", bin_spec->type);
+				break;
+		}
+	}
+	else {
+		switch (_bin_spec_get_type(bin_spec)) {
+			case BIN_SPEC_TYPE_BOOL:
+				as_boolean* b = as_boolean_fromval(val);
+				_dbg_validate_bool(b);
+				if (_bin_spec_is_const(bin_spec)) {
+					ck_assert_uint_eq(as_boolean_get(&bin_spec->const_bool.val), b->value);
+				}
+				break;
+
+			case BIN_SPEC_TYPE_INT:
+				as_integer* i = as_integer_fromval(val);
+				_dbg_validate_int(bin_spec->integer.range, i);
+				if (_bin_spec_is_const(bin_spec)) {
+					ck_assert_uint_eq(as_integer_get(&bin_spec->const_integer.val), i->value);
+				}
+				break;
+
+			case BIN_SPEC_TYPE_STR:
+				as_string* s = as_string_fromval(val);
+				_dbg_validate_string(bin_spec->string.length, s);
+				if (_bin_spec_is_const(bin_spec)) {
+					ck_assert_str_eq(as_string_get(&bin_spec->const_string.val), s->value);
+				}
+				break;
+
+			case BIN_SPEC_TYPE_BYTES:
+				_dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val));
+				break;
+
+			case BIN_SPEC_TYPE_DOUBLE:
+				as_double* d = as_double_fromval(val);
+				_dbg_validate_double(d);
+				if (_bin_spec_is_const(bin_spec)) {
+					ck_assert_float_eq(as_double_get(&bin_spec->const_double.val), d->value);
+				}
+				break;
+
+			case BIN_SPEC_TYPE_LIST:
+				_dbg_validate_list(bin_spec, as_list_fromval((as_val*) val));
+				break;
+
+			case BIN_SPEC_TYPE_MAP:
+				_dbg_validate_map(bin_spec, as_map_fromval(val));
+				break;
+
+			default:
+				ck_assert_msg(0, "unknown bin_spec type (0x%x)", bin_spec->type);
+		}
 	}
 }
 
@@ -706,8 +759,9 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			// bin_type
 			uint64_t mult;
 			char* endptr;
+			errno = 0;
 			mult = strtoul(str, &endptr, 10);
-			if (*str >= '0' && *str <= '9' && endptr != str) {
+			if (errno == 0 && *str >= '0' && *str <= '9' && endptr != str) {
 				// if a multiplier has been specified, expect a '*' next,
 				// followed by the bin_spec
 				if (*endptr == ' ') {
@@ -1013,14 +1067,14 @@ _parse_const_val(const char* const obj_spec_str,
 			}
 			break;
 
-		case 'f':
+		case 'F':
 			if (str[1] == '\0' || str[1] == ',') {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_false;
 				*str_ptr = str + 1;
 				return 0;
 			}
-		case 'F':
+		case 'f':
 			if (strncasecmp(str, "false", 5) == 0 && (str[5] == '\0' || str[5] == ',')) {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_false;
@@ -1062,6 +1116,7 @@ _parse_const_val(const char* const obj_spec_str,
 			else {
 				char* endptr;
 				int64_t val;
+				errno = 0;
 
 				if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
 					val = (int64_t) strtoul(str, &endptr, 16);
@@ -1069,7 +1124,7 @@ _parse_const_val(const char* const obj_spec_str,
 				else {
 					val = strtol(str, &endptr, 10);
 				}
-				if (endptr != end) {
+				if (errno == ERANGE || endptr != end) {
 					_print_parse_error("Invalid integer value",
 							obj_spec_str, str);
 					return -1;
@@ -1400,8 +1455,9 @@ bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
 			break;
 
 		default:
-			fprintf(stderr, "Unknown bin_spec type (%d)\n", bin_spec->type);
+			fprintf(stderr, "Unknown bin_spec type (0x%x)\n", bin_spec->type);
 			val = NULL;
+			break;
 	}
 
 	return val;
