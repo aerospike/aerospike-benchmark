@@ -1088,10 +1088,12 @@ _parse_const_val(const char* const obj_spec_str,
 			// try parsing as an int/float
 			const char* end = strchrnul(str, ',');
 			// the number is floating point iff it contains a '.'
-			if (memchr(str, end - str, '.') != NULL) {
+			if (memchr(str, '.', end - str) != NULL) {
 				char* endptr;
-				float val = strtod(str, &endptr);
-				if (endptr != end) {
+				errno = 0;
+
+				double val = strtod(str, &endptr);
+				if (endptr == str) {
 					_print_parse_error("Invalid floating point value",
 							obj_spec_str, str);
 					return -1;
@@ -1099,7 +1101,11 @@ _parse_const_val(const char* const obj_spec_str,
 
 				bin_spec->type = BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST;
 				as_double_init(&bin_spec->const_double.val, val);
-				*str_ptr = end;
+
+				if (*endptr == 'f') {
+					endptr++;
+				}
+				*str_ptr = endptr;
 			}
 			else {
 				char* endptr;
@@ -1112,7 +1118,7 @@ _parse_const_val(const char* const obj_spec_str,
 				else {
 					val = strtol(str, &endptr, 10);
 				}
-				if (errno == ERANGE || endptr != end) {
+				if (errno == ERANGE || endptr == str) {
 					_print_parse_error("Invalid integer value",
 							obj_spec_str, str);
 					return -1;
@@ -1120,7 +1126,7 @@ _parse_const_val(const char* const obj_spec_str,
 
 				bin_spec->type = BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST;
 				as_integer_init(&bin_spec->const_integer.val, val);
-				*str_ptr = end;
+				*str_ptr = endptr;
 			}
 			return 0;
 	}
@@ -1371,11 +1377,16 @@ _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 
 	for (uint32_t i = 0; i < n_entries; i++) {
 		as_val* key;
-		do {
+		while (retry_count < MAX_KEY_ENTRY_RETRIES) {
 			key = bin_spec_random_val(bin_spec->map.key, random,
 					compression_ratio);
-		} while (as_hashmap_get(map, key) != NULL &&
-				retry_count++ < MAX_KEY_ENTRY_RETRIES);
+
+			if (as_hashmap_get(map, key) == NULL) {
+				break;
+			}
+			as_val_destroy(key);
+			retry_count++;
+		}
 
 		as_val* val = bin_spec_random_val(bin_spec->map.val, random,
 				compression_ratio);
@@ -1491,7 +1502,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			break;
 
 		case BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST:
-			sprint(out_str, str_size, "I%lf", as_double_get(&bin->const_double.val));
+			sprint(out_str, str_size, "%.10lgf", as_double_get(&bin->const_double.val));
 			break;
 
 		case BIN_SPEC_TYPE_LIST:

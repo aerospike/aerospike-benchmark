@@ -89,8 +89,8 @@ LDFLAGS += -Ltarget/lib
 CC = cc
 AR = ar
 
-BUILD_CFLAGS = $(CFLAGS) -g
-TEST_CFLAGS = $(CFLAGS) -D_TEST
+BUILD_CFLAGS = $(CFLAGS)
+TEST_CFLAGS = $(CFLAGS) -g -D_TEST
 
 ###############################################################################
 ##  OBJECTS                                                                  ##
@@ -213,6 +213,7 @@ test: unit integration
 .PHONY: unit
 unit: | test_target/test
 	@echo
+	@#valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
 	@./test_target/test
 
 test_target:

@@ -62,6 +62,7 @@ START_TEST(test_free_after_move)
 	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", NULL, 0,
 			1.f);
 	_dbg_obj_spec_assert_valid(&p, &rec, NULL, 0, "test");
+	as_record_destroy(&rec);
 	obj_spec_free(&p);
 }
 END_TEST
@@ -79,6 +80,7 @@ START_TEST(test_shallow_copy)
 	obj_spec_populate_bins(&p, &rec, as_random_instance(), "test", NULL, 0,
 			1.f);
 	_dbg_obj_spec_assert_valid(&p, &rec, NULL, 0, "test");
+	as_record_destroy(&rec);
 	obj_spec_free(&p);
 	obj_spec_free(&o);
 }
@@ -98,6 +100,22 @@ START_TEST(test_free_after_shallow_copy)
 	obj_spec_populate_bins(&o, &rec, as_random_instance(), "test", NULL, 0,
 			1.f);
 	_dbg_obj_spec_assert_valid(&o, &rec, NULL, 0, "test");
+	as_record_destroy(&rec);
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_not_enough_bins)
+{
+	struct obj_spec_s o;
+	as_record rec;
+
+	obj_spec_parse(&o, "I,D,{S10:B20}");
+
+	as_record_init(&rec, 2);
+	ck_assert_int_ne(0, obj_spec_populate_bins(&o, &rec, as_random_instance(),
+				"test", NULL, 0, 1.f));
+	as_record_destroy(&rec);
 	obj_spec_free(&o);
 }
 END_TEST
@@ -149,6 +167,7 @@ START_TEST(test_name ## _valid) \
 		ck_assert(as_val_cmp(as_list_get(list, i), \
 					(as_val*) as_record_get(&rec, bin)) == 0); \
 	} \
+	as_val_destroy(val); \
 	as_record_destroy(&rec); \
 	obj_spec_free(&o); \
 }
@@ -238,7 +257,7 @@ DEFINE_FAILING_TCASE(test_const_b_f, "f", "Single-character booleans must be cap
 DEFINE_FAILING_TCASE(test_const_b_true1, "true1", "Booleans cannot have numeric quantifiers");
 DEFINE_FAILING_TCASE(test_const_b_false1, "false1", "Booleans cannot have numeric quantifiers");
 
-DEFINE_TCASE(test_const_I_0,  "0");
+DEFINE_TCASE(test_const_I_0, "0");
 DEFINE_TCASE(test_const_I_1, "1");
 DEFINE_TCASE(test_const_I_123, "123");
 DEFINE_TCASE_DIFF(test_const_I_0x40, "0x40", "64");
@@ -256,6 +275,18 @@ DEFINE_FAILING_TCASE(test_const_I_int64_min_1, "-9223372036854775809",
 DEFINE_TCASE_DIFF(test_const_I_hex_int64_min, "0x8000000000000000", "-9223372036854775808");
 DEFINE_FAILING_TCASE(test_const_I_hex_int64_oob, "0x10000000000000000",
 		"0x10000000000000000 should be out of range");
+
+DEFINE_TCASE_DIFF(test_const_D_0, "0.", "0f");
+DEFINE_TCASE_DIFF(test_const_D_0f, "0.f", "0f");
+DEFINE_TCASE_DIFF(test_const_D_0_0, "0.0", "0f");
+DEFINE_TCASE_DIFF(test_const_D_0_0f, "0.0f", "0f");
+DEFINE_TCASE_DIFF(test_const_D_1, "1.", "1f");
+DEFINE_TCASE_DIFF(test_const_D_1f, "1.f", "1f");
+DEFINE_TCASE_DIFF(test_const_D_1_0, "1.0", "1f");
+DEFINE_TCASE_DIFF(test_const_D_1_0f, "1.0f", "1f");
+DEFINE_TCASE_DIFF(test_const_D_123, "123.", "123f");
+DEFINE_TCASE_DIFF(test_const_D_123_456, "123.456", "123.456f");
+DEFINE_FAILING_TCASE(test_const_D_f, "f", "a single 'f' is not a valid float");
 
 
 /*
@@ -483,6 +514,7 @@ obj_spec_suite(void)
 	tcase_add_test(tc_memory, test_free_after_move);
 	tcase_add_test(tc_memory, test_shallow_copy);
 	tcase_add_test(tc_memory, test_free_after_shallow_copy);
+	tcase_add_test(tc_memory, test_not_enough_bins);
 	suite_add_tcase(s, tc_memory);
 
 	tc_simple = tcase_create("Simple");
@@ -529,7 +561,7 @@ obj_spec_suite(void)
 	suite_add_tcase(s, tc_simple);
 
 	tc_constants = tcase_create("Constants");
-	tcase_add_checked_fixture(tc_constants, simple_setup, simple_teardown);
+	//tcase_add_checked_fixture(tc_constants, simple_setup, simple_teardown);
 	tcase_add_ptest(tc_constants, test_const_b_true);
 	tcase_add_ptest(tc_constants, test_const_b_false);
 	tcase_add_ptest(tc_constants, test_const_b_True);
@@ -559,6 +591,18 @@ obj_spec_suite(void)
 	tcase_add_ftest(tc_constants, test_const_I_int64_min_1);
 	tcase_add_ptest(tc_constants, test_const_I_hex_int64_min);
 	tcase_add_ftest(tc_constants, test_const_I_hex_int64_oob);
+
+	tcase_add_ptest(tc_constants, test_const_D_0);
+	tcase_add_ptest(tc_constants, test_const_D_0f);
+	tcase_add_ptest(tc_constants, test_const_D_0_0);
+	tcase_add_ptest(tc_constants, test_const_D_0_0f);
+	tcase_add_ptest(tc_constants, test_const_D_1);
+	tcase_add_ptest(tc_constants, test_const_D_1f);
+	tcase_add_ptest(tc_constants, test_const_D_1_0);
+	tcase_add_ptest(tc_constants, test_const_D_1_0f);
+	tcase_add_ptest(tc_constants, test_const_D_123);
+	tcase_add_ptest(tc_constants, test_const_D_123_456);
+	tcase_add_ftest(tc_constants, test_const_D_f);
 	suite_add_tcase(s, tc_constants);
 
 	tc_list = tcase_create("List");
