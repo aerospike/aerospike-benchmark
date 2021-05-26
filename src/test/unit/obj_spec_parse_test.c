@@ -254,6 +254,8 @@ DEFINE_TCASE(test_const_I_int64_min, "-9223372036854775808");
 DEFINE_FAILING_TCASE(test_const_I_int64_min_1, "-9223372036854775809",
 		"-9223372036854775809 = INT64_MIN - 1, and therefore should be out of range");
 DEFINE_TCASE_DIFF(test_const_I_hex_int64_min, "0x8000000000000000", "-9223372036854775808");
+DEFINE_FAILING_TCASE(test_const_I_hex_int64_oob, "0x10000000000000000",
+		"0x10000000000000000 should be out of range");
 
 
 /*
@@ -355,6 +357,8 @@ DEFINE_TCASE(test_mult_map_key_I, "{3*I2:S3}");
 DEFINE_TCASE(test_mult_map_key_D, "{5*D:S3}");
 DEFINE_TCASE(test_mult_map_key_S, "{2*S2:S3}");
 DEFINE_TCASE(test_mult_map_key_B, "{700*B5:S3}");
+DEFINE_TCASE(test_mult_map_key_I_high_coverage, "{200*I1:S3}");
+DEFINE_FAILING_TCASE(test_mult_zero, "0*I2", "cannot have zero multiplier except on map keys");
 DEFINE_FAILING_TCASE(test_mult_no_star, "3I2", "multipliers must be followed with a '*'");
 DEFINE_FAILING_TCASE(test_mult_map_val_b, "{I1:4*b}",
 		"no multipliers on map values allowed");
@@ -554,6 +558,7 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_constants, test_const_I_int64_min);
 	tcase_add_ftest(tc_constants, test_const_I_int64_min_1);
 	tcase_add_ptest(tc_constants, test_const_I_hex_int64_min);
+	tcase_add_ftest(tc_constants, test_const_I_hex_int64_oob);
 	suite_add_tcase(s, tc_constants);
 
 	tc_list = tcase_create("List");
@@ -647,6 +652,8 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_D);
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_S);
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_B);
+	tcase_add_ptest(tc_multipliers, test_mult_map_key_I_high_coverage);
+	tcase_add_ftest(tc_multipliers, test_mult_zero);
 	tcase_add_ftest(tc_multipliers, test_mult_no_star);
 	tcase_add_ftest(tc_multipliers, test_mult_map_val_b);
 	tcase_add_ftest(tc_multipliers, test_mult_map_val_I);

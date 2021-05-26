@@ -481,25 +481,16 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 			case BIN_SPEC_TYPE_BOOL:
 				as_boolean* b = as_boolean_fromval(val);
 				_dbg_validate_bool(b);
-				if (_bin_spec_is_const(bin_spec)) {
-					ck_assert_uint_eq(as_boolean_get(&bin_spec->const_bool.val), b->value);
-				}
 				break;
 
 			case BIN_SPEC_TYPE_INT:
 				as_integer* i = as_integer_fromval(val);
 				_dbg_validate_int(bin_spec->integer.range, i);
-				if (_bin_spec_is_const(bin_spec)) {
-					ck_assert_uint_eq(as_integer_get(&bin_spec->const_integer.val), i->value);
-				}
 				break;
 
 			case BIN_SPEC_TYPE_STR:
 				as_string* s = as_string_fromval(val);
 				_dbg_validate_string(bin_spec->string.length, s);
-				if (_bin_spec_is_const(bin_spec)) {
-					ck_assert_str_eq(as_string_get(&bin_spec->const_string.val), s->value);
-				}
 				break;
 
 			case BIN_SPEC_TYPE_BYTES:
@@ -509,9 +500,6 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 			case BIN_SPEC_TYPE_DOUBLE:
 				as_double* d = as_double_fromval(val);
 				_dbg_validate_double(d);
-				if (_bin_spec_is_const(bin_spec)) {
-					ck_assert_float_eq(as_double_get(&bin_spec->const_double.val), d->value);
-				}
 				break;
 
 			case BIN_SPEC_TYPE_LIST:
