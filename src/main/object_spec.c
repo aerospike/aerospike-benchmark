@@ -1490,7 +1490,10 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			break;
 
 		case BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST:
-			sprint(out_str, str_size, "\"%s\"", as_string_get(&bin->const_string.val));
+			int32_t len = (int32_t)
+				as_string_len((as_string*) &bin->const_string.val);
+			sprint(out_str, str_size, "\"%*.*s\"", len, len,
+					as_string_get(&bin->const_string.val));
 			break;
 
 		case BIN_SPEC_TYPE_BYTES:

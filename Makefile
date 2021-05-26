@@ -85,11 +85,11 @@ endif
 
 LDFLAGS += -lm -lz -lcyaml -lyaml
 TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
-LDFLAGS += -Ltarget/lib
+LDFLAGS += -Ltarget/lib -flto
 CC = cc
 AR = ar
 
-BUILD_CFLAGS = $(CFLAGS)
+BUILD_CFLAGS = $(CFLAGS) -flto
 TEST_CFLAGS = $(CFLAGS) -g -D_TEST
 
 ###############################################################################
@@ -145,7 +145,7 @@ info:
 	@echo
 	@echo "  COMPILER:"
 	@echo "      command:    " $(CC)
-	@echo "      flags:      " $(CFLAGS)
+	@echo "      flags:      " $(BUILD_CFLAGS)
 	@echo
 	@echo "  LINKER:"
 	@echo "      command:    " $(LD)

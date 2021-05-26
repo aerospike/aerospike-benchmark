@@ -262,11 +262,30 @@ char* parse_string_literal(const char* restrict str,
 	uint64_t len = 0;
 	const char* end = str + 1;
 	while (*end != '"') {
+		if (*end == '\0') {
+			fprintf(stderr, "Unterminated '\"' in string literal\n");
+			return NULL;
+		}
 		if (*end == '\\') {
 			end++;
 			if (*end == '\0') {
 				fprintf(stderr, "Dangling escape character\n");
 				return NULL;
+			}
+			if (*end == 'x') {
+				if (*(end + 1) == '\0' || *(end + 2) == '\0') {
+					fprintf(stderr, "Unterminated hexadecimal escape sequence\n");
+					return NULL;
+				}
+				end += 2;
+			}
+			else if (*end == '0' || *end == '1' || *end == '2') {
+				if (*(end + 1) < '0' || *(end + 1) > '7' ||
+						*(end + 2) < '0' || *(end + 2) > '7') {
+					fprintf(stderr, "Invalid octal string \"%.4s\"\n", end - 1);
+					return NULL;
+				}
+				end += 2;
 			}
 		}
 		end++;
@@ -274,7 +293,7 @@ char* parse_string_literal(const char* restrict str,
 	}
 
 	// allocate a buffer for the parsed string
-	char* res = (char*) cf_malloc(len);
+	char* res = (char*) cf_malloc(len + 1);
 	uint64_t i = 0;
 	for (const char* s = str + 1; s != end; s++, i++) {
 		if (*s == '\\') {
@@ -366,6 +385,7 @@ char* parse_string_literal(const char* restrict str,
 			res[i] = *s;
 		}
 	}
+	res[len] = '\0';
 
 	if (endptr != NULL) {
 		*endptr = end + 1;

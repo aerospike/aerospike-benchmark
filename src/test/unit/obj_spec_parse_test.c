@@ -276,6 +276,35 @@ DEFINE_TCASE_DIFF(test_const_I_hex_int64_min, "0x8000000000000000", "-9223372036
 DEFINE_FAILING_TCASE(test_const_I_hex_int64_oob, "0x10000000000000000",
 		"0x10000000000000000 should be out of range");
 
+DEFINE_TCASE(test_const_S_empty, "\"\"");
+DEFINE_TCASE(test_const_S_a, "\"a\"");
+DEFINE_TCASE(test_const_S_clayton, "\"clayton\"");
+DEFINE_TCASE(test_const_S_long,
+		"\"aaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbcccccccccccccccccccdddddddddddddddd"
+		"dddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeefffffffffffffffffffffffggg"
+		"ggggggggggggggg\"");
+DEFINE_TCASE_DIFF(test_const_S_ba, "\"\\a\"", "\"\a\"");
+DEFINE_TCASE_DIFF(test_const_S_bb, "\"\\b\"", "\"\b\"");
+DEFINE_TCASE_DIFF(test_const_S_be, "\"\\e\"", "\"\e\"");
+DEFINE_TCASE_DIFF(test_const_S_bf, "\"\\f\"", "\"\f\"");
+DEFINE_TCASE_DIFF(test_const_S_bn, "\"\\n\"", "\"\n\"");
+DEFINE_TCASE_DIFF(test_const_S_br, "\"\\r\"", "\"\r\"");
+DEFINE_TCASE_DIFF(test_const_S_bt, "\"\\t\"", "\"\t\"");
+DEFINE_TCASE_DIFF(test_const_S_bv, "\"\\v\"", "\"\v\"");
+DEFINE_TCASE_DIFF(test_const_S_bs, "\"\\\\\"", "\"\\\"");
+DEFINE_TCASE_DIFF(test_const_S_bq, "\"\\'\"", "\"\'\"");
+DEFINE_TCASE_DIFF(test_const_S_bqq, "\"\\\"\"", "\"\"\"");
+DEFINE_TCASE_DIFF(test_const_S_bqm, "\"\\?\"", "\"\?\"");
+DEFINE_TCASE_DIFF(test_const_S_hex, "\"\\x61\"", "\"\x61\"");
+DEFINE_TCASE_DIFF(test_const_S_oct, "\"\\141\"", "\"\141\"");
+DEFINE_TCASE_DIFF(test_const_S_mixed,
+		"\"this is \\147onna be a \\x6cong message\\n"
+		"\\150\\145\\154\\154\\157\\041\\011"
+		"\\x67\\x6f\\x6F\\x64\\x62\\x79\\x65\\x3f\"",
+		"\"this is gonna be a long message\nhello!\tgoodbye?\"");
+DEFINE_FAILING_TCASE(test_const_S_unterminated, "\"test string", "unterminated string");
+DEFINE_FAILING_TCASE(test_const_S_single_0x, "\"\\x0x\"", "\"0x\" is not a valid hex code");
+
 DEFINE_TCASE_DIFF(test_const_D_0, "0.", "0f");
 DEFINE_TCASE_DIFF(test_const_D_0f, "0.f", "0f");
 DEFINE_TCASE_DIFF(test_const_D_0_0, "0.0", "0f");
@@ -287,6 +316,8 @@ DEFINE_TCASE_DIFF(test_const_D_1_0f, "1.0f", "1f");
 DEFINE_TCASE_DIFF(test_const_D_123, "123.", "123f");
 DEFINE_TCASE_DIFF(test_const_D_123_456, "123.456", "123.456f");
 DEFINE_FAILING_TCASE(test_const_D_f, "f", "a single 'f' is not a valid float");
+DEFINE_FAILING_TCASE(test_const_D_0f, "0f", "floats must always contain a '.'");
+DEFINE_FAILING_TCASE(test_const_D_1f, "1f", "floats must always contain a '.'");
 
 
 /*
@@ -561,7 +592,7 @@ obj_spec_suite(void)
 	suite_add_tcase(s, tc_simple);
 
 	tc_constants = tcase_create("Constants");
-	//tcase_add_checked_fixture(tc_constants, simple_setup, simple_teardown);
+	tcase_add_checked_fixture(tc_constants, simple_setup, simple_teardown);
 	tcase_add_ptest(tc_constants, test_const_b_true);
 	tcase_add_ptest(tc_constants, test_const_b_false);
 	tcase_add_ptest(tc_constants, test_const_b_True);
@@ -592,6 +623,28 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_constants, test_const_I_hex_int64_min);
 	tcase_add_ftest(tc_constants, test_const_I_hex_int64_oob);
 
+	tcase_add_ptest(tc_constants, test_const_S_empty);
+	tcase_add_ptest(tc_constants, test_const_S_a);
+	tcase_add_ptest(tc_constants, test_const_S_clayton);
+	tcase_add_ptest(tc_constants, test_const_S_long);
+	tcase_add_ptest(tc_constants, test_const_S_ba);
+	tcase_add_ptest(tc_constants, test_const_S_bb);
+	tcase_add_ptest(tc_constants, test_const_S_be);
+	tcase_add_ptest(tc_constants, test_const_S_bf);
+	tcase_add_ptest(tc_constants, test_const_S_bn);
+	tcase_add_ptest(tc_constants, test_const_S_br);
+	tcase_add_ptest(tc_constants, test_const_S_bt);
+	tcase_add_ptest(tc_constants, test_const_S_bv);
+	tcase_add_ptest(tc_constants, test_const_S_bs);
+	tcase_add_ptest(tc_constants, test_const_S_bq);
+	tcase_add_ptest(tc_constants, test_const_S_bqq);
+	tcase_add_ptest(tc_constants, test_const_S_bqm);
+	tcase_add_ptest(tc_constants, test_const_S_hex);
+	tcase_add_ptest(tc_constants, test_const_S_oct);
+	tcase_add_ptest(tc_constants, test_const_S_mixed);
+	tcase_add_ftest(tc_constants, test_const_S_unterminated);
+	tcase_add_ftest(tc_constants, test_const_S_single_0x);
+
 	tcase_add_ptest(tc_constants, test_const_D_0);
 	tcase_add_ptest(tc_constants, test_const_D_0f);
 	tcase_add_ptest(tc_constants, test_const_D_0_0);
@@ -603,6 +656,8 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_constants, test_const_D_123);
 	tcase_add_ptest(tc_constants, test_const_D_123_456);
 	tcase_add_ftest(tc_constants, test_const_D_f);
+	tcase_add_ftest(tc_constants, test_const_D_0f);
+	tcase_add_ftest(tc_constants, test_const_D_1f);
 	suite_add_tcase(s, tc_constants);
 
 	tc_list = tcase_create("List");
