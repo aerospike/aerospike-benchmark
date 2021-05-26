@@ -939,8 +939,10 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					if (_parse_const_val(obj_spec_str, &str, bin_spec) != 0) {
 						goto _destroy_state;
 					}
-					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
-						_print_parse_error("Map key cannot be a constant value",
+					if (mult != 1 && type == CONSUMER_TYPE_MAP &&
+							map_state == MAP_KEY) {
+						_print_parse_error("Map key cannot be a constant value "
+								"if it has a multiplier > 1",
 								obj_spec_str, prev_str);
 						// since the bin_spec was already parsed by
 						// _parse_const_val, destroy it before freeing

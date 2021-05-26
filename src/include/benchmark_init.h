@@ -19,12 +19,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  ******************************************************************************/
+#pragma once
 
-#include <benchmark_init.h>
-
-int
-main(int argc, char* argv[])
-{
-	return benchmark_init(argc, argv);
-}
+int benchmark_init(int argc, char* argv[]);
 

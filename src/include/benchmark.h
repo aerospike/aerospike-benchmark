@@ -169,5 +169,9 @@ typedef struct threaddata_s {
 } tdata_t;
 
 
+void load_defaults(args_t* args);
+int load_defaults_post(args_t* args);
+void free_args(args_t* args);
+
 int run_benchmark(args_t* args);
 

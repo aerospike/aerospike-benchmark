@@ -174,9 +174,6 @@ START_TEST(test_bins_already_occupied_write_bins)
 END_TEST
 
 
-/*
- * test-case definining macros
- */
 static void
 _test_str_cmp(const char* obj_spec_str,
 		const char* expected_out_str, uint64_t expected_out_str_len,
@@ -231,6 +228,9 @@ _test_valid(const char* obj_spec_str,
 	obj_spec_free(&o);
 }
 
+/*
+ * test-case definining macros
+ */
 #define DEFINE_TCASE_DIFF_WRITE_BINS(test_name, obj_spec_str, \
 		expected_out_str, write_bins, n_write_bins) \
 START_TEST(test_name ## _str_cmp) \
@@ -390,6 +390,10 @@ DEFINE_TCASE_DIFF(test_const_D_123_456, "123.456", "123.456f");
 DEFINE_FAILING_TCASE(test_const_D_f, "f", "a single 'f' is not a valid float");
 DEFINE_FAILING_TCASE(test_const_D_0f, "0f", "floats must always contain a '.'");
 DEFINE_FAILING_TCASE(test_const_D_1f, "1f", "floats must always contain a '.'");
+
+DEFINE_TCASE(test_const_map_key, "{10:S5}");
+DEFINE_FAILING_TCASE(test_const_map_keys, "{5*10:S5}", "constant map keys "
+		"cannot have multipliers");
 
 
 /*
@@ -733,6 +737,9 @@ obj_spec_suite(void)
 	tcase_add_ftest(tc_constants, test_const_D_f);
 	tcase_add_ftest(tc_constants, test_const_D_0f);
 	tcase_add_ftest(tc_constants, test_const_D_1f);
+
+	tcase_add_ptest(tc_constants, test_const_map_key);
+	tcase_add_ftest(tc_constants, test_const_map_keys);
 	suite_add_tcase(s, tc_constants);
 
 	tc_list = tcase_create("List");

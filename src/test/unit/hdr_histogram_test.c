@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <hdr_histogram/hdr_histogram.h>
 
+#include <citrusleaf/alloc.h>
+
 #include "hdr_test_util.h"
 
 
@@ -72,6 +74,7 @@ START_TEST(test_create_with_large_values)
     ck_assert(
         hdr_values_are_equivalent(h, 100000000, hdr_value_at_percentile(h, 99.0)));
 
+	hdr_close(h);
 }
 END_TEST
 
@@ -109,6 +112,7 @@ START_TEST(test_out_of_range_values)
     hdr_init(1, 1000, 4, &h);
     ck_assert( hdr_record_value(h, 32767));
     ck_assert(!hdr_record_value(h, 32768));
+	hdr_close(h);
 }
 END_TEST
 
@@ -145,6 +149,8 @@ START_TEST(test_linear_iter_buckets_correctly)
 
     ck_assert(step_count == 4);
     ck_assert(total_count == 6);
+
+	hdr_close(h);
 }
 END_TEST
 
@@ -567,6 +573,7 @@ START_TEST(test_atomic_create_with_large_values)
     ck_assert(
         hdr_values_are_equivalent(h, 100000000, hdr_value_at_percentile(h, 99.0)));
 
+	hdr_close(h);
 }
 END_TEST
 
@@ -577,6 +584,7 @@ START_TEST(test_atomic_out_of_range_values)
     hdr_init(1, 1000, 4, &h);
     ck_assert( hdr_record_value_atomic(h, 32767));
     ck_assert(!hdr_record_value_atomic(h, 32768));
+	hdr_close(h);
 }
 END_TEST
 
@@ -613,6 +621,8 @@ START_TEST(test_atomic_linear_iter_buckets_correctly)
 
     ck_assert(step_count == 4);
     ck_assert(total_count == 6);
+
+	hdr_close(h);
 }
 END_TEST
 
@@ -883,7 +893,7 @@ static void* record_values(void* thread_context)
 START_TEST(test_recording_concurrently)
 {
     const int value_count = 10000000;
-    int64_t* values = calloc(value_count, sizeof(int64_t));
+    int64_t* values = cf_calloc(value_count, sizeof(int64_t));
     struct hdr_histogram* expected_histogram;
     struct hdr_histogram* actual_histogram;
     struct test_histogram_data thread_data[2];
@@ -923,6 +933,10 @@ START_TEST(test_recording_concurrently)
     hdr_iter_init(&actual_iter, actual_histogram);
 
     ck_assert(compare_histograms(expected_histogram, actual_histogram) == 0);
+	cf_free(values);
+
+	hdr_close(expected_histogram);
+	hdr_close(actual_histogram);
 }
 END_TEST
 

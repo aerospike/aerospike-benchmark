@@ -14,6 +14,12 @@
 #define TMP_FILE_LOC "/tmp"
 
 
+// forward declare from main.c
+extern void _load_defaults(args_t* args);
+extern int _load_defaults_post(args_t* args);
+extern void _free_args(args_t* args);
+
+
 static void assert_workloads_eq(const stages_t* parsed,
 		const stages_t* expected)
 {
@@ -78,8 +84,8 @@ START_TEST(test_name) \
 	FILE* tmp = fopen(TMP_FILE_LOC "/test.yml", "w+"); \
 	ck_assert_ptr_ne(tmp, NULL); \
 	stages_t expected = stages_struct; \
-	stages_t parsed; \
 	args_t args; \
+	_load_defaults(&args); \
 	\
 	for (uint32_t i = 0; i < expected.n_stages; i++) { \
 		ck_assert_int_eq(obj_spec_parse(&expected.stages[i].obj_spec, \
@@ -88,18 +94,23 @@ START_TEST(test_name) \
 	\
 	args.start_key = 1; \
 	args.keys = 100000; \
-	args.bin_name = "testbin"; \
+	cf_free(args.bin_name); \
+	args.bin_name = strdup("testbin"); \
+	obj_spec_free(&args.obj_spec); \
 	obj_spec_parse(&args.obj_spec, "I"); \
 	\
 	fwrite(file_contents, 1, sizeof(file_contents) - 1, \
 			tmp); \
 	fclose(tmp); \
-	ck_assert_int_eq(parse_workload_config_file( \
-				TMP_FILE_LOC "/test.yml", &parsed, \
-				&args), 0); \
-	assert_workloads_eq(&parsed, &expected); \
+	args.workload_stages_file = strdup(TMP_FILE_LOC "/test.yml"); \
+	ck_assert_int_eq(0, _load_defaults_post(&args)); \
+	assert_workloads_eq(&args.stages, &expected); \
 	\
-	free_workload_config(&parsed); \
+	_free_args(&args); \
+	\
+	for (uint32_t i = 0; i < expected.n_stages; i++) { \
+		obj_spec_free(&expected.stages[i].obj_spec); \
+	} \
 	remove(TMP_FILE_LOC "/test.yml"); \
 } \
 END_TEST

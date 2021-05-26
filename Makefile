@@ -213,8 +213,8 @@ test: unit integration
 .PHONY: unit
 unit: | test_target/test
 	@echo
-	@#valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
-	@./test_target/test
+	@valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
+	@#./test_target/test
 
 test_target:
 	mkdir $@
