@@ -298,6 +298,7 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 				if (!as_record_set(rec, name, (as_bin_value*) val)) {
 					// failed to set a record, meaning we ran out of space
 					fprintf(stderr, "Not enough free bin slots in record\n");
+					as_val_destroy(val);
 					return -1;
 				}
 			}
@@ -317,6 +318,7 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 			if (!as_record_set(rec, name, (as_bin_value*) val)) {
 				// failed to set a record, meaning we ran out of space
 				fprintf(stderr, "Not enough free bin slots in record\n");
+				as_val_destroy(val);
 				return -1;
 			}
 		}

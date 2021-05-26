@@ -120,56 +120,128 @@ START_TEST(test_not_enough_bins)
 }
 END_TEST
 
+START_TEST(test_not_enough_bins_write_bins)
+{
+	struct obj_spec_s o;
+	as_record rec;
+
+	obj_spec_parse(&o, "I,D,{S10:B20}");
+	uint32_t bins[] = { 0, 2 };
+
+	as_record_init(&rec, 1);
+	ck_assert_int_ne(0, obj_spec_populate_bins(&o, &rec, as_random_instance(),
+				"test", bins, 2, 1.f));
+	as_record_destroy(&rec);
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_bins_already_occupied)
+{
+	struct obj_spec_s o;
+	as_record rec;
+
+	obj_spec_parse(&o, "I,D,{S10:B20}");
+
+	as_record_init(&rec, 3);
+	as_integer i;
+	as_integer_init(&i, 0);
+	as_bin_name bin_name = "extra_bin";
+	as_record_set(&rec, bin_name, (as_bin_value*) &i);
+	ck_assert_int_ne(0, obj_spec_populate_bins(&o, &rec, as_random_instance(),
+				"test", NULL, 0, 1.f));
+	as_record_destroy(&rec);
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_bins_already_occupied_write_bins)
+{
+	struct obj_spec_s o;
+	as_record rec;
+
+	obj_spec_parse(&o, "I,D,{S10:B20}");
+	uint32_t bins[] = { 0, 2 };
+
+	as_record_init(&rec, 2);
+	as_bin_name bin_name = "extra_bin";
+	as_record_set_int64(&rec, bin_name, 1);
+	ck_assert_int_ne(0, obj_spec_populate_bins(&o, &rec, as_random_instance(),
+				"test", bins, 2, 1.f));
+	as_record_destroy(&rec);
+	obj_spec_free(&o);
+}
+END_TEST
+
 
 /*
  * test-case definining macros
  */
+static void
+_test_str_cmp(const char* obj_spec_str,
+		const char* expected_out_str, uint64_t expected_out_str_len,
+		uint32_t* write_bins, uint32_t n_write_bins)
+{
+	struct obj_spec_s o;
+	char buf[expected_out_str_len + 1];
+	ck_assert_int_eq(obj_spec_parse(&o, obj_spec_str), 0);
+	_dbg_sprint_obj_spec(&o, buf, sizeof(buf));
+
+	ck_assert_str_eq(buf, expected_out_str);
+	obj_spec_free(&o);
+}
+
+static void
+_test_valid(const char* obj_spec_str,
+		const char* expected_out_str, uint32_t* write_bins,
+		uint32_t n_write_bins)
+{
+	struct obj_spec_s o;
+	as_random random, random2;
+	as_record rec;
+	as_val* val;
+	as_list* list;
+
+	as_random_init(&random);
+	memcpy(&random2, &random, sizeof(as_random));
+
+	ck_assert_int_eq(obj_spec_parse(&o, obj_spec_str), 0);
+	as_record_init(&rec, obj_spec_n_bins(&o));
+	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random,
+				"test", write_bins, n_write_bins, 1.f), 0);
+	_dbg_obj_spec_assert_valid(&o, &rec, write_bins, n_write_bins, "test");
+
+	val = obj_spec_gen_value(&o, &random2, write_bins, n_write_bins);
+	ck_assert_ptr_ne(val, NULL);
+	list = as_list_fromval(val);
+	ck_assert_ptr_ne(list, NULL);
+	if (write_bins != NULL) {
+		ck_assert_int_eq(as_list_size(list), n_write_bins);
+	}
+
+	for (uint32_t i = 0; i < as_list_size(list); i++) {
+		as_bin_name bin;
+		gen_bin_name(bin, "test",
+				(write_bins ? ((uint32_t*) write_bins)[i] : i));
+		ck_assert(as_val_cmp(as_list_get(list, i),
+					(as_val*) as_record_get(&rec, bin)) == 0);
+	}
+	as_val_destroy(val);
+	as_record_destroy(&rec);
+	obj_spec_free(&o);
+}
+
 #define DEFINE_TCASE_DIFF_WRITE_BINS(test_name, obj_spec_str, \
 		expected_out_str, write_bins, n_write_bins) \
 START_TEST(test_name ## _str_cmp) \
 { \
-	struct obj_spec_s o; \
-	char buf[sizeof(expected_out_str) + 1]; \
-	ck_assert_int_eq(obj_spec_parse(&o, obj_spec_str), 0); \
-	_dbg_sprint_obj_spec(&o, buf, sizeof(buf)); \
-	\
-	ck_assert_str_eq(buf, expected_out_str); \
-	obj_spec_free(&o); \
+	_test_str_cmp(obj_spec_str, expected_out_str, sizeof(expected_out_str), \
+			write_bins, n_write_bins); \
 } \
 END_TEST \
 START_TEST(test_name ## _valid) \
 { \
-	struct obj_spec_s o; \
-	as_random random, random2; \
-	as_record rec; \
-	as_val* val; \
-	as_list* list; \
-	as_random_init(&random); \
-	memcpy(&random2, &random, sizeof(as_random)); \
-	ck_assert_int_eq(obj_spec_parse(&o, obj_spec_str), 0); \
-	as_record_init(&rec, obj_spec_n_bins(&o)); \
-	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, \
-				"test", write_bins, n_write_bins, 1.f), 0); \
-	_dbg_obj_spec_assert_valid(&o, &rec, write_bins, n_write_bins, "test"); \
-	\
-	val = obj_spec_gen_value(&o, &random2, write_bins, n_write_bins); \
-	ck_assert_ptr_ne(val, NULL); \
-	list = as_list_fromval(val); \
-	ck_assert_ptr_ne(list, NULL); \
-	if (write_bins != NULL) { \
-		ck_assert_int_eq(as_list_size(list), n_write_bins); \
-	} \
-	\
-	for (uint32_t i = 0; i < as_list_size(list); i++) { \
-		as_bin_name bin; \
-		gen_bin_name(bin, "test", \
-				(write_bins ? ((uint32_t*) write_bins)[i] : i)); \
-		ck_assert(as_val_cmp(as_list_get(list, i), \
-					(as_val*) as_record_get(&rec, bin)) == 0); \
-	} \
-	as_val_destroy(val); \
-	as_record_destroy(&rec); \
-	obj_spec_free(&o); \
+	_test_valid(obj_spec_str, expected_out_str, write_bins, n_write_bins); \
 }
 
 #define DEFINE_TCASE_DIFF(test_name, obj_spec_str, expected_out_str) \
@@ -546,6 +618,9 @@ obj_spec_suite(void)
 	tcase_add_test(tc_memory, test_shallow_copy);
 	tcase_add_test(tc_memory, test_free_after_shallow_copy);
 	tcase_add_test(tc_memory, test_not_enough_bins);
+	tcase_add_test(tc_memory, test_not_enough_bins_write_bins);
+	tcase_add_test(tc_memory, test_bins_already_occupied);
+	tcase_add_test(tc_memory, test_bins_already_occupied_write_bins);
 	suite_add_tcase(s, tc_memory);
 
 	tc_simple = tcase_create("Simple");
