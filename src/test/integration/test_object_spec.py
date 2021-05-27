@@ -5,6 +5,14 @@ def test_b():
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o b --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_b(bins["testbin"]))
 
+def test_const_b_true():
+	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o true --random")
+	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_const_b(bins["testbin"], True))
+
+def test_const_b_false():
+	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o false --random")
+	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_const_b(bins["testbin"], False))
+
 def test_I1():
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o I1 --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_I1(bins["testbin"]))
@@ -37,9 +45,17 @@ def test_I8():
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o I8 --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_I8(bins["testbin"]))
 
+def test_const_I():
+	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o 123 --random")
+	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_const_I(bins["testbin"], 123))
+
 def test_D():
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o D --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_D(bins["testbin"]))
+
+def test_const_D():
+	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o 123.456 --random")
+	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_const_D(bins["testbin"], 123.456))
 
 def test_S1():
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o S1 --random")
@@ -80,6 +96,10 @@ def test_S100():
 def test_S10000():
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o S10000 --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_S(bins["testbin"], 10000))
+
+def test_const_S():
+	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o \\\"test\\ string\\\" --random")
+	lib.check_for_range(0, 100, lambda meta, key, bins: lib.obj_spec_is_const_S(bins["testbin"], "test string"))
 
 def test_B1():
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o B1 --random")
@@ -145,6 +165,17 @@ def test_map():
 			lib.obj_spec_is_I4(b[key])
 
 	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o {50*S5:I4} --random")
+	lib.check_for_range(0, 100, lambda meta, key, bins: check_bin(bins["testbin"]))
+
+def test_const_map():
+	def check_bin(b):
+		assert(type(b) is dict)
+		assert(len(b) == 1)
+		for key in b:
+			lib.obj_spec_is_const_I(key, 123)
+			lib.obj_spec_is_const_S(b[key], "string")
+
+	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o {123:\\\"string\\\"} --random")
 	lib.check_for_range(0, 100, lambda meta, key, bins: check_bin(bins["testbin"]))
 
 def test_compound():

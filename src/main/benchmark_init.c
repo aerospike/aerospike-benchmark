@@ -837,31 +837,54 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->keys = strtoull(optarg, NULL, 10);
 				break;
 
-			case ':':
-				// udf package name
-				if (strlen(optarg) > sizeof(args->udf_package_name)) {
+			case ':': {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the udf package name flag\n");
+					return -1;
+				}
+
+				struct stage_def_s* stage = get_or_init_stage(args);
+
+				if (strlen(optarg) > sizeof(stage->udf_package_name)) {
 					fprintf(stderr, "UDF package name \"%s\" too long (max "
 							"length is %" PRIu64 " characters\n",
-							optarg, sizeof(args->udf_package_name));
+							optarg, sizeof(stage->udf_package_name));
 					return -1;
 				}
-				strcpy(args->udf_package_name, optarg);
+				stage->udf_package_name = strdup(optarg);
 				break;
+			}
 
-			case ';':
-				// udf function name
-				if (strlen(optarg) > sizeof(args->udf_fn_name)) {
+			case ';': {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the udf function name flag\n");
+					return -1;
+				}
+
+				struct stage_def_s* stage = get_or_init_stage(args);
+
+				if (strlen(optarg) > sizeof(stage->udf_fn_name)) {
 					fprintf(stderr, "UDF function name \"%s\" too long (max "
 							"length is %" PRIu64 " characters\n",
-							optarg, sizeof(args->udf_fn_name));
+							optarg, sizeof(stage->udf_fn_name));
 					return -1;
 				}
-				strcpy(args->udf_fn_name, optarg);
+				stage->udf_fn_name = strdup(optarg);
 				break;
+			}
 
-			case '"':
-				// udf function args
+			case '"': {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the udf function args flag\n");
+					return -1;
+				}
+				struct stage_def_s* stage = get_or_init_stage(args);
+				stage->udf_fn_args = strdup(optarg);
 				break;
+			}
 
 			case 'o': {
 				// free the default obj_spec before making a new one
@@ -1229,7 +1252,7 @@ _load_defaults(args_t* args)
 	args->bin_name = strdup("testbin");
 	args->start_key = 1;
 	args->keys = 1000000;
-	__builtin_memset(&args->stage_defs, 0, sizeof(struct stage_defs_s));
+	memset(&args->stage_defs, 0, sizeof(struct stage_defs_s));
 	args->workload_stages_file = NULL;
 	obj_spec_parse(&args->obj_spec, "I");
 	args->transaction_worker_threads = 16;

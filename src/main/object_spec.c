@@ -220,6 +220,11 @@ obj_spec_free(struct obj_spec_s* obj_spec)
 	}
 }
 
+bool
+obj_spec_is_valid(obj_spec_t* obj_spec)
+{
+	return obj_spec->valid;
+}
 
 void
 obj_spec_move(struct obj_spec_s* dst, struct obj_spec_s* src)

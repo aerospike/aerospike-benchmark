@@ -316,6 +316,35 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			stage->write_bins = NULL;
 			stage->n_write_bins = 0;
 		}
+
+		if (stage_def->udf_fn_name != NULL) {
+			if (stage_def->udf_package_name == NULL) {
+				fprintf(stderr, "Must provide a UDF package name\n");
+				ret = -1;
+
+				memset(&stage->udf_query, 0, sizeof(stage->udf_query));
+				memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
+			}
+			else {
+				as_query_init(&stage->udf_query, args->namespace, args->set);
+				as_query_apply(&stage->udf_query, stage_def->udf_package_name,
+						stage_def->udf_fn_name, NULL);
+				ret = obj_spec_parse(&stage->udf_fn_args, stage_def->udf_fn_args);
+			}
+		}
+		else {
+			memset(&stage->udf_query, 0, sizeof(stage->udf_query));
+			memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
+
+			if (stage_def->udf_package_name != NULL) {
+				fprintf(stderr, "Must provide a UDF function name\n");
+				ret = -1;
+			}
+			else if (stage_def->udf_fn_args != NULL) {
+				fprintf(stderr, "Must provide a UDF function name + package\n");
+				ret = -1;
+			}
+		}
 	}
 
 	if (ret != 0) {
@@ -354,13 +383,17 @@ void free_stage_defs(stage_defs_t* stage_defs)
 void free_workload_config(stages_t* stages)
 {
 	if (stages->valid) {
-		// first go through and free the parts that aren't part of the yaml struct
 		for (uint32_t i = 0; i < stages->n_stages; i++) {
 			stage_t* stage = &stages->stages[i];
 			cf_free(stage->desc);
 			obj_spec_free(&stage->obj_spec);
 			_free_bins_selection(stage->read_bins);
 			cf_free(stage->write_bins);
+
+			if (obj_spec_is_valid(&stage->udf_fn_args)) {
+				as_query_destroy(&stage->udf_query);
+				obj_spec_free(&stage->udf_fn_args);
+			}
 		}
 		cf_free(stages->stages);
 	}

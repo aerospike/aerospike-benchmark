@@ -348,6 +348,10 @@ def get_record(key):
 def obj_spec_is_b(val):
 	assert(type(val) is bool)
 
+def obj_spec_is_const_b(val, cnst):
+	assert(type(val) is bool)
+	assert(val == cnst)
+
 def obj_spec_is_I1(val):
 	assert(type(val) is int)
 	assert(0 <= val < 256)
@@ -380,14 +384,26 @@ def obj_spec_is_I8(val):
 	assert(type(val) is int)
 	assert(2**56 <= val < 2**63 or -2**63 <= val < 0)
 
+def obj_spec_is_const_I(val, cnst):
+	assert(type(val) is int)
+	assert(val == cnst)
+
 def obj_spec_is_D(val):
 	assert(type(val) is float)
+
+def obj_spec_is_const_D(val, cnst):
+	assert(type(val) is float)
+	assert(val == cnst)
 
 def obj_spec_is_S(val, size):
 	assert(type(val) is str)
 	assert(len(val) == size)
 	for ch in val:
 		assert('a' <= ch <= 'z' or '0' <= ch <= '9')
+
+def obj_spec_is_const_S(val, cnst):
+	assert(type(val) is str)
+	assert(val == cnst)
 
 def obj_spec_is_B(val, size):
 	assert(type(val) is bytearray)

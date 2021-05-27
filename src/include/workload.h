@@ -94,6 +94,10 @@ typedef struct stage_def_s {
 	char* read_bins_str;
 
 	char* write_bins_str;
+
+	char* udf_package_name;
+	char* udf_fn_name;
+	char* udf_fn_args;
 } stage_def_t;
 
 
@@ -137,6 +141,10 @@ typedef struct stage_s {
 
 	uint32_t* write_bins;
 	uint32_t n_write_bins;
+
+	// query object used to perform UDF operations
+	as_query udf_query;
+	obj_spec_t udf_fn_args;
 } stage_t;
 
 

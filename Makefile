@@ -213,8 +213,8 @@ test: unit integration
 .PHONY: unit
 unit: | test_target/test
 	@echo
-	@valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
-	@#./test_target/test
+	@#valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
+	@./test_target/test
 
 test_target:
 	mkdir $@
@@ -301,6 +301,10 @@ report-unit: test_target/aerospike-benchmark-unit.info
 report-integration: test_target/aerospike-benchmark-integration.info
 	@lcov -l test_target/aerospike-benchmark-integration.info
 
+.PHONY: report-all
+report-all: test_target/aerospike-benchmark-all.info
+	@lcov -l test_target/aerospike-benchmark-all.info
+
 .PHONY: report-display-unit
 report-display-unit: | test_target/aerospike-benchmark-unit.info
 	@echo
@@ -315,5 +319,13 @@ report-display-integration: | test_target/aerospike-benchmark-integration.info
 	@rm -rf test_target/html
 	@mkdir -p test_target/html
 	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark-integration.info --legend --title "test lcov" --output-directory test_target/html
+	@xdg-open file://$(ROOT)/test_target/html/index.html
+
+.PHONY: report-display-all
+report-display-all: | test_target/aerospike-benchmark-all.info
+	@echo
+	@rm -rf test_target/html
+	@mkdir -p test_target/html
+	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark-all.info --legend --title "test lcov" --output-directory test_target/html
 	@xdg-open file://$(ROOT)/test_target/html/index.html
 

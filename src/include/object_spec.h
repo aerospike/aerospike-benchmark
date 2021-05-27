@@ -271,6 +271,11 @@ int obj_spec_parse(obj_spec_t* base_obj, const char* obj_spec_str);
 void obj_spec_free(obj_spec_t*);
 
 /*
+ * returns true if the object spec is valid, false otherwise
+ */
+bool obj_spec_is_valid(obj_spec_t*);
+
+/*
  * transfers ownership of the obj_spec from src to dst, so if free is called
  * on the previous owner it does not free the obj_spec while the new owner is
  * still using it

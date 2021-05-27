@@ -87,13 +87,13 @@ run_benchmark(args_t* args)
 	as_log_set_callback(as_client_log_cb);
 
 	int ret = connect_to_server(args, &data.client);
-	
+
 	if (ret != 0) {
 		return ret;
 	}
-	
+
 	bool single_bin = is_single_bin(&data.client, args->namespace);
-	
+
 	if (single_bin) {
 		data.bin_name = "";
 
