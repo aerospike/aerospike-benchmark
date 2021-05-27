@@ -388,6 +388,8 @@ snprint_obj_spec(const struct obj_spec_s* obj_spec, char* out_str,
 			sprint(&out_str, str_size, ",");
 		}
 	}
+	// null-terminate in case str was never written to
+	*out_str = '\0';
 }
 
 #ifdef _TEST

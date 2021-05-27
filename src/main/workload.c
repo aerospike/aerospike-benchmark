@@ -392,12 +392,14 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 				memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
 			}
 			else if (ret == 0) {
+				const char* args_str = stage_def->udf_spec.udf_fn_args != NULL ?
+					stage_def->udf_spec.udf_fn_args : "";
+
 				as_query_init(&stage->udf_query, args->namespace, args->set);
 				as_query_apply(&stage->udf_query,
 						stage_def->udf_spec.udf_package_name,
 						stage_def->udf_spec.udf_fn_name, NULL);
-				ret = obj_spec_parse(&stage->udf_fn_args,
-						stage_def->udf_spec.udf_fn_args);
+				ret = obj_spec_parse(&stage->udf_fn_args, args_str);
 			}
 		}
 		else {
@@ -576,6 +578,17 @@ void stages_print(const stages_t* stages)
 		}
 		else {
 			printf("  write-bins: (null)\n");
+		}
+
+		if (workload_contains_udfs(&stage->workload)) {
+			snprint_obj_spec(&stage->udf_fn_args, obj_spec_buf, sizeof(obj_spec_buf));
+			printf( "  udf:\n"
+					"    module: %.*s\n"
+					"    function: %.*s\n"
+					"    args: [%s]\n",
+					(int) sizeof(as_udf_module_name), stage->udf_query.apply.module,
+					(int) sizeof(as_udf_function_name), stage->udf_query.apply.function,
+					obj_spec_buf);
 		}
 	}
 }
