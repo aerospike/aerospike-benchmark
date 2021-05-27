@@ -24,7 +24,7 @@ static const cyaml_schema_field_t udf_spec_mapping_schema[] = {
 			udf_spec_t, udf_package_name, 0, sizeof(as_udf_module_name)),
 	CYAML_FIELD_STRING_PTR("function", CYAML_FLAG_POINTER_NULL_STR,
 			udf_spec_t, udf_fn_name, 0, sizeof(as_udf_function_name)),
-	CYAML_FIELD_STRING_PTR("args", CYAML_FLAG_POINTER_NULL_STR,
+	CYAML_FIELD_STRING_PTR("args", CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
 			udf_spec_t, udf_fn_args, 0, CYAML_UNLIMITED),
 	CYAML_FIELD_END
 };
@@ -68,7 +68,7 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			stage_def_t, async),
 	CYAML_FIELD_BOOL("random", CYAML_FLAG_OPTIONAL,
 			stage_def_t, random),
-	CYAML_FIELD_MAPPING("udf", CYAML_FLAG_DEFAULT,
+	CYAML_FIELD_MAPPING("udf", CYAML_FLAG_DEFAULT | CYAML_FLAG_OPTIONAL,
 			stage_def_t, udf_spec, udf_spec_mapping_schema),
 	CYAML_FIELD_END
 };
@@ -590,35 +590,6 @@ void stages_print(const stages_t* stages)
 					(int) sizeof(as_udf_function_name), stage->udf_query.apply.function,
 					obj_spec_buf);
 		}
-	}
-}
-
-void stages_print_defs(const stage_defs_t* stage_defs,
-		const struct args_s* args)
-{
-	for (uint32_t i = 0; i < stage_defs->n_stages; i++) {
-		const stage_def_t* stage = &stage_defs->stages[i];
-
-		printf( "- stage: %u\n"
-				"  duration: %lu\n"
-				"  desc: %s\n"
-				"  tps: %lu\n"
-				"  key-start: %lu\n"
-				"  key-end: %lu\n"
-				"  pause: %lu\n"
-				"  batch-size: %u\n"
-				"  async: %s\n"
-				"  random: %s\n"
-				"  workload: %s\n"
-				"  object-spec: %s\n"
-				"  read-bins: %s\n"
-				"  write-bins: %s\n",
-				i + 1, stage->duration, stage->desc, stage->tps,
-				stage->key_start, stage->key_end, stage->pause,
-				stage->batch_size, boolstring(stage->async),
-				boolstring(stage->random), stage->workload_str,
-				stage->obj_spec_str, stage->read_bins_str,
-				stage->write_bins_str);
 	}
 }
 

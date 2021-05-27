@@ -63,6 +63,8 @@ LOCAL_HELPER int _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* 
 		const stage_t* stage, as_key* key);
 LOCAL_HELPER int _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_batch_read_records* records);
+LOCAL_HELPER int _query_udf(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, as_key* key);
 
 // Read/Write singular/batch asynchronous operations
 LOCAL_HELPER int _write_record_async(as_key* key, as_record* rec,
@@ -71,6 +73,8 @@ LOCAL_HELPER int _read_record_async(as_key* key, struct async_data_s* adata,
 		cdata_t* cdata, const stage_t* stage);
 LOCAL_HELPER int _batch_read_record_async(as_batch_read_records* keys,
 		struct async_data_s* adata, cdata_t* cdata);
+LOCAL_HELPER int _query_udf_async(as_key* key, struct async_data_s* adata,
+		cdata_t* cdata, const stage_t* stage);
 
 // Thread worker helper methods
 LOCAL_HELPER void _calculate_subrange(uint64_t key_start, uint64_t key_end,
