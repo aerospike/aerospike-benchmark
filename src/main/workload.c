@@ -19,6 +19,16 @@
 // Typedefs & constants.
 //
 
+static const cyaml_schema_field_t udf_spec_mapping_schema[] = {
+	CYAML_FIELD_STRING_PTR("module", CYAML_FLAG_POINTER_NULL_STR,
+			udf_spec_t, udf_package_name, 0, sizeof(as_udf_module_name)),
+	CYAML_FIELD_STRING_PTR("function", CYAML_FLAG_POINTER_NULL_STR,
+			udf_spec_t, udf_fn_name, 0, sizeof(as_udf_function_name)),
+	CYAML_FIELD_STRING_PTR("args", CYAML_FLAG_POINTER_NULL_STR,
+			udf_spec_t, udf_fn_args, 0, CYAML_UNLIMITED),
+	CYAML_FIELD_END
+};
+
 /* CYAML mapping schema fields array for stages */
 static const cyaml_schema_field_t stage_mapping_schema[] = {
 	CYAML_FIELD_UINT("stage", 0,
@@ -58,6 +68,8 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			stage_def_t, async),
 	CYAML_FIELD_BOOL("random", CYAML_FLAG_OPTIONAL,
 			stage_def_t, random),
+	CYAML_FIELD_MAPPING("udf", CYAML_FLAG_DEFAULT,
+			stage_def_t, udf_spec, udf_spec_mapping_schema),
 	CYAML_FIELD_END
 };
 
@@ -127,49 +139,95 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 {
 	char* endptr;
 
-	switch (*workload_str) {
-		case 'I': {
-			workload->type = WORKLOAD_TYPE_LINEAR;
-			break;
+	if (strcmp(workload_str, "I") == 0) {
+		workload->type = WORKLOAD_TYPE_LINEAR;
+	}
+	else if (strncmp(workload_str, "RUF", 3) == 0) {
+		float read_pct, write_pct;
+		if (workload_str[3] == '\0') {
+			read_pct = WORKLOAD_RANDOM_UDF_DEFAULT_READ_PCT;
+			write_pct = WORKLOAD_RANDOM_UDF_DEFAULT_WRITE_PCT;
 		}
-		case 'R': {
-			float pct;
-			if (workload_str[1] == 'U' && workload_str[2] == '\0') {
-				pct = WORKLOAD_RANDOM_DEFAULT_PCT;
-			}
-			else {
-				if (workload_str[1] != 'U' || workload_str[2] != ',') {
-					fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
-					return -1;
-				}
-				pct = strtod(workload_str + 3, &endptr);
-				if (workload_str[3] == '\0' || *endptr != '\0') {
-					fprintf(stderr, "\"%s\" not a floating point number\n",
-							workload_str + 3);
-					return -1;
-				}
-				if (pct <= 0 || pct > 100) {
-					fprintf(stderr, "%f not a percentage greater than 0\n",
-							pct);
-					return -1;
-				}
-			}
-			workload->type = WORKLOAD_TYPE_RANDOM;
-			workload->pct = pct;
-			break;
-		}
-		case 'D': {
-			if (workload_str[1] != 'B' || workload_str[2] != '\0') {
-				fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+		else if (workload_str[3] == ',') {
+			read_pct = strtod(workload_str + 3, &endptr);
+			if (workload_str[3] == '\0') {
+				fprintf(stderr, "\"%s\" not a floating point number\n",
+						workload_str + 3);
 				return -1;
 			}
-			workload->type = WORKLOAD_TYPE_DELETE;
-			break;
+			if (*endptr != ',') {
+				fprintf(stderr, "must supply both read percent and update "
+						"percent on RUF workload\n");
+				return -1;
+			}
+
+			char* endptr2;
+			write_pct = strtod(endptr + 1, &endptr2);
+			if (*endptr == '\0' || *endptr2 != '\0') {
+				fprintf(stderr, "\"%s\" not a floating point number\n",
+						endptr + 1);
+				return -1;
+			}
+
+			if (read_pct <= 0 || read_pct > 100) {
+				fprintf(stderr, "%f not a percentage greater than 0\n",
+						read_pct);
+				return -1;
+			}
+			if (write_pct <= 0 || write_pct > 100) {
+				fprintf(stderr, "%f not a percentage greater than 0\n",
+						write_pct);
+				return -1;
+			}
+			if (read_pct + write_pct > 100) {
+				fprintf(stderr, "read percent and write percent together total "
+						"to more than 100%% (%f + %f = %f)\n",
+						read_pct, write_pct, read_pct + write_pct);
+				return -1;
+			}
 		}
-		default:
+		else {
 			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
 			return -1;
+		}
+
+		workload->type = WORKLOAD_TYPE_RANDOM_UDF;
+		workload->read_pct = read_pct;
+		workload->write_pct = write_pct;
 	}
+	else if (strncmp(workload_str, "RU", 2) == 0) {
+		float pct;
+		if (workload_str[2] == '\0') {
+			pct = WORKLOAD_RANDOM_DEFAULT_PCT;
+		}
+		else if (workload_str[2] == ',') {
+			pct = strtod(workload_str + 3, &endptr);
+			if (workload_str[3] == '\0' || *endptr != '\0') {
+				fprintf(stderr, "\"%s\" not a floating point number\n",
+						workload_str + 3);
+				return -1;
+			}
+			if (pct < 0 || pct > 100) {
+				fprintf(stderr, "%f not a valid percentage value\n", pct);
+				return -1;
+			}
+		}
+		else {
+			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+			return -1;
+		}
+
+		workload->type = WORKLOAD_TYPE_RANDOM;
+		workload->pct = pct;
+	}
+	else if (strcmp(workload_str, "DB") == 0) {
+		workload->type = WORKLOAD_TYPE_DELETE;
+	}
+	else {
+		fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -187,6 +245,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 
 	stages->stages = (stage_t*) cf_malloc(stage_defs->n_stages * sizeof(stage_t));
 	stages->n_stages = stage_defs->n_stages;
+	stages->valid = true;
 
 	for (uint32_t i = 0; i < n_stages; i++) {
 		stage_def_t* stage_def = &stage_defs->stages[i];
@@ -317,31 +376,35 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			stage->n_write_bins = 0;
 		}
 
-		if (stage_def->udf_fn_name != NULL) {
-			if (stage_def->udf_package_name == NULL) {
+		if (workload_contains_udfs(&stage->workload)) {
+			if (stage_def->udf_spec.udf_fn_name == NULL) {
+				fprintf(stderr, "Must provide a UDF function name\n");
+				ret = -1;
+
+				memset(&stage->udf_query, 0, sizeof(stage->udf_query));
+				memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
+			}
+			else if (stage_def->udf_spec.udf_package_name == NULL) {
 				fprintf(stderr, "Must provide a UDF package name\n");
 				ret = -1;
 
 				memset(&stage->udf_query, 0, sizeof(stage->udf_query));
 				memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
 			}
-			else {
+			else if (ret == 0) {
 				as_query_init(&stage->udf_query, args->namespace, args->set);
-				as_query_apply(&stage->udf_query, stage_def->udf_package_name,
-						stage_def->udf_fn_name, NULL);
-				ret = obj_spec_parse(&stage->udf_fn_args, stage_def->udf_fn_args);
+				as_query_apply(&stage->udf_query,
+						stage_def->udf_spec.udf_package_name,
+						stage_def->udf_spec.udf_fn_name, NULL);
+				ret = obj_spec_parse(&stage->udf_fn_args,
+						stage_def->udf_spec.udf_fn_args);
 			}
 		}
 		else {
-			memset(&stage->udf_query, 0, sizeof(stage->udf_query));
-			memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
-
-			if (stage_def->udf_package_name != NULL) {
-				fprintf(stderr, "Must provide a UDF function name\n");
-				ret = -1;
-			}
-			else if (stage_def->udf_fn_args != NULL) {
-				fprintf(stderr, "Must provide a UDF function name + package\n");
+			if (stage_def->udf_spec.udf_package_name != NULL ||
+					stage_def->udf_spec.udf_fn_name != NULL ||
+					stage_def->udf_spec.udf_fn_args != NULL) {
+				fprintf(stderr, "Workload must contain UDF calls to be run with UDF's\n");
 				ret = -1;
 			}
 		}
@@ -368,7 +431,6 @@ int parse_workload_config_file(const char* file, stages_t* stages,
 		fprintf(stderr, "ERROR: %s\n", cyaml_strerror(err));
 		return -1;
 	}
-	stages->valid = true;
 
 	int ret = stages_set_defaults_and_parse(stages, &stage_defs, args);
 	free_stage_defs(&stage_defs);
@@ -390,7 +452,7 @@ void free_workload_config(stages_t* stages)
 			_free_bins_selection(stage->read_bins);
 			cf_free(stage->write_bins);
 
-			if (obj_spec_is_valid(&stage->udf_fn_args)) {
+			if (workload_contains_udfs(&stage->workload)) {
 				as_query_destroy(&stage->udf_query);
 				obj_spec_free(&stage->udf_fn_args);
 			}

@@ -846,13 +846,13 @@ set_args(int argc, char * const* argv, args_t* args)
 
 				struct stage_def_s* stage = get_or_init_stage(args);
 
-				if (strlen(optarg) > sizeof(stage->udf_package_name)) {
+				if (strlen(optarg) > sizeof(stage->udf_spec.udf_package_name)) {
 					fprintf(stderr, "UDF package name \"%s\" too long (max "
 							"length is %" PRIu64 " characters\n",
-							optarg, sizeof(stage->udf_package_name));
+							optarg, sizeof(stage->udf_spec.udf_package_name));
 					return -1;
 				}
-				stage->udf_package_name = strdup(optarg);
+				stage->udf_spec.udf_package_name = strdup(optarg);
 				break;
 			}
 
@@ -865,13 +865,13 @@ set_args(int argc, char * const* argv, args_t* args)
 
 				struct stage_def_s* stage = get_or_init_stage(args);
 
-				if (strlen(optarg) > sizeof(stage->udf_fn_name)) {
+				if (strlen(optarg) > sizeof(stage->udf_spec.udf_fn_name)) {
 					fprintf(stderr, "UDF function name \"%s\" too long (max "
 							"length is %" PRIu64 " characters\n",
-							optarg, sizeof(stage->udf_fn_name));
+							optarg, sizeof(stage->udf_spec.udf_fn_name));
 					return -1;
 				}
-				stage->udf_fn_name = strdup(optarg);
+				stage->udf_spec.udf_fn_name = strdup(optarg);
 				break;
 			}
 
@@ -882,7 +882,7 @@ set_args(int argc, char * const* argv, args_t* args)
 					return -1;
 				}
 				struct stage_def_s* stage = get_or_init_stage(args);
-				stage->udf_fn_args = strdup(optarg);
+				stage->udf_spec.udf_fn_args = strdup(optarg);
 				break;
 			}
 

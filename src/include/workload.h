@@ -30,8 +30,12 @@
 #define WORKLOAD_TYPE_LINEAR 0x0
 #define WORKLOAD_TYPE_RANDOM 0x1
 #define WORKLOAD_TYPE_DELETE 0x2
+#define WORKLOAD_TYPE_RANDOM_UDF 0x3
 
 #define WORKLOAD_RANDOM_DEFAULT_PCT 50.f
+
+#define WORKLOAD_RANDOM_UDF_DEFAULT_READ_PCT 40.f
+#define WORKLOAD_RANDOM_UDF_DEFAULT_WRITE_PCT 40.f
 
 // the default number of seconds an infinite workload will run if not specified
 #define DEFAULT_RANDOM_DURATION 10
@@ -52,13 +56,26 @@ typedef struct workload_s {
 	 *  		bins that were created by prior stages
 	 */
 	uint8_t type;
-	/*
-	 * percent of keys to initialize, for LINEAR,
-	 * percent of reads (rest are writes), for RANDOM
-	 */
-	float pct;
+
+	union {
+		/*
+		 * percent of keys to initialize, for LINEAR,
+		 * percent of reads (rest are writes), for RANDOM
+		 */
+		float pct;
+		struct {
+			float read_pct;
+			float write_pct;
+		};
+	};
 } workload_t;
 
+
+typedef struct udf_spec_s {
+	char* udf_package_name;
+	char* udf_fn_name;
+	char* udf_fn_args;
+} udf_spec_t;
 
 typedef struct stage_def_s {
 	// minimum stage duration in seconds
@@ -95,9 +112,7 @@ typedef struct stage_def_s {
 
 	char* write_bins_str;
 
-	char* udf_package_name;
-	char* udf_fn_name;
-	char* udf_fn_args;
+	udf_spec_t udf_spec;
 } stage_def_t;
 
 
@@ -175,6 +190,11 @@ static inline bool workload_contains_reads(const workload_t* workload)
 static inline bool workload_contains_writes(const workload_t* workload)
 {
 	return workload->type != WORKLOAD_TYPE_RANDOM || workload->pct != 100;
+}
+
+static inline bool workload_contains_udfs(const workload_t* workload)
+{
+	return workload->type == WORKLOAD_TYPE_RANDOM_UDF;
 }
 
 static inline bool stages_contain_async(const stages_t* stages)
