@@ -57,14 +57,12 @@ typedef struct workload_s {
 	 */
 	uint8_t type;
 
-	union {
-		/*
-		 * read_pct = percent of reads (rest are writes), for RANDOM
-		 * 100 - read_pct - write_pct = percent of UDF ops, for RANDOM_UDF
-		 */
-		float read_pct;
-		float write_pct;
-	};
+	/*
+	 * read_pct = percent of reads (rest are writes), for RANDOM
+	 * 100 - read_pct - write_pct = percent of UDF ops, for RANDOM_UDF
+	 */
+	float read_pct;
+	float write_pct;
 } workload_t;
 
 
@@ -182,8 +180,8 @@ static inline bool workload_is_random(const workload_t* workload)
 
 static inline bool workload_contains_reads(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM ||
-		workload->type == WORKLOAD_TYPE_RANDOM_UDF;
+	return (workload->type == WORKLOAD_TYPE_RANDOM && workload->read_pct != 0) ||
+		(workload->type == WORKLOAD_TYPE_RANDOM_UDF && workload->read_pct != 0);
 }
 
 static inline bool workload_contains_writes(const workload_t* workload)
@@ -211,16 +209,6 @@ static inline bool stages_contain_random(const stages_t* stages)
 {
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		if (stages->stages[i].random) {
-			return true;
-		}
-	}
-	return false;
-}
-
-static inline bool stages_contain_udfs(const stages_t* stages)
-{
-	for (uint32_t i = 0; i < stages->n_stages; i++) {
-		if (workload_contains_udfs(&stages->stages[i].workload)) {
 			return true;
 		}
 	}
@@ -279,9 +267,19 @@ void stages_move(stages_t* dst, stages_t* src);
 void stages_shallow_copy(stages_t* dst, const stages_t* src);
 
 /*
+ * returns true if any of the stages will perform writes
+ */
+bool stages_contain_writes(const stages_t*);
+
+/*
  * returns true if any of the stages will perform reads
  */
-bool stages_contains_reads(const stages_t*);
+bool stages_contain_reads(const stages_t*);
+
+/*
+ * returns true if any of the stages will perform UDF ops
+ */
+bool stages_contain_udfs(const stages_t*);
 
 /*
  * generates a random key for the stage

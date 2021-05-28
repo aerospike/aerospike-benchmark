@@ -476,10 +476,30 @@ void stages_shallow_copy(stages_t* dst, const stages_t* src)
 	dst->valid = false;
 }
 
-bool stages_contains_reads(const stages_t* stages)
+bool stages_contain_writes(const stages_t* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (workload_contains_writes(&stages->stages[i].workload)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool stages_contain_reads(const stages_t* stages)
 {
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		if (workload_contains_reads(&stages->stages[i].workload)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool stages_contain_udfs(const stages_t* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (workload_contains_udfs(&stages->stages[i].workload)) {
 			return true;
 		}
 	}
