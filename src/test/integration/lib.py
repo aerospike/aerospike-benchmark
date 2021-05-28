@@ -304,7 +304,7 @@ def reset():
 
 	# delete all udfs
 	for udf in UDFS:
-		CLIENT.udf_remove(udf["name"])
+		CLIENT.udf_remove(udf)
 	UDFS = []
 
 	# delete all indexes
@@ -342,6 +342,14 @@ def scan_records():
 
 def get_record(key):
 	return CLIENT.get((NAMESPACE, SET, key))
+
+def upload_udf(file_name, file_contents):
+	assert(file_name[-4:] == '.lua')
+	file_path = absolute_path(os.path.join(WORK_DIRECTORY, file_name))
+	with open(file_path, 'w') as file:
+		file.write(file_contents)
+	CLIENT.udf_put(file_path, 0)
+	UDFS.append(file_name[:-4])
 
 
 # record structure validation
