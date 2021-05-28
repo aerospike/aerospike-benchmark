@@ -157,8 +157,8 @@ typedef struct stage_s {
 	uint32_t* write_bins;
 	uint32_t n_write_bins;
 
-	// query object used to perform UDF operations
-	as_query udf_query;
+	as_udf_module_name udf_package_name;
+	as_udf_function_name udf_fn_name;
 	obj_spec_t udf_fn_args;
 } stage_t;
 
@@ -211,6 +211,16 @@ static inline bool stages_contain_random(const stages_t* stages)
 {
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		if (stages->stages[i].random) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static inline bool stages_contain_udfs(const stages_t* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (workload_contains_udfs(&stages->stages[i].workload)) {
 			return true;
 		}
 	}

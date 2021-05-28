@@ -381,24 +381,22 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 				fprintf(stderr, "Must provide a UDF function name\n");
 				ret = -1;
 
-				memset(&stage->udf_query, 0, sizeof(stage->udf_query));
 				memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
 			}
 			else if (stage_def->udf_spec.udf_package_name == NULL) {
 				fprintf(stderr, "Must provide a UDF package name\n");
 				ret = -1;
 
-				memset(&stage->udf_query, 0, sizeof(stage->udf_query));
 				memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
 			}
 			else if (ret == 0) {
 				const char* args_str = stage_def->udf_spec.udf_fn_args != NULL ?
 					stage_def->udf_spec.udf_fn_args : "";
 
-				as_query_init(&stage->udf_query, args->namespace, args->set);
-				as_query_apply(&stage->udf_query,
-						stage_def->udf_spec.udf_package_name,
-						stage_def->udf_spec.udf_fn_name, NULL);
+				strncpy(stage->udf_package_name, stage_def->udf_spec.udf_package_name,
+						sizeof(as_udf_module_name));
+				strncpy(stage->udf_fn_name, stage_def->udf_spec.udf_fn_name,
+						sizeof(as_udf_function_name));
 				ret = obj_spec_parse(&stage->udf_fn_args, args_str);
 			}
 		}
@@ -455,7 +453,6 @@ void free_workload_config(stages_t* stages)
 			cf_free(stage->write_bins);
 
 			if (workload_contains_udfs(&stage->workload)) {
-				as_query_destroy(&stage->udf_query);
 				obj_spec_free(&stage->udf_fn_args);
 			}
 		}
@@ -586,8 +583,8 @@ void stages_print(const stages_t* stages)
 					"    module: %.*s\n"
 					"    function: %.*s\n"
 					"    args: [%s]\n",
-					(int) sizeof(as_udf_module_name), stage->udf_query.apply.module,
-					(int) sizeof(as_udf_function_name), stage->udf_query.apply.function,
+					(int) sizeof(as_udf_module_name), stage->udf_package_name,
+					(int) sizeof(as_udf_function_name), stage->udf_fn_name,
 					obj_spec_buf);
 		}
 	}

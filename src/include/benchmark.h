@@ -100,35 +100,43 @@ typedef struct clientdata_s {
 	aerospike client;
 
 	// TODO make all these counts thread-local to reduce contention
-	uint32_t write_count;
-	uint32_t write_timeout_count;
-	uint32_t write_error_count;
-
 	uint32_t read_count;
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
 
+	uint32_t write_count;
+	uint32_t write_timeout_count;
+	uint32_t write_error_count;
+
+	uint32_t udf_count;
+	uint32_t udf_timeout_count;
+	uint32_t udf_error_count;
+
 	struct hdr_histogram* read_hdr;
 	struct hdr_histogram* write_hdr;
+	struct hdr_histogram* udf_hdr;
 	as_vector latency_percentiles;
 
 	FILE* histogram_output;
 	int histogram_period;
-	histogram_t write_histogram;
 	histogram_t read_histogram;
+	histogram_t write_histogram;
+	histogram_t udf_histogram;
 
-	FILE* hdr_comp_write_output;
-	FILE* hdr_text_write_output;
 	FILE* hdr_comp_read_output;
 	FILE* hdr_text_read_output;
+	FILE* hdr_comp_write_output;
+	FILE* hdr_text_write_output;
+	FILE* hdr_comp_udf_output;
+	FILE* hdr_text_udf_output;
 	struct hdr_histogram* summary_read_hdr;
 	struct hdr_histogram* summary_write_hdr;
+	struct hdr_histogram* summary_udf_hdr;
 
 	uint32_t tdata_count;
 
 	int async_max_commands;
 	int transaction_worker_threads;
-	int read_pct;
 
 	float compression_ratio;
 	bool latency;
