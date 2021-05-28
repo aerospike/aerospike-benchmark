@@ -629,7 +629,7 @@ random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// multiply pct by 2**24 before dividing by 100 and casting to an int,
 	// since floats have 24 bits of precision including the leading 1,
 	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.pct) / 100);
+	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
 
 	// since there is no specific target number of transactions required before
 	// the stage is finished, only a timeout, tell the coordinator we are ready
@@ -997,7 +997,7 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// multiply pct by 2**24 before dividing by 100 and casting to an int,
 	// since floats have 24 bits of precision including the leading 1,
 	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.pct) / 100);
+	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
 
 	// since this workload has no target number of transactions to be made, we
 	// are always ready to be reaped, and so we notify the coordinator that we

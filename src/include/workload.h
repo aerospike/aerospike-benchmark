@@ -59,14 +59,11 @@ typedef struct workload_s {
 
 	union {
 		/*
-		 * percent of keys to initialize, for LINEAR,
-		 * percent of reads (rest are writes), for RANDOM
+		 * read_pct = percent of reads (rest are writes), for RANDOM
+		 * 100 - read_pct - write_pct = percent of UDF ops, for RANDOM_UDF
 		 */
-		float pct;
-		struct {
-			float read_pct;
-			float write_pct;
-		};
+		float read_pct;
+		float write_pct;
 	};
 } workload_t;
 

@@ -179,9 +179,9 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 						write_pct);
 				return -1;
 			}
-			if (read_pct + write_pct > 100) {
+			if (read_pct + write_pct >= 100) {
 				fprintf(stderr, "read percent and write percent together total "
-						"to more than 100%% (%f + %f = %f)\n",
+						">= 100%% (%g + %g = %g)\n",
 						read_pct, write_pct, read_pct + write_pct);
 				return -1;
 			}
@@ -218,7 +218,7 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		}
 
 		workload->type = WORKLOAD_TYPE_RANDOM;
-		workload->pct = pct;
+		workload->read_pct = pct;
 	}
 	else if (strcmp(workload_str, "DB") == 0) {
 		workload->type = WORKLOAD_TYPE_DELETE;
@@ -533,7 +533,10 @@ void stages_print(const stages_t* stages)
 		printf( "  workload: %s",
 				workloads[stage->workload.type]);
 		if (stage->workload.type == WORKLOAD_TYPE_RANDOM) {
-			printf(",%g%%\n", stage->workload.pct);
+			printf(",%g%%\n", stage->workload.read_pct);
+		}
+		else if (stage->workload.type == WORKLOAD_TYPE_RANDOM_UDF) {
+			printf(",%g%%,%g%%\n", stage->workload.read_pct, stage->workload.write_pct);
 		}
 		else {
 			printf("\n");
