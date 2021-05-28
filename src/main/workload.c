@@ -149,10 +149,10 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 			write_pct = WORKLOAD_RANDOM_UDF_DEFAULT_WRITE_PCT;
 		}
 		else if (workload_str[3] == ',') {
-			read_pct = strtod(workload_str + 3, &endptr);
-			if (workload_str[3] == '\0') {
+			read_pct = strtod(workload_str + 4, &endptr);
+			if (workload_str[4] == '\0') {
 				fprintf(stderr, "\"%s\" not a floating point number\n",
-						workload_str + 3);
+						workload_str + 4);
 				return -1;
 			}
 			if (*endptr != ',') {
@@ -169,13 +169,13 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 				return -1;
 			}
 
-			if (read_pct <= 0 || read_pct > 100) {
-				fprintf(stderr, "%f not a percentage greater than 0\n",
+			if (read_pct < 0 || read_pct > 100) {
+				fprintf(stderr, "%f not a valid percentage value\n",
 						read_pct);
 				return -1;
 			}
-			if (write_pct <= 0 || write_pct > 100) {
-				fprintf(stderr, "%f not a percentage greater than 0\n",
+			if (write_pct < 0 || write_pct > 100) {
+				fprintf(stderr, "%f not a valid percentage value\n",
 						write_pct);
 				return -1;
 			}
@@ -429,6 +429,7 @@ int parse_workload_config_file(const char* file, stages_t* stages,
 			&stage_defs.n_stages);
 	if (err != CYAML_OK) {
 		fprintf(stderr, "ERROR: %s\n", cyaml_strerror(err));
+		stages->valid = false;
 		return -1;
 	}
 

@@ -179,17 +179,20 @@ typedef struct stages_s {
 
 static inline bool workload_is_random(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM;
+	return workload->type == WORKLOAD_TYPE_RANDOM ||
+		workload->type == WORKLOAD_TYPE_RANDOM_UDF;
 }
 
 static inline bool workload_contains_reads(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM;
+	return workload->type == WORKLOAD_TYPE_RANDOM ||
+		workload->type == WORKLOAD_TYPE_RANDOM_UDF;
 }
 
 static inline bool workload_contains_writes(const workload_t* workload)
 {
-	return workload->type != WORKLOAD_TYPE_RANDOM || workload->pct != 100;
+	return (workload->type != WORKLOAD_TYPE_RANDOM || workload->read_pct != 100) &&
+		(workload->type != WORKLOAD_TYPE_RANDOM_UDF || workload->write_pct != 0);
 }
 
 static inline bool workload_contains_udfs(const workload_t* workload)
@@ -233,7 +236,7 @@ static inline bool stages_contain_udfs(const stages_t* stages)
  */
 static inline bool workload_is_infinite(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM;
+	return workload->type == WORKLOAD_TYPE_RANDOM || workload->type == WORKLOAD_TYPE_RANDOM_UDF;
 }
 
 static inline void fprint_stage(FILE* out_file, const stages_t* stages,

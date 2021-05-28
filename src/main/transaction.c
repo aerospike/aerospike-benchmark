@@ -372,13 +372,13 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint32(&cdata->read_timeout_count);
+		as_incr_uint32(&cdata->udf_timeout_count);
 	}
 	else {
-		as_incr_uint32(&cdata->read_error_count);
+		as_incr_uint32(&cdata->udf_error_count);
 
 		if (cdata->debug) {
-			blog_error("Read error: ns=%s set=%s key=%d bin=%s code=%d "
+			blog_error("UDF error: ns=%s set=%s key=%d bin=%s code=%d "
 					"message=%s",
 					cdata->namespace, cdata->set, key->value.integer.value,
 					cdata->bin_name, status, err.message);
