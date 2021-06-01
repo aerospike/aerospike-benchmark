@@ -18,7 +18,7 @@ else
 	ARCH = $(shell uname -m)
 endif
 
-CFLAGS = -std=gnu99 -Wall -fPIC -O0 -MMD -MP
+CFLAGS = -std=gnu99 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
@@ -214,7 +214,7 @@ test: unit integration
 unit: | test_target/test
 	@echo
 	@#valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
-	@gdb ./test_target/test
+	@./test_target/test
 
 test_target:
 	mkdir $@

@@ -793,20 +793,23 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							mult != 1) {
 						_print_parse_error("Map value cannot have a multiplier",
 								obj_spec_str, str);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 
 					if (mult == 0) {
 						_print_parse_error("Cannot have a multiplier of 0",
 								obj_spec_str, str);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 
 					if (((uint32_t) mult) != mult) {
 						_print_parse_error("Multiplier exceeds maximum unsigned "
 								"32-bit integer value",
 								obj_spec_str, str);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 
 					endptr++;
@@ -825,26 +828,14 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 				mult = 1;
 			}
 
-			/*
-			if (type == CONSUMER_TYPE_LIST) {
-				uint32_t new_list_len = state->list_len + mult;
-				if (new_list_len < state->list_len) {
-					// we overflowed! That means too many elements were placed
-					// in a single list (> 2^32)
-					_print_parse_error("Too many elements in a list (>= 2^32)",
-							obj_spec_str, str);
-					goto _destroy_state;
-				}
-				state->list_len = new_list_len;
-			}
-			*/
 			bin_spec->n_repeats = mult;
 			switch (*str) {
 				case 'b':
 					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
 						_print_parse_error("Map key cannot be boolean",
 								obj_spec_str, str);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					bin_spec->type = BIN_SPEC_TYPE_BOOL;
 					str++;
@@ -871,12 +862,14 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					if (endptr == str + 1) {
 						_print_parse_error("Expect a number following an 'S' specifier",
 								obj_spec_str, str + 1);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					if (str_len != (uint32_t) str_len) {
 						_print_parse_error("Invalid string length",
 								obj_spec_str, str + 1);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					bin_spec->type = BIN_SPEC_TYPE_STR;
 					bin_spec->string.length = (uint32_t) str_len;
@@ -891,12 +884,14 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					if (endptr == str + 1) {
 						_print_parse_error("Expect a number following a 'B' specifier",
 								obj_spec_str, str + 1);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					if (bytes_len != (uint32_t) bytes_len) {
 						_print_parse_error("Invalid bytes length",
 								obj_spec_str, str + 1);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					bin_spec->type = BIN_SPEC_TYPE_BYTES;
 					bin_spec->bytes.length = (uint32_t) bytes_len;
@@ -913,7 +908,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						_print_parse_error("Map key must be scalar type, "
 								"cannot be list",
 								obj_spec_str, str);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					// begin list parse
 					as_vector* list_builder = as_vector_create(sizeof(struct bin_spec_s),
@@ -941,7 +937,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						_print_parse_error("Map key must be scalar type, "
 								"cannot be map",
 								obj_spec_str, str);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					// begin map parse
 					as_vector* list_builder =
@@ -970,7 +967,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					const char* prev_str = str;
 					// try parsing as a constant value
 					if (_parse_const_val(obj_spec_str, &str, bin_spec) != 0) {
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					if (mult != 1 && type == CONSUMER_TYPE_MAP &&
 							map_state == MAP_KEY) {
@@ -981,22 +979,24 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						// _parse_const_val, destroy it before freeing
 						// everything else
 						bin_spec_free(bin_spec);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					break;
 				}
-			}
-
-			if (0) {
-_destroy_state:
-				_destroy_consumer_states(state);
-				return -1;
 			}
 		}
 
 		switch (type) {
 			case CONSUMER_TYPE_LIST:
 				state->list_len += bin_spec->n_repeats;
+				// check for overflow
+				if (state->list_len < bin_spec->n_repeats) {
+					_print_parse_error("Too many elements in a list (> 2**32)",
+							obj_spec_str, str);
+					_destroy_consumer_states(state);
+					return -1;
+				}
 
 				if (*str == ',') {
 					str++;

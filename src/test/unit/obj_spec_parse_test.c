@@ -438,8 +438,8 @@ DEFINE_TCASE(test_map_BD, "{B6:D}");
 DEFINE_TCASE(test_map_BS, "{B6:S4}");
 DEFINE_TCASE(test_map_BB, "{B6:B5}");
 DEFINE_TCASE(test_empty_map, "{}");
-DEFINE_TCASE_DIFF(test_empty_map_v2, "{0*S10:B20}", "{}");
 
+DEFINE_FAILING_TCASE(test_empty_map_v2, "{0*S10:B20}", "cannot have 0 multiplier on map key");
 DEFINE_FAILING_TCASE(test_map_with_no_value, "{I1}", "maps need key and value");
 DEFINE_FAILING_TCASE(test_map_with_no_value_v2, "{I1:}", "maps need key and value");
 DEFINE_FAILING_TCASE(test_map_multiple_keys, "{I3:I5:I7}", "map cannot have multiple keys");
@@ -783,7 +783,7 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_map, test_map_BS);
 	tcase_add_ptest(tc_map, test_map_BB);
 	tcase_add_ptest(tc_map, test_empty_map);
-	tcase_add_ptest(tc_map, test_empty_map_v2);
+	tcase_add_ftest(tc_map, test_empty_map_v2);
 	tcase_add_ftest(tc_map, test_map_with_no_value);
 	tcase_add_ftest(tc_map, test_map_with_no_value_v2);
 	tcase_add_ftest(tc_map, test_map_multiple_keys);
