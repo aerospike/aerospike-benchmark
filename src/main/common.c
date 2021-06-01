@@ -98,7 +98,7 @@ blog_detailv(as_log_level level, const char* fmt, va_list ap)
 
 	struct tm* t = localtime(&now.tv_sec);
 	uint64_t msecs = now.tv_nsec / 1000000;
-	int len = sprintf(fmtbuf, "%d-%02d-%02d %02d:%02d:%02d.%03lu %s ",
+	int len = sprintf(fmtbuf, "%d-%02d-%02d %02d:%02d:%02d.%03" PRIu64 " %s ",
 		t->tm_year+1900, t->tm_mon+1, t->tm_mday, t->tm_hour, t->tm_min,
 		t->tm_sec, msecs, as_log_level_tostring(level));
 
@@ -123,9 +123,9 @@ blog_detail(as_log_level level, const char* fmt, ...)
 
 #ifndef __linux__
 
-char* strchrnul(const char *s, int c_in)
+char* strchrnul(char *s, int c_in)
 {
-	char* r = strchr(c_in);
+	char* r = strchr(s, c_in);
 	return r == NULL ? s + strlen(s) : r;
 }
 
@@ -402,12 +402,13 @@ void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 	total_cnt = hdr_total_count(h);
 	min = total_cnt == 0 ? 0 : hdr_min(h);
 	max = hdr_max(h);
-	fprintf(out_file, "hdr: %-5s %.24s %lu, %lu, %ld, %ld", name,
-			utc_time_str(time(NULL)), elapsed_s, total_cnt, min, max);
+	fprintf(out_file, "hdr: %-5s %.24s %" PRIu64 ", %" PRIu64 ", %" PRId64
+			", %" PRId64,
+			name, utc_time_str(time(NULL)), elapsed_s, total_cnt, min, max);
 	for (uint32_t i = 0; i < percentiles->size; i++) {
 		double p = *(double *) as_vector_get(percentiles, i);
 		uint64_t cnt = hdr_value_at_percentile(h, p);
-		fprintf(out_file, ", %lu", cnt);
+		fprintf(out_file, ", %" PRIu64, cnt);
 	}
 	fprintf(out_file, "\n");
 }

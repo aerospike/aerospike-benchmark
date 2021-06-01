@@ -121,7 +121,7 @@ boolstring(bool val)
 
 #ifndef __linux__
 
-char* strchrnul(const char* s, int c_in);
+char* strchrnul(char* s, int c_in);
 
 #endif /* __linux__ */
 
