@@ -1,0 +1,361 @@
+diff --git a/src/main/object_spec.c b/src/main/object_spec.c
+index 55b010d..e00d01f 100644
+--- a/src/main/object_spec.c
++++ b/src/main/object_spec.c
+@@ -60,21 +60,12 @@ struct consumer_state_s {
+ 
+ 	struct consumer_state_s* parent;
+ 
+-	union {
+-		struct {
+-			// the vector of bin_specs used to build a list
+-			as_vector* list_builder;
+-
+-			// the length of the list, accounting for multipliers
+-			uint32_t list_len;
+-		};
+-
+-		// the key/value bin_specs used to build a map
+-		struct {
+-			struct bin_spec_s* key;
+-			struct bin_spec_s* value;
+-		};
+-	};
++	// the vector of bin_specs used to build a list, or the vector of
++	// bin_spec_kv_pair's used to build a map
++	as_vector* list_builder;
++
++	// the length of the list, accounting for multipliers
++	uint32_t list_len;
+ };
+ 
+ 
+@@ -538,7 +529,7 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
+ LOCAL_HELPER uint32_t
+ bin_spec_map_n_entries(const struct bin_spec_s* b)
+ {
+-	return b->map.key->n_repeats;
++	return b->map.n_entries;
+ }
+ 
+ LOCAL_HELPER void
+@@ -599,19 +590,36 @@ _destroy_consumer_states(struct consumer_state_s* state)
+ 				break;
+ 			case CONSUMER_TYPE_MAP:
+ 				// free the key/value if they've been initialized
++				list_builder = state->list_builder;
++				if (list_builder->size == 0) {
++					break;
++				}
++
++				for (uint32_t i = 0; i < list_builder->size - 1; i++) {
++					struct bin_spec_kv_pair_s* kv_pair =
++						(struct bin_spec_kv_pair_s*) as_vector_get(list_builder, i);
++					bin_spec_free(&kv_pair->key);
++					bin_spec_free(&kv_pair->val);
++				}
++				// the last element is a special case, since which elements have
++				// been initialized depends on the state
++				struct bin_spec_kv_pair_s* kv_pair =
++					(struct bin_spec_kv_pair_s*)
++					as_vector_get(list_builder, list_builder->size - 1);
+ 				switch (state->state) {
+ 					case MAP_DONE:
+-						bin_spec_free(state->value);
+-						cf_free(state->value);
++						bin_spec_free(&kv_pair->val);
+ 						// fall through to free key too
+ 					case MAP_VAL:
+-						bin_spec_free(state->key);
+-						cf_free(state->key);
++						bin_spec_free(&kv_pair->key);
++						break;
+ 					case MAP_KEY:
+ 						break;
+ 					default:
+ 						__builtin_unreachable();
+ 				}
++
++				as_vector_destroy(list_builder);
+ 				break;
+ 			default:
+ 				__builtin_unreachable();
+@@ -681,23 +689,35 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+ 						break;
+ 					case CONSUMER_TYPE_MAP:
+ 						bin_spec->type = BIN_SPEC_TYPE_MAP;
+-						if (map_state != MAP_DONE) {
+-							// create an empty map (i.e. a map with n_keys == 0)
+-							bin_spec->map.key = (struct bin_spec_s*)
+-								cf_malloc(sizeof(struct bin_spec_s));
+-							bin_spec->map.key->n_repeats = 0;
+-							// also create a val since it will be freed
+-							bin_spec->map.val = (struct bin_spec_s*)
+-								cf_malloc(sizeof(struct bin_spec_s));
+-
+-							// set the types of both key and val to be scalar so
+-							// they are not recursively freed
+-							bin_spec->map.key->type = BIN_SPEC_TYPE_INT;
+-							bin_spec->map.val->type = BIN_SPEC_TYPE_INT;
+-						}
+-						else {
+-							bin_spec->map.key = state->key;
+-							bin_spec->map.val = state->value;
++						switch (map_state) {
++							case MAP_KEY:
++								if (state->list_builder->size == 0) {
++									bin_spec->map.n_entries = 0;
++									bin_spec->map.length = 0;
++									bin_spec->map.kv_pairs = NULL;
++									break;
++								}
++								else {
++									_print_parse_error("Dangling ',' at end of map "
++											"declaration",
++											obj_spec_str, str);
++									_destroy_consumer_states(state);
++									return -1;
++								}
++							case MAP_VAL:
++								_print_parse_error("Map value cannot be empty",
++										obj_spec_str, str);
++								_destroy_consumer_states(state);
++								return -1;
++							case MAP_DONE:
++								bin_spec->map.kv_pairs =
++									as_vector_to_array(state->list_builder,
++											&bin_spec->map.length);
++								bin_spec->map.n_entries = state->list_len;
++								as_vector_destroy(state->list_builder);
++								break;
++							default:
++								__builtin_unreachable();
+ 						}
+ 						break;
+ 					default:
+@@ -724,21 +744,27 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+ 		else {
+ 
+ 			// consume the next bin_type
++			list_builder = state->list_builder;
+ 			switch (type) {
+ 				case CONSUMER_TYPE_LIST:
+-					list_builder = state->list_builder;
+ 					bin_spec = (struct bin_spec_s*) as_vector_reserve(list_builder);
+ 					break;
+ 				case CONSUMER_TYPE_MAP:
+-					bin_spec =
+-						(struct bin_spec_s*) cf_malloc(sizeof(struct bin_spec_s));
+-					assert((((uint64_t) bin_spec) & BIN_SPEC_TYPE_MASK) == 0);
++					struct bin_spec_kv_pair_s* kv_pair;
+ 					switch (map_state) {
+ 						case MAP_KEY:
+-							state->key = bin_spec;
++							// we are about to consume a new key, reserve a new
++							// slot in the list
++							kv_pair = (struct bin_spec_kv_pair_s*)
++								as_vector_reserve(list_builder);
++							bin_spec = &kv_pair->key;
+ 							break;
+ 						case MAP_VAL:
+-							state->value = bin_spec;
++							// we have already consumed the corresponding key,
++							// so the val bin_spec has already been reserved
++							kv_pair = (struct bin_spec_kv_pair_s*)
++								as_vector_get(list_builder, list_builder->size - 1);
++							bin_spec = &kv_pair->val;
+ 							break;
+ 						default:
+ 							// not actually possible to reach this case, since
+@@ -775,10 +801,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+ 						goto _destroy_state;
+ 					}
+ 
+-					if ((type != CONSUMER_TYPE_MAP || map_state != MAP_KEY) &&
+-							mult == 0) {
+-						_print_parse_error("Cannot have a multiplier of 0 except "
+-								"on map keys (to indicate an empty map)",
++					if (mult == 0) {
++						_print_parse_error("Cannot have a multiplier of 0",
+ 								obj_spec_str, str);
+ 						goto _destroy_state;
+ 					}
+@@ -806,6 +830,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+ 				mult = 1;
+ 			}
+ 
++			/*
+ 			if (type == CONSUMER_TYPE_LIST) {
+ 				uint32_t new_list_len = state->list_len + mult;
+ 				if (new_list_len < state->list_len) {
+@@ -817,6 +842,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+ 				}
+ 				state->list_len = new_list_len;
+ 			}
++			*/
+ 			bin_spec->n_repeats = mult;
+ 			switch (*str) {
+ 				case 'b':
+@@ -923,6 +949,9 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+ 						goto _destroy_state;
+ 					}
+ 					// begin map parse
++					as_vector* list_builder =
++						as_vector_create(sizeof(struct bin_spec_kv_pair_s),
++								DEFAULT_LIST_BUILDER_CAPACITY);
+ 					struct consumer_state_s* map_state =
+ 						(struct consumer_state_s*) cf_malloc(sizeof(struct consumer_state_s));
+ 					map_state->delimiter = '}';
+@@ -930,6 +959,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+ 					map_state->state = MAP_KEY;
+ 					map_state->bin_spec = bin_spec;
+ 					map_state->parent = state;
++					map_state->list_builder = list_builder;
++					map_state->list_len = 0;
+ 
+ 					str++;
+ 					state = map_state;
+@@ -973,6 +1004,8 @@ _destroy_state:
+ 
+ 		switch (type) {
+ 			case CONSUMER_TYPE_LIST:
++				state->list_len += bin_spec->n_repeats;
++
+ 				if (*str == ',') {
+ 					str++;
+ 
+@@ -1020,11 +1053,19 @@ _destroy_state:
+ 						}
+ 						break;
+ 					case MAP_VAL:
+-						// allow a space before the '}'
++						state->list_len += bin_spec->n_repeats;
++
++						// allow a space before the '}' or ','
+ 						if (*str == ' ') {
+ 							str++;
+ 						}
+-						if (*str != delim) {
++
++						if (*str == ',') {
++							// this means there are more key-value pairs in this
++							// map to be parsed
++							state->state = MAP_KEY;
++						}
++						else if (*str != delim) {
+ 							_print_parse_error("Expect '}' after key/value "
+ 									"pair specifier in a map",
+ 									obj_spec_str, str);
+@@ -1173,10 +1214,12 @@ bin_spec_free(struct bin_spec_s* bin_spec)
+ 			break;
+ 
+ 		case BIN_SPEC_TYPE_MAP:
+-			bin_spec_free(bin_spec->map.key);
+-			cf_free(bin_spec->map.key);
+-			bin_spec_free(bin_spec->map.val);
+-			cf_free(bin_spec->map.val);
++			for (uint32_t i = 0, cnt = 0; cnt < bin_spec->list.length; i++) {
++				cnt += bin_spec->map.kv_pairs[i].key.n_repeats;
++				bin_spec_free(&bin_spec->map.kv_pairs[i].key);
++				bin_spec_free(&bin_spec->map.kv_pairs[i].val);
++			}
++			cf_free(bin_spec->map.kv_pairs);
+ 			break;
+ 	}
+ }
+@@ -1380,29 +1423,37 @@ _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
+ 		float compression_ratio)
+ {
+ 	as_hashmap* map;
++	uint32_t n_entries = bin_spec->map.n_entries;
++	uint32_t map_len = bin_spec->map.length;
++	const struct bin_spec_kv_pair_s* kv_pairs;
+ 
+-	uint32_t n_entries = bin_spec_map_n_entries(bin_spec);
++	kv_pairs = bin_spec->map.kv_pairs;
+ 
+-	map = as_hashmap_new(2 * n_entries);
+-	uint64_t retry_count = 0;
++	map = as_hashmap_new(2 * map_len);
+ 
+-	for (uint32_t i = 0; i < n_entries; i++) {
+-		as_val* key;
+-		while (retry_count < MAX_KEY_ENTRY_RETRIES) {
+-			key = bin_spec_random_val(bin_spec->map.key, random,
+-					compression_ratio);
++	for (uint32_t entry_idx = 0; entry_idx < n_entries; entry_idx++) {
++		const struct bin_spec_kv_pair_s* kv_pair = &kv_pairs[entry_idx];
++		uint64_t retry_count = 0;
++		uint32_t n_repeats = kv_pair->key.n_repeats;
+ 
+-			if (as_hashmap_get(map, key) == NULL) {
+-				break;
++		for (uint32_t i = 0; i < n_repeats; i++) {
++			as_val* key;
++			while (retry_count < MAX_KEY_ENTRY_RETRIES) {
++				key = bin_spec_random_val(&kv_pair->key, random,
++						compression_ratio);
++
++				if (as_hashmap_get(map, key) == NULL) {
++					break;
++				}
++				as_val_destroy(key);
++				retry_count++;
+ 			}
+-			as_val_destroy(key);
+-			retry_count++;
+-		}
+ 
+-		as_val* val = bin_spec_random_val(bin_spec->map.val, random,
+-				compression_ratio);
++			as_val* val = bin_spec_random_val(&kv_pair->val, random,
++					compression_ratio);
+ 
+-		as_hashmap_set(map, key, val);
++			as_hashmap_set(map, key, val);
++		}
+ 	}
+ 
+ 	return (as_val*) map;
+@@ -1533,10 +1584,15 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
+ 
+ 		case BIN_SPEC_TYPE_MAP:
+ 			sprint(out_str, str_size, "{");
+-			if (bin_spec_map_n_entries(bin) != 0) {
+-				str_size = _sprint_bin(bin->map.key, out_str, str_size);
++			uint32_t n_entries = bin->map.n_entries;
++			const struct bin_spec_kv_pair_s* kv_pairs = bin->map.kv_pairs;
++
++			for (uint32_t entry_idx = 0; entry_idx < n_entries; entry_idx++) {
++				const struct bin_spec_kv_pair_s* kv_pair = &kv_pairs[entry_idx];
++
++				str_size = _sprint_bin(&kv_pair->key, out_str, str_size);
+ 				sprint(out_str, str_size, ":");
+-				str_size = _sprint_bin(bin->map.val, out_str, str_size);
++				str_size = _sprint_bin(&kv_pair->val, out_str, str_size);
+ 			}
+ 			sprint(out_str, str_size, "}");
+ 			break;
+@@ -1640,9 +1696,14 @@ _dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val)
+ }
+ 
+ 
++/*
++ * note: this method assumes as_hasmap_iterator will always iterate over the
++ * map in the same order when called multiple times on the same map
++ */
+ LOCAL_HELPER void
+ _dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val)
+ {
++	/*
+ 	as_hashmap_iterator iter;
+ 
+ 	ck_assert_msg(val != NULL, "Expected a map, got something else");
+@@ -1661,6 +1722,7 @@ _dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val)
+ 		_dbg_validate_bin_spec(key_spec, key);
+ 		_dbg_validate_bin_spec(val_spec, val);
+ 	}
++	*/
+ }
+ 
+ #endif /* _TEST */

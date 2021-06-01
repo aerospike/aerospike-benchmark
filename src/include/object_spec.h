@@ -111,6 +111,8 @@
 __exit_loop:
 
 
+struct bin_spec_kv_pair_s;
+
 struct bin_spec_s {
 
 	/*
@@ -180,7 +182,6 @@ struct bin_spec_s {
 		} const_double;
 
 		struct {
-			uint32_t __unused;
 			/*
 			 * a list of the types of elements in this list (in the order they
 			 * appear in the list)
@@ -195,23 +196,25 @@ struct bin_spec_s {
 
 		struct {
 			/*
-			 * the number of entries in a map is specified by the key's
-			 * n_repeats field, so we don't need to put the number of elements
-			 * to be generated this level of the struct
+			 * the length of kv_pairs
 			 */
-
+			uint32_t n_entries;
 			/*
-			 * a pointer to the key type
+			 * the number of kv-pairs in a map is specified by the key's
+			 * n_repeats field, so we cache the total number of entries here
 			 */
-			struct bin_spec_s* key;
-			/*
-			 * a pointer to the value type
-			 */
-			struct bin_spec_s* val;
+			uint32_t length;
+			struct bin_spec_kv_pair_s* kv_pairs;
 		} map;
 
 	};
 };
+
+struct bin_spec_kv_pair_s {
+	struct bin_spec_s key;
+	struct bin_spec_s val;
+};
+
 
 typedef struct obj_spec_s {
 	struct bin_spec_s* bin_specs;
