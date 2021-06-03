@@ -99,15 +99,15 @@ LOCAL_HELPER size_t _sprint_bin(const struct bin_spec_s* bin, char** out_str,
 		size_t str_size);
 
 #ifdef _TEST
-LOCAL_HELPER void _dbg_validate_bool(as_boolean* as_val);
-LOCAL_HELPER void _dbg_validate_int(uint8_t range, as_integer* as_val);
-LOCAL_HELPER void _dbg_validate_string(uint32_t length, as_string* as_val);
-LOCAL_HELPER void _dbg_validate_bytes(uint32_t length, as_bytes* as_val);
-LOCAL_HELPER void _dbg_validate_double(as_double* as_val);
-LOCAL_HELPER void _dbg_validate_list(const struct bin_spec_s* bin_spec,
-		const as_list* as_val);
-LOCAL_HELPER void _dbg_validate_map(const struct bin_spec_s* bin_spec,
-		const as_map* val);
+LOCAL_HELPER bool _dbg_validate_bool(as_boolean* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_int(uint8_t range, as_integer* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_string(uint32_t length, as_string* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_bytes(uint32_t length, as_bytes* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_double(as_double* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_list(const struct bin_spec_s* bin_spec,
+		const as_list* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_map(const struct bin_spec_s* bin_spec,
+		const as_map* val, bool do_assert);
 #endif /* _TEST */
 
 
@@ -160,6 +160,59 @@ raw_to_alphanum(uint64_t n)
 		*(out_str) += (str_size > __w ? __w : str_size); \
 		str_size = (str_size > __w ? str_size - __w : 0); \
 	} while (0)
+
+#ifdef _TEST
+
+#define do_ck_assert_msg(cond, ...) \
+	if (do_assert) { \
+		ck_assert_msg(cond, __VA_ARGS__); \
+	} \
+	else if (!(cond)) { \
+		fprintf(stderr, __VA_ARGS__); \
+		return false; \
+	}
+
+#define do_ck_assert(cond) \
+	if (do_assert) { \
+		ck_assert(cond); \
+	} \
+	else if (!(cond)) { \
+		return false; \
+	}
+
+#define do_ck_assert_uint_eq(i1, i2) \
+	if (do_assert) { \
+		ck_assert_uint_eq(i1, i2); \
+	} \
+	else if ((i1) != (i2)) { \
+		return false; \
+	}
+
+#define do_ck_assert_int_eq(i1, i2) \
+	if (do_assert) { \
+		ck_assert_int_eq(i1, i2); \
+	} \
+	else if ((i1) != (i2)) { \
+		return false; \
+	}
+
+#define do_ck_assert_float_eq(f1, f2) \
+	if (do_assert) { \
+		ck_assert_float_eq(f1, f2); \
+	} \
+	else if ((f1) != (f2)) { \
+		return false; \
+	}
+
+#define do_ck_assert_str_eq(s1, s2) \
+	if (do_assert) { \
+		ck_assert_str_eq(s1, s2); \
+	} \
+	else if (strcmp((s1), (s2)) != 0) { \
+		return false; \
+	}
+
+#endif /* _TEST */
 
 
 //==========================================================
@@ -403,7 +456,7 @@ _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 				as_val* val = (as_val*) as_record_get(rec, name);
 				ck_assert_msg(val != NULL, "expected a record in bin \"%s\"",
 						name);
-				_dbg_validate_bin_spec(bin_spec, val);
+				_dbg_validate_bin_spec(bin_spec, val, true);
 			}
 		}
 	}
@@ -426,54 +479,54 @@ _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 			as_val* val = (as_val*) as_record_get(rec, name);
 			ck_assert_msg(val != NULL, "expected a record in bin "
 					"\"%s\"", name);
-			_dbg_validate_bin_spec(&obj_spec->bin_specs[obj_spec_idx], val);
+			_dbg_validate_bin_spec(&obj_spec->bin_specs[obj_spec_idx], val, true);
 		}
 	}
 }
 
-void
-_dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
+bool
+_dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val, bool do_assert)
 {
 	if (_bin_spec_is_const(bin_spec)) {
 		switch (_bin_spec_get_type(bin_spec)) {
 			case BIN_SPEC_TYPE_BOOL:
 				as_boolean* b = as_boolean_fromval(val);
-				ck_assert_msg(b != NULL, "Expected a boolean, got something else");
-				ck_assert_uint_eq(as_boolean_get(b), as_boolean_get(&bin_spec->const_bool.val));
+				do_ck_assert_msg(b != NULL, "Expected a boolean, got something else");
+				do_ck_assert_uint_eq(as_boolean_get(b), as_boolean_get(&bin_spec->const_bool.val));
 				break;
 
 			case BIN_SPEC_TYPE_INT:
 				as_integer* i = as_integer_fromval(val);
-				ck_assert_msg(i != NULL, "Expected an integer, got something else");
-				ck_assert_int_eq(as_integer_get(i), as_integer_get(&bin_spec->const_integer.val));
+				do_ck_assert_msg(i != NULL, "Expected an integer, got something else");
+				do_ck_assert_int_eq(as_integer_get(i), as_integer_get(&bin_spec->const_integer.val));
 				break;
 
 			case BIN_SPEC_TYPE_STR:
 				as_string* s = as_string_fromval(val);
-				ck_assert_msg(s != NULL, "Expected a string, got something else");
-				ck_assert_str_eq(as_string_get(s), as_string_get(&bin_spec->const_string.val));
+				do_ck_assert_msg(s != NULL, "Expected a string, got something else");
+				do_ck_assert_str_eq(as_string_get(s), as_string_get(&bin_spec->const_string.val));
 				break;
 
 			case BIN_SPEC_TYPE_BYTES:
-				ck_assert_msg(0, "bytes may not be const");
+				do_ck_assert_msg(0, "bytes may not be const");
 				break;
 
 			case BIN_SPEC_TYPE_DOUBLE:
 				as_double* d = as_double_fromval(val);
-				ck_assert_msg(d != NULL, "Expected a double, got something else");
-				ck_assert_float_eq(as_double_get(d), as_double_get(&bin_spec->const_double.val));
+				do_ck_assert_msg(d != NULL, "Expected a double, got something else");
+				do_ck_assert_float_eq(as_double_get(d), as_double_get(&bin_spec->const_double.val));
 				break;
 
 			case BIN_SPEC_TYPE_LIST:
-				ck_assert_msg(0, "lists may not be const");
+				do_ck_assert_msg(0, "lists may not be const");
 				break;
 
 			case BIN_SPEC_TYPE_MAP:
-				ck_assert_msg(0, "maps may not be const");
+				do_ck_assert_msg(0, "maps may not be const");
 				break;
 
 			default:
-				ck_assert_msg(0, "unknown bin_spec type (0x%x)", bin_spec->type);
+				do_ck_assert_msg(0, "unknown bin_spec type (0x%x)", bin_spec->type);
 				break;
 		}
 	}
@@ -481,40 +534,34 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 		switch (_bin_spec_get_type(bin_spec)) {
 			case BIN_SPEC_TYPE_BOOL:
 				as_boolean* b = as_boolean_fromval(val);
-				_dbg_validate_bool(b);
-				break;
+				return _dbg_validate_bool(b, do_assert);
 
 			case BIN_SPEC_TYPE_INT:
 				as_integer* i = as_integer_fromval(val);
-				_dbg_validate_int(bin_spec->integer.range, i);
-				break;
+				return _dbg_validate_int(bin_spec->integer.range, i, do_assert);
 
 			case BIN_SPEC_TYPE_STR:
 				as_string* s = as_string_fromval(val);
-				_dbg_validate_string(bin_spec->string.length, s);
-				break;
+				return _dbg_validate_string(bin_spec->string.length, s, do_assert);
 
 			case BIN_SPEC_TYPE_BYTES:
-				_dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val));
-				break;
+				return _dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val), do_assert);
 
 			case BIN_SPEC_TYPE_DOUBLE:
 				as_double* d = as_double_fromval(val);
-				_dbg_validate_double(d);
-				break;
+				return _dbg_validate_double(d, do_assert);
 
 			case BIN_SPEC_TYPE_LIST:
-				_dbg_validate_list(bin_spec, as_list_fromval((as_val*) val));
-				break;
+				return _dbg_validate_list(bin_spec, as_list_fromval((as_val*) val), do_assert);
 
 			case BIN_SPEC_TYPE_MAP:
-				_dbg_validate_map(bin_spec, as_map_fromval(val));
-				break;
+				return _dbg_validate_map(bin_spec, as_map_fromval(val), do_assert);
 
 			default:
-				ck_assert_msg(0, "unknown bin_spec type (0x%x)", bin_spec->type);
+				do_ck_assert_msg(0, "unknown bin_spec type (0x%x)", bin_spec->type);
 		}
 	}
+	return true;
 }
 
 #endif /* _TEST */
@@ -706,8 +753,9 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							case MAP_DONE:
 								bin_spec->map.kv_pairs =
 									as_vector_to_array(state->list_builder,
-											&bin_spec->map.length);
-								bin_spec->map.n_entries = state->list_len;
+											&bin_spec->map.n_entries);
+								bin_spec->map.length = state->list_len;
+								//printf("%s -> %u %u\n", obj_spec_str, bin_spec->map.n_entries, bin_spec->map.length);
 								as_vector_destroy(state->list_builder);
 								break;
 							default:
@@ -1027,6 +1075,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 
 				switch (map_state) {
 					case MAP_KEY:
+						state->list_len += bin_spec->n_repeats;
 						// allow a space before the ':'
 						if (*str == ' ') {
 							str++;
@@ -1045,7 +1094,6 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						}
 						break;
 					case MAP_VAL:
-						state->list_len += bin_spec->n_repeats;
 
 						// allow a space before the '}' or ','
 						if (*str == ' ') {
@@ -1056,6 +1104,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							// this means there are more key-value pairs in this
 							// map to be parsed
 							state->state = MAP_KEY;
+							str++;
 						}
 						else if (*str != delim) {
 							_print_parse_error("Expect '}' after key/value "
@@ -1440,6 +1489,10 @@ _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 				as_val_destroy(key);
 				retry_count++;
 			}
+			if (retry_count >= MAX_KEY_ENTRY_RETRIES) {
+				as_val_destroy(key);
+				break;
+			}
 
 			as_val* val = bin_spec_random_val(&kv_pair->val, random,
 					compression_ratio);
@@ -1585,6 +1638,9 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 				str_size = _sprint_bin(&kv_pair->key, out_str, str_size);
 				sprint(out_str, str_size, ":");
 				str_size = _sprint_bin(&kv_pair->val, out_str, str_size);
+				if (entry_idx < n_entries - 1) {
+					sprint(out_str, str_size, ",");
+				}
 			}
 			sprint(out_str, str_size, "}");
 			break;
@@ -1594,127 +1650,156 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 
 #ifdef _TEST
 
-LOCAL_HELPER void
-_dbg_validate_bool(as_boolean* as_val)
+LOCAL_HELPER bool
+_dbg_validate_bool(as_boolean* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected a boolean, got something else");
+	do_ck_assert_msg(as_val != NULL, "Expected a boolean, got something else");
+	return true;
 }
 
-LOCAL_HELPER void
-_dbg_validate_int(uint8_t range, as_integer* as_val)
+LOCAL_HELPER bool
+_dbg_validate_int(uint8_t range, as_integer* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected an integer, got something else");
-	ck_assert_msg(range <= 7, "invalid bin_spec integer range (%u)\n", range);
+	do_ck_assert_msg(as_val != NULL, "Expected an integer, got something else");
+	do_ck_assert_msg(range <= 7, "invalid bin_spec integer range (%u)\n", range);
 
 	uint64_t val = (uint64_t) as_integer_get(as_val);
 	switch (range) {
 		case 0:
-			ck_assert_msg(0 <= val && val < 256, "Integer value (%lu) is out "
+			do_ck_assert_msg(0 <= val && val < 256, "Integer value (%lu) is out "
 					"of range", val);
 			break;
 		case 1:
-			ck_assert_msg(256 <= val && val < 65536, "Integer value (%lu) is "
+			do_ck_assert_msg(256 <= val && val < 65536, "Integer value (%lu) is "
 					"out of range", val);
 			break;
 		case 2:
-			ck_assert_msg(65536 <= val && val < 0x1000000, "Integer value "
+			do_ck_assert_msg(65536 <= val && val < 0x1000000, "Integer value "
 					"(%lu) is out of range", val);
 			break;
 		case 3:
-			ck_assert_msg(0x1000000 <= val && val < 0x100000000, "Integer "
+			do_ck_assert_msg(0x1000000 <= val && val < 0x100000000, "Integer "
 					"value (%lu) is out of range", val);
 			break;
 		case 4:
-			ck_assert_msg(0x100000000 <= val && val < 0x10000000000, "Integer "
+			do_ck_assert_msg(0x100000000 <= val && val < 0x10000000000, "Integer "
 					"value (%lu) is out of range", val);
 			break;
 		case 5:
-			ck_assert_msg(0x10000000000 <= val && val < 0x1000000000000,
+			do_ck_assert_msg(0x10000000000 <= val && val < 0x1000000000000,
 					"Integer value (%lu) is out of range", val);
 			break;
 		case 6:
-			ck_assert_msg(0x1000000000000 <= val && val < 0x100000000000000,
+			do_ck_assert_msg(0x1000000000000 <= val && val < 0x100000000000000,
 					"Integer value (%lu) is out of range", val);
 			break;
 		case 7:
-			ck_assert_msg(0x100000000000000 <= val,
+			do_ck_assert_msg(0x100000000000000 <= val,
 					"Integer value (%lu) is out of range", val);
 			break;
 	}
+	return true;
 }
 
-LOCAL_HELPER void
-_dbg_validate_string(uint32_t length, as_string* as_val)
+LOCAL_HELPER bool
+_dbg_validate_string(uint32_t length, as_string* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected a string, got something else");
+	do_ck_assert_msg(as_val != NULL, "Expected a string, got something else");
 
 	size_t str_len = as_string_len(as_val);
-	ck_assert_int_eq(length, str_len);
+	do_ck_assert_int_eq(length, str_len);
 
 	for (uint32_t i = 0; i < str_len; i++) {
 		char c = as_string_get(as_val)[i];
-		ck_assert(('a' <= c && c <= 'z') || ('0' <= c && c <= '9'));
+		do_ck_assert(('a' <= c && c <= 'z') || ('0' <= c && c <= '9'));
 	}
+	return true;
 }
 
-LOCAL_HELPER void
-_dbg_validate_bytes(uint32_t length, as_bytes* as_val)
+LOCAL_HELPER bool
+_dbg_validate_bytes(uint32_t length, as_bytes* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected a bytes array, got something else");
+	do_ck_assert_msg(as_val != NULL, "Expected a bytes array, got something else");
 
-	ck_assert_int_eq(length, as_bytes_size(as_val));
+	do_ck_assert_int_eq(length, as_bytes_size(as_val));
+	return true;
 }
 
-LOCAL_HELPER void
-_dbg_validate_double(as_double* as_val)
+LOCAL_HELPER bool
+_dbg_validate_double(as_double* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected a double, got something else");
+	do_ck_assert_msg(as_val != NULL, "Expected a double, got something else");
+	return true;
 }
 
-LOCAL_HELPER void
-_dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val)
+LOCAL_HELPER bool
+_dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected a list, got something else");
+	do_ck_assert_msg(as_val != NULL, "Expected a list, got something else");
 	size_t list_len = as_list_size(as_val);
-	ck_assert_int_eq(list_len, bin_spec->list.length);
+	do_ck_assert_int_eq(list_len, bin_spec->list.length);
 
 	for (uint32_t i = 0, cnt = 0; cnt < list_len; i++) {
 		const struct bin_spec_s* ele_bin = &bin_spec->list.list[i];
 
 		for (uint32_t j = 0; j < ele_bin->n_repeats; j++, cnt++) {
-			_dbg_validate_bin_spec(ele_bin, as_list_get(as_val, cnt));
+			_dbg_validate_bin_spec(ele_bin, as_list_get(as_val, cnt), do_assert);
 		}
 	}
+	return true;
 }
 
 
-/*
- * note: this method assumes as_hasmap_iterator will always iterate over the
- * map in the same order when called multiple times on the same map
- */
-LOCAL_HELPER void
-_dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val)
+LOCAL_HELPER bool
+_dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val, bool do_assert)
 {
-	/*
 	as_hashmap_iterator iter;
 
-	ck_assert_msg(val != NULL, "Expected a map, got something else");
+	do_ck_assert_msg(val != NULL, "Expected a map, got something else");
 	uint32_t map_size = as_map_size(val);
-	ck_assert_int_eq(map_size, bin_spec_map_n_entries(bin_spec));
+	do_ck_assert_int_eq(map_size, bin_spec->map.length);
 
-	const struct bin_spec_s* key_spec = bin_spec->map.key;
-	const struct bin_spec_s* val_spec = bin_spec->map.val;
+	// n_remaining will hold the number of this specific bin spec we are
+	// expecting to see
+	uint32_t* n_remaining = (uint32_t*) alloca(bin_spec->map.n_entries * sizeof(uint32_t));
+	for (uint32_t i = 0; i < bin_spec->map.n_entries; i++) {
+		n_remaining[i] = bin_spec->map.kv_pairs[i].key.n_repeats;
+	}
 
 	for (as_hashmap_iterator_init(&iter, (as_hashmap*) val);
 			as_hashmap_iterator_has_next(&iter);) {
-		const as_val* kv_pair = as_hashmap_iterator_next(&iter);
-		const as_val* key = as_pair_1((as_pair*) kv_pair);
-		const as_val* val = as_pair_2((as_pair*) kv_pair);
 
-		_dbg_validate_bin_spec(key_spec, key);
-		_dbg_validate_bin_spec(val_spec, val);
+		const as_val* kv_pair = as_hashmap_iterator_next(&iter);
+		const as_val* key = as_pair_1(as_pair_fromval(kv_pair));
+		const as_val* val = as_pair_2(as_pair_fromval(kv_pair));
+
+		// iterate over the available kv_pairs to look for a matching one
+		uint32_t i;
+		for (i = 0; i < bin_spec->map.n_entries; i++) {
+			if (n_remaining[i] == 0) {
+				continue;
+			}
+
+			const struct bin_spec_s* key_spec = &bin_spec->map.kv_pairs[i].key;
+			const struct bin_spec_s* val_spec = &bin_spec->map.kv_pairs[i].val;
+
+			if (_dbg_validate_bin_spec(key_spec, key, false) &&
+					_dbg_validate_bin_spec(val_spec, val, false)) {
+				n_remaining[i]--;
+				break;
+			}
+		}
+		if (i == bin_spec->map.n_entries) {
+			do_ck_assert_msg(false, "No matching bin_spec found for entry %s",
+					as_val_tostring(kv_pair));
+		}
 	}
-	*/
+
+	// make sure all of n_remaining is 0
+	for (uint32_t i = 0; i < bin_spec->map.n_entries; i++) {
+		do_ck_assert_int_eq(0, n_remaining[i]);
+	}
+	return true;
 }
 
 #endif /* _TEST */

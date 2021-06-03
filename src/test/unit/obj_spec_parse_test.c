@@ -451,6 +451,12 @@ DEFINE_FAILING_TCASE(test_unopened_map_v2, ":S10}", "unopened map");
 DEFINE_FAILING_TCASE(test_unopened_map_v3, "S10}", "unopened map");
 DEFINE_FAILING_TCASE(test_unopened_map_v4, "}", "unopened map");
 
+/*
+ * maps with multiple entries test cases
+ */
+DEFINE_TCASE(test_multi_map_simple, "{I1:b,I2:D}");
+DEFINE_TCASE(test_multi_map_long, "{I1:b,I2:D,I3:B10,I4:S20,I5:[D,B11,S12]}");
+
 
 /*
  * Multiple bins test cases
@@ -606,6 +612,7 @@ obj_spec_suite(void)
 	TCase* tc_constants;
 	TCase* tc_list;
 	TCase* tc_map;
+	TCase* tc_multi_map_entries;
 	TCase* tc_multi_bins;
 	TCase* tc_nested;
 	TCase* tc_multipliers;
@@ -795,6 +802,12 @@ obj_spec_suite(void)
 	tcase_add_ftest(tc_map, test_unopened_map_v3);
 	tcase_add_ftest(tc_map, test_unopened_map_v4);
 	suite_add_tcase(s, tc_map);
+
+	tc_multi_map_entries = tcase_create("Multiple Map Entries");
+	tcase_add_checked_fixture(tc_multi_map_entries, simple_setup, simple_teardown);
+	tcase_add_ptest(tc_multi_map_entries, test_multi_map_simple);
+	tcase_add_ptest(tc_multi_map_entries, test_multi_map_long);
+	suite_add_tcase(s, tc_multi_map_entries);
 
 	tc_multi_bins = tcase_create("Multiple Bins");
 	tcase_add_checked_fixture(tc_multi_bins, simple_setup, simple_teardown);

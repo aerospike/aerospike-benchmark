@@ -345,8 +345,8 @@ void snprint_obj_spec(const obj_spec_t* obj_spec, char* out_str,
 void _dbg_obj_spec_assert_valid(const obj_spec_t*, const as_record*,
 		uint32_t* write_bins, uint32_t n_write_bins, const char* bin_name);
 
-void _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec,
-		const as_val* val);
+bool _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec,
+		const as_val* val, bool do_assert);
 
 #endif /* _TEST */
 
