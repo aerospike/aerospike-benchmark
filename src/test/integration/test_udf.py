@@ -14,6 +14,22 @@ function set_bin(rec, bin_name, bool_val)
 	aerospike:update(rec)
 end
 
+function read_object(rec, obj)
+	write_bin_1 = obj["write_bin_1"]
+	write_value = obj["random_value"]
+
+	if (not aerospike:exists(rec)) then
+		aerospike:create(rec)
+	end
+
+	if (write_bin_1) then
+		rec["bin_1"] = write_value
+	else
+		rec["bin_2"] = write_value + 256
+	end
+	aerospike:update(rec)
+end
+
 """
 
 def test_random_udf():
@@ -114,4 +130,34 @@ def test_set_bin_random_bool_async():
 			do_reset=False)
 	lib.check_for_range(0, 20, check_bin)
 	assert(true_cnt > 0 and false_cnt > 0)
+
+def test_const_map():
+	def check_bin(meta, key, bins):
+		assert("bin_1" in bins)
+		assert("bin_2" in bins)
+		lib.obj_spec_is_I1(bins["bin_1"])
+		lib.obj_spec_is_I1(bins["bin_2"] - 256)
+
+	lib.upload_udf("test_module.lua", udf_module)
+	# the UDF should eventually reach all 100 records, writing both "bin_1" and "bin_2"
+	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
+			"-ufn read_object -ufv \"{\\\"write_bin_1\\\":b,\\\"random_value\\\":I1}\" " +
+			"--startKey 0 --keys 100",
+			do_reset=False)
+	lib.check_for_range(0, 100, check_bin)
+
+def test_const_map_async():
+	def check_bin(meta, key, bins):
+		assert("bin_1" in bins)
+		assert("bin_2" in bins)
+		lib.obj_spec_is_I1(bins["bin_1"])
+		lib.obj_spec_is_I1(bins["bin_2"] - 256)
+
+	lib.upload_udf("test_module.lua", udf_module)
+	# the UDF should eventually reach all 100 records, writing both "bin_1" and "bin_2"
+	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
+			"-ufn read_object -ufv \"{\\\"write_bin_1\\\":b,\\\"random_value\\\":I1}\" " +
+			"--startKey 0 --keys 100 --async",
+			do_reset=False)
+	lib.check_for_range(0, 100, check_bin)
 

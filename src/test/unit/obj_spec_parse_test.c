@@ -456,7 +456,13 @@ DEFINE_FAILING_TCASE(test_unopened_map_v4, "}", "unopened map");
  */
 DEFINE_TCASE(test_multi_map_simple, "{I1:b,I2:D}");
 DEFINE_TCASE(test_multi_map_long, "{I1:b,I2:D,I3:B10,I4:S20,I5:[D,B11,S12]}");
-
+DEFINE_TCASE(test_multi_map_repeat_keys, "{I1:S5,I1:I5}");
+DEFINE_TCASE(test_multi_map_const_keys, "{\"test_key1\":S5,\"test_key2\":I5}");
+DEFINE_FAILING_TCASE(test_multi_map_duplicates, "{I1:b,I3:D,I1:b}", "should not "
+		"be allowed to repeat the exact same key-value pair");
+DEFINE_FAILING_TCASE(test_multi_map_repeat_const_key,
+		"{\"test_key\":b,I3:D,\"test_key\":S10}",
+		"should not be allowed to repeat a const key");
 
 /*
  * Multiple bins test cases
@@ -503,6 +509,8 @@ DEFINE_TCASE(test_mult_map_key_D, "{5*D:S3}");
 DEFINE_TCASE(test_mult_map_key_S, "{2*S2:S3}");
 DEFINE_TCASE(test_mult_map_key_B, "{700*B5:S3}");
 DEFINE_TCASE(test_mult_map_key_I_high_coverage, "{200*I1:S3}");
+DEFINE_TCASE(test_mult_multi_map, "{3*I1:b,5*I2:D}");
+DEFINE_TCASE(test_mult_multi_map_repeat_keys, "{3*I1:b,5*I1:D}");
 DEFINE_FAILING_TCASE(test_mult_zero, "0*I2", "cannot have zero multiplier except on map keys");
 DEFINE_FAILING_TCASE(test_mult_no_star, "3I2", "multipliers must be followed with a '*'");
 DEFINE_FAILING_TCASE(test_mult_map_val_b, "{I1:4*b}",
@@ -807,6 +815,10 @@ obj_spec_suite(void)
 	tcase_add_checked_fixture(tc_multi_map_entries, simple_setup, simple_teardown);
 	tcase_add_ptest(tc_multi_map_entries, test_multi_map_simple);
 	tcase_add_ptest(tc_multi_map_entries, test_multi_map_long);
+	tcase_add_ptest(tc_multi_map_entries, test_multi_map_repeat_keys);
+	tcase_add_ptest(tc_multi_map_entries, test_multi_map_const_keys);
+	//tcase_add_ftest(tc_multi_map_entries, test_multi_map_duplicates);
+	tcase_add_ftest(tc_multi_map_entries, test_multi_map_repeat_const_key);
 	suite_add_tcase(s, tc_multi_map_entries);
 
 	tc_multi_bins = tcase_create("Multiple Bins");
@@ -849,6 +861,8 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_S);
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_B);
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_I_high_coverage);
+	tcase_add_ptest(tc_multipliers, test_mult_multi_map);
+	tcase_add_ptest(tc_multipliers, test_mult_multi_map_repeat_keys);
 	tcase_add_ftest(tc_multipliers, test_mult_zero);
 	tcase_add_ftest(tc_multipliers, test_mult_no_star);
 	tcase_add_ftest(tc_multipliers, test_mult_map_val_b);

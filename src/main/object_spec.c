@@ -76,6 +76,8 @@ struct consumer_state_s {
 LOCAL_HELPER void _print_parse_error(const char* err_msg, const char* obj_spec_str,
 		const char* err_loc);
 LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
+LOCAL_HELPER bool _consumer_state_map_repeat_const_key(struct consumer_state_s* state,
+		const struct bin_spec_s* bin_spec);
 LOCAL_HELPER void _destroy_consumer_states(struct consumer_state_s* state);
 LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str);
@@ -600,6 +602,40 @@ _print_parse_error(const char* err_msg, const char* obj_spec_str,
 			err_offset, "");
 }
 
+LOCAL_HELPER bool
+_consumer_state_map_repeat_const_key(struct consumer_state_s* state,
+		const struct bin_spec_s* bin_spec)
+{
+	bool repeated = false;
+	for (uint32_t i = 0; !repeated &&
+			i < state->list_builder->size - 1; i++) {
+		struct bin_spec_kv_pair_s* kv_pair = (struct bin_spec_kv_pair_s*)
+			as_vector_get(state->list_builder, i);
+		struct bin_spec_s* k = &kv_pair->key;
+		if (k->type == bin_spec->type) {
+			switch (k->type & BIN_SPEC_TYPE_MASK) {
+				case BIN_SPEC_TYPE_BOOL:
+					repeated = as_boolean_get(&k->const_bool.val) ==
+						as_boolean_get(&bin_spec->const_bool.val);
+					break;
+				case BIN_SPEC_TYPE_INT:
+					repeated = as_integer_get(&k->const_integer.val) ==
+						as_integer_get(&bin_spec->const_integer.val);
+					break;
+				case BIN_SPEC_TYPE_STR:
+					repeated = strcmp(as_string_get(&k->const_string.val),
+							as_string_get(&bin_spec->const_string.val)) == 0;
+					break;
+				case BIN_SPEC_TYPE_DOUBLE:
+					repeated = as_double_get(&k->const_double.val) ==
+						as_double_get(&bin_spec->const_double.val);
+					break;
+			}
+		}
+	}
+	return repeated;
+}
+
 /*
  * to be called when an error is encountered while parsing, and cleanup of the
  * consumer state managers and bin_specs is necessary
@@ -1018,17 +1054,27 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						_destroy_consumer_states(state);
 						return -1;
 					}
-					if (mult != 1 && type == CONSUMER_TYPE_MAP &&
+					if (type == CONSUMER_TYPE_MAP &&
 							map_state == MAP_KEY) {
-						_print_parse_error("Map key cannot be a constant value "
-								"if it has a multiplier > 1",
-								obj_spec_str, prev_str);
-						// since the bin_spec was already parsed by
-						// _parse_const_val, destroy it before freeing
-						// everything else
-						bin_spec_free(bin_spec);
-						_destroy_consumer_states(state);
-						return -1;
+						if (mult != 1) {
+							_print_parse_error("Map key cannot be a constant value "
+									"if it has a multiplier > 1",
+									obj_spec_str, prev_str);
+							// since the bin_spec was already parsed by
+							// _parse_const_val, destroy it before freeing
+							// everything else
+							bin_spec_free(bin_spec);
+							_destroy_consumer_states(state);
+							return -1;
+						}
+
+						if (_consumer_state_map_repeat_const_key(state, bin_spec)) {
+							_print_parse_error("Key value is used more than once\n",
+									obj_spec_str, prev_str);
+							bin_spec_free(bin_spec);
+							_destroy_consumer_states(state);
+							return -1;
+						}
 					}
 					break;
 				}
@@ -1094,7 +1140,6 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						}
 						break;
 					case MAP_VAL:
-
 						// allow a space before the '}' or ','
 						if (*str == ' ') {
 							str++;
