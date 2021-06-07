@@ -142,6 +142,8 @@ LOCAL_HELPER bool
 _as_hashmap_concat(const as_val* key, const as_val* value, void* udata)
 {
 	as_hashmap* map = (as_hashmap*) udata;
+	as_val_reserve(key);
+	as_val_reserve(value);
 	as_hashmap_set(map, key, value);
 	return true;
 }
@@ -169,7 +171,8 @@ _as_val_copy(const as_val* val)
 			as_arraylist* list_cpy = as_arraylist_new(as_arraylist_size(list),
 					list->block_size);
 			for (uint32_t i = 0; i < as_arraylist_size(list); i++) {
-				as_arraylist_append(list_cpy, as_arraylist_get(list, i));
+				as_val* v = as_arraylist_get(list, i);
+				as_arraylist_append(list_cpy, v);
 			}
 			return (as_val*) list_cpy;
 		case AS_MAP:
@@ -1313,6 +1316,11 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							// map to be parsed
 							state->state = MAP_KEY;
 							str++;
+
+							// allow a space after a comma
+							if (*str == ' ') {
+								str++;
+							}
 						}
 						else if (*str != delim) {
 							_print_parse_error("Expect '}' after key/value "
