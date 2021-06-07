@@ -494,6 +494,7 @@ DEFINE_FAILING_TCASE(test_map_to_undeclared_list, "{I4:I1,I2}", "map value must 
  * Const collection data types
  */
 DEFINE_TCASE(test_const_list, "[123, \"abc\", 3.14]");
+DEFINE_TCASE(test_const_map, "{\"test_key\":123}");
 
 
 /*
@@ -852,6 +853,7 @@ obj_spec_suite(void)
 	tc_const_colx = tcase_create("Constant collection data types");
 	tcase_add_checked_fixture(tc_const_colx, simple_setup, simple_teardown);
 	tcase_add_ptest(tc_const_colx, test_const_list);
+	tcase_add_ptest(tc_const_colx, test_const_map);
 	suite_add_tcase(s, tc_const_colx);
 
 	tc_multipliers = tcase_create("Multipliers");

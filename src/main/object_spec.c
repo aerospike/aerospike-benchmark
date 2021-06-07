@@ -177,6 +177,16 @@ _as_val_copy(const as_val* val)
 	}
 }
 
+LOCAL_HELPER bool
+_as_hashmap_concat_cpy(const as_val* key, const as_val* value, void* udata)
+{
+	as_hashmap* map = (as_hashmap*) udata;
+	key = _as_val_copy(key);
+	value = _as_val_copy(value);
+	as_hashmap_set(map, key, value);
+	return true;
+}
+
 /*
  * converts a bytevector of 8 values between 0-35 to a bytevector of 8
  * alphanumeric characters
@@ -854,7 +864,6 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							// turn this bin_spec into an as_arraylist
 							as_arraylist* val = (as_arraylist*)
 								as_list_fromval(bin_spec_random_val(bin_spec, NULL, 1.f));
-							// free the old bin_spec that was there
 
 							// val currently has pointers to val objects
 							// embedded in bin_spec objects, so we need to go
@@ -864,8 +873,10 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 								as_arraylist_set(val, i, _as_val_copy(old_val));
 							}
 
+							// free the old bin_spec that was there
 							bin_spec_free(bin_spec);
 
+							// and re-populate it with the const listt
 							bin_spec->type = BIN_SPEC_TYPE_LIST | BIN_SPEC_TYPE_CONST;
 							// and put the generated val in its place
 							as_arraylist_init(&bin_spec->const_list.val,
@@ -913,16 +924,21 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							// turn this bin_spec into a hashmap
 							as_hashmap* val = (as_hashmap*)
 								as_map_fromval(bin_spec_random_val(bin_spec, NULL, 1.f));
+
+							// make a shallow copy of all the key/value pairs in
+							// val into map, since each key/value is embedded in
+							// a bin_spec and will be freed when the bin_spec is
+							as_hashmap map;
+							as_hashmap_init(&map, val->table_capacity);
+							as_hashmap_foreach(val, _as_hashmap_concat_cpy, &map);
+							as_hashmap_destroy(val);
+
 							// free the old bin_spec that was there
 							bin_spec_free(bin_spec);
 
 							bin_spec->type = BIN_SPEC_TYPE_MAP | BIN_SPEC_TYPE_CONST;
 							// and put the generated val in its place
-							as_hashmap_init(&bin_spec->const_map.val,
-									val->table_capacity);
-							as_hashmap_foreach(val, _as_hashmap_concat,
-									&bin_spec->const_map.val);
-							as_hashmap_destroy(val);
+							memcpy(&bin_spec->const_map.val, &map, sizeof(map));
 						}
 						break;
 					default:
