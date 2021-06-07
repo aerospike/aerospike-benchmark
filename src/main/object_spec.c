@@ -172,6 +172,7 @@ _as_val_copy(const as_val* val)
 					list->block_size);
 			for (uint32_t i = 0; i < as_arraylist_size(list); i++) {
 				as_val* v = as_arraylist_get(list, i);
+				as_val_reserve(v);
 				as_arraylist_append(list_cpy, v);
 			}
 			return (as_val*) list_cpy;
@@ -880,7 +881,6 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							for (uint32_t i = 0; i < val->size; i++) {
 								as_val* old_val = as_arraylist_get(val, i);
 								as_val* new_val = _as_val_copy(old_val);
-								as_val_reserve(new_val);
 								as_arraylist_set(val, i, new_val);
 							}
 
