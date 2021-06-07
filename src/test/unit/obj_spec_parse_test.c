@@ -458,8 +458,6 @@ DEFINE_TCASE(test_multi_map_simple, "{I1:b,I2:D}");
 DEFINE_TCASE(test_multi_map_long, "{I1:b,I2:D,I3:B10,I4:S20,I5:[D,B11,S12]}");
 DEFINE_TCASE(test_multi_map_repeat_keys, "{I1:S5,I1:I5}");
 DEFINE_TCASE(test_multi_map_const_keys, "{\"test_key1\":S5,\"test_key2\":I5}");
-DEFINE_FAILING_TCASE(test_multi_map_duplicates, "{I1:b,I3:D,I1:b}", "should not "
-		"be allowed to repeat the exact same key-value pair");
 DEFINE_FAILING_TCASE(test_multi_map_repeat_const_key,
 		"{\"test_key\":b,I3:D,\"test_key\":S10}",
 		"should not be allowed to repeat a const key");
@@ -490,6 +488,12 @@ DEFINE_TCASE(test_nested_mix,
 DEFINE_FAILING_TCASE(test_map_key_list, "{[I3,I5]:I6}", "map key cannot be a list");
 DEFINE_FAILING_TCASE(test_map_key_map, "{{S20:I4}:I1}", "map key cannot be a map");
 DEFINE_FAILING_TCASE(test_map_to_undeclared_list, "{I4:I1,I2}", "map value must be single type");
+
+
+/*
+ * Const collection data types
+ */
+DEFINE_TCASE(test_const_list, "[123, \"abc\", 3.14]");
 
 
 /*
@@ -623,6 +627,7 @@ obj_spec_suite(void)
 	TCase* tc_multi_map_entries;
 	TCase* tc_multi_bins;
 	TCase* tc_nested;
+	TCase* tc_const_colx;
 	TCase* tc_multipliers;
 	TCase* tc_write_bins;
 	TCase* tc_bin_names;
@@ -817,7 +822,6 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_multi_map_entries, test_multi_map_long);
 	tcase_add_ptest(tc_multi_map_entries, test_multi_map_repeat_keys);
 	tcase_add_ptest(tc_multi_map_entries, test_multi_map_const_keys);
-	//tcase_add_ftest(tc_multi_map_entries, test_multi_map_duplicates);
 	tcase_add_ftest(tc_multi_map_entries, test_multi_map_repeat_const_key);
 	suite_add_tcase(s, tc_multi_map_entries);
 
@@ -844,6 +848,11 @@ obj_spec_suite(void)
 	tcase_add_ftest(tc_nested, test_map_key_map);
 	tcase_add_ftest(tc_nested, test_map_to_undeclared_list);
 	suite_add_tcase(s, tc_nested);
+
+	tc_const_colx = tcase_create("Constant collection data types");
+	tcase_add_checked_fixture(tc_const_colx, simple_setup, simple_teardown);
+	tcase_add_ptest(tc_const_colx, test_const_list);
+	suite_add_tcase(s, tc_const_colx);
 
 	tc_multipliers = tcase_create("Multipliers");
 	tcase_add_checked_fixture(tc_multipliers, simple_setup, simple_teardown);

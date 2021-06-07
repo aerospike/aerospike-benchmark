@@ -145,6 +145,38 @@ _as_hashmap_concat(const as_val* key, const as_val* value, void* udata)
 	return true;
 }
 
+LOCAL_HELPER inline as_val*
+_as_val_copy(const as_val* val)
+{
+	switch (val->type) {
+		case AS_BOOLEAN:
+			return (as_val*) as_boolean_new(as_boolean_get(as_boolean_fromval(val)));
+		case AS_INTEGER:
+			return (as_val*) as_integer_new(as_integer_get(as_integer_fromval(val)));
+		case AS_STRING:
+			char* str_cpy = strdup(as_string_get(as_string_fromval(val)));
+			return (as_val*) as_string_new(str_cpy, true);
+		case AS_DOUBLE:
+			return (as_val*) as_double_new(as_double_get(as_double_fromval(val)));
+		case AS_LIST:
+			as_arraylist* list = (as_arraylist*) as_list_fromval((as_val*) val);
+			as_arraylist* list_cpy = as_arraylist_new(as_arraylist_size(list),
+					list->block_size);
+			for (uint32_t i = 0; i < as_arraylist_size(list); i++) {
+				as_arraylist_append(list_cpy, as_arraylist_get(list, i));
+			}
+			return (as_val*) list_cpy;
+		case AS_MAP:
+			as_hashmap* map = (as_hashmap*) as_map_fromval(val);
+			as_hashmap* map_cpy = as_hashmap_new(map->table_capacity);
+			as_hashmap_foreach(map, _as_hashmap_concat, map_cpy);
+			return (as_val*) map_cpy;
+		default:
+			fprintf(stderr, "Cannot copy as_val of type %u\n", val->type);
+			return NULL;
+	}
+}
+
 /*
  * converts a bytevector of 8 values between 0-35 to a bytevector of 8
  * alphanumeric characters
@@ -818,11 +850,20 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						bin_spec->list.length = state->list_len;
 						as_vector_destroy(state->list_builder);
 
-						if (state->is_const) {
+						if (state->is_const && bin_spec->list.length == 3) {
 							// turn this bin_spec into an as_arraylist
 							as_arraylist* val = (as_arraylist*)
 								as_list_fromval(bin_spec_random_val(bin_spec, NULL, 1.f));
 							// free the old bin_spec that was there
+
+							// val currently has pointers to val objects
+							// embedded in bin_spec objects, so we need to go
+							// through and make a heap copy of each of them
+							for (uint32_t i = 0; i < val->size; i++) {
+								as_val* old_val = as_arraylist_get(val, i);
+								as_arraylist_set(val, i, _as_val_copy(old_val));
+							}
+
 							bin_spec_free(bin_spec);
 
 							bin_spec->type = BIN_SPEC_TYPE_LIST | BIN_SPEC_TYPE_CONST;
@@ -862,7 +903,6 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 									as_vector_to_array(state->list_builder,
 											&bin_spec->map.n_entries);
 								bin_spec->map.length = state->list_len;
-								//printf("%s -> %u %u\n", obj_spec_str, bin_spec->map.n_entries, bin_spec->map.length);
 								as_vector_destroy(state->list_builder);
 								break;
 							default:
