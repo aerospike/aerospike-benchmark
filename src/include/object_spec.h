@@ -25,6 +25,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <aerospike/as_arraylist.h>
+#include <aerospike/as_boolean.h>
+#include <aerospike/as_bytes.h>
+#include <aerospike/as_double.h>
+#include <aerospike/as_hashmap.h>
+#include <aerospike/as_integer.h>
+#include <aerospike/as_list.h>
 #include <aerospike/as_record.h>
 #include <aerospike/as_random.h>
 
@@ -195,6 +202,10 @@ struct bin_spec_s {
 		} list;
 
 		struct {
+			as_arraylist val;
+		} const_list;
+
+		struct {
 			/*
 			 * the length of kv_pairs
 			 */
@@ -206,6 +217,10 @@ struct bin_spec_s {
 			uint32_t length;
 			struct bin_spec_kv_pair_s* kv_pairs;
 		} map;
+
+		struct {
+			as_hashmap val;
+		} const_map;
 
 	};
 };
