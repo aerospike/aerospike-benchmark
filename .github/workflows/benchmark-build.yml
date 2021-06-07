@@ -2,7 +2,7 @@ name: Build and Test All
 
 on:
   push:
-    branches: [ main, integration_tests ]
+    branches: [ main, udf_and_bools ]
   pull_request:
     branches: [ main ]
 jobs:
@@ -90,7 +90,7 @@ jobs:
       run: make
       working-directory: main
     - name: Test
-      run: make coverage-all
+      run: make coverage-unit
       working-directory: main
     - name: clear temp directories
       run: |
