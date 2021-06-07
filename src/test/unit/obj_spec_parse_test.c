@@ -495,6 +495,7 @@ DEFINE_FAILING_TCASE(test_map_to_undeclared_list, "{I4:I1,I2}", "map value must 
  */
 DEFINE_TCASE(test_const_list, "[123, \"abc\", 3.14]");
 DEFINE_TCASE(test_const_map, "{\"test_key\":123}");
+DEFINE_TCASE(test_const_nested_list, "[123, \"abc\", [456, [\"string\", false], \"def\"], true]");
 
 
 /*
@@ -854,6 +855,7 @@ obj_spec_suite(void)
 	tcase_add_checked_fixture(tc_const_colx, simple_setup, simple_teardown);
 	tcase_add_ptest(tc_const_colx, test_const_list);
 	tcase_add_ptest(tc_const_colx, test_const_map);
+	tcase_add_ptest(tc_const_colx, test_const_nested_list);
 	suite_add_tcase(s, tc_const_colx);
 
 	tc_multipliers = tcase_create("Multipliers");

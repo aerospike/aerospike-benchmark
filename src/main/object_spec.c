@@ -4,6 +4,7 @@
 //
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 
@@ -150,7 +151,12 @@ _as_val_copy(const as_val* val)
 {
 	switch (val->type) {
 		case AS_BOOLEAN:
-			return (as_val*) as_boolean_new(as_boolean_get(as_boolean_fromval(val)));
+			if (as_boolean_get(as_boolean_fromval(val))) {
+				return (as_val*) &as_true;
+			}
+			else {
+				return (as_val*) &as_false;
+			}
 		case AS_INTEGER:
 			return (as_val*) as_integer_new(as_integer_get(as_integer_fromval(val)));
 		case AS_STRING:
@@ -860,7 +866,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						bin_spec->list.length = state->list_len;
 						as_vector_destroy(state->list_builder);
 
-						if (state->is_const && bin_spec->list.length == 3) {
+						if (state->is_const) {
 							// turn this bin_spec into an as_arraylist
 							as_arraylist* val = (as_arraylist*)
 								as_list_fromval(bin_spec_random_val(bin_spec, NULL, 1.f));
@@ -870,7 +876,9 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							// through and make a heap copy of each of them
 							for (uint32_t i = 0; i < val->size; i++) {
 								as_val* old_val = as_arraylist_get(val, i);
-								as_arraylist_set(val, i, _as_val_copy(old_val));
+								as_val* new_val = _as_val_copy(old_val);
+								as_val_reserve(new_val);
+								as_arraylist_set(val, i, new_val);
 							}
 
 							// free the old bin_spec that was there
@@ -1333,14 +1341,14 @@ _parse_const_val(const char* const obj_spec_str,
 	const char* str = *str_ptr;
 	switch (*str) {
 		case 'T':
-			if (str[1] == '\0' || str[1] == ',') {
+			if (!isalpha(str[1])) {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_true;
 				*str_ptr = str + 1;
 				return 0;
 			}
 		case 't':
-			if (strncasecmp(str, "true", 4) == 0 && (str[4] == '\0' || str[4] == ',')) {
+			if (strncasecmp(str, "true", 4) == 0 && !isalpha(str[4])) {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_true;
 				*str_ptr = str + 4;
@@ -1349,14 +1357,14 @@ _parse_const_val(const char* const obj_spec_str,
 			break;
 
 		case 'F':
-			if (str[1] == '\0' || str[1] == ',') {
+			if (!isalpha(str[1])) {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_false;
 				*str_ptr = str + 1;
 				return 0;
 			}
 		case 'f':
-			if (strncasecmp(str, "false", 5) == 0 && (str[5] == '\0' || str[5] == ',')) {
+			if (strncasecmp(str, "false", 5) == 0 && !isalpha(str[5])) {
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_false;
 				*str_ptr = str + 5;
