@@ -124,8 +124,6 @@ LOCAL_HELPER bool _dbg_validate_map(const struct bin_spec_s* bin_spec,
 // Inlines and macros.
 //
 
-#define inline
-
 LOCAL_HELPER inline uint8_t
 _bin_spec_get_type(const struct bin_spec_s* bin_spec)
 {

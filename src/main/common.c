@@ -279,7 +279,7 @@ char* parse_string_literal(const char* restrict str,
 				}
 				end += 2;
 			}
-			else if (*end == '0' || *end == '1' || *end == '2') {
+			else if ('0' <= *end && *end <= '3') {
 				if (*(end + 1) < '0' || *(end + 1) > '7' ||
 						*(end + 2) < '0' || *(end + 2) > '7') {
 					fprintf(stderr, "Invalid octal string \"%.4s\"\n", end - 1);
@@ -338,36 +338,30 @@ char* parse_string_literal(const char* restrict str,
 				case '0':
 				case '1':
 				case '2':
-				case '3':
-					// parse as octal
-					if (*(s + 2) < '0' || *(s + 2) > '7' ||
-							*(s + 3) < '0' || *(s + 3) > '7') {
-						fprintf(stderr, "Invalid octal string \"%.4s\"\n", s);
-						cf_free(res);
-						return NULL;
-					}
-					
-					uint16_t val = (*(s + 1) - '0') * 64 +
+				case '3': {
+					// parse as octal, which has already been error checked in the first pass
+					int8_t val = (*(s + 1) - '0') * 64 +
 						(*(s + 2) - '0') * 8 + (*(s + 3) - '0');
-					if (val > 0xff) {
-						fprintf(stderr, "Octal value \"%.4s\" out of range "
-								"(must be \\000 - \\377)\n", s);
-						cf_free(res);
-						return NULL;
-					}
-					res[i] = (int8_t) val;
+					res[i] = val;
 					s += 2;
 					break;
+				}
 
 				case 'x': {
 					char* endptr;
-					uint64_t val = strtoul(s + 2, &endptr, 16);
-					if (endptr != s + 4) {
+					// move the next two characters into a local buffer that we null-terminate,
+					// then try parsing as a 2-digit hex string
+					char buf[3];
+					memcpy(buf, s + 2, 2 * sizeof(char));
+					buf[2] = '\0';
+					uint64_t val = strtoul(buf, &endptr, 16);
+					if (endptr != ((char*) buf) + 2) {
 						fprintf(stderr, "Invalid hexadecimal escape sequence "
 								"\"\\%.3s\"\n", s + 1);
 						cf_free(res);
 						return NULL;
 					}
+
 					res[i] = (int8_t) val;
 					s += 2;
 					break;
