@@ -161,12 +161,13 @@ _as_val_copy(const as_val* val)
 			}
 		case AS_INTEGER:
 			return (as_val*) as_integer_new(as_integer_get(as_integer_fromval(val)));
-		case AS_STRING:
+		case AS_STRING: {
 			char* str_cpy = strdup(as_string_get(as_string_fromval(val)));
 			return (as_val*) as_string_new(str_cpy, true);
+		}
 		case AS_DOUBLE:
 			return (as_val*) as_double_new(as_double_get(as_double_fromval(val)));
-		case AS_LIST:
+		case AS_LIST: {
 			as_arraylist* list = (as_arraylist*) as_list_fromval((as_val*) val);
 			as_arraylist* list_cpy = as_arraylist_new(as_arraylist_size(list),
 					list->block_size);
@@ -176,11 +177,13 @@ _as_val_copy(const as_val* val)
 				as_arraylist_append(list_cpy, v);
 			}
 			return (as_val*) list_cpy;
-		case AS_MAP:
+		}
+		case AS_MAP: {
 			as_hashmap* map = (as_hashmap*) as_map_fromval(val);
 			as_hashmap* map_cpy = as_hashmap_new(map->table_capacity);
 			as_hashmap_foreach(map, _as_hashmap_concat, map_cpy);
 			return (as_val*) map_cpy;
+		}
 		default:
 			fprintf(stderr, "Cannot copy as_val of type %u\n", val->type);
 			return NULL;
@@ -981,10 +984,11 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			// consume the next bin_type
 			list_builder = state->list_builder;
 			switch (type) {
-				case CONSUMER_TYPE_LIST:
+				case CONSUMER_TYPE_LIST: {
 					bin_spec = (struct bin_spec_s*) as_vector_reserve(list_builder);
 					break;
-				case CONSUMER_TYPE_MAP:
+				}
+				case CONSUMER_TYPE_MAP: {
 					struct bin_spec_kv_pair_s* kv_pair;
 					switch (map_state) {
 						case MAP_KEY:
@@ -1008,6 +1012,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							__builtin_unreachable();
 					}
 					break;
+				}
 				default:
 					// this is an impossible condition
 					__builtin_unreachable();
@@ -1380,7 +1385,7 @@ _parse_const_val(const char* const obj_spec_str,
 			}
 			break;
 
-		case '"':
+		case '"': {
 			// try parsing as a string
 			const char* endptr;
 			char* str_literal = parse_string_literal(str, &endptr);
@@ -1392,8 +1397,9 @@ _parse_const_val(const char* const obj_spec_str,
 			as_string_init(&bin_spec->const_string.val, str_literal, true);
 			*str_ptr = endptr;
 			return 0;
+		}
 
-		default:
+		default: {
 			// try parsing as an int/float
 			const char* end = strchrnul(str, ',');
 			// the number is floating point iff it contains a '.'
@@ -1438,6 +1444,7 @@ _parse_const_val(const char* const obj_spec_str,
 				*str_ptr = endptr;
 			}
 			return 0;
+		}
 	}
 	_print_parse_error("Expect 'I', 'S', 'B', or 'D' specifier, "
 			"a const value, or a list/map",
@@ -1832,12 +1839,13 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			sprint(out_str, str_size, "S%u", bin->string.length);
 			break;
 
-		case BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST:
+		case BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST: {
 			int32_t len = (int32_t)
 				as_string_len((as_string*) &bin->const_string.val);
 			sprint(out_str, str_size, "\"%*.*s\"", len, len,
 					as_string_get(&bin->const_string.val));
 			break;
+		}
 
 		case BIN_SPEC_TYPE_BYTES:
 			sprint(out_str, str_size, "B%u", bin->bytes.length);
@@ -1863,13 +1871,14 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			sprint(out_str, str_size, "]");
 			break;
 
-		case BIN_SPEC_TYPE_LIST | BIN_SPEC_TYPE_CONST:
+		case BIN_SPEC_TYPE_LIST | BIN_SPEC_TYPE_CONST: {
 			char* list_obj_str = as_val_tostring((as_val*) &bin->const_list.val);
 			sprint(out_str, str_size, "%s", list_obj_str);
 			cf_free(list_obj_str);
 			break;
+		}
 
-		case BIN_SPEC_TYPE_MAP:
+		case BIN_SPEC_TYPE_MAP: {
 			sprint(out_str, str_size, "{");
 			uint32_t n_entries = bin->map.n_entries;
 			const struct bin_spec_kv_pair_s* kv_pairs = bin->map.kv_pairs;
@@ -1886,12 +1895,14 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			}
 			sprint(out_str, str_size, "}");
 			break;
+		}
 
-		case BIN_SPEC_TYPE_MAP | BIN_SPEC_TYPE_CONST:
+		case BIN_SPEC_TYPE_MAP | BIN_SPEC_TYPE_CONST: {
 			char* map_obj_str = as_val_tostring((as_val*) &bin->const_map.val);
 			sprint(out_str, str_size, "%s", map_obj_str);
 			cf_free(map_obj_str);
 			break;
+		}
 	}
 	return str_size;
 }
