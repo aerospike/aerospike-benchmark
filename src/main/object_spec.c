@@ -592,37 +592,41 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val, boo
 {
 	if (_bin_spec_is_const(bin_spec)) {
 		switch (_bin_spec_get_type(bin_spec)) {
-			case BIN_SPEC_TYPE_BOOL:
+			case BIN_SPEC_TYPE_BOOL: {
 				as_boolean* b = as_boolean_fromval(val);
 				do_ck_assert_msg(b != NULL, "Expected a boolean, got something else");
 				do_ck_assert_uint_eq(as_boolean_get(b),
 						as_boolean_get(&bin_spec->const_bool.val));
 				break;
+			}
 
-			case BIN_SPEC_TYPE_INT:
+			case BIN_SPEC_TYPE_INT: {
 				as_integer* i = as_integer_fromval(val);
 				do_ck_assert_msg(i != NULL, "Expected an integer, got something else");
 				do_ck_assert_int_eq(as_integer_get(i),
 						as_integer_get(&bin_spec->const_integer.val));
 				break;
+			}
 
-			case BIN_SPEC_TYPE_STR:
+			case BIN_SPEC_TYPE_STR: {
 				as_string* s = as_string_fromval(val);
 				do_ck_assert_msg(s != NULL, "Expected a string, got something else");
 				do_ck_assert_str_eq(as_string_get(s),
 						as_string_get(&bin_spec->const_string.val));
 				break;
+			}
 
 			case BIN_SPEC_TYPE_BYTES:
 				do_ck_assert_msg(0, "bytes may not be const");
 				break;
 
-			case BIN_SPEC_TYPE_DOUBLE:
+			case BIN_SPEC_TYPE_DOUBLE: {
 				as_double* d = as_double_fromval(val);
 				do_ck_assert_msg(d != NULL, "Expected a double, got something else");
 				do_ck_assert_float_eq(as_double_get(d),
 						as_double_get(&bin_spec->const_double.val));
 				break;
+			}
 
 			case BIN_SPEC_TYPE_LIST:
 				return _dbg_as_val_cmp((const as_val*) &bin_spec->const_list.val,
@@ -639,24 +643,28 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val, boo
 	}
 	else {
 		switch (_bin_spec_get_type(bin_spec)) {
-			case BIN_SPEC_TYPE_BOOL:
+			case BIN_SPEC_TYPE_BOOL: {
 				as_boolean* b = as_boolean_fromval(val);
 				return _dbg_validate_bool(b, do_assert);
+			}
 
-			case BIN_SPEC_TYPE_INT:
+			case BIN_SPEC_TYPE_INT: {
 				as_integer* i = as_integer_fromval(val);
 				return _dbg_validate_int(bin_spec->integer.range, i, do_assert);
+			}
 
-			case BIN_SPEC_TYPE_STR:
+			case BIN_SPEC_TYPE_STR: {
 				as_string* s = as_string_fromval(val);
 				return _dbg_validate_string(bin_spec->string.length, s, do_assert);
+			}
 
 			case BIN_SPEC_TYPE_BYTES:
 				return _dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val), do_assert);
 
-			case BIN_SPEC_TYPE_DOUBLE:
+			case BIN_SPEC_TYPE_DOUBLE: {
 				as_double* d = as_double_fromval(val);
 				return _dbg_validate_double(d, do_assert);
+			}
 
 			case BIN_SPEC_TYPE_LIST:
 				return _dbg_validate_list(bin_spec, as_list_fromval((as_val*) val), do_assert);

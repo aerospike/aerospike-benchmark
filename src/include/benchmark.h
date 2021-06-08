@@ -24,7 +24,6 @@
 #include <aerospike/aerospike.h>
 #include <aerospike/as_event.h>
 #include <aerospike/as_password.h>
-#include <aerospike/as_query.h>
 #include <aerospike/as_random.h>
 #include <aerospike/as_record.h>
 #include <aerospike/as_udf.h>
