@@ -368,7 +368,9 @@ DEFINE_TCASE_DIFF(test_const_S_bq, "\"\\'\"", "\"\'\"");
 DEFINE_TCASE_DIFF(test_const_S_bqq, "\"\\\"\"", "\"\"\"");
 DEFINE_TCASE_DIFF(test_const_S_bqm, "\"\\?\"", "\"\?\"");
 DEFINE_TCASE_DIFF(test_const_S_hex, "\"\\x61\"", "\"\x61\"");
+DEFINE_TCASE_DIFF(test_const_S_hex_v2, "\"\\x61f\"", "\"af\"");
 DEFINE_TCASE_DIFF(test_const_S_oct, "\"\\141\"", "\"\141\"");
+DEFINE_TCASE_DIFF(test_const_S_oct_v2, "\"\\377\"", "\"\377\"");
 DEFINE_TCASE_DIFF(test_const_S_mixed,
 		"\"this is \\147onna be a \\x6cong message\\n"
 		"\\150\\145\\154\\154\\157\\041\\011"
@@ -747,7 +749,9 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_constants, test_const_S_bqq);
 	tcase_add_ptest(tc_constants, test_const_S_bqm);
 	tcase_add_ptest(tc_constants, test_const_S_hex);
+	tcase_add_ptest(tc_constants, test_const_S_hex_v2);
 	tcase_add_ptest(tc_constants, test_const_S_oct);
+	tcase_add_ptest(tc_constants, test_const_S_oct_v2);
 	tcase_add_ptest(tc_constants, test_const_S_mixed);
 	tcase_add_ftest(tc_constants, test_const_S_unterminated);
 	tcase_add_ftest(tc_constants, test_const_S_single_0x);
