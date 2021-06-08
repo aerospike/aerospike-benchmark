@@ -63,6 +63,8 @@ LOCAL_HELPER int _run(cdata_t* cdata);
 int
 run_benchmark(args_t* args)
 {
+	as_error err;
+
 	cdata_t data;
 	memset(&data, 0, sizeof(cdata_t));
 	data.namespace = args->namespace;
@@ -131,7 +133,6 @@ cleanup3:
 	free_histograms(&data, args);
 
 cleanup2:
-	as_error err;
 	aerospike_close(&data.client, &err);
 	aerospike_destroy(&data.client);
 
