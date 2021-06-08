@@ -498,6 +498,9 @@ DEFINE_TCASE(test_const_map, "{\"test_key\":123}");
 DEFINE_TCASE(test_const_nested_list, "[123, \"abc\", [456, [\"string\", false], \"def\"], true]");
 DEFINE_TCASE(test_const_nested_map, "{1:{\"species\":\"human\", \"name\":\"clayton\"}, "
 		"2:{456:false, 123:true}}");
+DEFINE_TCASE(test_const_nested_mixed, "{1:{\"species\":\"human\", "
+		"\"names\":[\"clayton\", \"clay\", 1234]}, "
+		"2:[456, false, 123, true]},[{456:\"hi\"}, {\"hello\":789}]");
 
 
 /*
@@ -859,6 +862,7 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_const_colx, test_const_map);
 	tcase_add_ptest(tc_const_colx, test_const_nested_list);
 	tcase_add_ptest(tc_const_colx, test_const_nested_map);
+	tcase_add_ptest(tc_const_colx, test_const_nested_mixed);
 	suite_add_tcase(s, tc_const_colx);
 
 	tc_multipliers = tcase_create("Multipliers");
