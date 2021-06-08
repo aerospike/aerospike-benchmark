@@ -146,7 +146,7 @@ _as_hashmap_concat(const as_val* key, const as_val* value, void* udata)
 	return true;
 }
 
-LOCAL_HELPER inline as_val*
+LOCAL_HELPER as_val*
 _as_val_copy(const as_val* val)
 {
 	switch (val->type) {
