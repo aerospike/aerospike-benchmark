@@ -12,7 +12,7 @@ jobs:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     strategy:
       matrix: 
-        ev-lib: [libev, libuv, libevent]
+        ev-lib: ["", libev, libuv, libevent]
     steps:
     - name: Install event libs
       run: sudo apt-get install -y libevent-dev libev-dev libuv1-dev
@@ -94,8 +94,13 @@ jobs:
     - name: Build benchmark
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
+    - name: Unit
+      if: ${{ matrix.ev-lib }} == ""
+      run: make coverage-unit
+      working-directory: main
     - name: Test
-      run: make coverage-all
+      if: ${{ matrix.ev-lib }} != ""
+      run: make coverage-all EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
     - name: clear temp directories
       run: |
