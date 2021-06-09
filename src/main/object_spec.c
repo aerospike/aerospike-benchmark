@@ -81,7 +81,7 @@ LOCAL_HELPER void _destroy_consumer_states(struct consumer_state_s* state);
 LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str);
 LOCAL_HELPER int _parse_const_val(const char* const obj_spec_str,
-		const char** stream, struct bin_spec_s* bin_spec);
+		const char** stream, struct bin_spec_s* bin_spec, char delim);
 LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
 LOCAL_HELPER as_val* _gen_random_bool(as_random* random);
 LOCAL_HELPER as_val* _gen_random_int(uint8_t range, as_random* random);
@@ -137,7 +137,7 @@ _bin_spec_is_const(const struct bin_spec_s* bin_spec)
 }
 
 LOCAL_HELPER bool
-_as_hashmap_concat(const as_val* key, const as_val* value, void* udata)
+_as_hashmap_merge(const as_val* key, const as_val* value, void* udata)
 {
 	as_hashmap* map = (as_hashmap*) udata;
 	as_val_reserve(key);
@@ -179,7 +179,7 @@ _as_val_copy(const as_val* val)
 		case AS_MAP: {
 			as_hashmap* map = (as_hashmap*) as_map_fromval(val);
 			as_hashmap* map_cpy = as_hashmap_new(map->table_capacity);
-			as_hashmap_foreach(map, _as_hashmap_concat, map_cpy);
+			as_hashmap_foreach(map, _as_hashmap_merge, map_cpy);
 			return (as_val*) map_cpy;
 		}
 		default:
@@ -189,7 +189,7 @@ _as_val_copy(const as_val* val)
 }
 
 LOCAL_HELPER bool
-_as_hashmap_concat_cpy(const as_val* key, const as_val* value, void* udata)
+_as_hashmap_merge_cpy(const as_val* key, const as_val* value, void* udata)
 {
 	as_hashmap* map = (as_hashmap*) udata;
 	key = _as_val_copy(key);
@@ -729,10 +729,6 @@ _consumer_state_map_repeat_const_key(struct consumer_state_s* state,
 		struct bin_spec_s* k = &kv_pair->key;
 		if (k->type == bin_spec->type) {
 			switch (k->type & BIN_SPEC_TYPE_MASK) {
-				case BIN_SPEC_TYPE_BOOL:
-					repeated = as_boolean_get(&k->const_bool.val) ==
-						as_boolean_get(&bin_spec->const_bool.val);
-					break;
 				case BIN_SPEC_TYPE_INT:
 					repeated = as_integer_get(&k->const_integer.val) ==
 						as_integer_get(&bin_spec->const_integer.val);
@@ -950,7 +946,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							// a bin_spec and will be freed when the bin_spec is
 							as_hashmap map;
 							as_hashmap_init(&map, val->table_capacity);
-							as_hashmap_foreach(val, _as_hashmap_concat_cpy, &map);
+							as_hashmap_foreach(val, _as_hashmap_merge_cpy, &map);
 							as_hashmap_destroy(val);
 
 							// free the old bin_spec that was there
@@ -1030,7 +1026,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			char* endptr;
 			errno = 0;
 			mult = strtoul(str, &endptr, 10);
-			if (errno == 0 && *str >= '0' && *str <= '9' && endptr != str) {
+			if (errno == 0 && *str >= '0' && *str <= '9') {
 				// if a multiplier has been specified, expect a '*' next,
 				// followed by the bin_spec
 				if (*endptr == ' ') {
@@ -1220,7 +1216,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 				default: {
 					const char* prev_str = str;
 					// try parsing as a constant value
-					if (_parse_const_val(obj_spec_str, &str, bin_spec) != 0) {
+					if (_parse_const_val(obj_spec_str, &str, bin_spec, state->delimiter) != 0) {
 						_destroy_consumer_states(state);
 						return -1;
 					}
@@ -1237,6 +1233,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							_destroy_consumer_states(state);
 							return -1;
 						}
+
+						// FIXME make sure key is valid map key type
 
 						if (_consumer_state_map_repeat_const_key(state, bin_spec)) {
 							_print_parse_error("Key value is used more than once\n",
@@ -1294,11 +1292,20 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			case CONSUMER_TYPE_MAP:
 				// advance map to the next state since the key/value for this
 				// state has now been fully initialized
-				state->state++;
 
 				switch (map_state) {
 					case MAP_KEY:
+						state->state = MAP_VAL;
 						state->list_len += bin_spec->n_repeats;
+
+						// check for overflow
+						if (state->list_len < bin_spec->n_repeats) {
+							_print_parse_error("Too many elements in a map (> 2**32)",
+									obj_spec_str, str);
+							_destroy_consumer_states(state);
+							return -1;
+						}
+
 						// allow a space before the ':'
 						if (*str == ' ') {
 							str++;
@@ -1317,6 +1324,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						}
 						break;
 					case MAP_VAL:
+						state->state = MAP_DONE;
 						// allow a space before the '}' or ','
 						if (*str == ' ') {
 							str++;
@@ -1355,7 +1363,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 
 LOCAL_HELPER int
 _parse_const_val(const char* const obj_spec_str,
-		const char** str_ptr, struct bin_spec_s* bin_spec)
+		const char** str_ptr, struct bin_spec_s* bin_spec, char delim)
 {
 	const char* str = *str_ptr;
 	switch (*str) {
@@ -1407,14 +1415,17 @@ _parse_const_val(const char* const obj_spec_str,
 
 		default: {
 			// try parsing as an int/float
-			const char* end = strchrnul(str, ',');
+			const char* next_comma = strchrnul(str, ',');
+			const char* next_delim = strchrnul(str, delim);
+			const char* end = MIN(next_comma, next_delim);
+
 			// the number is floating point iff it contains a '.'
 			if (memchr(str, '.', end - str) != NULL) {
 				char* endptr;
 				errno = 0;
 
 				double val = strtod(str, &endptr);
-				if (endptr == str) {
+				if (errno != 0 || endptr == str) {
 					_print_parse_error("Invalid floating point value",
 							obj_spec_str, str);
 					return -1;
@@ -1507,10 +1518,8 @@ bin_spec_free(struct bin_spec_s* bin_spec)
 LOCAL_HELPER as_val*
 _gen_random_bool(as_random* random)
 {
-	as_boolean* val;
 	uint32_t r = as_random_next_uint32(random);
-	val = as_boolean_new((bool) (r & 1));
-	return (as_val*) val;
+	return ((bool) (r & 1)) ? as_true : as_false;
 }
 
 LOCAL_HELPER as_val*

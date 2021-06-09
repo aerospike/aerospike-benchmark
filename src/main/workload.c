@@ -432,6 +432,7 @@ int parse_workload_config_file(const char* file, stages_t* stages,
 		stages->valid = false;
 		return -1;
 	}
+	// TODO check stages->valid set elsewhere
 
 	int ret = stages_set_defaults_and_parse(stages, &stage_defs, args);
 	free_stage_defs(&stage_defs);
