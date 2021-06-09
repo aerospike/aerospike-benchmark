@@ -729,6 +729,10 @@ _consumer_state_map_repeat_const_key(struct consumer_state_s* state,
 		struct bin_spec_s* k = &kv_pair->key;
 		if (k->type == bin_spec->type) {
 			switch (k->type & BIN_SPEC_TYPE_MASK) {
+				case BIN_SPEC_TYPE_BOOL:
+					repeated = as_boolean_get(&k->const_bool.val) ==
+						as_boolean_get(&bin_spec->const_bool.val);
+					break;
 				case BIN_SPEC_TYPE_INT:
 					repeated = as_integer_get(&k->const_integer.val) ==
 						as_integer_get(&bin_spec->const_integer.val);
@@ -1234,7 +1238,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							return -1;
 						}
 
-						// FIXME make sure key is valid map key type
+						// as_boolean, as_integer, as_double, and as_string are
+						// all valid map keys, so no need to verify that here
 
 						if (_consumer_state_map_repeat_const_key(state, bin_spec)) {
 							_print_parse_error("Key value is used more than once\n",
@@ -1417,7 +1422,7 @@ _parse_const_val(const char* const obj_spec_str,
 			// try parsing as an int/float
 			const char* next_comma = strchrnul(str, ',');
 			const char* next_delim = strchrnul(str, delim);
-			const char* end = MIN(next_comma, next_delim);
+			const char* end = (const char*) MIN((uint64_t) next_comma, (uint64_t) next_delim);
 
 			// the number is floating point iff it contains a '.'
 			if (memchr(str, '.', end - str) != NULL) {
@@ -1519,7 +1524,7 @@ LOCAL_HELPER as_val*
 _gen_random_bool(as_random* random)
 {
 	uint32_t r = as_random_next_uint32(random);
-	return ((bool) (r & 1)) ? as_true : as_false;
+	return (as_val*) (((bool) (r & 1)) ? &as_true : &as_false);
 }
 
 LOCAL_HELPER as_val*

@@ -250,10 +250,24 @@ print_usage(const char* program)
 	printf("   '-K' or '--startKey'.\n");
 	printf("\n");
 
+	printf("-upn --udfPackageName <package_name>\n");
+	printf("   The package name for the udf to be called\n");
+	printf("\n");
+
+	printf("-ufn --udfFunctionName <function_name>\n");
+	printf("   The name of the UDF function in the package to be called\n");
+	printf("\n");
+
+	printf("-ufv --udfFunctionValues <fn_vals>\n");
+	printf("   The arguments to be passed to the udf when called, which are given\n");
+	printf("   as an objet spec (see --objectSpec).\n");
+	printf("\n");
+
 	printf("-o --objectSpec describes a comma-separated bin specification\n");
 	printf("   Scalar bins:\n");
-	printf("      I<bytes> | B<size> | S<length> | D # Default: I\n");
+	printf("      b | I<bytes> | B<size> | S<length> | D | <const> # Default: I\n");
 	printf("\n");
+	printf("      b) Generate a random boolean bin or value\n");
 	printf("      I) Generate an integer bin or value in a specific byte range\n");
 	printf("            (treat I as I4)\n");
 	printf("         I1 for 0 - 255\n");
@@ -269,7 +283,14 @@ print_usage(const char* program)
 	printf("      S) Generate a string bin or value made of space-separated a-z{1,9} words\n");
 	printf("         S16 - a string with a 16 character length. ex: \"uir a mskd poiur\"\n");
 	printf("      D) Generate a Double bin or value (8 byte)\n");
-	printf("\n");
+	printf("      <const>) A constant value of any of the above types (besides bytes):\n");
+	printf("         Const boolean: either \"T\", \"true\" (case insensitive), \"F\", or\n");
+	printf("            \"false\" (case insensitive)\n");
+	printf("         Const integer: i.e. 123, 1024, 0x3ff, -10, etc.\n");
+	printf("         Const string: i.e. \"test string\", \"string\\twith\\ttabs\\n\", etc.\n");
+	printf("         Const double: i.e. 123.456, 3.14f, -10.20\n");
+	printf("            Note: doubles must contain a '.', but the trailing 'f' is optional.\n");
+	printf("\n"); 
 	printf("   Collection bins:\n");
 	printf("      [] - a list\n");
 	printf("         [3*I2] - ex: [312, 1651, 756]\n");
@@ -279,7 +300,7 @@ print_usage(const char* program)
 	printf("\n");
 	printf("      {} - a map\n");
 	printf("         {5*S1:I1} - ex {\"a\":1, \"b\":2, \"d\":4, \"z\":26, \"e\":5}\n");
-	printf("         {2*S1:[3*I:1]} - ex {\"a\": [1,2,3], \"b\": [6,7,8]}\n");
+	printf("         {2*S1:[3*I:1], 1*I1:S1} - ex {\"a\": [1,2,3], \"b\": [6,7,8], 10: \"x\"}\n");
 	printf("\n");
 	printf("   Example:\n");
 	printf("      -o I2,S12,[3*I1] => b1: 478; b2: \"a09dfwu3ji2r\"; b3: [12, 45, 209])\n");

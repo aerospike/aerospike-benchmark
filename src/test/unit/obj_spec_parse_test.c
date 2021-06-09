@@ -393,9 +393,21 @@ DEFINE_FAILING_TCASE(test_const_D_f, "f", "a single 'f' is not a valid float");
 DEFINE_FAILING_TCASE(test_const_D_0f, "0f", "floats must always contain a '.'");
 DEFINE_FAILING_TCASE(test_const_D_1f, "1f", "floats must always contain a '.'");
 
-DEFINE_TCASE(test_const_map_key, "{10:S5}");
+DEFINE_TCASE(test_const_map_key_bool, "{true:S5}");
+DEFINE_TCASE(test_const_map_key_int, "{10:S5}");
+DEFINE_TCASE(test_const_map_key_str, "{\"test_key\":S5}");
+DEFINE_TCASE(test_const_map_key_double, "{3.14f:S5}");
 DEFINE_FAILING_TCASE(test_const_map_keys, "{5*10:S5}", "constant map keys "
 		"cannot have multipliers");
+DEFINE_FAILING_TCASE(test_const_map_key_bool_rep, "{true:S5,I:I,true:B10}",
+		"cannot repeat constant boolean key");
+DEFINE_FAILING_TCASE(test_const_map_key_int_rep, "{10:S5,I:I,10:B10}",
+		"cannot repeat constant integer key");
+DEFINE_FAILING_TCASE(test_const_map_key_str_rep,
+		"{\"test_key\":S5,\"key2\":I,\"test_key\":B10}",
+		"cannot repeat constant string key");
+DEFINE_FAILING_TCASE(test_const_map_key_double_rep, "{3.14f:S5,I:I,3.14f:B10}",
+		"cannot repeat constant double key");
 
 
 /*
@@ -770,8 +782,15 @@ obj_spec_suite(void)
 	tcase_add_ftest(tc_constants, test_const_D_0f);
 	tcase_add_ftest(tc_constants, test_const_D_1f);
 
-	tcase_add_ptest(tc_constants, test_const_map_key);
+	tcase_add_ptest(tc_constants, test_const_map_key_bool);
+	tcase_add_ptest(tc_constants, test_const_map_key_int);
+	tcase_add_ptest(tc_constants, test_const_map_key_str);
+	tcase_add_ptest(tc_constants, test_const_map_key_double);
 	tcase_add_ftest(tc_constants, test_const_map_keys);
+	tcase_add_ftest(tc_constants, test_const_map_key_bool_rep);
+	tcase_add_ftest(tc_constants, test_const_map_key_int_rep);
+	tcase_add_ftest(tc_constants, test_const_map_key_str_rep);
+	tcase_add_ftest(tc_constants, test_const_map_key_double_rep);
 	suite_add_tcase(s, tc_constants);
 
 	tc_list = tcase_create("List");
