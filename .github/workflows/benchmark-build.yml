@@ -95,11 +95,11 @@ jobs:
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
     - name: Unit
-      if: ${{ matrix.ev-lib }} == ""
+      if: matrix.ev-lib == ""
       run: make coverage-unit
       working-directory: main
     - name: Test
-      if: ${{ matrix.ev-lib }} != ""
+      if: matrix.ev-lib != ""
       run: make coverage-all EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
     - name: clear temp directories
