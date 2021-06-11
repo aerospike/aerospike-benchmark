@@ -869,7 +869,7 @@ set_args(int argc, char * const* argv, args_t* args)
 
 				if (strlen(optarg) > sizeof(as_udf_module_name)) {
 					fprintf(stderr, "UDF package name \"%s\" too long (max "
-							"length is %" PRIu64 " characters)\n",
+							"length is %lu characters)\n",
 							optarg, sizeof(as_udf_module_name));
 					return -1;
 				}
@@ -888,7 +888,7 @@ set_args(int argc, char * const* argv, args_t* args)
 
 				if (strlen(optarg) > sizeof(as_udf_function_name)) {
 					fprintf(stderr, "UDF function name \"%s\" too long (max "
-							"length is %" PRIu64 " characters)\n",
+							"length is %lu characters)\n",
 							optarg, sizeof(as_udf_function_name));
 					return -1;
 				}

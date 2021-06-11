@@ -123,11 +123,15 @@ run_benchmark(args_t* args)
 
 	ret = _run(&data);
 
+#ifdef __linux__
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif /* __linux__ */
 	// don't worry, will be initialized (would have to make args const
 	// to suppress)
 	record_summary_data(&data, args, start_time, &start_timespec);
+#ifdef __linux__
 #pragma GCC diagnostic pop
+#endif /* __linux__ */
 
 cleanup3:
 	free_histograms(&data, args);

@@ -39,6 +39,7 @@ LOCAL_HELPER void clear_cdata_counts(cdata_t* cdata);
 int
 thr_coordinator_init(thr_coord_t* coord, uint32_t n_threads)
 {
+#ifndef __APPLE__
 	pthread_condattr_t attr;
 
 	pthread_condattr_init(&attr);
@@ -46,7 +47,11 @@ thr_coordinator_init(thr_coord_t* coord, uint32_t n_threads)
 	pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
 
 	pthread_cond_init(&coord->complete, &attr);
+
 	pthread_condattr_destroy(&attr);
+#else
+	pthread_cond_init(&coord->complete, NULL);
+#endif /* __APPLE_ */
 
 	pthread_mutex_init(&coord->c_lock, NULL);
 

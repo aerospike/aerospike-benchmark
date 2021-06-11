@@ -97,12 +97,12 @@ TEST_CFLAGS = $(CFLAGS) -g -D_TEST
 ###############################################################################
 
 _MAIN_OBJECT = main.o
-_SRC = $(filter-out src/main/main.c,$(shell find src/main/ -type f -name '*.c'))
+_SRC = $(filter-out src/main/main.c,$(shell find src/main -type f -name '*.c'))
 _OBJECTS = $(patsubst src/main/%.c,%.o,$(_SRC))
 
 _HDR_OBJECTS = hdr_histogram.o hdr_histogram_log.o hdr_encoding.o hdr_time.o
 
-_TEST_SRC = $(shell find src/test/ -type f -name '*.c')
+_TEST_SRC = $(shell find src/test -type f -name '*.c')
 _TEST_OBJECTS = $(patsubst src/test/%.c,%.o,$(_TEST_SRC))
 
 MAIN_OBJECT = $(addprefix target/obj/,$(_MAIN_OBJECT))
@@ -213,8 +213,8 @@ test: unit integration
 .PHONY: unit
 unit: | test_target/test
 	@echo
-	@valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
-	@#./test_target/test
+	@#valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
+	@./test_target/test
 
 test_target:
 	mkdir $@

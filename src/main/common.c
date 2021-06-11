@@ -121,12 +121,27 @@ blog_detail(as_log_level level, const char* fmt, ...)
 }
 
 
-#ifndef __linux__
+#ifdef __APPLE__
 
-char* strchrnul(char *s, int c_in)
+char* strchrnul(const char *s, int c_in)
 {
 	char* r = strchr(s, c_in);
-	return r == NULL ? s + strlen(s) : r;
+	return (char*) (r == NULL ? s + strlen(s) : r);
+}
+
+void* memrchr(const void* s, int c, size_t n)
+{
+	const uint8_t *cp;
+
+	if (n != 0) {
+		cp = (uint8_t*) s + n;
+		do {
+			if (*(--cp) == (uint8_t) c) {
+				return (void*) cp;
+			}
+		} while (--n != 0);
+	}
+    return NULL;
 }
 
 #endif /* __linux__ */

@@ -119,9 +119,11 @@ boolstring(bool val)
 }
 
 
-#ifndef __linux__
+#ifdef __APPLE__
 
-char* strchrnul(char* s, int c_in);
+char* strchrnul(const char* s, int c_in);
+
+void* memrchr(const void* s, int c, size_t n);
 
 #endif /* __linux__ */
 

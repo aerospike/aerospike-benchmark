@@ -276,7 +276,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 
 		if (stage->key_start >= stage->key_end) {
 			fprintf(stderr,
-					"key_start (%lu) must be less than key_end (%lu)\n",
+					"key_start (%" PRIu64 ") must be less than key_end (%" PRIu64 ")\n",
 					stage->key_start, stage->key_end);
 			ret = -1;
 		}
@@ -537,13 +537,13 @@ void stages_print(const stages_t* stages)
 		const stage_t* stage = &stages->stages[i];
 
 		snprint_obj_spec(&stage->obj_spec, obj_spec_buf, sizeof(obj_spec_buf));
-		printf( "- duration: %lu\n"
+		printf( "- duration: %" PRIu64 "\n"
 				"  desc: %s\n"
-				"  tps: %lu\n"
-				"  key-start: %lu\n"
-				"  key-end: %lu\n"
-				"  pause: %lu\n"
-				"  batch-size: %u\n"
+				"  tps: %" PRIu64 "\n"
+				"  key-start: %" PRIu64 "\n"
+				"  key-end: %" PRIu64 "\n"
+				"  pause: %" PRIu64 "\n"
+				"  batch-size: %" PRIu32 "\n"
 				"  async: %s\n"
 				"  random: %s\n",
 				stage->duration, stage->desc, stage->tps, stage->key_start,
@@ -658,14 +658,15 @@ _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
 			return NULL;
 		}
 		if (bin_num > n_bins) {
-			fprintf(stderr, "No such bin %lu (there are only %u bins)\n",
+			fprintf(stderr, "No such bin %" PRIu64 " (there are only %" PRIu32
+					" bins)\n",
 					bin_num, n_bins);
 			_parse_bins_destroy(&bins, mode);
 			return NULL;
 		}
 		if (bin_num <= prev_bin_num) {
 			fprintf(stderr, "Bins must appear in ascending order "
-					"(%lu <= %lu)\n",
+					"(%" PRIu64 " <= %" PRIu64 ")\n",
 					bin_num, prev_bin_num);
 			_parse_bins_destroy(&bins, mode);
 			return NULL;

@@ -124,18 +124,6 @@ LOCAL_HELPER bool _dbg_validate_map(const struct bin_spec_s* bin_spec,
 // Inlines and macros.
 //
 
-LOCAL_HELPER inline uint8_t
-_bin_spec_get_type(const struct bin_spec_s* bin_spec)
-{
-	return bin_spec->type & BIN_SPEC_TYPE_MASK;
-}
-
-LOCAL_HELPER inline bool
-_bin_spec_is_const(const struct bin_spec_s* bin_spec)
-{
-	return (bin_spec->type & BIN_SPEC_TYPE_CONST) != 0;
-}
-
 LOCAL_HELPER bool
 _as_hashmap_merge(const as_val* key, const as_val* value, void* udata)
 {
@@ -231,6 +219,18 @@ raw_to_alphanum(uint64_t n)
 	} while (0)
 
 #ifdef _TEST
+
+LOCAL_HELPER inline uint8_t
+_bin_spec_get_type(const struct bin_spec_s* bin_spec)
+{
+	return bin_spec->type & BIN_SPEC_TYPE_MASK;
+}
+
+LOCAL_HELPER inline bool
+_bin_spec_is_const(const struct bin_spec_s* bin_spec)
+{
+	return (bin_spec->type & BIN_SPEC_TYPE_CONST) != 0;
+}
 
 #define do_ck_assert_msg(cond, ...) \
 	if (do_assert) { \
@@ -338,10 +338,14 @@ obj_spec_parse(struct obj_spec_s* base_obj, const char* obj_spec_str)
 		base_obj->bin_specs = as_vector_to_array(&bin_specs, &base_obj->n_bin_specs);
 
 		// n_bins is initialized by _parse_bin_types
+#ifdef __linux__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif /* __linux__ */
 		base_obj->n_bin_specs = n_bins;
+#ifdef __linux__
 #pragma GCC diagnostic pop
+#endif /* __linux__ */
 
 		base_obj->valid = true;
 	}
@@ -2045,36 +2049,36 @@ _dbg_validate_int(uint8_t range, as_integer* as_val, bool do_assert)
 	uint64_t val = (uint64_t) as_integer_get(as_val);
 	switch (range) {
 		case 0:
-			do_ck_assert_msg(0 <= val && val < 256, "Integer value (%lu) is out "
+			do_ck_assert_msg(0 <= val && val < 256, "Integer value (%" PRIu64 ") is out "
 					"of range", val);
 			break;
 		case 1:
-			do_ck_assert_msg(256 <= val && val < 65536, "Integer value (%lu) is "
+			do_ck_assert_msg(256 <= val && val < 65536, "Integer value (%" PRIu64 ") is "
 					"out of range", val);
 			break;
 		case 2:
 			do_ck_assert_msg(65536 <= val && val < 0x1000000, "Integer value "
-					"(%lu) is out of range", val);
+					"(%" PRIu64 ") is out of range", val);
 			break;
 		case 3:
 			do_ck_assert_msg(0x1000000 <= val && val < 0x100000000, "Integer "
-					"value (%lu) is out of range", val);
+					"value (%" PRIu64 ") is out of range", val);
 			break;
 		case 4:
 			do_ck_assert_msg(0x100000000 <= val && val < 0x10000000000, "Integer "
-					"value (%lu) is out of range", val);
+					"value (%" PRIu64 ") is out of range", val);
 			break;
 		case 5:
 			do_ck_assert_msg(0x10000000000 <= val && val < 0x1000000000000,
-					"Integer value (%lu) is out of range", val);
+					"Integer value (%" PRIu64 ") is out of range", val);
 			break;
 		case 6:
 			do_ck_assert_msg(0x1000000000000 <= val && val < 0x100000000000000,
-					"Integer value (%lu) is out of range", val);
+					"Integer value (%" PRIu64 ") is out of range", val);
 			break;
 		case 7:
 			do_ck_assert_msg(0x100000000000000 <= val,
-					"Integer value (%lu) is out of range", val);
+					"Integer value (%" PRIu64 ") is out of range", val);
 			break;
 	}
 	return true;
