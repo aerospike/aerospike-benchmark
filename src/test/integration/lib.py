@@ -240,6 +240,7 @@ def start(do_reset=True):
 			SERVER_IP = "127.0.0.1"
 
 		print("Connecting client")
+		SERVER_IP = "127.0.0.1"
 		config = {"hosts": [(SERVER_IP, PORT)]}
 
 		for attempt in range(CLIENT_ATTEMPTS):
@@ -248,7 +249,7 @@ def start(do_reset=True):
 				break
 			except Exception:
 				if attempt < CLIENT_ATTEMPTS - 1:
-					safe_sleep(.2)
+					safe_sleep(1)
 				else:
 					raise
 

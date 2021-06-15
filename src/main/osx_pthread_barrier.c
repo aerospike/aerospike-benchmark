@@ -20,10 +20,11 @@ pthread_barrier_init(pthread_barrier_t* barrier, void* attr,
 		return EINVAL;
 	}
 
-	/* Initialize the individual fields.  */
-	barrier->in = 0;
-	barrier->out = 0;
+	pthread_cond_init(&barrier->cond, NULL);
+	pthread_mutex_init(&barrier->lock, NULL);
+
 	barrier->count = count;
+	barrier->in = 0;
 	barrier->current_round = 0;
 
 	return 0;
@@ -32,12 +33,53 @@ pthread_barrier_init(pthread_barrier_t* barrier, void* attr,
 int32_t
 pthread_barrier_destroy(pthread_barrier_t* barrier)
 {
+	pthread_cond_destroy(&barrier->cond);
+	pthread_mutex_destroy(&barrier->lock);
 	return 0;
 }
 
 int32_t
 pthread_barrier_wait(pthread_barrier_t* barrier)
 {
+	// 
+	uint32_t round = __atomic_load_n(&barrier->current_round, __ATOMIC_ACQUIRE);
+	uint32_t i = __atomic_add_fetch(&barrier->in, 1, __ATOMIC_RELEASE);
+	uint32_t count = barrier->count;
+
+	if (i < count) {
+		// acquire the condition lock before reading cur_round, since we don't
+		// want the broadcast signal to be sent before waiting on the condition
+		// variable
+		pthread_mutex_lock(&barrier->lock);
+		// read the current round before waiting on the condition variable
+		uint32_t cur_round =
+			__atomic_load_n(&barrier->current_round, __ATOMIC_ACQUIRE);
+
+		while (cur_round == round) {
+			pthread_cond_wait(&barrier->cond, &barrier->lock);
+			cur_round = __atomic_load_n(&barrier->current_round, __ATOMIC_ACQUIRE);
+		}
+
+		pthread_mutex_unlock(&barrier->lock);
+	}
+	else {
+		// reset the in-thread count to zero, preventing any of the other
+		// threads at the barrier from leaving before the round is incremented
+		__atomic_store_n(&barrier->in, 0, __ATOMIC_RELAXED);
+		// go to the next round, allowing all other threads waiting at the
+		// barrier to leave. At this point, the state of the barrier is
+		// completely reset
+		__atomic_store_n(&barrier->current_round, round + 1, __ATOMIC_RELEASE);
+
+		// acquire the condition lock so no thread can wait after checking the
+		// condition and after the broadcast wakeup is executed
+		pthread_mutex_lock(&barrier->lock);
+		pthread_cond_broadcast(&barrier->cond);
+		pthread_mutex_unlock(&barrier->lock);
+
+		return PTHREAD_BARRIER_SERIAL_THREAD;
+	}
+
 	return 0;
 }
 

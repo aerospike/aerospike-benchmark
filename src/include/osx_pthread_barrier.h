@@ -25,17 +25,39 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/*
+ * returned by pthread_barrier_wait to exactly one of the threads waiting on
+ * the barrier
+ */
+#define PTHREAD_BARRIER_SERIAL_THREAD -1
+
+/*
+ * this implementation of pthread barriers assumes that only "count" threads
+ * will be trying to pass the barrier at any given time
+ */
 typedef struct pthread_barrier {
-	uint32_t in;
-	uint32_t current_round;
+	pthread_cond_t cond;
+	pthread_mutex_t lock;
+
+	// the number of threads that must meet at the barrier
 	uint32_t count;
-	uint32_t out;
+	// the count of threads that have met the barrier
+	uint32_t in;
+	// the round number (starts at 0, incremented each time all threads reach
+	// the barrier)
+	uint32_t current_round;
 } pthread_barrier_t;
 
 int32_t pthread_barrier_init(pthread_barrier_t*, void* attr,
 		uint32_t count);
 int32_t pthread_barrier_destroy(pthread_barrier_t*);
 
+/*
+ * waits at the barrier until "count" threads have called this function.
+ *
+ * returns PTHREAD_BARRIER_SERIAL_THREAD to one of the calling threads and 0
+ * to the rest
+ */
 int32_t pthread_barrier_wait(pthread_barrier_t* barrier);
 
 #endif /* __APPLE__ */
