@@ -41,9 +41,13 @@ pthread_barrier_destroy(pthread_barrier_t* barrier)
 int32_t
 pthread_barrier_wait(pthread_barrier_t* barrier)
 {
-	// 
+	// read the current round before incrementing the in variable, since we
+	// require that current round be correct, and incrementing in before reading
+	// current_round would induce a race
 	uint32_t round = __atomic_load_n(&barrier->current_round, __ATOMIC_ACQUIRE);
-	uint32_t i = __atomic_add_fetch(&barrier->in, 1, __ATOMIC_RELEASE);
+	// increment the in variable with relaxed memory ordering since this is the
+	// only modification we've made to memory
+	uint32_t i = __atomic_add_fetch(&barrier->in, 1, __ATOMIC_RELAXED);
 	uint32_t count = barrier->count;
 
 	if (i < count) {
