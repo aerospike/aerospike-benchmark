@@ -1314,9 +1314,9 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 		if (stage->workload.type == WORKLOAD_TYPE_DELETE) {
 			if (stage->write_bins == NULL) {
 				for (uint32_t i = 0; i < n_bins; i++) {
-					as_bin* bin = &tdata->fixed_value.bins.entries[i];
-					gen_bin_name(bin->name, cdata->bin_name, i);
-					as_record_set_nil(&tdata->fixed_value, bin->name);
+					as_bin_name bin_name;
+					gen_bin_name(bin_name, cdata->bin_name, i);
+					as_record_set_nil(&tdata->fixed_value, bin_name);
 				}
 			}
 			else {
@@ -1324,9 +1324,9 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 				FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
 						&stage->obj_spec, iter, idx, __bin_spec) {
 
-					as_bin* bin = &tdata->fixed_value.bins.entries[iter];
-					gen_bin_name(bin->name, cdata->bin_name, idx);
-					as_record_set_nil(&tdata->fixed_value, bin->name);
+					as_bin_name bin_name;
+					gen_bin_name(bin_name, cdata->bin_name, idx);
+					as_record_set_nil(&tdata->fixed_value, bin_name);
 				}
 				END_FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
 						iter, idx);

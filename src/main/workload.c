@@ -529,7 +529,8 @@ void stages_print(const stages_t* stages)
 	const static char* workloads[] = {
 		"I",
 		"RU",
-		"DB"
+		"DB",
+		"UDF"
 	};
 
 	char obj_spec_buf[512];
