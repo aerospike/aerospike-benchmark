@@ -22,6 +22,7 @@ CLIENT_ATTEMPTS = 20
 N_NODES = 2
 
 WORK_DIRECTORY = "work"
+LUA_DIRECTORY = "work/lua"
 STATE_DIRECTORIES = ["state-%d" % i for i in range(1, N_NODES+1)]
 UDF_DIRECTORIES = ["udf-%d" % i for i in range(1, N_NODES+1)]
 
@@ -98,6 +99,10 @@ def remove_work_dir():
 	"""
 	print("Removing work directory")
 	work = absolute_path(WORK_DIRECTORY)
+	lua = absolute_path(LUA_DIRECTORY)
+
+	if os.path.exists(lua):
+		remove_dir(lua)
 
 	if os.path.exists(work):
 		remove_dir(work)
@@ -127,7 +132,9 @@ def init_work_dir():
 	remove_work_dir()
 	print("Creating work directory")
 	work = absolute_path(WORK_DIRECTORY)
+	lua = absolute_path(LUA_DIRECTORY)
 	os.mkdir(work, 0o755)
+	os.mkdir(lua, 0o755)
 
 def init_state_dirs():
 	"""
@@ -241,7 +248,10 @@ def start(do_reset=True):
 
 		print("Connecting client")
 		SERVER_IP = "127.0.0.1"
-		config = {"hosts": [(SERVER_IP, PORT)]}
+		config = {
+			"hosts": [(SERVER_IP, PORT)],
+			"lua": { "user_path": absolute_path(LUA_DIRECTORY) }
+		}
 
 		for attempt in range(CLIENT_ATTEMPTS):
 			try:
