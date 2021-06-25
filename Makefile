@@ -31,6 +31,8 @@ DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/base/src/include
 INCLUDES = $(DIR_INCLUDE:%=-I%) 
 
+DIR_ENV = $(ROOT)/env
+
 ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le))
   CFLAGS += -march=nocona
 endif
@@ -81,32 +83,36 @@ else ifeq ($(OS),FreeBSD)
   LDFLAGS += -lrt
 endif
 
-LDFLAGS += -Ltarget/lib
 LDFLAGS += -lm -lz -lcyaml -lyaml
-TEST_LDFLAGS = $(LDFLAGS) -lcheck 
+TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
+LDFLAGS += -Ltarget/lib -flto
 CC = cc
 AR = ar
 
-BUILD_CFLAGS = $(CFLAGS) -g
-TEST_CFLAGS = $(CFLAGS) -D_TEST
+BUILD_CFLAGS = $(CFLAGS) -flto
+TEST_CFLAGS = $(CFLAGS) -g -D_TEST
 
 ###############################################################################
 ##  OBJECTS                                                                  ##
 ###############################################################################
 
 _MAIN_OBJECT = main.o
-_SRC = $(filter-out src/main/main.c,$(shell find src/main/ -type f -name '*.c'))
+_SRC = $(filter-out src/main/main.c,$(shell find src/main -type f -name '*.c'))
 _OBJECTS = $(patsubst src/main/%.c,%.o,$(_SRC))
 
 _HDR_OBJECTS = hdr_histogram.o hdr_histogram_log.o hdr_encoding.o hdr_time.o
 
-_TEST_SRC = $(shell find src/test/ -type f -name '*.c')
+_TEST_SRC = $(shell find src/test -type f -name '*.c')
 _TEST_OBJECTS = $(patsubst src/test/%.c,%.o,$(_TEST_SRC))
 
 MAIN_OBJECT = $(addprefix target/obj/,$(_MAIN_OBJECT))
 OBJECTS = $(addprefix target/obj/,$(_OBJECTS))
 HDR_OBJECTS = $(addprefix target/obj/hdr_histogram/,$(_HDR_OBJECTS))
-TEST_OBJECTS = $(addprefix test_target/obj/,$(_TEST_OBJECTS)) $(OBJECTS:target/%=test_target/%) $(HDR_OBJECTS:target/%=test_target/%)
+
+TEST_MAIN_OBJECT = $(MAIN_OBJECT:target/%=test_target/%)
+TEST_BENCH_OBJECTS = $(OBJECTS:target/%=test_target/%)
+TEST_HDR_OBJECTS = $(HDR_OBJECTS:target/%=test_target/%)
+TEST_OBJECTS = $(addprefix test_target/obj/,$(_TEST_OBJECTS)) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS)
 
 MAIN_DEPENDENCIES = $(MAIN_OBJECT:%.o=%.d)
 DEPENDENCIES = $(OBJECTS:%.o=%.d)
@@ -139,7 +145,7 @@ info:
 	@echo
 	@echo "  COMPILER:"
 	@echo "      command:    " $(CC)
-	@echo "      flags:      " $(CFLAGS)
+	@echo "      flags:      " $(BUILD_CFLAGS)
 	@echo
 	@echo "  LINKER:"
 	@echo "      command:    " $(LD)
@@ -159,7 +165,7 @@ target/libbench.a: $(OBJECTS)
 
 .PHONY: clean
 clean:
-	rm -rf target test_target
+	rm -rf target test_target $(DIR_ENV)
 	$(MAKE) clean -C modules/libcyaml
 
 target:
@@ -200,13 +206,14 @@ modules/libcyaml/build/debug/libcyaml.a:
 run: build
 	./target/benchmark -h $(AS_HOST) -p $(AS_PORT)
 
-.PHONY: valgrind
-valgrind: build
-	valgrind --tool=memcheck --leak-check=yes --show-reachable=yes --num-callers=20 --track-fds=yes -v ./target/benchmark
-
 .PHONY: test
-test: | test_target/test
+test: unit integration
+
+# unit testing
+.PHONY: unit
+unit: | test_target/test
 	@echo
+	@#valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
 	@./test_target/test
 
 test_target:
@@ -215,10 +222,16 @@ test_target:
 test_target/obj: | test_target
 	mkdir $@
 
+test_target/obj/unit: | test_target/obj
+	mkdir $@
+
 test_target/obj/hdr_histogram: | test_target/obj
 	mkdir $@
 
-test_target/obj/%.o: src/test/%.c | test_target/obj
+test_target/lib: | test_target
+	mkdir $@
+
+test_target/obj/unit/%.o: src/test/unit/%.c | test_target/obj/unit
 	$(CC) $(TEST_CFLAGS) -o $@ -c $<
 
 test_target/obj/%.o: src/main/%.c | test_target/obj
@@ -230,33 +243,89 @@ test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hd
 test_target/test: $(TEST_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
 	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
+# build the benchmark executable with code coverage
+test_target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | test_target/lib
+	cp $< $@
+
+test_target/benchmark: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+
 -include $(wildcard $(TEST_DEPENDENCIES))
 
+# integration testing
+.PHONY: integration
+integration: test_target/benchmark
+	@./integration_tests.sh $(DIR_ENV)
+
 # Summary requires the lcov tool to be installed
-.PHONY: coverage
-coverage: coverage-init do-test
+.PHONY: coverage-unit
+coverage-unit: do-unit
 	@echo
-	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark.info
-	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark.info
-	@lcov --summary test_target/aerospike-benchmark.info
+	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark-unit.info
+	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark-unit.info
+	@lcov --summary test_target/aerospike-benchmark-unit.info
+
+.PHONY: coverage-integration
+coverage-integration: do-integration
+	@echo
+	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark-integration.info
+	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark-integration.info
+	@lcov --summary test_target/aerospike-benchmark-integration.info
+
+.PHONY: coverage-all
+coverage-all: | coverage-init
+	@$(MAKE) -C . unit
+	@$(MAKE) -C . integration
+	@echo
+	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark-all.info
+	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark-all.info
+	@lcov --summary test_target/aerospike-benchmark-all.info
 
 .PHONY: coverage-init
 coverage-init:
 	@lcov --zerocounters --directory test_target
 
-.PHONY: do-test
-do-test: | coverage-init
-	@$(MAKE) -C . test
+.PHONY: do-unit
+do-unit: | coverage-init
+	@$(MAKE) -C . unit
 
-.PHONY: report
-report: coverage
-	@lcov -l test_target/aerospike-benchmark.info
+.PHONY: do-integration
+do-integration: | coverage-init
+	@$(MAKE) -C . integration
 
-.PHONY: report-display
-report-display: | test_target/aerospike-benchmark.info
+.PHONY: report-unit
+report-unit: test_target/aerospike-benchmark-unit.info
+	@lcov -l test_target/aerospike-benchmark-unit.info
+
+.PHONY: report-integration
+report-integration: test_target/aerospike-benchmark-integration.info
+	@lcov -l test_target/aerospike-benchmark-integration.info
+
+.PHONY: report-all
+report-all: test_target/aerospike-benchmark-all.info
+	@lcov -l test_target/aerospike-benchmark-all.info
+
+.PHONY: report-display-unit
+report-display-unit: | test_target/aerospike-benchmark-unit.info
 	@echo
 	@rm -rf test_target/html
 	@mkdir -p test_target/html
-	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark.info --legend --title "test lcov" --output-directory test_target/html
+	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark-unit.info --legend --title "test lcov" --output-directory test_target/html
+	@xdg-open file://$(ROOT)/test_target/html/index.html
+
+.PHONY: report-display-integration
+report-display-integration: | test_target/aerospike-benchmark-integration.info
+	@echo
+	@rm -rf test_target/html
+	@mkdir -p test_target/html
+	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark-integration.info --legend --title "test lcov" --output-directory test_target/html
+	@xdg-open file://$(ROOT)/test_target/html/index.html
+
+.PHONY: report-display-all
+report-display-all: | test_target/aerospike-benchmark-all.info
+	@echo
+	@rm -rf test_target/html
+	@mkdir -p test_target/html
+	@genhtml --prefix test_target/html --ignore-errors source test_target/aerospike-benchmark-all.info --legend --title "test lcov" --output-directory test_target/html
 	@xdg-open file://$(ROOT)/test_target/html/index.html
 

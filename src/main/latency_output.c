@@ -27,12 +27,13 @@ int
 initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 		hdr_timespec* start_timespec) {
 	int ret = 0;
-	bool has_reads = stages_contains_reads(&cdata->stages);
+	bool has_writes = stages_contain_writes(&cdata->stages);
+	bool has_reads = stages_contain_reads(&cdata->stages);
+	bool has_udfs = stages_contain_udfs(&cdata->stages);
 
 	cdata->histogram_period = args->histogram_period;
 
 	if (args->latency) {
-		hdr_init(1, 1000000, 3, &cdata->write_hdr);
 		as_vector_init(&cdata->latency_percentiles, args->latency_percentiles.item_size,
 				args->latency_percentiles.capacity);
 		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
@@ -40,8 +41,14 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 					as_vector_get(&args->latency_percentiles, i));
 		}
 
+		if (has_writes) {
+			hdr_init(1, 1000000, 3, &cdata->write_hdr);
+		}
 		if (has_reads) {
 			hdr_init(1, 1000000, 3, &cdata->read_hdr);
+		}
+		if (has_udfs) {
+			hdr_init(1, 1000000, 3, &cdata->udf_hdr);
 		}
 	}
 	
@@ -59,13 +66,15 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			cdata->histogram_output = stdout;
 		}
 
-		histogram_init(&cdata->write_histogram, 3, 100, (rangespec_t[]) {
-				{ .upper_bound = 4000,   .bucket_width = 100  },
-				{ .upper_bound = 64000,  .bucket_width = 1000 },
-				{ .upper_bound = 128000, .bucket_width = 4000 }
-				});
-		histogram_set_name(&cdata->write_histogram, "write_hist");
-		histogram_print_info(&cdata->write_histogram, cdata->histogram_output);
+		if (has_writes) {
+			histogram_init(&cdata->write_histogram, 3, 100, (rangespec_t[]) {
+					{ .upper_bound = 4000,   .bucket_width = 100  },
+					{ .upper_bound = 64000,  .bucket_width = 1000 },
+					{ .upper_bound = 128000, .bucket_width = 4000 }
+					});
+			histogram_set_name(&cdata->write_histogram, "write_hist");
+			histogram_print_info(&cdata->write_histogram, cdata->histogram_output);
+		}
 		
 		if (has_reads) {
 			histogram_init(&cdata->read_histogram, 3, 100, (rangespec_t[]) {
@@ -77,11 +86,21 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			histogram_print_info(&cdata->read_histogram, cdata->histogram_output);
 		}
 
+		if (has_udfs) {
+			histogram_init(&cdata->udf_histogram, 3, 100, (rangespec_t[]) {
+					{ .upper_bound = 4000,   .bucket_width = 100  },
+					{ .upper_bound = 64000,  .bucket_width = 1000 },
+					{ .upper_bound = 128000, .bucket_width = 4000 }
+					});
+			histogram_set_name(&cdata->udf_histogram, "udf_hist");
+			histogram_print_info(&cdata->udf_histogram, cdata->histogram_output);
+		}
 	}
 	
 	if (args->hdr_output) {
 		const static char write_output_prefix[] = "/write_";
 		const static char read_output_prefix[] = "/read_";
+		const static char udf_output_prefix[] = "/udf_";
 		const static char compressed_output_suffix[] = ".hdrhist";
 		const static char text_output_suffix[] = ".txt";
 
@@ -89,43 +108,46 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 		const char* utc_time = utc_time_str(*start_time);
 
 		size_t prefix_len = strlen(args->hdr_output);
-		size_t write_output_size =
-			prefix_len + (sizeof(write_output_prefix) - 1) +
-			UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
 
-		as_string_builder cmp_write_output_b;
-		as_string_builder txt_write_output_b;
-		as_string_builder_inita(&cmp_write_output_b, write_output_size, false);
-		as_string_builder_inita(&txt_write_output_b, write_output_size, false);
+		if (has_writes) {
+			size_t write_output_size =
+				prefix_len + (sizeof(write_output_prefix) - 1) +
+				UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
 
-		as_string_builder_append(&cmp_write_output_b, args->hdr_output);
-		as_string_builder_append(&cmp_write_output_b, write_output_prefix);
-		as_string_builder_append(&cmp_write_output_b, utc_time);
+			as_string_builder cmp_write_output_b;
+			as_string_builder txt_write_output_b;
+			as_string_builder_inita(&cmp_write_output_b, write_output_size, false);
+			as_string_builder_inita(&txt_write_output_b, write_output_size, false);
 
-		// duplicate the current buffer into txt (since only the extension differs
-		as_string_builder_append(&txt_write_output_b, cmp_write_output_b.data);
+			as_string_builder_append(&cmp_write_output_b, args->hdr_output);
+			as_string_builder_append(&cmp_write_output_b, write_output_prefix);
+			as_string_builder_append(&cmp_write_output_b, utc_time);
 
-		as_string_builder_append(&cmp_write_output_b, compressed_output_suffix);
-		as_string_builder_append(&txt_write_output_b, text_output_suffix);
+			// duplicate the current buffer into txt (since only the extension differs
+			as_string_builder_append(&txt_write_output_b, cmp_write_output_b.data);
 
-		cdata->hdr_comp_write_output = fopen(cmp_write_output_b.data, "a");
-		if (!cdata->hdr_comp_write_output) {
-			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
-					cmp_write_output_b.data, strerror(errno));
-			ret = -1;
+			as_string_builder_append(&cmp_write_output_b, compressed_output_suffix);
+			as_string_builder_append(&txt_write_output_b, text_output_suffix);
+
+			cdata->hdr_comp_write_output = fopen(cmp_write_output_b.data, "a");
+			if (!cdata->hdr_comp_write_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_write_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			cdata->hdr_text_write_output = fopen(txt_write_output_b.data, "a");
+			if (!cdata->hdr_text_write_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_write_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			as_string_builder_destroy(&cmp_write_output_b);
+			as_string_builder_destroy(&txt_write_output_b);
+
+			hdr_init(1, 1000000, 3, &cdata->summary_write_hdr);
 		}
-
-		cdata->hdr_text_write_output = fopen(txt_write_output_b.data, "a");
-		if (!cdata->hdr_text_write_output) {
-			fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
-					cmp_write_output_b.data, strerror(errno));
-			ret = -1;
-		}
-
-		as_string_builder_destroy(&cmp_write_output_b);
-		as_string_builder_destroy(&txt_write_output_b);
-
-		hdr_init(1, 1000000, 3, &cdata->summary_write_hdr);
 
 		if (has_reads) {
 			size_t read_output_size =
@@ -167,6 +189,46 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			hdr_init(1, 1000000, 3, &cdata->summary_read_hdr);
 		}
 
+		if (has_udfs) {
+			size_t udf_output_size =
+				prefix_len + (sizeof(udf_output_prefix) - 1) +
+				UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
+
+			as_string_builder cmp_udf_output_b;
+			as_string_builder txt_udf_output_b;
+			as_string_builder_inita(&cmp_udf_output_b, udf_output_size, false);
+			as_string_builder_inita(&txt_udf_output_b, udf_output_size, false);
+
+			as_string_builder_append(&cmp_udf_output_b, args->hdr_output);
+			as_string_builder_append(&cmp_udf_output_b, udf_output_prefix);
+			as_string_builder_append(&cmp_udf_output_b, utc_time);
+
+			// duplicate the current buffer into txt (since only the extension differs
+			as_string_builder_append(&txt_udf_output_b, cmp_udf_output_b.data);
+
+			as_string_builder_append(&cmp_udf_output_b, compressed_output_suffix);
+			as_string_builder_append(&txt_udf_output_b, text_output_suffix);
+
+			cdata->hdr_comp_udf_output = fopen(cmp_udf_output_b.data, "a");
+			if (!cdata->hdr_comp_udf_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_udf_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			cdata->hdr_text_udf_output = fopen(txt_udf_output_b.data, "a");
+			if (!cdata->hdr_text_udf_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_udf_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			as_string_builder_destroy(&cmp_udf_output_b);
+			as_string_builder_destroy(&txt_udf_output_b);
+
+			hdr_init(1, 1000000, 3, &cdata->summary_udf_hdr);
+		}
+
 		hdr_gettime(start_timespec);
 	}
 	return ret;
@@ -175,23 +237,33 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 void
 free_histograms(cdata_t* cdata, args_t* args)
 {
-	bool has_reads = stages_contains_reads(&cdata->stages);
+	bool has_writes = stages_contain_writes(&cdata->stages);
+	bool has_reads = stages_contain_reads(&cdata->stages);
+	bool has_udfs = stages_contain_udfs(&cdata->stages);
 
 	if (args->latency) {
-		hdr_close(cdata->write_hdr);
-
 		as_vector_destroy(&cdata->latency_percentiles);
 
+		if (has_writes) {
+			hdr_close(cdata->write_hdr);
+		}
 		if (has_reads) {
 			hdr_close(cdata->read_hdr);
+		}
+		if (has_udfs) {
+			hdr_close(cdata->udf_hdr);
 		}
 	}
 
 	if (args->latency_histogram) {
-		histogram_free(&cdata->write_histogram);
-		
+		if (has_writes) {
+			histogram_free(&cdata->write_histogram);
+		}
 		if (has_reads) {
 			histogram_free(&cdata->read_histogram);
+		}
+		if (has_udfs) {
+			histogram_free(&cdata->udf_histogram);
 		}
 
 		if (args->histogram_output) {
@@ -200,12 +272,14 @@ free_histograms(cdata_t* cdata, args_t* args)
 	}
 
 	if (args->hdr_output) {
-		hdr_close(cdata->summary_write_hdr);
-		if (cdata->hdr_comp_write_output) {
-			fclose(cdata->hdr_comp_write_output);
-		}
-		if (cdata->hdr_text_write_output) {
-			fclose(cdata->hdr_text_write_output);
+		if (has_writes) {
+			hdr_close(cdata->summary_write_hdr);
+			if (cdata->hdr_comp_write_output) {
+				fclose(cdata->hdr_comp_write_output);
+			}
+			if (cdata->hdr_text_write_output) {
+				fclose(cdata->hdr_text_write_output);
+			}
 		}
 
 		if (has_reads) {
@@ -217,6 +291,16 @@ free_histograms(cdata_t* cdata, args_t* args)
 				fclose(cdata->hdr_text_read_output);
 			}
 		}
+
+		if (has_udfs) {
+			hdr_close(cdata->summary_udf_hdr);
+			if (cdata->hdr_comp_udf_output) {
+				fclose(cdata->hdr_comp_udf_output);
+			}
+			if (cdata->hdr_text_udf_output) {
+				fclose(cdata->hdr_text_udf_output);
+			}
+		}
 	}
 }
 
@@ -224,7 +308,9 @@ void
 record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 		hdr_timespec* start_timespec) {
 	static const int32_t ticks_per_half_distance = 5;
-	bool has_reads = stages_contains_reads(&cdata->stages);
+	bool has_writes = stages_contain_writes(&cdata->stages);
+	bool has_reads = stages_contain_reads(&cdata->stages);
+	bool has_udfs = stages_contain_udfs(&cdata->stages);
 
 	// now record summary HDR hist if enabled
 	if (args->hdr_output) {
@@ -235,14 +321,17 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 		hdr_log_writer_init(&writer);
 
 		const char* utc_time = utc_time_str(start_time);
-		hdr_log_write_header(&writer, cdata->hdr_comp_write_output,
-				utc_time, start_timespec);
 
-		hdr_log_write(&writer, cdata->hdr_comp_write_output,
-				start_timespec, &end_timespec, cdata->summary_write_hdr);
+		if (has_writes) {
+			hdr_log_write_header(&writer, cdata->hdr_comp_write_output,
+					utc_time, start_timespec);
 
-		hdr_percentiles_print(cdata->summary_write_hdr, cdata->hdr_text_write_output,
-				ticks_per_half_distance, 1., CLASSIC);
+			hdr_log_write(&writer, cdata->hdr_comp_write_output,
+					start_timespec, &end_timespec, cdata->summary_write_hdr);
+
+			hdr_percentiles_print(cdata->summary_write_hdr, cdata->hdr_text_write_output,
+					ticks_per_half_distance, 1., CLASSIC);
+		}
 
 		if (has_reads) {
 			hdr_log_write_header(&writer, cdata->hdr_comp_read_output,
@@ -252,6 +341,17 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 					start_timespec, &end_timespec, cdata->summary_read_hdr);
 
 			hdr_percentiles_print(cdata->summary_read_hdr, cdata->hdr_text_read_output,
+					ticks_per_half_distance, 1., CLASSIC);
+		}
+
+		if (has_udfs) {
+			hdr_log_write_header(&writer, cdata->hdr_comp_udf_output,
+					utc_time, start_timespec);
+
+			hdr_log_write(&writer, cdata->hdr_comp_udf_output,
+					start_timespec, &end_timespec, cdata->summary_udf_hdr);
+
+			hdr_percentiles_print(cdata->summary_udf_hdr, cdata->hdr_text_udf_output,
 					ticks_per_half_distance, 1., CLASSIC);
 		}
 	}
@@ -265,10 +365,13 @@ periodic_output_worker(void* udata)
 	thr_coord_t* coord = tdata->coord;
 
 	bool latency = cdata->latency;
-	bool has_reads = stages_contains_reads(&cdata->stages);
+	bool has_writes = stages_contain_writes(&cdata->stages);
+	bool has_reads = stages_contain_reads(&cdata->stages);
+	bool has_udfs = stages_contain_udfs(&cdata->stages);
 	uint64_t gen_count = 0;
 	histogram_t* write_histogram = &cdata->write_histogram;
 	histogram_t* read_histogram = &cdata->read_histogram;
+	histogram_t* udf_histogram = &cdata->udf_histogram;
 	FILE* histogram_output = cdata->histogram_output;
 
 	struct timespec wake_up;
@@ -313,24 +416,37 @@ periodic_output_worker(void* udata)
 		uint32_t read_current = as_fas_uint32(&cdata->read_count, 0);
 		uint32_t read_timeout_current = as_fas_uint32(&cdata->read_timeout_count, 0);
 		uint32_t read_error_current = as_fas_uint32(&cdata->read_error_count, 0);
+		uint32_t udf_current = as_fas_uint32(&cdata->udf_count, 0);
+		uint32_t udf_timeout_current = as_fas_uint32(&cdata->udf_timeout_count, 0);
+		uint32_t udf_error_current = as_fas_uint32(&cdata->udf_error_count, 0);
 
 		cdata->period_begin = time;
 
 		uint32_t write_tps = (uint32_t)((double)write_current * 1000000 / elapsed + 0.5);
 		uint32_t read_tps = (uint32_t)((double)read_current * 1000000 / elapsed + 0.5);
+		uint32_t udf_tps = (uint32_t)((double)udf_current * 1000000 / elapsed + 0.5);
 
 		bool any_records = write_current + write_timeout_current + write_error_current +
-			read_current + read_timeout_current + read_error_current != 0;
+			read_current + read_timeout_current + read_error_current +
+			udf_current + udf_timeout_current + udf_error_current != 0;
 		if (any_records) {
-			blog_info("write(tps=%d timeouts=%d errors=%d) ",
-					write_tps, write_timeout_current, write_error_current);
+			blog_info("");
+			if (has_writes) {
+				printf("write(tps=%d timeouts=%d errors=%d) ",
+						write_tps, write_timeout_current, write_error_current);
+			}
 			if (has_reads) {
 				printf("read(tps=%d timeouts=%d errors=%d) ",
 						read_tps, read_timeout_current, read_error_current);
 			}
+			if (has_udfs) {
+				printf("udf(tps=%d timeouts=%d errors=%d) ",
+						udf_tps, udf_timeout_current, udf_error_current);
+			}
 			printf("total(tps=%d timeouts=%d errors=%d)\n",
-					write_tps + read_tps, write_timeout_current + read_timeout_current,
-					write_error_current + read_error_current);
+					write_tps + read_tps + udf_tps,
+					write_timeout_current + read_timeout_current + udf_timeout_current,
+					write_error_current + read_error_current + udf_error_current);
 		}
 
 		++gen_count;
@@ -344,11 +460,19 @@ periodic_output_worker(void* udata)
 			if (any_records) {
 				if (latency) {
 					uint64_t elapsed_s = (time - start_time) / 1000000;
-					print_hdr_percentiles(cdata->write_hdr, "write", elapsed_s,
-							&cdata->latency_percentiles, stdout);
+
+					if (has_writes) {
+						print_hdr_percentiles(cdata->write_hdr, "write", elapsed_s,
+								&cdata->latency_percentiles, stdout);
+					}
 
 					if (has_reads) {
 						print_hdr_percentiles(cdata->read_hdr,  "read",  elapsed_s,
+								&cdata->latency_percentiles, stdout);
+					}
+
+					if (has_udfs) {
+						print_hdr_percentiles(cdata->udf_hdr,  "udf",  elapsed_s,
 								&cdata->latency_percentiles, stdout);
 					}
 				}
@@ -357,12 +481,22 @@ periodic_output_worker(void* udata)
 						fprint_stage(histogram_output, &cdata->stages,
 								tdata->stage_idx);
 					}
-					histogram_print_clear(write_histogram, elapsed_hist,
-							histogram_output);
+
+					if (has_writes) {
+						histogram_print_clear(write_histogram, elapsed_hist,
+								histogram_output);
+					}
+
 					if (has_reads) {
 						histogram_print_clear(read_histogram, elapsed_hist,
 								histogram_output);
 					}
+
+					if (has_udfs) {
+						histogram_print_clear(udf_histogram, elapsed_hist,
+								histogram_output);
+					}
+
 					fflush(histogram_output);
 				}
 			}

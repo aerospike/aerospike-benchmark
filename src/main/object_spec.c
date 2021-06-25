@@ -4,14 +4,10 @@
 //
 
 #include <assert.h>
+#include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 
-#include <aerospike/as_arraylist.h>
-#include <aerospike/as_bytes.h>
-#include <aerospike/as_double.h>
-#include <aerospike/as_hashmap.h>
-#include <aerospike/as_integer.h>
-#include <aerospike/as_list.h>
 #include <aerospike/as_hashmap_iterator.h>
 #include <aerospike/as_pair.h>
 #include <aerospike/as_string.h>
@@ -53,26 +49,22 @@ struct consumer_state_s {
 	// used only for the map, can be one of MAP_KEY, MAP_VAL, or MAP_DONE
 	uint8_t state;
 
+	// set to false by anything that is randomized, meaning if it's true by the
+	// time this list/map is finished being parsed, the entire collection is
+	// const and can be turned into an as_val
+	bool is_const;
+
 	// a pointer to the bin spec that is being built at this layer
 	struct bin_spec_s* bin_spec;
 
 	struct consumer_state_s* parent;
 
-	union {
-		struct {
-			// the vector of bin_specs used to build a list
-			as_vector* list_builder;
+	// the vector of bin_specs used to build a list, or the vector of
+	// bin_spec_kv_pair's used to build a map
+	as_vector* list_builder;
 
-			// the length of the list, accounting for multipliers
-			uint32_t list_len;
-		};
-
-		// the key/value bin_specs used to build a map
-		struct {
-			struct bin_spec_s* key;
-			struct bin_spec_s* value;
-		};
-	};
+	// the length of the list, accounting for multipliers
+	uint32_t list_len;
 };
 
 
@@ -80,14 +72,18 @@ struct consumer_state_s {
 // Forward declarations.
 //
 
-LOCAL_HELPER uint32_t bin_spec_map_n_entries(const struct bin_spec_s* b);
 LOCAL_HELPER void _print_parse_error(const char* err_msg, const char* obj_spec_str,
 		const char* err_loc);
 LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
+LOCAL_HELPER bool _consumer_state_map_repeat_const_key(struct consumer_state_s* state,
+		const struct bin_spec_s* bin_spec);
 LOCAL_HELPER void _destroy_consumer_states(struct consumer_state_s* state);
 LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str);
+LOCAL_HELPER int _parse_const_val(const char* const obj_spec_str,
+		const char** stream, struct bin_spec_s* bin_spec, char delim);
 LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
+LOCAL_HELPER as_val* _gen_random_bool(as_random* random);
 LOCAL_HELPER as_val* _gen_random_int(uint8_t range, as_random* random);
 LOCAL_HELPER uint64_t raw_to_alphanum(uint64_t n);
 LOCAL_HELPER as_val* _gen_random_str(uint32_t length, as_random* random);
@@ -104,20 +100,91 @@ LOCAL_HELPER size_t _sprint_bin(const struct bin_spec_s* bin, char** out_str,
 		size_t str_size);
 
 #ifdef _TEST
-LOCAL_HELPER void _dbg_validate_int(uint8_t range, as_integer* as_val);
-LOCAL_HELPER void _dbg_validate_string(uint32_t length, as_string* as_val);
-LOCAL_HELPER void _dbg_validate_bytes(uint32_t length, as_bytes* as_val);
-LOCAL_HELPER void _dbg_validate_double(as_double* as_val);
-LOCAL_HELPER void _dbg_validate_list(const struct bin_spec_s* bin_spec,
-		const as_list* as_val);
-LOCAL_HELPER void _dbg_validate_map(const struct bin_spec_s* bin_spec,
-		const as_map* val);
+LOCAL_HELPER bool _dbg_as_val_cmp(const as_val* v1, const as_val* v2, bool do_assert);
+LOCAL_HELPER bool _dbg_as_bool_cmp(const as_boolean* b1, const as_boolean* b2, bool do_assert);
+LOCAL_HELPER bool _dbg_as_int_cmp(const as_integer* i1, const as_integer* i2, bool do_assert);
+LOCAL_HELPER bool _dbg_as_string_cmp(const as_string* s1, const as_string* s2, bool do_assert);
+LOCAL_HELPER bool _dbg_as_double_cmp(const as_double* d1, const as_double* d2, bool do_assert);
+LOCAL_HELPER bool _dbg_as_list_cmp(const as_list* l1, const as_list* l2, bool do_assert);
+LOCAL_HELPER bool _dbg_as_map_cmp(const as_map* m1, const as_map* m2, bool do_assert);
+
+LOCAL_HELPER bool _dbg_validate_bool(as_boolean* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_int(uint8_t range, as_integer* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_string(uint32_t length, as_string* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_bytes(uint32_t length, as_bytes* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_double(as_double* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_list(const struct bin_spec_s* bin_spec,
+		const as_list* as_val, bool do_assert);
+LOCAL_HELPER bool _dbg_validate_map(const struct bin_spec_s* bin_spec,
+		const as_map* val, bool do_assert);
 #endif /* _TEST */
 
 
 //==========================================================
 // Inlines and macros.
 //
+
+LOCAL_HELPER bool
+_as_hashmap_merge(const as_val* key, const as_val* value, void* udata)
+{
+	as_hashmap* map = (as_hashmap*) udata;
+	as_val_reserve(key);
+	as_val_reserve(value);
+	as_hashmap_set(map, key, value);
+	return true;
+}
+
+LOCAL_HELPER as_val*
+_as_val_copy(const as_val* val)
+{
+	switch (val->type) {
+		case AS_BOOLEAN:
+			if (as_boolean_get(as_boolean_fromval(val))) {
+				return (as_val*) &as_true;
+			}
+			else {
+				return (as_val*) &as_false;
+			}
+		case AS_INTEGER:
+			return (as_val*) as_integer_new(as_integer_get(as_integer_fromval(val)));
+		case AS_STRING: {
+			char* str_cpy = strdup(as_string_get(as_string_fromval(val)));
+			return (as_val*) as_string_new(str_cpy, true);
+		}
+		case AS_DOUBLE:
+			return (as_val*) as_double_new(as_double_get(as_double_fromval(val)));
+		case AS_LIST: {
+			as_arraylist* list = (as_arraylist*) as_list_fromval((as_val*) val);
+			as_arraylist* list_cpy = as_arraylist_new(as_arraylist_size(list),
+					list->block_size);
+			for (uint32_t i = 0; i < as_arraylist_size(list); i++) {
+				as_val* v = as_arraylist_get(list, i);
+				as_val_reserve(v);
+				as_arraylist_append(list_cpy, v);
+			}
+			return (as_val*) list_cpy;
+		}
+		case AS_MAP: {
+			as_hashmap* map = (as_hashmap*) as_map_fromval(val);
+			as_hashmap* map_cpy = as_hashmap_new(map->table_capacity);
+			as_hashmap_foreach(map, _as_hashmap_merge, map_cpy);
+			return (as_val*) map_cpy;
+		}
+		default:
+			fprintf(stderr, "Cannot copy as_val of type %u\n", val->type);
+			return NULL;
+	}
+}
+
+LOCAL_HELPER bool
+_as_hashmap_merge_cpy(const as_val* key, const as_val* value, void* udata)
+{
+	as_hashmap* map = (as_hashmap*) udata;
+	key = _as_val_copy(key);
+	value = _as_val_copy(value);
+	as_hashmap_set(map, key, value);
+	return true;
+}
 
 /*
  * converts a bytevector of 8 values between 0-35 to a bytevector of 8
@@ -151,6 +218,103 @@ raw_to_alphanum(uint64_t n)
 		str_size = (str_size > __w ? str_size - __w : 0); \
 	} while (0)
 
+#ifdef _TEST
+
+LOCAL_HELPER inline uint8_t
+_bin_spec_get_type(const struct bin_spec_s* bin_spec)
+{
+	return bin_spec->type & BIN_SPEC_TYPE_MASK;
+}
+
+LOCAL_HELPER inline bool
+_bin_spec_is_const(const struct bin_spec_s* bin_spec)
+{
+	return (bin_spec->type & BIN_SPEC_TYPE_CONST) != 0;
+}
+
+#define do_ck_assert_msg(cond, ...) \
+	if (do_assert) { \
+		ck_assert_msg(cond, __VA_ARGS__); \
+	} \
+	else if (!(cond)) { \
+		fprintf(stderr, __VA_ARGS__); \
+		return false; \
+	}
+
+#define do_ck_assert(cond) \
+	if (do_assert) { \
+		ck_assert(cond); \
+	} \
+	else if (!(cond)) { \
+		return false; \
+	}
+
+#define do_ck_assert_uint_eq(i1, i2) \
+	if (do_assert) { \
+		ck_assert_uint_eq(i1, i2); \
+	} \
+	else if ((i1) != (i2)) { \
+		return false; \
+	}
+
+#define do_ck_assert_int_eq(i1, i2) \
+	if (do_assert) { \
+		ck_assert_int_eq(i1, i2); \
+	} \
+	else if ((i1) != (i2)) { \
+		return false; \
+	}
+
+#define do_ck_assert_float_eq(f1, f2) \
+	if (do_assert) { \
+		ck_assert_float_eq(f1, f2); \
+	} \
+	else if ((f1) != (f2)) { \
+		return false; \
+	}
+
+#define do_ck_assert_str_eq(s1, s2) \
+	if (do_assert) { \
+		ck_assert_str_eq(s1, s2); \
+	} \
+	else if (strcmp((s1), (s2)) != 0) { \
+		return false; \
+	}
+
+struct as_hashmap_cmp_state {
+	// a pointer to the other hashmap being compared to (against the hashmap
+	// being iterated over)
+	const as_map* other;
+	// defaults to true, set to false when a mismatch is found
+	bool same;
+	bool do_assert;
+};
+
+LOCAL_HELPER bool
+_dbg_as_map_cmp_fn(const as_val* key, const as_val* value, void* udata)
+{
+	struct as_hashmap_cmp_state* c = (struct as_hashmap_cmp_state*) udata;
+	const as_map* other = c->other;
+	bool do_assert = c->do_assert;
+
+	as_val* other_v = as_map_get(other, key);
+	if (other_v == NULL) {
+		c->same = false;
+		do_ck_assert_msg(other_v != NULL, "Key %s not found in other map",
+				as_val_tostring(key));
+	}
+
+	if (!_dbg_as_val_cmp(value, other_v, do_assert)) {
+		c->same = false;
+		do_ck_assert_msg(other_v != NULL, "Values for key %s did not match in "
+				"maps: %s vs %s",
+				as_val_tostring(key), as_val_tostring(value), as_val_tostring(other_v));
+	}
+	return true;
+}
+
+#endif /* _TEST */
+
 
 //==========================================================
 // Public API.
@@ -174,10 +338,14 @@ obj_spec_parse(struct obj_spec_s* base_obj, const char* obj_spec_str)
 		base_obj->bin_specs = as_vector_to_array(&bin_specs, &base_obj->n_bin_specs);
 
 		// n_bins is initialized by _parse_bin_types
+#ifdef __linux__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif /* __linux__ */
 		base_obj->n_bin_specs = n_bins;
+#ifdef __linux__
 #pragma GCC diagnostic pop
+#endif /* __linux__ */
 
 		base_obj->valid = true;
 	}
@@ -202,6 +370,11 @@ obj_spec_free(struct obj_spec_s* obj_spec)
 	}
 }
 
+bool
+obj_spec_is_valid(obj_spec_t* obj_spec)
+{
+	return obj_spec->valid;
+}
 
 void
 obj_spec_move(struct obj_spec_s* dst, struct obj_spec_s* src)
@@ -280,58 +453,31 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 				if (!as_record_set(rec, name, (as_bin_value*) val)) {
 					// failed to set a record, meaning we ran out of space
 					fprintf(stderr, "Not enough free bin slots in record\n");
+					as_val_destroy(val);
 					return -1;
 				}
 			}
 		}
 	}
 	else {
-		uint32_t k = 0;
-		uint32_t tot = 0;
-		uint32_t next_idx = write_bins[k];
+		FOR_EACH_WRITE_BIN(write_bins, n_write_bins, obj_spec, _k, idx, bin_spec) {
+			as_val* val = bin_spec_random_val(bin_spec, random,
+					compression_ratio);
 
-		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
-			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
+			if (val == NULL) {
+				return -1;
+			}
 
-			for (;;) {
-				if (tot + bin_spec->n_repeats <= next_idx) {
-					tot += bin_spec->n_repeats;
-					break;
-				}
-				else {
-					as_val* val = bin_spec_random_val(bin_spec, random,
-							compression_ratio);
-
-					if (val == NULL) {
-						return -1;
-					}
-
-					as_bin_name name;
-					gen_bin_name(name, bin_name, next_idx);
-					if (!as_record_set(rec, name, (as_bin_value*) val)) {
-						// failed to set a record, meaning we ran out of space
-						fprintf(stderr, "Not enough free bin slots in record\n");
-						return -1;
-					}
-
-					k++;
-					if (k >= n_write_bins) {
-						goto finished_generating;
-					}
-
-					next_idx = write_bins[k];
-				}
+			as_bin_name name;
+			gen_bin_name(name, bin_name, idx);
+			if (!as_record_set(rec, name, (as_bin_value*) val)) {
+				// failed to set a record, meaning we ran out of space
+				fprintf(stderr, "Not enough free bin slots in record\n");
+				as_val_destroy(val);
+				return -1;
 			}
 		}
-
-		if (tot == n_bin_specs) {
-			// this should never happen if write_bins are valid (which is
-			// checked for during initialization)
-			fprintf(stderr, "Failed to generate record with write-bins\n");
-			return -1;
-		}
-
-finished_generating: ;
+		END_FOR_EACH_WRITE_BIN(write_bins, n_write_bins, _k, idx);
 	}
 
 	return 0;
@@ -360,49 +506,21 @@ obj_spec_gen_compressible_value(const struct obj_spec_s* obj_spec,
 		return bin_spec_random_val(&tmp_list, random, compression_ratio);
 	}
 	else {
-		uint32_t k = 0;
-		uint32_t tot = 0;
-		uint32_t next_idx = write_bins[k];
-
 		as_arraylist* list = as_arraylist_new(n_write_bins, 0);
 
-		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
-			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
+		FOR_EACH_WRITE_BIN(write_bins, n_write_bins, obj_spec, _k, _idx, bin_spec) {
+			as_val* val = bin_spec_random_val(bin_spec, random,
+					compression_ratio);
 
-			for (;;) {
-				if (tot + bin_spec->n_repeats <= next_idx) {
-					tot += bin_spec->n_repeats;
-					break;
-				}
-				else {
-					as_val* val = bin_spec_random_val(bin_spec, random,
-							compression_ratio);
-
-					if (val == NULL) {
-						as_list_destroy((as_list*) list);
-						return NULL;
-					}
-
-					as_list_append((as_list*) list, val);
-
-					k++;
-					if (k >= n_write_bins) {
-						goto finished_generating_val;
-					}
-
-					next_idx = write_bins[k];
-				}
+			if (val == NULL) {
+				as_list_destroy((as_list*) list);
+				return NULL;
 			}
-		}
 
-		if (tot == obj_spec->n_bin_specs) {
-			// this should never happen if write_bins are valid (which is
-			// checked for during initialization)
-			fprintf(stderr, "Failed to generate value with write-bins\n");
-			as_list_destroy((as_list*) list);
-			return NULL;
+			as_list_append((as_list*) list, val);
 		}
-finished_generating_val:
+		END_FOR_EACH_WRITE_BIN(write_bins, n_write_bins, _k, _idx);
+
 		return (as_val*) list;
 	}
 }
@@ -420,6 +538,8 @@ snprint_obj_spec(const struct obj_spec_s* obj_spec, char* out_str,
 			sprint(&out_str, str_size, ",");
 		}
 	}
+	// null-terminate in case str was never written to
+	*out_str = '\0';
 }
 
 #ifdef _TEST
@@ -441,69 +561,124 @@ _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 				as_val* val = (as_val*) as_record_get(rec, name);
 				ck_assert_msg(val != NULL, "expected a record in bin \"%s\"",
 						name);
-				_dbg_validate_bin_spec(bin_spec, val);
+				_dbg_validate_bin_spec(bin_spec, val, true);
 			}
 		}
 	}
 	else {
-		uint32_t k = 0;
-		uint32_t tot = 0;
-		uint32_t next_idx = write_bins[k];
-
-		for (uint32_t i = 0; tot < obj_spec->n_bin_specs; i++) {
-			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
-
-			for (;;) {
-				if (tot + bin_spec->n_repeats <= next_idx) {
-					tot += bin_spec->n_repeats;
+		for (uint32_t i = 0; i < n_write_bins; i++) {
+			uint32_t bin_idx = write_bins[i];
+			// find the object spec this belongs to
+			uint32_t obj_spec_idx = 0;
+			uint32_t tot = 0;
+			while (1) {
+				uint32_t n_reps = obj_spec->bin_specs[obj_spec_idx].n_repeats;
+				if (tot + n_reps > bin_idx) {
 					break;
 				}
-				else {
-					gen_bin_name(name, bin_name, next_idx);
-
-					as_val* val = (as_val*) as_record_get(rec, name);
-					ck_assert_msg(val != NULL, "expected a record in bin "
-							"\"%s\"", name);
-					_dbg_validate_bin_spec(bin_spec, val);
-
-					if (k >= n_write_bins) {
-						goto finished_validating;
-					}
-
-					next_idx = write_bins[k++];
-				}
+				tot += n_reps;
+				obj_spec_idx++;
 			}
-		}
+			gen_bin_name(name, bin_name, bin_idx);
 
-finished_validating:;
+			as_val* val = (as_val*) as_record_get(rec, name);
+			ck_assert_msg(val != NULL, "expected a record in bin "
+					"\"%s\"", name);
+			_dbg_validate_bin_spec(&obj_spec->bin_specs[obj_spec_idx], val, true);
+		}
 	}
 }
 
-void
-_dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
+bool
+_dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val, bool do_assert)
 {
-	switch (bin_spec->type) {
-		case BIN_SPEC_TYPE_INT:
-			_dbg_validate_int(bin_spec->integer.range, as_integer_fromval(val));
-			break;
-		case BIN_SPEC_TYPE_STR:
-			_dbg_validate_string(bin_spec->string.length, as_string_fromval(val));
-			break;
-		case BIN_SPEC_TYPE_BYTES:
-			_dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val));
-			break;
-		case BIN_SPEC_TYPE_DOUBLE:
-			_dbg_validate_double(as_double_fromval(val));
-			break;
-		case BIN_SPEC_TYPE_LIST:
-			_dbg_validate_list(bin_spec, as_list_fromval((as_val*) val));
-			break;
-		case BIN_SPEC_TYPE_MAP:
-			_dbg_validate_map(bin_spec, as_map_fromval(val));
-			break;
-		default:
-			ck_assert_msg(0, "unknown bin_spec type (%d)", bin_spec->type);
+	if (_bin_spec_is_const(bin_spec)) {
+		switch (_bin_spec_get_type(bin_spec)) {
+			case BIN_SPEC_TYPE_BOOL: {
+				as_boolean* b = as_boolean_fromval(val);
+				do_ck_assert_msg(b != NULL, "Expected a boolean, got something else");
+				do_ck_assert_uint_eq(as_boolean_get(b),
+						as_boolean_get(&bin_spec->const_bool.val));
+				break;
+			}
+
+			case BIN_SPEC_TYPE_INT: {
+				as_integer* i = as_integer_fromval(val);
+				do_ck_assert_msg(i != NULL, "Expected an integer, got something else");
+				do_ck_assert_int_eq(as_integer_get(i),
+						as_integer_get(&bin_spec->const_integer.val));
+				break;
+			}
+
+			case BIN_SPEC_TYPE_STR: {
+				as_string* s = as_string_fromval(val);
+				do_ck_assert_msg(s != NULL, "Expected a string, got something else");
+				do_ck_assert_str_eq(as_string_get(s),
+						as_string_get(&bin_spec->const_string.val));
+				break;
+			}
+
+			case BIN_SPEC_TYPE_BYTES:
+				do_ck_assert_msg(0, "bytes may not be const");
+				break;
+
+			case BIN_SPEC_TYPE_DOUBLE: {
+				as_double* d = as_double_fromval(val);
+				do_ck_assert_msg(d != NULL, "Expected a double, got something else");
+				do_ck_assert_float_eq(as_double_get(d),
+						as_double_get(&bin_spec->const_double.val));
+				break;
+			}
+
+			case BIN_SPEC_TYPE_LIST:
+				return _dbg_as_val_cmp((const as_val*) &bin_spec->const_list.val,
+						val, do_assert);
+
+			case BIN_SPEC_TYPE_MAP:
+				return _dbg_as_val_cmp((const as_val*) &bin_spec->const_map.val,
+						val, do_assert);
+
+			default:
+				do_ck_assert_msg(0, "unknown bin_spec type (0x%x)", bin_spec->type);
+				break;
+		}
 	}
+	else {
+		switch (_bin_spec_get_type(bin_spec)) {
+			case BIN_SPEC_TYPE_BOOL: {
+				as_boolean* b = as_boolean_fromval(val);
+				return _dbg_validate_bool(b, do_assert);
+			}
+
+			case BIN_SPEC_TYPE_INT: {
+				as_integer* i = as_integer_fromval(val);
+				return _dbg_validate_int(bin_spec->integer.range, i, do_assert);
+			}
+
+			case BIN_SPEC_TYPE_STR: {
+				as_string* s = as_string_fromval(val);
+				return _dbg_validate_string(bin_spec->string.length, s, do_assert);
+			}
+
+			case BIN_SPEC_TYPE_BYTES:
+				return _dbg_validate_bytes(bin_spec->string.length, as_bytes_fromval(val), do_assert);
+
+			case BIN_SPEC_TYPE_DOUBLE: {
+				as_double* d = as_double_fromval(val);
+				return _dbg_validate_double(d, do_assert);
+			}
+
+			case BIN_SPEC_TYPE_LIST:
+				return _dbg_validate_list(bin_spec, as_list_fromval((as_val*) val), do_assert);
+
+			case BIN_SPEC_TYPE_MAP:
+				return _dbg_validate_map(bin_spec, as_map_fromval(val), do_assert);
+
+			default:
+				do_ck_assert_msg(0, "unknown bin_spec type (0x%x)", bin_spec->type);
+		}
+	}
+	return true;
 }
 
 #endif /* _TEST */
@@ -512,15 +687,6 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val)
 //==========================================================
 // Local helpers.
 //
-
-/*
- * gives the number of entries to put in the map
- */
-LOCAL_HELPER uint32_t
-bin_spec_map_n_entries(const struct bin_spec_s* b)
-{
-	return b->map.key->n_repeats;
-}
 
 LOCAL_HELPER void
 _print_parse_error(const char* err_msg, const char* obj_spec_str,
@@ -552,6 +718,44 @@ _print_parse_error(const char* err_msg, const char* obj_spec_str,
 }
 
 /*
+ * returns true if the const key in bin_spec has been repeated in this state
+ * before
+ */
+LOCAL_HELPER bool
+_consumer_state_map_repeat_const_key(struct consumer_state_s* state,
+		const struct bin_spec_s* bin_spec)
+{
+	bool repeated = false;
+	for (uint32_t i = 0; !repeated &&
+			i < state->list_builder->size - 1; i++) {
+		struct bin_spec_kv_pair_s* kv_pair = (struct bin_spec_kv_pair_s*)
+			as_vector_get(state->list_builder, i);
+		struct bin_spec_s* k = &kv_pair->key;
+		if (k->type == bin_spec->type) {
+			switch (k->type & BIN_SPEC_TYPE_MASK) {
+				case BIN_SPEC_TYPE_BOOL:
+					repeated = as_boolean_get(&k->const_bool.val) ==
+						as_boolean_get(&bin_spec->const_bool.val);
+					break;
+				case BIN_SPEC_TYPE_INT:
+					repeated = as_integer_get(&k->const_integer.val) ==
+						as_integer_get(&bin_spec->const_integer.val);
+					break;
+				case BIN_SPEC_TYPE_STR:
+					repeated = strcmp(as_string_get(&k->const_string.val),
+							as_string_get(&bin_spec->const_string.val)) == 0;
+					break;
+				case BIN_SPEC_TYPE_DOUBLE:
+					repeated = as_double_get(&k->const_double.val) ==
+						as_double_get(&bin_spec->const_double.val);
+					break;
+			}
+		}
+	}
+	return repeated;
+}
+
+/*
  * to be called when an error is encountered while parsing, and cleanup of the
  * consumer state managers and bin_specs is necessary
  */
@@ -580,19 +784,36 @@ _destroy_consumer_states(struct consumer_state_s* state)
 				break;
 			case CONSUMER_TYPE_MAP:
 				// free the key/value if they've been initialized
+				list_builder = state->list_builder;
+				if (list_builder->size == 0) {
+					as_vector_destroy(list_builder);
+					break;
+				}
+
+				for (uint32_t i = 0; i < list_builder->size - 1; i++) {
+					struct bin_spec_kv_pair_s* kv_pair =
+						(struct bin_spec_kv_pair_s*) as_vector_get(list_builder, i);
+					bin_spec_free(&kv_pair->key);
+					bin_spec_free(&kv_pair->val);
+				}
+				// the last element is a special case, since which elements have
+				// been initialized depends on the state
+				struct bin_spec_kv_pair_s* kv_pair =
+					(struct bin_spec_kv_pair_s*)
+					as_vector_get(list_builder, list_builder->size - 1);
 				switch (state->state) {
 					case MAP_DONE:
-						bin_spec_free(state->value);
-						cf_free(state->value);
+						bin_spec_free(&kv_pair->val);
 						// fall through to free key too
 					case MAP_VAL:
-						bin_spec_free(state->key);
-						cf_free(state->key);
+						bin_spec_free(&kv_pair->key);
 					case MAP_KEY:
 						break;
 					default:
 						__builtin_unreachable();
 				}
+
+				as_vector_destroy(list_builder);
 				break;
 			default:
 				__builtin_unreachable();
@@ -619,6 +840,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 
 	begin_state.delimiter = '\0';
 	begin_state.type = CONSUMER_TYPE_LIST;
+	// never allow the top-level bin_spec to be reduced to a const_list
+	begin_state.is_const = false;
 	begin_state.bin_spec = NULL;
 	begin_state.parent = NULL;
 	begin_state.list_builder = bin_specs;
@@ -627,7 +850,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 	state = &begin_state;
 	str = obj_spec_str;
 
-	do {
+	for(;;) {
 		uint8_t delim;
 		uint8_t type;
 		uint8_t map_state;
@@ -659,26 +882,87 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						// so overwrite what was stored by as_vector_to_array
 						bin_spec->list.length = state->list_len;
 						as_vector_destroy(state->list_builder);
+
+						if (state->is_const) {
+							// turn this bin_spec into an as_arraylist
+							as_arraylist* val = (as_arraylist*)
+								as_list_fromval(bin_spec_random_val(bin_spec, NULL, 1.f));
+
+							// val currently has pointers to val objects
+							// embedded in bin_spec objects, so we need to go
+							// through and make a heap copy of each of them
+							for (uint32_t i = 0; i < val->size; i++) {
+								as_val* old_val = as_arraylist_get(val, i);
+								as_val* new_val = _as_val_copy(old_val);
+								as_arraylist_set(val, i, new_val);
+							}
+
+							// free the old bin_spec that was there
+							bin_spec_free(bin_spec);
+
+							// and re-populate it with the const listt
+							bin_spec->type = BIN_SPEC_TYPE_LIST | BIN_SPEC_TYPE_CONST;
+							// and put the generated val in its place
+							as_arraylist_init(&bin_spec->const_list.val,
+									val->size, val->block_size);
+							as_arraylist_concat(&bin_spec->const_list.val, val);
+							as_arraylist_destroy(val);
+						}
 						break;
 					case CONSUMER_TYPE_MAP:
 						bin_spec->type = BIN_SPEC_TYPE_MAP;
-						if (map_state != MAP_DONE) {
-							// create an empty map (i.e. a map with n_keys == 0)
-							bin_spec->map.key = (struct bin_spec_s*)
-								cf_malloc(sizeof(struct bin_spec_s));
-							bin_spec->map.key->n_repeats = 0;
-							// also create a val since it will be freed
-							bin_spec->map.val = (struct bin_spec_s*)
-								cf_malloc(sizeof(struct bin_spec_s));
+						switch (map_state) {
+							case MAP_KEY:
+								if (state->list_builder->size == 0) {
+									bin_spec->map.n_entries = 0;
+									bin_spec->map.length = 0;
+									bin_spec->map.kv_pairs = NULL;
 
-							// set the types of both key and val to be scalar so
-							// they are not recursively freed
-							bin_spec->map.key->type = BIN_SPEC_TYPE_INT;
-							bin_spec->map.val->type = BIN_SPEC_TYPE_INT;
+									as_vector_destroy(state->list_builder);
+									break;
+								}
+								else {
+									_print_parse_error("Dangling ',' at end of map "
+											"declaration",
+											obj_spec_str, str);
+									_destroy_consumer_states(state);
+									return -1;
+								}
+							case MAP_VAL:
+								_print_parse_error("Map value cannot be empty",
+										obj_spec_str, str);
+								_destroy_consumer_states(state);
+								return -1;
+							case MAP_DONE:
+								bin_spec->map.kv_pairs =
+									as_vector_to_array(state->list_builder,
+											&bin_spec->map.n_entries);
+								bin_spec->map.length = state->list_len;
+								as_vector_destroy(state->list_builder);
+								break;
+							default:
+								__builtin_unreachable();
 						}
-						else {
-							bin_spec->map.key = state->key;
-							bin_spec->map.val = state->value;
+
+						if (state->is_const) {
+							// turn this bin_spec into a hashmap
+							as_hashmap* val = (as_hashmap*)
+								as_map_fromval(bin_spec_random_val(bin_spec, NULL, 1.f));
+
+							// make a shallow copy of all the key/value pairs in
+							// val into map, since each key/value is embedded in
+							// a bin_spec and will be freed when the bin_spec is
+							as_hashmap map;
+							as_hashmap_init(&map, val->table_capacity);
+							as_hashmap_foreach(val, _as_hashmap_merge_cpy, &map);
+							as_hashmap_destroy(val);
+
+							// free the old bin_spec that was there
+							bin_spec_free(bin_spec);
+
+							bin_spec->type = BIN_SPEC_TYPE_MAP | BIN_SPEC_TYPE_CONST;
+							// and put the generated val in its place
+							memcpy(&bin_spec->const_map.val, &map, sizeof(map));
 						}
 						break;
 					default:
@@ -689,6 +973,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			}
 			struct consumer_state_s* new_state = state->parent;
 			if (new_state != NULL) {
+				// update the parent's const status with this bin_spec's
+				new_state->is_const = state->is_const && new_state->is_const;
 				cf_free(state);
 
 				delim = new_state->delimiter;
@@ -699,27 +985,35 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 				// this is the root-level list, so commit the effective length
 				// to the n_bins variable passed by the caller
 				*n_bins = state->list_len;
+				break;
 			}
 			state = new_state;
 		}
 		else {
 
 			// consume the next bin_type
+			list_builder = state->list_builder;
 			switch (type) {
-				case CONSUMER_TYPE_LIST:
-					list_builder = state->list_builder;
+				case CONSUMER_TYPE_LIST: {
 					bin_spec = (struct bin_spec_s*) as_vector_reserve(list_builder);
 					break;
-				case CONSUMER_TYPE_MAP:
-					bin_spec =
-						(struct bin_spec_s*) cf_malloc(sizeof(struct bin_spec_s));
-					assert((((uint64_t) bin_spec) & BIN_SPEC_TYPE_MASK) == 0);
+				}
+				case CONSUMER_TYPE_MAP: {
+					struct bin_spec_kv_pair_s* kv_pair;
 					switch (map_state) {
 						case MAP_KEY:
-							state->key = bin_spec;
+							// we are about to consume a new key, reserve a new
+							// slot in the list
+							kv_pair = (struct bin_spec_kv_pair_s*)
+								as_vector_reserve(list_builder);
+							bin_spec = &kv_pair->key;
 							break;
 						case MAP_VAL:
-							state->value = bin_spec;
+							// we have already consumed the corresponding key,
+							// so the val bin_spec has already been reserved
+							kv_pair = (struct bin_spec_kv_pair_s*)
+								as_vector_get(list_builder, list_builder->size - 1);
+							bin_spec = &kv_pair->val;
 							break;
 						default:
 							// not actually possible to reach this case, since
@@ -728,6 +1022,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							__builtin_unreachable();
 					}
 					break;
+				}
 				default:
 					// this is an impossible condition
 					__builtin_unreachable();
@@ -737,45 +1032,50 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			// bin_type
 			uint64_t mult;
 			char* endptr;
+			errno = 0;
 			mult = strtoul(str, &endptr, 10);
-			if (*str >= '0' && *str <= '9' && endptr != str) {
-
-				if (type == CONSUMER_TYPE_MAP && map_state == MAP_VAL &&
-						mult != 1) {
-					_print_parse_error("Map value cannot have a multiplier",
-							obj_spec_str, str);
-					goto _destroy_state;
+			if (errno == 0 && *str >= '0' && *str <= '9') {
+				// if a multiplier has been specified, expect a '*' next,
+				// followed by the bin_spec
+				if (*endptr == ' ') {
+					endptr++;
 				}
 
-				if ((type != CONSUMER_TYPE_MAP || map_state != MAP_KEY) &&
-						mult == 0) {
-					_print_parse_error("Cannot have a multiplier of 0 except "
-							"on map keys (to indicate an empty map)",
-							obj_spec_str, str);
-					goto _destroy_state;
-				}
+				// only parse this as a multiplier if there is a '*' following
+				// it, otherwise treat it as a constant integer
+				if (*endptr == '*') {
+					if (type == CONSUMER_TYPE_MAP && map_state == MAP_VAL &&
+							mult != 1) {
+						_print_parse_error("Map value cannot have a multiplier",
+								obj_spec_str, str);
+						_destroy_consumer_states(state);
+						return -1;
+					}
 
-				if (((uint32_t) mult) != mult) {
-					_print_parse_error("Multiplier exceeds maximum unsigned "
-							"32-bit integer value",
-							obj_spec_str, str);
-					goto _destroy_state;
-				}
+					if (mult == 0) {
+						_print_parse_error("Cannot have a multiplier of 0",
+								obj_spec_str, str);
+						_destroy_consumer_states(state);
+						return -1;
+					}
 
-				// a multiplier has been specified, expect a '*' next, followed by
-				// the bin_spec
-				str = endptr;
-				if (*str == ' ') {
-					str++;
+					if (((uint32_t) mult) != mult) {
+						_print_parse_error("Multiplier exceeds maximum unsigned "
+								"32-bit integer value",
+								obj_spec_str, str);
+						_destroy_consumer_states(state);
+						return -1;
+					}
+
+					endptr++;
+					if (*endptr == ' ') {
+						endptr++;
+					}
+					str = endptr;
 				}
-				if (*str != '*') {
-					_print_parse_error("Expect a '*' to follow a multiplier",
-							obj_spec_str, str);
-					goto _destroy_state;
-				}
-				str++;
-				if (*str == ' ') {
-					str++;
+				else {
+					// no '*' found, treat this as a constant integer
+					mult = 1;
 				}
 			}
 			else {
@@ -783,19 +1083,19 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 				mult = 1;
 			}
 
-			if (type == CONSUMER_TYPE_LIST) {
-				uint32_t new_list_len = state->list_len + mult;
-				if (new_list_len < state->list_len) {
-					// we overflowed! That means too many elements were placed
-					// in a single list (> 2^32)
-					_print_parse_error("Too many elements in a list (>= 2^32)",
-							obj_spec_str, str);
-					goto _destroy_state;
-				}
-				state->list_len = new_list_len;
-			}
 			bin_spec->n_repeats = mult;
+			bool is_const = false;
 			switch (*str) {
+				case 'b':
+					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
+						_print_parse_error("Map key cannot be boolean",
+								obj_spec_str, str);
+						_destroy_consumer_states(state);
+						return -1;
+					}
+					bin_spec->type = BIN_SPEC_TYPE_BOOL;
+					str++;
+					break;
 				case 'I': {
 					uint8_t next_char = *(str + 1) - '1';
 					if (next_char > BIN_SPEC_MAX_INT_RANGE) {
@@ -818,12 +1118,14 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					if (endptr == str + 1) {
 						_print_parse_error("Expect a number following an 'S' specifier",
 								obj_spec_str, str + 1);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					if (str_len != (uint32_t) str_len) {
 						_print_parse_error("Invalid string length",
 								obj_spec_str, str + 1);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					bin_spec->type = BIN_SPEC_TYPE_STR;
 					bin_spec->string.length = (uint32_t) str_len;
@@ -838,12 +1140,14 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					if (endptr == str + 1) {
 						_print_parse_error("Expect a number following a 'B' specifier",
 								obj_spec_str, str + 1);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					if (bytes_len != (uint32_t) bytes_len) {
 						_print_parse_error("Invalid bytes length",
 								obj_spec_str, str + 1);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					bin_spec->type = BIN_SPEC_TYPE_BYTES;
 					bin_spec->bytes.length = (uint32_t) bytes_len;
@@ -860,7 +1164,8 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						_print_parse_error("Map key must be scalar type, "
 								"cannot be list",
 								obj_spec_str, str);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					// begin list parse
 					as_vector* list_builder = as_vector_create(sizeof(struct bin_spec_s),
@@ -869,6 +1174,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						(struct consumer_state_s*) cf_malloc(sizeof(struct consumer_state_s));
 					list_state->delimiter = ']';
 					list_state->type = CONSUMER_TYPE_LIST;
+					list_state->is_const = true;
 					list_state->bin_spec = bin_spec;
 					list_state->parent = state;
 					list_state->list_builder = list_builder;
@@ -888,16 +1194,23 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						_print_parse_error("Map key must be scalar type, "
 								"cannot be map",
 								obj_spec_str, str);
-						goto _destroy_state;
+						_destroy_consumer_states(state);
+						return -1;
 					}
 					// begin map parse
+					as_vector* list_builder =
+						as_vector_create(sizeof(struct bin_spec_kv_pair_s),
+								DEFAULT_LIST_BUILDER_CAPACITY);
 					struct consumer_state_s* map_state =
 						(struct consumer_state_s*) cf_malloc(sizeof(struct consumer_state_s));
 					map_state->delimiter = '}';
 					map_state->type = CONSUMER_TYPE_MAP;
 					map_state->state = MAP_KEY;
+					map_state->is_const = true;
 					map_state->bin_spec = bin_spec;
 					map_state->parent = state;
+					map_state->list_builder = list_builder;
+					map_state->list_len = 0;
 
 					str++;
 					state = map_state;
@@ -908,25 +1221,61 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					}
 					continue;
 				}
-				default:
-					_print_parse_error("Expect 'I', 'S', 'B', or 'D' specifier, "
-							"or a list/map",
-							obj_spec_str, str);
-					goto _destroy_state;
+				default: {
+					const char* prev_str = str;
+					// try parsing as a constant value
+					if (_parse_const_val(obj_spec_str, &str, bin_spec, state->delimiter) != 0) {
+						_destroy_consumer_states(state);
+						return -1;
+					}
+					if (type == CONSUMER_TYPE_MAP &&
+							map_state == MAP_KEY) {
+						if (mult != 1) {
+							_print_parse_error("Map key cannot be a constant value "
+									"if it has a multiplier > 1",
+									obj_spec_str, prev_str);
+							// since the bin_spec was already parsed by
+							// _parse_const_val, destroy it before freeing
+							// everything else
+							bin_spec_free(bin_spec);
+							_destroy_consumer_states(state);
+							return -1;
+						}
+
+						// as_boolean, as_integer, as_double, and as_string are
+						// all valid map keys, so no need to verify that here
+
+						if (_consumer_state_map_repeat_const_key(state, bin_spec)) {
+							_print_parse_error("Key value is used more than once\n",
+									obj_spec_str, prev_str);
+							bin_spec_free(bin_spec);
+							_destroy_consumer_states(state);
+							return -1;
+						}
+					}
+
+					// mark is_const so it isn't unset in the state
+					is_const = true;
+					break;
+				}
 			}
 
-			if (0) {
-_destroy_state:
-				if (type == CONSUMER_TYPE_MAP) {
-					cf_free(bin_spec);
-				}
-				_destroy_consumer_states(state);
-				return -1;
-			}
+			// update is_const to false if we came across a variable bin,
+			// otherwise leave it unchanged
+			state->is_const = is_const && state->is_const;
 		}
 
 		switch (type) {
 			case CONSUMER_TYPE_LIST:
+				state->list_len += bin_spec->n_repeats;
+				// check for overflow
+				if (state->list_len < bin_spec->n_repeats) {
+					_print_parse_error("Too many elements in a list (> 2**32)",
+							obj_spec_str, str);
+					_destroy_consumer_states(state);
+					return -1;
+				}
+
 				if (*str == ',') {
 					str++;
 
@@ -952,10 +1301,20 @@ _destroy_state:
 			case CONSUMER_TYPE_MAP:
 				// advance map to the next state since the key/value for this
 				// state has now been fully initialized
-				state->state++;
 
 				switch (map_state) {
 					case MAP_KEY:
+						state->state = MAP_VAL;
+						state->list_len += bin_spec->n_repeats;
+
+						// check for overflow
+						if (state->list_len < bin_spec->n_repeats) {
+							_print_parse_error("Too many elements in a map (> 2**32)",
+									obj_spec_str, str);
+							_destroy_consumer_states(state);
+							return -1;
+						}
+
 						// allow a space before the ':'
 						if (*str == ' ') {
 							str++;
@@ -974,11 +1333,24 @@ _destroy_state:
 						}
 						break;
 					case MAP_VAL:
-						// allow a space before the '}'
+						state->state = MAP_DONE;
+						// allow a space before the '}' or ','
 						if (*str == ' ') {
 							str++;
 						}
-						if (*str != delim) {
+
+						if (*str == ',') {
+							// this means there are more key-value pairs in this
+							// map to be parsed
+							state->state = MAP_KEY;
+							str++;
+
+							// allow a space after a comma
+							if (*str == ' ') {
+								str++;
+							}
+						}
+						else if (*str != delim) {
 							_print_parse_error("Expect '}' after key/value "
 									"pair specifier in a map",
 									obj_spec_str, str);
@@ -993,21 +1365,138 @@ _destroy_state:
 				__builtin_unreachable();
 		}
 
-	} while (state != NULL);
+	}
 
 	return 0;
+}
+
+LOCAL_HELPER int
+_parse_const_val(const char* const obj_spec_str,
+		const char** str_ptr, struct bin_spec_s* bin_spec, char delim)
+{
+	const char* str = *str_ptr;
+	switch (*str) {
+		case 'T':
+			if (!isalpha(str[1])) {
+				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_bool.val = as_true;
+				*str_ptr = str + 1;
+				return 0;
+			}
+		case 't':
+			if (strncasecmp(str, "true", 4) == 0 && !isalpha(str[4])) {
+				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_bool.val = as_true;
+				*str_ptr = str + 4;
+				return 0;
+			}
+			break;
+
+		case 'F':
+			if (!isalpha(str[1])) {
+				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_bool.val = as_false;
+				*str_ptr = str + 1;
+				return 0;
+			}
+		case 'f':
+			if (strncasecmp(str, "false", 5) == 0 && !isalpha(str[5])) {
+				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
+				bin_spec->const_bool.val = as_false;
+				*str_ptr = str + 5;
+				return 0;
+			}
+			break;
+
+		case '"': {
+			// try parsing as a string
+			const char* endptr;
+			char* str_literal = parse_string_literal(str, &endptr);
+			if (str_literal == NULL) {
+				break;
+			}
+
+			bin_spec->type = BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST;
+			as_string_init(&bin_spec->const_string.val, str_literal, true);
+			*str_ptr = endptr;
+			return 0;
+		}
+
+		default: {
+			// try parsing as an int/float
+			const char* next_comma = strchrnul(str, ',');
+			const char* next_delim = strchrnul(str, delim);
+			const char* end = (const char*) MIN((uint64_t) next_comma, (uint64_t) next_delim);
+
+			// the number is floating point iff it contains a '.'
+			if (memchr(str, '.', end - str) != NULL) {
+				char* endptr;
+				errno = 0;
+
+				double val = strtod(str, &endptr);
+				if (errno != 0 || endptr == str) {
+					_print_parse_error("Invalid floating point value",
+							obj_spec_str, str);
+					return -1;
+				}
+
+				bin_spec->type = BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST;
+				as_double_init(&bin_spec->const_double.val, val);
+
+				if (*endptr == 'f') {
+					endptr++;
+				}
+				*str_ptr = endptr;
+			}
+			else {
+				char* endptr;
+				int64_t val;
+				errno = 0;
+
+				if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
+					val = (int64_t) strtoul(str, &endptr, 16);
+				}
+				else {
+					val = strtol(str, &endptr, 10);
+				}
+				if (errno == ERANGE || endptr == str) {
+					_print_parse_error("Invalid integer value",
+							obj_spec_str, str);
+					return -1;
+				}
+
+				bin_spec->type = BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST;
+				as_integer_init(&bin_spec->const_integer.val, val);
+				*str_ptr = endptr;
+			}
+			return 0;
+		}
+	}
+	_print_parse_error("Expect 'I', 'S', 'B', or 'D' specifier, "
+			"a const value, or a list/map",
+			obj_spec_str, str);
+	return -1;
 }
 
 LOCAL_HELPER void
 bin_spec_free(struct bin_spec_s* bin_spec)
 {
 	switch (bin_spec->type) {
+		case BIN_SPEC_TYPE_BOOL:
+		case BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST:
 		case BIN_SPEC_TYPE_INT:
-		case BIN_SPEC_TYPE_STR:
+		case BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST:
 		case BIN_SPEC_TYPE_BYTES:
 		case BIN_SPEC_TYPE_DOUBLE:
+		case BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST:
+		case BIN_SPEC_TYPE_STR:
 			// no-op, scalar types use no disjointed memory
 			break;
+
+		case BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST:
+			as_string_destroy(&bin_spec->const_string.val);
+			break;
+
 		case BIN_SPEC_TYPE_LIST:
 			for (uint32_t i = 0, cnt = 0; cnt < bin_spec->list.length; i++) {
 				cnt += bin_spec->list.list[i].n_repeats;
@@ -1015,13 +1504,31 @@ bin_spec_free(struct bin_spec_s* bin_spec)
 			}
 			cf_free(bin_spec->list.list);
 			break;
+
+		case BIN_SPEC_TYPE_LIST | BIN_SPEC_TYPE_CONST:
+			as_arraylist_destroy(&bin_spec->const_list.val);
+			break;
+
 		case BIN_SPEC_TYPE_MAP:
-			bin_spec_free(bin_spec->map.key);
-			cf_free(bin_spec->map.key);
-			bin_spec_free(bin_spec->map.val);
-			cf_free(bin_spec->map.val);
+			for (uint32_t i = 0, cnt = 0; cnt < bin_spec->list.length; i++) {
+				cnt += bin_spec->map.kv_pairs[i].key.n_repeats;
+				bin_spec_free(&bin_spec->map.kv_pairs[i].key);
+				bin_spec_free(&bin_spec->map.kv_pairs[i].val);
+			}
+			cf_free(bin_spec->map.kv_pairs);
+			break;
+
+		case BIN_SPEC_TYPE_MAP | BIN_SPEC_TYPE_CONST:
+			as_hashmap_destroy(&bin_spec->const_map.val);
 			break;
 	}
+}
+
+LOCAL_HELPER as_val*
+_gen_random_bool(as_random* random)
+{
+	uint32_t r = as_random_next_uint32(random);
+	return (as_val*) (((bool) (r & 1)) ? &as_true : &as_false);
 }
 
 LOCAL_HELPER as_val*
@@ -1214,24 +1721,41 @@ _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 		float compression_ratio)
 {
 	as_hashmap* map;
+	uint32_t n_entries = bin_spec->map.n_entries;
+	uint32_t map_len = bin_spec->map.length;
+	const struct bin_spec_kv_pair_s* kv_pairs;
 
-	uint32_t n_entries = bin_spec_map_n_entries(bin_spec);
+	kv_pairs = bin_spec->map.kv_pairs;
 
-	map = as_hashmap_new(2 * n_entries);
-	uint64_t retry_count = 0;
+	map = as_hashmap_new(2 * map_len);
 
-	for (uint32_t i = 0; i < n_entries; i++) {
-		as_val* key;
-		do {
-			key = bin_spec_random_val(bin_spec->map.key, random,
+	for (uint32_t entry_idx = 0; entry_idx < n_entries; entry_idx++) {
+		const struct bin_spec_kv_pair_s* kv_pair = &kv_pairs[entry_idx];
+		uint64_t retry_count = 0;
+		uint32_t n_repeats = kv_pair->key.n_repeats;
+
+		for (uint32_t i = 0; i < n_repeats; i++) {
+			as_val* key;
+			while (retry_count < MAX_KEY_ENTRY_RETRIES) {
+				key = bin_spec_random_val(&kv_pair->key, random,
+						compression_ratio);
+
+				if (as_hashmap_get(map, key) == NULL) {
+					break;
+				}
+				as_val_destroy(key);
+				retry_count++;
+			}
+			if (retry_count >= MAX_KEY_ENTRY_RETRIES) {
+				as_val_destroy(key);
+				break;
+			}
+
+			as_val* val = bin_spec_random_val(&kv_pair->val, random,
 					compression_ratio);
-		} while (as_hashmap_get(map, key) != NULL &&
-				retry_count++ < MAX_KEY_ENTRY_RETRIES);
 
-		as_val* val = bin_spec_random_val(bin_spec->map.val, random,
-				compression_ratio);
-
-		as_hashmap_set(map, key, val);
+			as_hashmap_set(map, key, val);
+		}
 	}
 
 	return (as_val*) map;
@@ -1244,28 +1768,69 @@ bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
 {
 	as_val* val;
 	switch (bin_spec->type) {
+		case BIN_SPEC_TYPE_BOOL:
+			val = _gen_random_bool(random);
+			break;
+
+		case BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_bool.val;
+			as_val_reserve(val);
+			break;
+
 		case BIN_SPEC_TYPE_INT:
 			val = _gen_random_int(bin_spec->integer.range, random);
 			break;
+
+		case BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_integer.val;
+			as_val_reserve(val);
+			break;
+
 		case BIN_SPEC_TYPE_STR:
 			val = _gen_random_str(bin_spec->string.length, random);
 			break;
+
+		case BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_string.val;
+			as_val_reserve(val);
+			break;
+
 		case BIN_SPEC_TYPE_BYTES:
 			val = _gen_random_bytes(bin_spec->bytes.length, random,
 					compression_ratio);
 			break;
+
 		case BIN_SPEC_TYPE_DOUBLE:
 			val = _gen_random_double(random);
 			break;
+
+		case BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_double.val;
+			as_val_reserve(val);
+			break;
+
 		case BIN_SPEC_TYPE_LIST:
 			val = _gen_random_list(bin_spec, random, compression_ratio);
 			break;
+
+		case BIN_SPEC_TYPE_LIST | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_list.val;
+			as_val_reserve(val);
+			break;
+
 		case BIN_SPEC_TYPE_MAP:
 			val = _gen_random_map(bin_spec, random, compression_ratio);
 			break;
+
+		case BIN_SPEC_TYPE_MAP | BIN_SPEC_TYPE_CONST:
+			val = (as_val*) &bin_spec->const_map.val;
+			as_val_reserve(val);
+			break;
+
 		default:
-			fprintf(stderr, "Unknown bin_spec type (%d)\n", bin_spec->type);
+			fprintf(stderr, "Unknown bin_spec type (0x%x)\n", bin_spec->type);
 			val = NULL;
+			break;
 	}
 
 	return val;
@@ -1278,18 +1843,46 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 		sprint(out_str, str_size, "%d*", bin->n_repeats);
 	}
 	switch (bin->type) {
+		case BIN_SPEC_TYPE_BOOL:
+			sprint(out_str, str_size, "b");
+			break;
+
+		case BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST:
+			sprint(out_str, str_size, "%s", boolstring(as_boolean_get(&bin->const_bool.val)));
+			break;
+
 		case BIN_SPEC_TYPE_INT:
 			sprint(out_str, str_size, "I%d", bin->integer.range + 1);
 			break;
+
+		case BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST:
+			sprint(out_str, str_size, "%" PRId64, as_integer_get(&bin->const_integer.val));
+			break;
+
 		case BIN_SPEC_TYPE_STR:
 			sprint(out_str, str_size, "S%u", bin->string.length);
 			break;
+
+		case BIN_SPEC_TYPE_STR | BIN_SPEC_TYPE_CONST: {
+			int32_t len = (int32_t)
+				as_string_len((as_string*) &bin->const_string.val);
+			sprint(out_str, str_size, "\"%*.*s\"", len, len,
+					as_string_get(&bin->const_string.val));
+			break;
+		}
+
 		case BIN_SPEC_TYPE_BYTES:
 			sprint(out_str, str_size, "B%u", bin->bytes.length);
 			break;
+
 		case BIN_SPEC_TYPE_DOUBLE:
 			sprint(out_str, str_size, "D");
 			break;
+
+		case BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST:
+			sprint(out_str, str_size, "%.10lgf", as_double_get(&bin->const_double.val));
+			break;
+
 		case BIN_SPEC_TYPE_LIST:
 			sprint(out_str, str_size, "[");
 			for (uint32_t i = 0, cnt = 0; cnt < bin->list.length; i++) {
@@ -1301,130 +1894,294 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			}
 			sprint(out_str, str_size, "]");
 			break;
-		case BIN_SPEC_TYPE_MAP:
+
+		case BIN_SPEC_TYPE_LIST | BIN_SPEC_TYPE_CONST: {
+			char* list_obj_str = as_val_tostring((as_val*) &bin->const_list.val);
+			sprint(out_str, str_size, "%s", list_obj_str);
+			cf_free(list_obj_str);
+			break;
+		}
+
+		case BIN_SPEC_TYPE_MAP: {
 			sprint(out_str, str_size, "{");
-			if (bin_spec_map_n_entries(bin) != 0) {
-				str_size = _sprint_bin(bin->map.key, out_str, str_size);
+			uint32_t n_entries = bin->map.n_entries;
+			const struct bin_spec_kv_pair_s* kv_pairs = bin->map.kv_pairs;
+
+			for (uint32_t entry_idx = 0; entry_idx < n_entries; entry_idx++) {
+				const struct bin_spec_kv_pair_s* kv_pair = &kv_pairs[entry_idx];
+
+				str_size = _sprint_bin(&kv_pair->key, out_str, str_size);
 				sprint(out_str, str_size, ":");
-				str_size = _sprint_bin(bin->map.val, out_str, str_size);
+				str_size = _sprint_bin(&kv_pair->val, out_str, str_size);
+				if (entry_idx < n_entries - 1) {
+					sprint(out_str, str_size, ",");
+				}
 			}
 			sprint(out_str, str_size, "}");
 			break;
+		}
+
+		case BIN_SPEC_TYPE_MAP | BIN_SPEC_TYPE_CONST: {
+			char* map_obj_str = as_val_tostring((as_val*) &bin->const_map.val);
+			sprint(out_str, str_size, "%s", map_obj_str);
+			cf_free(map_obj_str);
+			break;
+		}
 	}
 	return str_size;
 }
 
 #ifdef _TEST
 
-LOCAL_HELPER void
-_dbg_validate_int(uint8_t range, as_integer* as_val)
+LOCAL_HELPER bool
+_dbg_as_val_cmp(const as_val* v1, const as_val* v2, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected an integer, got something else");
-	ck_assert_msg(range <= 7, "invalid bin_spec integer range (%u)\n", range);
+	do_ck_assert_msg(v1->type == v2->type, "Const values do not have the same type");
+	switch (v1->type) {
+		case AS_BOOLEAN:
+			return _dbg_as_bool_cmp(as_boolean_fromval(v1), as_boolean_fromval(v2), do_assert);
+		case AS_INTEGER:
+			return _dbg_as_int_cmp(as_integer_fromval(v1), as_integer_fromval(v2), do_assert);
+		case AS_STRING:
+			return _dbg_as_string_cmp(as_string_fromval(v1), as_string_fromval(v2), do_assert);
+		case AS_DOUBLE:
+			return _dbg_as_double_cmp(as_double_fromval(v1), as_double_fromval(v2), do_assert);
+		case AS_LIST:
+			return _dbg_as_list_cmp(as_list_fromval((as_val*) v1),
+					as_list_fromval((as_val*) v2), do_assert);
+		case AS_MAP:
+			return _dbg_as_map_cmp(as_map_fromval(v1), as_map_fromval(v2), do_assert);
+		default:
+			do_ck_assert_msg(false, "Illegal const as_val type %d", v1->type);
+	}
+	return true;
+}
+
+LOCAL_HELPER bool
+_dbg_as_bool_cmp(const as_boolean* b1, const as_boolean* b2, bool do_assert)
+{
+	do_ck_assert_msg(b1 != NULL, "Expected a boolean, got something else");
+	do_ck_assert_msg(b2 != NULL, "Expected a boolean, got something else");
+	do_ck_assert_msg(as_boolean_get(b1) == as_boolean_get(b2),
+			"Const boolean values did not match (%s vs %s)",
+			boolstring(as_boolean_get(b1)), boolstring(as_boolean_get(b2)));
+	return true;
+}
+
+LOCAL_HELPER bool
+_dbg_as_int_cmp(const as_integer* i1, const as_integer* i2, bool do_assert)
+{
+	do_ck_assert_msg(i1 != NULL, "Expected an integer, got something else");
+	do_ck_assert_msg(i2 != NULL, "Expected an integer, got something else");
+	do_ck_assert_msg(as_integer_get(i1) == as_integer_get(i2),
+			"Const integer values did not match (%" PRId64 " vs %" PRId64 ")",
+			as_integer_get(i1), as_integer_get(i2));
+	return true;
+}
+
+LOCAL_HELPER bool
+_dbg_as_string_cmp(const as_string* s1, const as_string* s2, bool do_assert)
+{
+	do_ck_assert_msg(s1 != NULL, "Expected a string, got something else");
+	do_ck_assert_msg(s2 != NULL, "Expected a string, got something else");
+	do_ck_assert_msg(strcmp(as_string_get(s1), as_string_get(s2)) == 0,
+			"Const string values did not match (\"%s\" vs \"%s\")",
+			as_string_get(s1), as_string_get(s2));
+	return true;
+}
+
+LOCAL_HELPER bool
+_dbg_as_double_cmp(const as_double* d1, const as_double* d2, bool do_assert)
+{
+	do_ck_assert_msg(d1 != NULL, "Expected a double, got something else");
+	do_ck_assert_msg(d2 != NULL, "Expected a double, got something else");
+	do_ck_assert_msg(as_double_get(d1) == as_double_get(d2),
+			"Const double values did not match (%lf vs %lf)",
+			as_double_get(d1), as_double_get(d2));
+	return true;
+}
+
+LOCAL_HELPER bool
+_dbg_as_list_cmp(const as_list* l1, const as_list* l2, bool do_assert)
+{
+	do_ck_assert_msg(l1 != NULL, "Expected a list, got something else");
+	do_ck_assert_msg(l2 != NULL, "Expected a list, got something else");
+	do_ck_assert_int_eq(as_list_size(l1), as_list_size(l2));
+
+	uint32_t size = as_list_size(l1);
+	for (uint32_t i = 0; i < size; i++) {
+		do_ck_assert(_dbg_as_val_cmp(as_list_get(l1, i), as_list_get(l2, i), do_assert));
+	}
+	return true;
+}
+
+LOCAL_HELPER bool
+_dbg_as_map_cmp(const as_map* m1, const as_map* m2, bool do_assert)
+{
+	do_ck_assert_msg(m1 != NULL, "Expected a map, got something else");
+	do_ck_assert_msg(m2 != NULL, "Expected a map, got something else");
+	do_ck_assert_int_eq(as_map_size(m1), as_map_size(m2));
+
+	struct as_hashmap_cmp_state cmp_state = {
+		.other = m2,
+		.same = true,
+		.do_assert = do_assert
+	};
+	as_map_foreach(m1, _dbg_as_map_cmp_fn, &cmp_state);
+	do_ck_assert(cmp_state.same);
+
+	return true;
+}
+
+LOCAL_HELPER bool
+_dbg_validate_bool(as_boolean* as_val, bool do_assert)
+{
+	do_ck_assert_msg(as_val != NULL, "Expected a boolean, got something else");
+	return true;
+}
+
+LOCAL_HELPER bool
+_dbg_validate_int(uint8_t range, as_integer* as_val, bool do_assert)
+{
+	do_ck_assert_msg(as_val != NULL, "Expected an integer, got something else");
+	do_ck_assert_msg(range <= 7, "invalid bin_spec integer range (%u)\n", range);
 
 	uint64_t val = (uint64_t) as_integer_get(as_val);
 	switch (range) {
 		case 0:
-			ck_assert_msg(0 <= val && val < 256, "Integer value (%lu) is out "
+			do_ck_assert_msg(0 <= val && val < 256, "Integer value (%" PRIu64 ") is out "
 					"of range", val);
 			break;
 		case 1:
-			ck_assert_msg(256 <= val && val < 65536, "Integer value (%lu) is "
+			do_ck_assert_msg(256 <= val && val < 65536, "Integer value (%" PRIu64 ") is "
 					"out of range", val);
 			break;
 		case 2:
-			ck_assert_msg(65536 <= val && val < 0x1000000, "Integer value "
-					"(%lu) is out of range", val);
+			do_ck_assert_msg(65536 <= val && val < 0x1000000, "Integer value "
+					"(%" PRIu64 ") is out of range", val);
 			break;
 		case 3:
-			ck_assert_msg(0x1000000 <= val && val < 0x100000000, "Integer "
-					"value (%lu) is out of range", val);
+			do_ck_assert_msg(0x1000000 <= val && val < 0x100000000, "Integer "
+					"value (%" PRIu64 ") is out of range", val);
 			break;
 		case 4:
-			ck_assert_msg(0x100000000 <= val && val < 0x10000000000, "Integer "
-					"value (%lu) is out of range", val);
+			do_ck_assert_msg(0x100000000 <= val && val < 0x10000000000, "Integer "
+					"value (%" PRIu64 ") is out of range", val);
 			break;
 		case 5:
-			ck_assert_msg(0x10000000000 <= val && val < 0x1000000000000,
-					"Integer value (%lu) is out of range", val);
+			do_ck_assert_msg(0x10000000000 <= val && val < 0x1000000000000,
+					"Integer value (%" PRIu64 ") is out of range", val);
 			break;
 		case 6:
-			ck_assert_msg(0x1000000000000 <= val && val < 0x100000000000000,
-					"Integer value (%lu) is out of range", val);
+			do_ck_assert_msg(0x1000000000000 <= val && val < 0x100000000000000,
+					"Integer value (%" PRIu64 ") is out of range", val);
 			break;
 		case 7:
-			ck_assert_msg(0x100000000000000 <= val,
-					"Integer value (%lu) is out of range", val);
+			do_ck_assert_msg(0x100000000000000 <= val,
+					"Integer value (%" PRIu64 ") is out of range", val);
 			break;
 	}
+	return true;
 }
 
-LOCAL_HELPER void
-_dbg_validate_string(uint32_t length, as_string* as_val)
+LOCAL_HELPER bool
+_dbg_validate_string(uint32_t length, as_string* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected a string, got something else");
+	do_ck_assert_msg(as_val != NULL, "Expected a string, got something else");
 
 	size_t str_len = as_string_len(as_val);
-	ck_assert_int_eq(length, str_len);
+	do_ck_assert_int_eq(length, str_len);
 
 	for (uint32_t i = 0; i < str_len; i++) {
 		char c = as_string_get(as_val)[i];
-		ck_assert(('a' <= c && c <= 'z') || ('0' <= c && c <= '9'));
+		do_ck_assert(('a' <= c && c <= 'z') || ('0' <= c && c <= '9'));
 	}
+	return true;
 }
 
-LOCAL_HELPER void
-_dbg_validate_bytes(uint32_t length, as_bytes* as_val)
+LOCAL_HELPER bool
+_dbg_validate_bytes(uint32_t length, as_bytes* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected a bytes array, got something else");
+	do_ck_assert_msg(as_val != NULL, "Expected a bytes array, got something else");
 
-	ck_assert_int_eq(length, as_bytes_size(as_val));
+	do_ck_assert_int_eq(length, as_bytes_size(as_val));
+	return true;
 }
 
-LOCAL_HELPER void
-_dbg_validate_double(as_double* as_val)
+LOCAL_HELPER bool
+_dbg_validate_double(as_double* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected a double, got something else");
+	do_ck_assert_msg(as_val != NULL, "Expected a double, got something else");
+	return true;
 }
 
-LOCAL_HELPER void
-_dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val)
+LOCAL_HELPER bool
+_dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val, bool do_assert)
 {
-	ck_assert_msg(as_val != NULL, "Expected a list, got something else");
+	do_ck_assert_msg(as_val != NULL, "Expected a list, got something else");
 	size_t list_len = as_list_size(as_val);
-	ck_assert_int_eq(list_len, bin_spec->list.length);
+	do_ck_assert_int_eq(list_len, bin_spec->list.length);
 
 	for (uint32_t i = 0, cnt = 0; cnt < list_len; i++) {
 		const struct bin_spec_s* ele_bin = &bin_spec->list.list[i];
 
 		for (uint32_t j = 0; j < ele_bin->n_repeats; j++, cnt++) {
-			_dbg_validate_bin_spec(ele_bin, as_list_get(as_val, cnt));
+			_dbg_validate_bin_spec(ele_bin, as_list_get(as_val, cnt), do_assert);
 		}
 	}
+	return true;
 }
 
-
-LOCAL_HELPER void
-_dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val)
+LOCAL_HELPER bool
+_dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val, bool do_assert)
 {
 	as_hashmap_iterator iter;
 
-	ck_assert_msg(val != NULL, "Expected a map, got something else");
+	do_ck_assert_msg(val != NULL, "Expected a map, got something else");
 	uint32_t map_size = as_map_size(val);
-	ck_assert_int_eq(map_size, bin_spec_map_n_entries(bin_spec));
+	do_ck_assert_int_eq(map_size, bin_spec->map.length);
 
-	const struct bin_spec_s* key_spec = bin_spec->map.key;
-	const struct bin_spec_s* val_spec = bin_spec->map.val;
+	// n_remaining will hold the number of this specific bin spec we are
+	// expecting to see
+	uint32_t* n_remaining = (uint32_t*) alloca(bin_spec->map.n_entries * sizeof(uint32_t));
+	for (uint32_t i = 0; i < bin_spec->map.n_entries; i++) {
+		n_remaining[i] = bin_spec->map.kv_pairs[i].key.n_repeats;
+	}
 
 	for (as_hashmap_iterator_init(&iter, (as_hashmap*) val);
 			as_hashmap_iterator_has_next(&iter);) {
-		const as_val* kv_pair = as_hashmap_iterator_next(&iter);
-		const as_val* key = as_pair_1((as_pair*) kv_pair);
-		const as_val* val = as_pair_2((as_pair*) kv_pair);
 
-		_dbg_validate_bin_spec(key_spec, key);
-		_dbg_validate_bin_spec(val_spec, val);
+		const as_val* kv_pair = as_hashmap_iterator_next(&iter);
+		const as_val* key = as_pair_1(as_pair_fromval(kv_pair));
+		const as_val* val = as_pair_2(as_pair_fromval(kv_pair));
+
+		// iterate over the available kv_pairs to look for a matching one
+		uint32_t i;
+		for (i = 0; i < bin_spec->map.n_entries; i++) {
+			if (n_remaining[i] == 0) {
+				continue;
+			}
+
+			const struct bin_spec_s* key_spec = &bin_spec->map.kv_pairs[i].key;
+			const struct bin_spec_s* val_spec = &bin_spec->map.kv_pairs[i].val;
+
+			if (_dbg_validate_bin_spec(key_spec, key, false) &&
+					_dbg_validate_bin_spec(val_spec, val, false)) {
+				n_remaining[i]--;
+				break;
+			}
+		}
+		if (i == bin_spec->map.n_entries) {
+			do_ck_assert_msg(false, "No matching bin_spec found for entry %s",
+					as_val_tostring(kv_pair));
+		}
 	}
+
+	// make sure all of n_remaining is 0
+	for (uint32_t i = 0; i < bin_spec->map.n_entries; i++) {
+		do_ck_assert_int_eq(0, n_remaining[i]);
+	}
+	return true;
 }
 
 #endif /* _TEST */

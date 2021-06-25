@@ -63,6 +63,8 @@ LOCAL_HELPER int _run(cdata_t* cdata);
 int
 run_benchmark(args_t* args)
 {
+	as_error err;
+
 	cdata_t data;
 	memset(&data, 0, sizeof(cdata_t));
 	data.namespace = args->namespace;
@@ -87,13 +89,13 @@ run_benchmark(args_t* args)
 	as_log_set_callback(as_client_log_cb);
 
 	int ret = connect_to_server(args, &data.client);
-	
+
 	if (ret != 0) {
-		return ret;
+		goto cleanup1;
 	}
-	
+
 	bool single_bin = is_single_bin(&data.client, args->namespace);
-	
+
 	if (single_bin) {
 		data.bin_name = "";
 
@@ -106,37 +108,43 @@ run_benchmark(args_t* args)
 		data.bin_name = args->bin_name;
 	}
 
-	if (ret == 0) {
-		ret = initialize_histograms(&data, args, &start_time, &start_timespec);
+	if (initialize_histograms(&data, args, &start_time, &start_timespec) != 0) {
+		ret = -1;
+		goto cleanup2;
 	}
 
-	if (ret == 0) {
-		for (uint32_t i = 0; i < data.stages.n_stages && ret == 0; i++) {
-			ret = obj_spec_bin_name_compatible(&data.stages.stages[i].obj_spec,
-					data.bin_name) ? 0 : -1;
+	for (uint32_t i = 0; i < data.stages.n_stages && ret == 0; i++) {
+		if (!obj_spec_bin_name_compatible(&data.stages.stages[i].obj_spec,
+					data.bin_name)) {
+			ret = -1;
+			goto cleanup3;
 		}
 	}
 
-	if (ret == 0) {
-		ret = _run(&data);
+	ret = _run(&data);
 
+#ifdef __linux__
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-		// don't worry, will be initialized (would have to make args const
-		// to suppress)
-		record_summary_data(&data, args, start_time, &start_timespec);
+#endif /* __linux__ */
+	// don't worry, will be initialized (would have to make args const
+	// to suppress)
+	record_summary_data(&data, args, start_time, &start_timespec);
+#ifdef __linux__
 #pragma GCC diagnostic pop
+#endif /* __linux__ */
 
-		free_histograms(&data, args);
-	}
+cleanup3:
+	free_histograms(&data, args);
 
-	as_error err;
+cleanup2:
 	aerospike_close(&data.client, &err);
 	aerospike_destroy(&data.client);
-	
+
 	if (stages_contain_async(&args->stages)) {
 		as_event_close_loops();
 	}
 
+cleanup1:
 	free_workload_config(&data.stages);
 	
 	return ret;

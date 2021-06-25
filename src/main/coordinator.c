@@ -39,6 +39,7 @@ LOCAL_HELPER void clear_cdata_counts(cdata_t* cdata);
 int
 thr_coordinator_init(thr_coord_t* coord, uint32_t n_threads)
 {
+#ifndef __APPLE__
 	pthread_condattr_t attr;
 
 	pthread_condattr_init(&attr);
@@ -46,7 +47,11 @@ thr_coordinator_init(thr_coord_t* coord, uint32_t n_threads)
 	pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
 
 	pthread_cond_init(&coord->complete, &attr);
+
 	pthread_condattr_destroy(&attr);
+#else
+	pthread_cond_init(&coord->complete, NULL);
+#endif /* __APPLE_ */
 
 	pthread_mutex_init(&coord->c_lock, NULL);
 
@@ -205,11 +210,6 @@ _sleep_for(uint64_t n_secs)
 
 	do {
 		res = nanosleep(&sleep_time, &sleep_time);
-
-		if (res != 0) {
-			blog_info("sleep interrupted (res=%d, errno=%d (%s))\n",
-					res, errno, strerror(errno));
-		}
 	} while (res != 0 && errno == EINTR);
 
 	return res;

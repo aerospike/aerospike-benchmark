@@ -24,6 +24,7 @@
 #include <pthread.h>
 
 #include <benchmark.h>
+#include <osx_pthread_barrier.h>
 
 
 #define COORD_CLOCK CLOCK_MONOTONIC

@@ -190,7 +190,7 @@ histogram_print(const histogram_t* h, uint64_t period_duration_us, FILE* out_fil
 	_print_header(h, period_duration_us, total_cnt, out_file);
 
 	if (h->underflow_cnt > 0) {
-		fprintf(out_file, ", 0:%u", h->underflow_cnt);
+		fprintf(out_file, ", 0:%" PRIu32 , h->underflow_cnt);
 	}
 
 	uint32_t idx = 0;
@@ -200,7 +200,7 @@ histogram_print(const histogram_t* h, uint64_t period_duration_us, FILE* out_fil
 		for (uint32_t j = 0; j < r->n_buckets; j++) {
 			if (h->buckets[idx] > 0) {
 				fprintf(out_file,
-						", %lu:%u",
+						", %"PRIu64 ":%" PRIu32,
 						r->lower_bound + j * r->bucket_width,
 						h->buckets[idx]);
 			}
@@ -209,7 +209,8 @@ histogram_print(const histogram_t* h, uint64_t period_duration_us, FILE* out_fil
 	}
 
 	if (h->overflow_cnt > 0) {
-		fprintf(out_file, ", %lu:%u", h->range_max, h->overflow_cnt);
+		fprintf(out_file, ", %" PRIu64 ":%" PRIu32, h->range_max,
+				h->overflow_cnt);
 	}
 
 	fprintf(out_file, "\n");
@@ -243,7 +244,7 @@ histogram_print_clear(histogram_t* h, uint64_t period_duration_us, FILE* out_fil
 	_print_header(h, period_duration_us, total_cnt, out_file);
 
 	if (underflow_cnt > 0) {
-		fprintf(out_file, ", 0:%u", underflow_cnt);
+		fprintf(out_file, ", 0:%" PRIu32, underflow_cnt);
 	}
 
 	uint32_t idx = 0;
@@ -254,7 +255,7 @@ histogram_print_clear(histogram_t* h, uint64_t period_duration_us, FILE* out_fil
 			uint32_t cnt = cnts[idx];
 			if (cnt > 0) {
 				fprintf(out_file,
-						", %lu:%u",
+						", %" PRIu64 ":%" PRIu32,
 						r->lower_bound + j * r->bucket_width, cnt);
 			}
 			idx++;
@@ -262,7 +263,7 @@ histogram_print_clear(histogram_t* h, uint64_t period_duration_us, FILE* out_fil
 	}
 
 	if (overflow_cnt > 0) {
-		fprintf(out_file, ", %lu:%u", h->range_max, overflow_cnt);
+		fprintf(out_file, ", %" PRIu64 ":%" PRIu32, h->range_max, overflow_cnt);
 	}
 
 	fprintf(out_file, "\n");
@@ -276,9 +277,9 @@ histogram_print_info(const histogram_t* h, FILE* out_file)
 
 	fprintf(out_file,
 			"%s:\n"
-			"\tTotal num buckets: %u\n"
-			"\tRange min: %luus\n"
-			"\tRange max: %luus\n",
+			"\tTotal num buckets: %" PRIu32 "\n"
+			"\tRange min: %" PRIu64 "us\n"
+			"\tRange max: %" PRIu64 "us\n",
 			h->name != NULL ? h->name : "Histogram",
 			h->n_buckets,
 			h->range_min,
@@ -288,11 +289,11 @@ histogram_print_info(const histogram_t* h, FILE* out_file)
 		bucket_range_desc_t* r = &h->bounds[i];
 
 		fprintf(out_file,
-				"\tBucket range %d:\n"
-				"\t\tRange min: %luus\n"
-				"\t\tRange max: %luus\n"
-				"\t\tBucket width: %luus\n"
-				"\t\tNum buckets: %u\n",
+				"\tBucket range %" PRId32 ":\n"
+				"\t\tRange min: %" PRIu64 "us\n"
+				"\t\tRange max: %" PRIu64 "us\n"
+				"\t\tBucket width: %" PRIu64 "us\n"
+				"\t\tNum buckets: %" PRIu32 "\n",
 				i,
 				r->lower_bound,
 				r->lower_bound + r->bucket_width * r->n_buckets,
@@ -339,7 +340,7 @@ _print_header(const histogram_t* h, uint64_t period_duration_us, uint64_t total_
 	if (h->name != NULL) {
 		fprintf(out_file, "%s ", h->name);
 	}
-	fprintf(out_file, "%s, %gs, %lu", utc_time_str(time(NULL)),
+	fprintf(out_file, "%s, %gs, %" PRIu64, utc_time_str(time(NULL)),
 			period_duration_us / 1000000.f, total_cnt);
 }
 

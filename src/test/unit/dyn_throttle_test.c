@@ -67,12 +67,12 @@ static void run_test(float target_freq, uint32_t n_trials,
 	float u = mean(diffs, n_trials);
 	float u_error = (u - target_freq) / target_freq;
 
+	cf_free(diffs);
+	dyn_throttle_free(&thr);
+
 	// percent error between the expected mean frequency and requested frequency
 	// must be low
 	ck_assert_float_eq_tol(u_error, 0, 0.01f);
-
-	cf_free(diffs);
-	dyn_throttle_free(&thr);
 }
 
 

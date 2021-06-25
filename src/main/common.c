@@ -98,7 +98,7 @@ blog_detailv(as_log_level level, const char* fmt, va_list ap)
 
 	struct tm* t = localtime(&now.tv_sec);
 	uint64_t msecs = now.tv_nsec / 1000000;
-	int len = sprintf(fmtbuf, "%d-%02d-%02d %02d:%02d:%02d.%03lu %s ",
+	int len = sprintf(fmtbuf, "%d-%02d-%02d %02d:%02d:%02d.%03" PRIu64 " %s ",
 		t->tm_year+1900, t->tm_mon+1, t->tm_mday, t->tm_hour, t->tm_min,
 		t->tm_sec, msecs, as_log_level_tostring(level));
 
@@ -121,12 +121,27 @@ blog_detail(as_log_level level, const char* fmt, ...)
 }
 
 
-#ifndef __linux__
+#ifdef __APPLE__
 
 char* strchrnul(const char *s, int c_in)
 {
-	char* r = strchr(c_in);
-	return r == NULL ? s + strlen(s) : r;
+	char* r = strchr(s, c_in);
+	return (char*) (r == NULL ? s + strlen(s) : r);
+}
+
+void* memrchr(const void* s, int c, size_t n)
+{
+	const uint8_t *cp;
+
+	if (n != 0) {
+		cp = (uint8_t*) s + n;
+		do {
+			if (*(--cp) == (uint8_t) c) {
+				return (void*) cp;
+			}
+		} while (--n != 0);
+	}
+    return NULL;
 }
 
 #endif /* __linux__ */
@@ -250,6 +265,143 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_idx)
 	}
 }
 
+char* parse_string_literal(const char* restrict str,
+		const char** restrict endptr)
+{
+	if (*str != '"') {
+		fprintf(stderr, "Expected a '\"' at the beginning of the string\n");
+		return NULL;
+	}
+
+	// calculate the string length
+	uint64_t len = 0;
+	const char* end = str + 1;
+	while (*end != '"') {
+		if (*end == '\0') {
+			fprintf(stderr, "Unterminated '\"' in string literal\n");
+			return NULL;
+		}
+		if (*end == '\\') {
+			end++;
+			if (*end == '\0') {
+				fprintf(stderr, "Dangling escape character\n");
+				return NULL;
+			}
+			if (*end == 'x') {
+				if (*(end + 1) == '\0' || *(end + 2) == '\0') {
+					fprintf(stderr, "Unterminated hexadecimal escape sequence\n");
+					return NULL;
+				}
+				end += 2;
+			}
+			else if ('0' <= *end && *end <= '3') {
+				if (*(end + 1) < '0' || *(end + 1) > '7' ||
+						*(end + 2) < '0' || *(end + 2) > '7') {
+					fprintf(stderr, "Invalid octal string \"%.4s\"\n", end - 1);
+					return NULL;
+				}
+				end += 2;
+			}
+		}
+		end++;
+		len++;
+	}
+
+	// allocate a buffer for the parsed string
+	char* res = (char*) cf_malloc(len + 1);
+	uint64_t i = 0;
+	for (const char* s = str + 1; s != end; s++, i++) {
+		if (*s == '\\') {
+			switch (*(s + 1)) {
+				case 'a':
+					res[i] = '\a';
+					break;
+				case 'b':
+					res[i] = '\b';
+					break;
+				case 'e':
+					res[i] = '\e';
+					break;
+				case 'f':
+					res[i] = '\f';
+					break;
+				case 'n':
+					res[i] = '\n';
+					break;
+				case 'r':
+					res[i] = '\r';
+					break;
+				case 't':
+					res[i] = '\t';
+					break;
+				case 'v':
+					res[i] = '\v';
+					break;
+				case '\\':
+					res[i] = '\\';
+					break;
+				case '\'':
+					res[i] = '\'';
+					break;
+				case '"':
+					res[i] = '\"';
+					break;
+				case '?':
+					res[i] = '\?';
+					break;
+
+				case '0':
+				case '1':
+				case '2':
+				case '3': {
+					// parse as octal, which has already been error checked in the first pass
+					int8_t val = (*(s + 1) - '0') * 64 +
+						(*(s + 2) - '0') * 8 + (*(s + 3) - '0');
+					res[i] = val;
+					s += 2;
+					break;
+				}
+
+				case 'x': {
+					char* endptr;
+					// move the next two characters into a local buffer that we null-terminate,
+					// then try parsing as a 2-digit hex string
+					char buf[3];
+					memcpy(buf, s + 2, 2 * sizeof(char));
+					buf[2] = '\0';
+					uint64_t val = strtoul(buf, &endptr, 16);
+					if (endptr != ((char*) buf) + 2) {
+						fprintf(stderr, "Invalid hexadecimal escape sequence "
+								"\"\\%.3s\"\n", s + 1);
+						cf_free(res);
+						return NULL;
+					}
+
+					res[i] = (int8_t) val;
+					s += 2;
+					break;
+				}
+
+				default:
+					fprintf(stderr, "Unknown escape sequence \"\\%c\"\n",
+							*(s + 1));
+					cf_free(res);
+					return NULL;
+			}
+			s++;
+		}
+		else {
+			res[i] = *s;
+		}
+	}
+	res[len] = '\0';
+
+	if (endptr != NULL) {
+		*endptr = end + 1;
+	}
+	return res;
+}
+
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 		uint64_t elapsed_s, as_vector* percentiles, FILE *out_file)
 {
@@ -259,12 +411,13 @@ void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 	total_cnt = hdr_total_count(h);
 	min = total_cnt == 0 ? 0 : hdr_min(h);
 	max = hdr_max(h);
-	fprintf(out_file, "hdr: %-5s %.24s %lu, %lu, %ld, %ld", name,
-			utc_time_str(time(NULL)), elapsed_s, total_cnt, min, max);
+	fprintf(out_file, "hdr: %-5s %.24s %" PRIu64 ", %" PRIu64 ", %" PRId64
+			", %" PRId64,
+			name, utc_time_str(time(NULL)), elapsed_s, total_cnt, min, max);
 	for (uint32_t i = 0; i < percentiles->size; i++) {
 		double p = *(double *) as_vector_get(percentiles, i);
 		uint64_t cnt = hdr_value_at_percentile(h, p);
-		fprintf(out_file, ", %lu", cnt);
+		fprintf(out_file, ", %" PRIu64, cnt);
 	}
 	fprintf(out_file, "\n");
 }
