@@ -25,7 +25,7 @@
 //
 
 #include <string.h>
-#include <time.h>
+#include <sys/time.h>
 
 #include <aerospike/as_boolean.h>
 
@@ -93,11 +93,11 @@ blog_detailv(as_log_level level, const char* fmt, va_list ap)
 	// Write message all at once so messages generated from multiple threads
 	// have less of a chance of getting garbled.
 	char fmtbuf[1024];
-	struct timespec now;
-	clock_gettime(CLOCK_REALTIME, &now);
+	struct timeval now;
+	gettimeofday(&now, NULL);
 
 	struct tm* t = localtime(&now.tv_sec);
-	uint64_t msecs = now.tv_nsec / 1000000;
+	uint64_t msecs = now.tv_usec / 1000;
 	int len = sprintf(fmtbuf, "%d-%02d-%02d %02d:%02d:%02d.%03" PRIu64 " %s ",
 		t->tm_year+1900, t->tm_mon+1, t->tm_mday, t->tm_hour, t->tm_min,
 		t->tm_sec, msecs, as_log_level_tostring(level));
