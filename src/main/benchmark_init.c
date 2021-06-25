@@ -537,9 +537,7 @@ print_args(args_t* args)
 	printf("threads:                %d\n", args->transaction_worker_threads);
 
 	printf("enable compression:     %s\n", boolstring(args->enable_compression));
-	if (args->enable_compression) {
-		printf("compression ratio:      %f\n", args->compression_ratio);
-	}
+	printf("compression ratio:      %f\n", args->compression_ratio);
 	printf("read socket timeout:    %d ms\n", args->read_socket_timeout);
 	printf("write socket timeout:   %d ms\n", args->write_socket_timeout);
 	printf("read total timeout:     %d ms\n", args->read_total_timeout);
@@ -687,12 +685,6 @@ validate_args(args_t* args)
 			args->transaction_worker_threads > 10000) {
 		printf("Invalid number of threads: %d  Valid values: [1-10000]\n",
 				args->transaction_worker_threads);
-		return 1;
-	}
-
-	if (!args->enable_compression && args->compression_ratio != 1.f) {
-		printf("Compression ratio specified without enabling compression, \n"
-				"add the --compress option when running");
 		return 1;
 	}
 
