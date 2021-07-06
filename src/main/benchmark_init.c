@@ -326,11 +326,13 @@ print_usage(const char* program)
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
 	printf("\n");
 
-	printf("-w --workload I,<percent> | RU,<read percent> | DB  # Default: RU,50\n");
+	printf("-w --workload I,<percent> | RU,<read percent> | RUF,<read percent>,<write percent> | DB  # Default: RU,50\n");
 	printf("   Desired workload.\n");
-	printf("   -w I,60  : Linear 'insert' workload initializing 60%% of the keys.\n");
-	printf("   -w RU,80 : Random read/update workload with 80%% reads and 20%% writes.\n");
-	printf("   -w DB    : Bin delete workload.\n");
+	printf("   -w I,60      : Linear 'insert' workload initializing 60%% of the keys.\n");
+	printf("   -w RU,80     : Random read/update workload with 80%% reads and 20%% writes.\n");
+	printf("   -w RUF,20,40 : Random read/update/udf workload with 20%% reads, 40%% writes, and 60%% UDF calls.\n");
+	printf("                  Note: -ufn and -upn are required in this mode.\n");
+	printf("   -w DB        : Bin delete workload.\n");
 	printf("\n");
 
 	printf("-z --threads <count> # Default: 16\n");
