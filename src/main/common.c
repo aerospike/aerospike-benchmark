@@ -265,6 +265,84 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_idx)
 	}
 }
 
+static bool
+password_env(const char *var, char **ptr)
+{
+	char *pw = getenv(var);
+
+	if (pw == NULL) {
+		fprintf(stderr, "missing TLS key password environment variable %s\n", var);
+		return false;
+	}
+
+	if (pw[0] == 0) {
+		fprintf(stderr, "empty TLS key password environment variable %s\n", var);
+		return false;
+	}
+
+	*ptr = strdup(pw);
+	return true;
+}
+
+static bool
+password_file(const char *path, char **ptr)
+{
+	FILE *fh = fopen(path, "r");
+
+	if (fh == NULL) {
+		fprintf(stderr, "missing TLS key password file %s\n", path);
+		return false;
+	}
+
+	char pw[5000];
+	char *res = fgets(pw, sizeof(pw), fh);
+
+	fclose(fh);
+
+	if (res == NULL) {
+		fprintf(stderr, "error while reading TLS key password file %s\n", path);
+		return false;
+	}
+
+	int32_t pw_len;
+
+	for (pw_len = 0; pw[pw_len] != 0; pw_len++) {
+		if (pw[pw_len] == '\n' || pw[pw_len] == '\r') {
+			break;
+		}
+	}
+
+	if (pw_len == sizeof(pw) - 1) {
+		fprintf(stderr, "TLS key password in file %s too long\n", path);
+		return false;
+	}
+
+	pw[pw_len] = 0;
+
+	if (pw_len == 0) {
+		fprintf(stderr, "empty TLS key password file %s\n", path);
+		return false;
+	}
+
+	*ptr = strdup(pw);
+	return true;
+}
+
+bool
+tls_read_password(char *value, char **ptr)
+{
+	if (strncmp(value, "env:", 4) == 0) {
+		return password_env(value + 4, ptr);
+	}
+
+	if (strncmp(value, "file:", 5) == 0) {
+		return password_file(value + 5, ptr);
+	}
+
+	*ptr = value;
+	return true;
+}
+
 char* parse_string_literal(const char* restrict str,
 		const char** restrict endptr)
 {

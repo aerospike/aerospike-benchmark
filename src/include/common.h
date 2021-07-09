@@ -144,8 +144,7 @@ uint64_t gen_rand_range_64(as_random*, uint64_t max);
 /*
  * compares two as_val's, returning true if they are the same
  */
-int
-as_val_cmp(const as_val* v1, const as_val* v2);
+int as_val_cmp(const as_val* v1, const as_val* v2);
 
 
 /*
@@ -165,6 +164,17 @@ bool bin_name_too_large(size_t name_len, uint32_t n_bins);
  * 	...
  */
 void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
+
+/*
+ * reads a password either from a file or an environment variable
+ *
+ * if value is env:<NAME>, then the password is read from the <NAME> environment var
+ * if value is file:<file_name>, then the password is read from <file_name>
+ *
+ * returns true on success, false on failure. On success, *ptr must be freed by
+ * the caller at some point
+ */
+bool tls_read_password(char *value, char **ptr);
 
 /*
  * parses a literal string, which must be surrounded by double quotes,

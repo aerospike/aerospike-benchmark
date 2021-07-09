@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #if defined(_MSC_VER)
 #undef _UNICODE  // Use ASCII getopt version on windows.
@@ -107,6 +108,7 @@ static struct option long_options[] = {
 	{"tlsCertBlackList",     required_argument, 0, 'O'},
 	{"tlsLogSessionInfo",    no_argument,       0, 'Q'},
 	{"tlsKeyFile",           required_argument, 0, 'Z'},
+	{"tlsKeyFilePassword",   optional_argument, 0, '`'},
 	{"tlsCertFile",          required_argument, 0, 'y'},
 	{"tlsLoginOnly",         no_argument,       0, 'f'},
 	{"auth",                 required_argument, 0, 'e'},
@@ -499,6 +501,17 @@ print_usage(const char* program)
 
 	printf("   --tlsKeyFile <path>\n");
 	printf("   Set the TLS client key file for mutual authentication.\n");
+	printf("\n");
+
+	printf("   --tlsKeyFilePassword=TLS_KEYFILE_PASSWORD\n");
+	printf("   Password to load protected tls-keyfile.\n");
+	printf("   It can be one of the following:\n");
+	printf("     1) Environment varaible: 'env:<VAR>'\n");
+	printf("     2) File: 'file:<PATH>'\n");
+	printf("     3) String: 'PASSWORD'\n");
+	printf("   Default: none\n");
+	printf("   User will be prompted on command line if --tls-keyfile-password\n");
+	printf("   specified and no password is given.\n");
 	printf("\n");
 
 	printf("   --tlsCertFile <path>\n");
@@ -1230,6 +1243,16 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->tls.keyfile = strdup(optarg);
 				break;
 
+			case '`':
+				if (optarg == NULL) {
+					// no password given
+					args->tls.keyfile_pw = strdup("");
+				}
+				else {
+					args->tls.keyfile_pw = strdup(optarg);
+				}
+				break;
+
 			case 'y':
 				args->tls.certfile = strdup(optarg);
 				break;
@@ -1251,6 +1274,20 @@ set_args(int argc, char * const* argv, args_t* args)
 				return 1;
 		}
 	}
+
+	if (args->tls.keyfile && args->tls.keyfile_pw) {
+		char* old_keyfile_pw = args->tls.keyfile_pw;
+
+		if (strcmp(args->tls.keyfile_pw, "") == 0) {
+			args->tls.keyfile_pw = getpass("Enter TLS-Keyfile Password: ");
+		}
+
+		if (!tls_read_password(args->tls.keyfile_pw, &args->tls.keyfile_pw)) {
+			return 1;
+		}
+		cf_free(old_keyfile_pw);
+	}
+
 	return validate_args(args);
 }
 
