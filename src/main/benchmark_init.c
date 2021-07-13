@@ -282,8 +282,8 @@ print_usage(const char* program)
 	printf("         I8 for 2**56 - 2**64-1\n");
 	printf("      B) Generate a bytes bin or value with an bytearray of random bytes\n");
 	printf("         B12 - generates a bytearray of 12 random bytes\n");
-	printf("      S) Generate a string bin or value made of space-separated a-z{1,9} words\n");
-	printf("         S16 - a string with a 16 character length. ex: \"uir a mskd poiur\"\n");
+	printf("      S) Generate a string bin or value made of a-z{1,9} characers\n");
+	printf("         S16 - a string with a 16 character length. ex: \"uir9a2mskd4poiur\"\n");
 	printf("      D) Generate a Double bin or value (8 byte)\n");
 	printf("      <const>) A constant value of any of the above types (besides bytes):\n");
 	printf("         Const boolean: either \"T\", \"true\" (case insensitive), \"F\", or\n");
@@ -524,10 +524,6 @@ print_usage(const char* program)
 
 	printf("   --auth {INTERNAL,EXTERNAL,EXTERNAL_SECURE} # Default: INTERNAL\n");
 	printf("   Set authentication mode when user/password is defined.\n");
-	printf("\n");
-
-	printf("   --help           # Default: usage not printed.\n");
-	printf("   Display program usage.\n");
 	printf("\n");
 }
 
