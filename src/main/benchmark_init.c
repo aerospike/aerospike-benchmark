@@ -526,7 +526,7 @@ print_usage(const char* program)
 	printf("   Set authentication mode when user/password is defined.\n");
 	printf("\n");
 
-	printf("-u --usage           # Default: usage not printed.\n");
+	printf("   --help           # Default: usage not printed.\n");
 	printf("   Display program usage.\n");
 	printf("\n");
 }
