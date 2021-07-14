@@ -229,6 +229,7 @@ print_usage(const char* program)
 	printf("     key-start: Key start, otherwise inheriting from the global context\n");
 	printf("     key-end: Key end, otherwise inheriting from the global context\n");
 	printf("     read-bins: Which bins to read if the workload includes reads\n");
+	printf("     write-bins: Which bins to write to if the workload includes reads\n");
 	printf("     pause: max number of seconds to pause before the stage starts. Waits a random\n");
 	printf("         number of seconds between 1 and the pause.\n");
 	printf("     async: when true/yes, uses asynchronous commands for this stage. Default is false\n");
