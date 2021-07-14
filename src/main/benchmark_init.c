@@ -324,7 +324,7 @@ print_usage(const char* program)
 	printf("   Use dynamically generated random bin values instead of default static fixed bin values.\n");
 	printf("\n");
 
-	printf("-t --duration        # Default: 10s (for random read/write workload)\n");
+	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RUF), 0 for finite (I, DB)\n");
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
 	printf("\n");
 
@@ -344,7 +344,6 @@ print_usage(const char* program)
 	printf("-g --throughput <tps> # Default: 0\n");
 	printf("   Throttle transactions per second to a maximum value.\n");
 	printf("   If tps is zero, do not throttle throughput.\n");
-	printf("   Used in read/write mode only.\n");
 	printf("\n");
 
 	printf("   --batchSize <size> # Default: 0\n");
