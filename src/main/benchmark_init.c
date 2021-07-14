@@ -311,13 +311,13 @@ print_usage(const char* program)
 	printf("   --readBins        # Default: all bins\n");
 	printf("   Specifies which bins from the object-spec to load from the database on read \n");
 	printf("   transactions. Must be given as a comma-separated list of bin numbers, \n");
-	printf("   starting from 1 (i.e. \"1,3,4,6\".\n");
+	printf("   starting from 1 (i.e. \"1,3,4,6\").\n");
 	printf("\n");
 
 	printf("   --writeBins        # Default: all bins\n");
 	printf("   Specifies which bins from the object-spec to generate and store in the \n");
 	printf("   database on write transactions. Must be given as a comma-separated list \n");
-	printf("   of bin numbers, starting from 1 (i.e. \"1,3,4,6\".\n");
+	printf("   of bin numbers, starting from 1 (i.e. \"1,3,4,6\").\n");
 	printf("\n");
 
 	printf("-R --random          # Default: static fixed bin values\n");
