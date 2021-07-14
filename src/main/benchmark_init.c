@@ -347,7 +347,7 @@ print_usage(const char* program)
 	printf("   If tps is zero, do not throttle throughput.\n");
 	printf("\n");
 
-	printf("   --batchSize <size> # Default: 0\n");
+	printf("   --batchSize <size> # Default: 1\n");
 	printf("   Enable batch mode with number of records to process in each batch get call.\n");
 	printf("   Batch mode is valid only for RU and RUF workloads. Batch mode is disabled by default.\n");
 	printf("\n");
