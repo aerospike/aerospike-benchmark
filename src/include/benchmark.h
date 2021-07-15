@@ -111,6 +111,13 @@ typedef struct clientdata_s {
 	uint32_t udf_timeout_count;
 	uint32_t udf_error_count;
 
+	FILE* hdr_comp_read_output;
+	FILE* hdr_text_read_output;
+	FILE* hdr_comp_write_output;
+	FILE* hdr_text_write_output;
+	FILE* hdr_comp_udf_output;
+	FILE* hdr_text_udf_output;
+
 	struct hdr_histogram* read_hdr;
 	struct hdr_histogram* write_hdr;
 	struct hdr_histogram* udf_hdr;
@@ -121,16 +128,6 @@ typedef struct clientdata_s {
 	histogram_t read_histogram;
 	histogram_t write_histogram;
 	histogram_t udf_histogram;
-
-	FILE* hdr_comp_read_output;
-	FILE* hdr_text_read_output;
-	FILE* hdr_comp_write_output;
-	FILE* hdr_text_write_output;
-	FILE* hdr_comp_udf_output;
-	FILE* hdr_text_udf_output;
-	struct hdr_histogram* summary_read_hdr;
-	struct hdr_histogram* summary_write_hdr;
-	struct hdr_histogram* summary_udf_hdr;
 
 	uint32_t tdata_count;
 

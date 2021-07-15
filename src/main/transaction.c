@@ -180,11 +180,8 @@ _record_read(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->latency) {
 		hdr_record_value_atomic(cdata->read_hdr, dt_us);
 	}
-	if (cdata->histogram_output != NULL) {
+	if (cdata->histogram_output != NULL || cdata->hdr_comp_read_output != NULL) {
 		histogram_add(&cdata->read_histogram, dt_us);
-	}
-	if (cdata->hdr_comp_read_output != NULL) {
-		hdr_record_value_atomic(cdata->summary_read_hdr, dt_us);
 	}
 	as_incr_uint32(&cdata->read_count);
 }
@@ -195,11 +192,8 @@ _record_write(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->latency) {
 		hdr_record_value_atomic(cdata->write_hdr, dt_us);
 	}
-	if (cdata->histogram_output != NULL) {
+	if (cdata->histogram_output != NULL || cdata->hdr_comp_write_output != NULL) {
 		histogram_add(&cdata->write_histogram, dt_us);
-	}
-	if (cdata->hdr_comp_write_output != NULL) {
-		hdr_record_value_atomic(cdata->summary_write_hdr, dt_us);
 	}
 	as_incr_uint32(&cdata->write_count);
 }
@@ -210,11 +204,8 @@ _record_udf(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->latency) {
 		hdr_record_value_atomic(cdata->udf_hdr, dt_us);
 	}
-	if (cdata->histogram_output != NULL) {
+	if (cdata->histogram_output != NULL || cdata->hdr_comp_udf_output != NULL) {
 		histogram_add(&cdata->udf_histogram, dt_us);
-	}
-	if (cdata->hdr_comp_udf_output != NULL) {
-		hdr_record_value_atomic(cdata->summary_udf_hdr, dt_us);
 	}
 	as_incr_uint32(&cdata->udf_count);
 }

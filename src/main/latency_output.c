@@ -40,16 +40,6 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			as_vector_append(&cdata->latency_percentiles,
 					as_vector_get(&args->latency_percentiles, i));
 		}
-
-		if (has_writes) {
-			hdr_init(1, 1000000, 3, &cdata->write_hdr);
-		}
-		if (has_reads) {
-			hdr_init(1, 1000000, 3, &cdata->read_hdr);
-		}
-		if (has_udfs) {
-			hdr_init(1, 1000000, 3, &cdata->udf_hdr);
-		}
 	}
 	
 	if (args->latency_histogram) {
@@ -145,8 +135,6 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 
 			as_string_builder_destroy(&cmp_write_output_b);
 			as_string_builder_destroy(&txt_write_output_b);
-
-			hdr_init(1, 1000000, 3, &cdata->summary_write_hdr);
 		}
 
 		if (has_reads) {
@@ -185,8 +173,6 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 
 			as_string_builder_destroy(&cmp_read_output_b);
 			as_string_builder_destroy(&txt_read_output_b);
-
-			hdr_init(1, 1000000, 3, &cdata->summary_read_hdr);
 		}
 
 		if (has_udfs) {
@@ -225,11 +211,21 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 
 			as_string_builder_destroy(&cmp_udf_output_b);
 			as_string_builder_destroy(&txt_udf_output_b);
-
-			hdr_init(1, 1000000, 3, &cdata->summary_udf_hdr);
 		}
 
 		hdr_gettime(start_timespec);
+	}
+
+	if (args->latency || args->hdr_output) {
+		if (has_writes) {
+			hdr_init(1, 1000000, 3, &cdata->write_hdr);
+		}
+		if (has_reads) {
+			hdr_init(1, 1000000, 3, &cdata->read_hdr);
+		}
+		if (has_udfs) {
+			hdr_init(1, 1000000, 3, &cdata->udf_hdr);
+		}
 	}
 	return ret;
 }
@@ -243,16 +239,6 @@ free_histograms(cdata_t* cdata, args_t* args)
 
 	if (args->latency) {
 		as_vector_destroy(&cdata->latency_percentiles);
-
-		if (has_writes) {
-			hdr_close(cdata->write_hdr);
-		}
-		if (has_reads) {
-			hdr_close(cdata->read_hdr);
-		}
-		if (has_udfs) {
-			hdr_close(cdata->udf_hdr);
-		}
 	}
 
 	if (args->latency_histogram) {
@@ -273,7 +259,6 @@ free_histograms(cdata_t* cdata, args_t* args)
 
 	if (args->hdr_output) {
 		if (has_writes) {
-			hdr_close(cdata->summary_write_hdr);
 			if (cdata->hdr_comp_write_output) {
 				fclose(cdata->hdr_comp_write_output);
 			}
@@ -283,7 +268,6 @@ free_histograms(cdata_t* cdata, args_t* args)
 		}
 
 		if (has_reads) {
-			hdr_close(cdata->summary_read_hdr);
 			if (cdata->hdr_comp_read_output) {
 				fclose(cdata->hdr_comp_read_output);
 			}
@@ -293,13 +277,24 @@ free_histograms(cdata_t* cdata, args_t* args)
 		}
 
 		if (has_udfs) {
-			hdr_close(cdata->summary_udf_hdr);
 			if (cdata->hdr_comp_udf_output) {
 				fclose(cdata->hdr_comp_udf_output);
 			}
 			if (cdata->hdr_text_udf_output) {
 				fclose(cdata->hdr_text_udf_output);
 			}
+		}
+	}
+
+	if (args->latency || args->hdr_output) {
+		if (has_writes) {
+			hdr_close(cdata->write_hdr);
+		}
+		if (has_reads) {
+			hdr_close(cdata->read_hdr);
+		}
+		if (has_udfs) {
+			hdr_close(cdata->udf_hdr);
 		}
 	}
 }
@@ -327,9 +322,9 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 					utc_time, start_timespec);
 
 			hdr_log_write(&writer, cdata->hdr_comp_write_output,
-					start_timespec, &end_timespec, cdata->summary_write_hdr);
+					start_timespec, &end_timespec, cdata->write_hdr);
 
-			hdr_percentiles_print(cdata->summary_write_hdr, cdata->hdr_text_write_output,
+			hdr_percentiles_print(cdata->write_hdr, cdata->hdr_text_write_output,
 					ticks_per_half_distance, 1., CLASSIC);
 		}
 
@@ -338,9 +333,9 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 					utc_time, start_timespec);
 
 			hdr_log_write(&writer, cdata->hdr_comp_read_output,
-					start_timespec, &end_timespec, cdata->summary_read_hdr);
+					start_timespec, &end_timespec, cdata->read_hdr);
 
-			hdr_percentiles_print(cdata->summary_read_hdr, cdata->hdr_text_read_output,
+			hdr_percentiles_print(cdata->read_hdr, cdata->hdr_text_read_output,
 					ticks_per_half_distance, 1., CLASSIC);
 		}
 
@@ -349,9 +344,9 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 					utc_time, start_timespec);
 
 			hdr_log_write(&writer, cdata->hdr_comp_udf_output,
-					start_timespec, &end_timespec, cdata->summary_udf_hdr);
+					start_timespec, &end_timespec, cdata->udf_hdr);
 
-			hdr_percentiles_print(cdata->summary_udf_hdr, cdata->hdr_text_udf_output,
+			hdr_percentiles_print(cdata->udf_hdr, cdata->hdr_text_udf_output,
 					ticks_per_half_distance, 1., CLASSIC);
 		}
 	}

@@ -229,6 +229,7 @@ print_usage(const char* program)
 	printf("     key-start: Key start, otherwise inheriting from the global context\n");
 	printf("     key-end: Key end, otherwise inheriting from the global context\n");
 	printf("     read-bins: Which bins to read if the workload includes reads\n");
+	printf("     write-bins: Which bins to write to if the workload includes reads\n");
 	printf("     pause: max number of seconds to pause before the stage starts. Waits a random\n");
 	printf("         number of seconds between 1 and the pause.\n");
 	printf("     async: when true/yes, uses asynchronous commands for this stage. Default is false\n");
@@ -282,8 +283,8 @@ print_usage(const char* program)
 	printf("         I8 for 2**56 - 2**64-1\n");
 	printf("      B) Generate a bytes bin or value with an bytearray of random bytes\n");
 	printf("         B12 - generates a bytearray of 12 random bytes\n");
-	printf("      S) Generate a string bin or value made of space-separated a-z{1,9} words\n");
-	printf("         S16 - a string with a 16 character length. ex: \"uir a mskd poiur\"\n");
+	printf("      S) Generate a string bin or value made of a-z{1,9} characers\n");
+	printf("         S16 - a string with a 16 character length. ex: \"uir9a2mskd4poiur\"\n");
 	printf("      D) Generate a Double bin or value (8 byte)\n");
 	printf("      <const>) A constant value of any of the above types (besides bytes):\n");
 	printf("         Const boolean: either \"T\", \"true\" (case insensitive), \"F\", or\n");
@@ -309,22 +310,22 @@ print_usage(const char* program)
 	printf("\n");
 
 	printf("   --readBins        # Default: all bins\n");
-	printf("   Specifies which bins from the object-spec to load from the database on read \n");
-	printf("   transactions. Must be given as a comma-separated list of bin numbers, \n");
-	printf("   starting from 1 (i.e. \"1,3,4,6\".\n");
+	printf("   Specifies which bins from the object-spec to load from the database on read\n");
+	printf("   transactions. Must be given as a comma-separated list of bin numbers,\n");
+	printf("   starting from 1 (i.e. \"1,3,4,6\").\n");
 	printf("\n");
 
 	printf("   --writeBins        # Default: all bins\n");
-	printf("   Specifies which bins from the object-spec to generate and store in the \n");
-	printf("   database on write transactions. Must be given as a comma-separated list \n");
-	printf("   of bin numbers, starting from 1 (i.e. \"1,3,4,6\".\n");
+	printf("   Specifies which bins from the object-spec to generate and store in the\n");
+	printf("   database on write transactions. Must be given as a comma-separated list\n");
+	printf("   of bin numbers, starting from 1 (i.e. \"1,3,4,6\").\n");
 	printf("\n");
 
 	printf("-R --random          # Default: static fixed bin values\n");
 	printf("   Use dynamically generated random bin values instead of default static fixed bin values.\n");
 	printf("\n");
 
-	printf("-t --duration        # Default: 10s (for random read/write workload)\n");
+	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RUF), 0 for finite (I, DB)\n");
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
 	printf("\n");
 
@@ -344,12 +345,11 @@ print_usage(const char* program)
 	printf("-g --throughput <tps> # Default: 0\n");
 	printf("   Throttle transactions per second to a maximum value.\n");
 	printf("   If tps is zero, do not throttle throughput.\n");
-	printf("   Used in read/write mode only.\n");
 	printf("\n");
 
-	printf("   --batchSize <size> # Default: 0\n");
+	printf("   --batchSize <size> # Default: 1\n");
 	printf("   Enable batch mode with number of records to process in each batch get call.\n");
-	printf("   Batch mode is valid only for RU (read update) workloads. Batch mode is disabled by default.\n");
+	printf("   Batch mode is valid only for RU and RUF workloads. Batch mode is disabled by default.\n");
 	printf("\n");
 
 	printf("   --compress\n");
@@ -410,12 +410,12 @@ print_usage(const char* program)
 	printf("   The file is opened in append mode.\n");
 	printf("\n");
 
-	printf("   --outputPeriod  # Default: 1s\n");
+	printf("   --outputPeriod <seconds>  # Default: 1s\n");
 	printf("   Specifies the period between successive snapshots of the periodic\n");
 	printf("   latency histogram.\n");
 	printf("\n");
 
-	printf("   --hdrHist=<path/to/output>  # Default: off\n");
+	printf("   --hdrHist <path/to/output>  # Default: off\n");
 	printf("   Enables the cumulative HDR histogram and specifies the directory to\n");
 	printf("   dump the cumulative HDR histogram summary.\n");
 	printf("\n");
@@ -524,10 +524,6 @@ print_usage(const char* program)
 
 	printf("   --auth {INTERNAL,EXTERNAL,EXTERNAL_SECURE} # Default: INTERNAL\n");
 	printf("   Set authentication mode when user/password is defined.\n");
-	printf("\n");
-
-	printf("-u --usage           # Default: usage not printed.\n");
-	printf("   Display program usage.\n");
 	printf("\n");
 }
 
