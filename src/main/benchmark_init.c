@@ -410,12 +410,12 @@ print_usage(const char* program)
 	printf("   The file is opened in append mode.\n");
 	printf("\n");
 
-	printf("   --outputPeriod  # Default: 1s\n");
+	printf("   --outputPeriod <seconds>  # Default: 1s\n");
 	printf("   Specifies the period between successive snapshots of the periodic\n");
 	printf("   latency histogram.\n");
 	printf("\n");
 
-	printf("   --hdrHist=<path/to/output>  # Default: off\n");
+	printf("   --hdrHist <path/to/output>  # Default: off\n");
 	printf("   Enables the cumulative HDR histogram and specifies the directory to\n");
 	printf("   dump the cumulative HDR histogram summary.\n");
 	printf("\n");
