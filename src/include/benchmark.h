@@ -163,6 +163,7 @@ typedef struct threaddata_s {
 	bool finished;
 
 	as_record fixed_value;
+	as_list* fixed_udf_fn_args;
 } tdata_t;
 
 

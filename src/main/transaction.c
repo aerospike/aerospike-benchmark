@@ -77,7 +77,7 @@ LOCAL_HELPER int _read_record_async(as_key* key, struct async_data_s* adata,
 LOCAL_HELPER int _batch_read_record_async(as_batch_read_records* keys,
 		struct async_data_s* adata, cdata_t* cdata);
 LOCAL_HELPER int _apply_udf_async(as_key* key, struct async_data_s* adata,
-		cdata_t* cdata, const stage_t* stage, as_random* random);
+		tdata_t* tdata, cdata_t* cdata, const stage_t* stage);
 
 // Thread worker helper methods
 LOCAL_HELPER void _calculate_subrange(uint64_t key_start, uint64_t key_end,
@@ -344,9 +344,14 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	as_val* val;
 
 	as_list* args;
-	val = obj_spec_gen_value(&stage->udf_fn_args, tdata->random, NULL, 0);
-	args = as_list_fromval(val);
-	assert(args != NULL);
+	if (stage->random) {
+		val = obj_spec_gen_value(&stage->udf_fn_args, tdata->random, NULL, 0);
+		args = as_list_fromval(val);
+		assert(args != NULL);
+	}
+	else {
+		args = tdata->fixed_udf_fn_args;
+	}
 
 	start = cf_getus();
 	status = aerospike_key_apply(&cdata->client, &err, NULL, key,
@@ -356,7 +361,9 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
 		_record_udf(cdata, end - start);
 		as_val_destroy(val);
-		as_val_destroy((as_val*) args);
+		if (stage->random) {
+			as_val_destroy((as_val*) args);
+		}
 		throttle(tdata, coord);
 		return status;
 	}
@@ -377,7 +384,9 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	as_val_destroy(val);
-	as_val_destroy((as_val*) args);
+	if (stage->random) {
+		as_val_destroy((as_val*) args);
+	}
 	throttle(tdata, coord);
 	return status;
 }
@@ -453,23 +462,30 @@ _batch_read_record_async(as_batch_read_records* keys, struct async_data_s* adata
 }
 
 LOCAL_HELPER int
-_apply_udf_async(as_key* key, struct async_data_s* adata, cdata_t* cdata,
-		const stage_t* stage, as_random* random)
+_apply_udf_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
+		cdata_t* cdata, const stage_t* stage)
 {
 	as_status status;
 	as_error err;
 
 	as_list* args;
-	as_val* val = obj_spec_gen_value(&stage->udf_fn_args, random, NULL, 0);
-	args = as_list_fromval(val);
-	assert(args != NULL);
+	if (stage->random) {
+		as_val* val = obj_spec_gen_value(&stage->udf_fn_args, tdata->random, NULL, 0);
+		args = as_list_fromval(val);
+		assert(args != NULL);
+	}
+	else {
+		args = tdata->fixed_udf_fn_args;
+	}
 
 	adata->start_time = cf_getus();
 	status = aerospike_key_apply_async(&cdata->client, &err, 0, key,
 			stage->udf_package_name, stage->udf_fn_name, args,
 			_async_val_listener, adata, adata->ev_loop, NULL);
 
-	as_val_destroy((as_val*) args);
+	if (stage->random) {
+		as_val_destroy((as_val*) args);
+	}
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
@@ -1143,8 +1159,9 @@ rand_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			// generate a random key
 			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
 			_gen_key(key_val, &adata->key, cdata);
+			adata->op = udf;
 
-			_apply_udf_async(&adata->key, adata, cdata, stage, tdata->random);
+			_apply_udf_async(&adata->key, adata, tdata, cdata, stage);
 		}
 
 		uint64_t pause_for =
@@ -1328,6 +1345,12 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 					tdata->random, cdata->bin_name, stage->write_bins,
 					stage->n_write_bins, cdata->compression_ratio);
 		}
+
+		if (workload_contains_udfs(&stage->workload)) {
+			as_val* val = obj_spec_gen_value(&stage->udf_fn_args,
+					tdata->random, NULL, 0);
+			tdata->fixed_udf_fn_args = as_list_fromval(val);
+		}
 	}
 }
 
@@ -1338,6 +1361,10 @@ terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 
 	if (!stage->random) {
 		as_record_destroy(&tdata->fixed_value);
+
+		if (workload_contains_udfs(&stage->workload)) {
+			as_val_destroy((as_val*) tdata->fixed_udf_fn_args);
+		}
 	}
 }
 

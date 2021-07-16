@@ -37,7 +37,7 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
 			stage_def_t, desc,
 			0, CYAML_UNLIMITED),
-	CYAML_FIELD_UINT("duration", 0,
+	CYAML_FIELD_UINT("duration", CYAML_FLAG_OPTIONAL | CYAML_FLAG_DEFAULT_ONES,
 			stage_def_t, duration),
 	CYAML_FIELD_STRING_PTR("workload", 0,
 			stage_def_t, workload_str,
