@@ -27,7 +27,7 @@ STATE_DIRECTORIES = ["state-%d" % i for i in range(1, N_NODES+1)]
 UDF_DIRECTORIES = ["udf-%d" % i for i in range(1, N_NODES+1)]
 
 if sys.platform == "linux":
-	USE_VALGRIND = True
+	USE_VALGRIND = False
 else:
 	USE_VALGRIND = False
 DOCKER_CLIENT = docker.from_env()
@@ -337,7 +337,11 @@ def run_benchmark(args, ip=None, port=PORT, expect_success=True, do_reset=True):
 	if ip is None:
 		ip = SERVER_IP
 
-	cmd = "test_target/benchmark -h %s:%d -n %s -s %s %s" % \
+	if USE_VALGRIND:
+		cmd = "valgrind --tool=memcheck --leak-check=full --track-origins=yes "
+	else:
+		cmd = ""
+	cmd += "test_target/benchmark -h %s:%d -n %s -s %s %s" % \
 			(ip, port, NAMESPACE, SET, args)
 
 	print("executing:", cmd)
