@@ -63,11 +63,11 @@ ifeq ($(OPENSSL_STATIC_PATH),)
   ifeq ($(OS),Darwin)
     LDFLAGS += -L/usr/local/opt/openssl/lib
   endif
-  LIBRARIES += -lssl
-  LIBRARIES += -lcrypto
+  LDFLAGS += -lssl
+  LDFLAGS += -lcrypto
 else
-  LIBRARIES += $(OPENSSL_STATIC_PATH)/libssl.a
-  LIBRARIES += $(OPENSSL_STATIC_PATH)/libcrypto.a
+  LDFLAGS += $(OPENSSL_STATIC_PATH)/libssl.a
+  LDFLAGS += $(OPENSSL_STATIC_PATH)/libcrypto.a
 endif
 
 ifeq ($(EVENT_LIB),libev)
