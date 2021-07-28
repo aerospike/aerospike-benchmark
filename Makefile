@@ -59,8 +59,15 @@ endif
 
 LDFLAGS = -L/usr/local/lib
 
-ifeq ($(OS),Darwin)
-  LDFLAGS += -L/usr/local/opt/openssl/lib
+ifeq ($(OPENSSL_STATIC_PATH),)
+  ifeq ($(OS),Darwin)
+    LDFLAGS += -L/usr/local/opt/openssl/lib
+  endif
+  LIBRARIES += -lssl
+  LIBRARIES += -lcrypto
+else
+  LIBRARIES += $(OPENSSL_STATIC_PATH)/libssl.a
+  LIBRARIES += $(OPENSSL_STATIC_PATH)/libcrypto.a
 endif
 
 ifeq ($(EVENT_LIB),libev)
@@ -75,7 +82,7 @@ ifeq ($(EVENT_LIB),libevent)
   LDFLAGS += -levent_core -levent_pthreads
 endif
 
-LDFLAGS += -lssl -lcrypto -lpthread
+LDFLAGS += -lpthread
 
 ifeq ($(OS),Linux)
   LDFLAGS += -lrt -ldl
@@ -83,7 +90,13 @@ else ifeq ($(OS),FreeBSD)
   LDFLAGS += -lrt
 endif
 
-LDFLAGS += -lm -lz -lcyaml -lyaml
+ifeq ($(LIBYAML_STATIC_PATH),)
+  LDFLAGS += -lyaml
+else
+  LDFLAGS += $(LIBYAML_STATIC_PATH)/libyaml.a
+endif
+
+LDFLAGS += -lm -lz -lcyaml
 TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
 LDFLAGS += -Ltarget/lib -flto
 CC = cc
