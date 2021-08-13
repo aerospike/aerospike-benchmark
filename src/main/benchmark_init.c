@@ -43,75 +43,139 @@
 // Typedefs & constants.
 //
 
-static const char* short_options = "h:p:U:P::n:s:K:k:b:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:u";
+static const char* short_options = "h:p:U:P:n:s:b:K:k:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
+
+#define WARN_OFF 0x40000000
+
+/*
+ * Identifies the TLS client command line options.
+ */
+typedef enum {
+	TLS_OPT_ENABLE = 1000,
+	TLS_OPT_NAME,
+	TLS_OPT_CA_FILE,
+	TLS_OPT_CA_PATH,
+	TLS_OPT_PROTOCOLS,
+	TLS_OPT_CIPHER_SUITE,
+	TLS_OPT_CRL_CHECK,
+	TLS_OPT_CRL_CHECK_ALL,
+	TLS_OPT_CERT_BLACK_LIST,
+	TLS_OPT_LOG_SESSION_INFO,
+	TLS_OPT_KEY_FILE,
+	TLS_OPT_KEY_FILE_PASSWORD,
+	TLS_OPT_CERT_FILE,
+	TLS_OPT_LOGIN_ONLY
+} tls_opt;
 
 static struct option long_options[] = {
-	{"help",                 no_argument,       0, '9'},
-	{"hosts",                required_argument, 0, 'h'},
-	{"port",                 required_argument, 0, 'p'},
-	{"user",                 required_argument, 0, 'U'},
-	{"password",             optional_argument, 0, 'P'},
-	{"servicesAlternate",    no_argument,       0, '*'},
-	{"namespace",            required_argument, 0, 'n'},
-	{"set",                  required_argument, 0, 's'},
-	{"bin",                  required_argument, 0, 'b'},
-	{"startKey",             required_argument, 0, 'K'},
-	{"keys",                 required_argument, 0, 'k'},
-	{"udfPackageName",       required_argument, 0, ':'},
-	{"upn",                  required_argument, 0, ':'},
-	{"udfFunctionName",      required_argument, 0, ';'},
-	{"ufn",                  required_argument, 0, ';'},
-	{"udfFunctionValues",    required_argument, 0, '"'},
-	{"ufv",                  required_argument, 0, '"'},
-	{"objectSpec",           required_argument, 0, 'o'},
-	{"random",               no_argument,       0, 'R'},
-	{"duration",             required_argument, 0, 't'},
-	{"workload",             required_argument, 0, 'w'},
-	{"workloadStages",       required_argument, 0, '.'},
-	{"readBins",             required_argument, 0, '+'},
-	{"writeBins",            required_argument, 0, '-'},
-	{"threads",              required_argument, 0, 'z'},
-	{"throughput",           required_argument, 0, 'g'},
-	{"batchSize",            required_argument, 0, '0'},
-	{"compress",             no_argument,       0, '4'},
-	{"compressionRatio",     required_argument, 0, '5'},
-	{"socketTimeout",        required_argument, 0, '1'},
-	{"readSocketTimeout",    required_argument, 0, '2'},
-	{"writeSocketTimeout",   required_argument, 0, '3'},
-	{"timeout",              required_argument, 0, 'T'},
-	{"readTimeout",          required_argument, 0, 'X'},
-	{"writeTimeout",         required_argument, 0, 'V'},
-	{"maxRetries",           required_argument, 0, 'r'},
-	{"debug",                no_argument,       0, 'd'},
-	{"latency",              no_argument,       0, 'L'},
-	{"percentiles",          required_argument, 0, '8'},
-	{"outputFile",           required_argument, 0, '6'},
-	{"outputPeriod",         required_argument, 0, '7'},
-	{"hdrHist",              required_argument, 0, '/'},
-	{"shared",               no_argument,       0, 'S'},
-	{"replica",              required_argument, 0, 'C'},
-	{"readModeAP",           required_argument, 0, 'N'},
-	{"readModeSC",           required_argument, 0, 'B'},
-	{"commitLevel",          required_argument, 0, 'M'},
-	{"connPoolsPerNode",     required_argument, 0, 'Y'},
-	{"durableDelete",        no_argument,       0, 'D'},
-	{"async",                no_argument,       0, 'a'},
-	{"asyncMaxCommands",     required_argument, 0, 'c'},
-	{"eventLoops",           required_argument, 0, 'W'},
-	{"tlsEnable",            no_argument,       0, 'A'},
-	{"tlsCaFile",            required_argument, 0, 'E'},
-	{"tlsCaPath",            required_argument, 0, 'F'},
-	{"tlsProtocols",         required_argument, 0, 'G'},
-	{"tlsCipherSuite",       required_argument, 0, 'H'},
-	{"tlsCrlCheck",          no_argument,       0, 'I'},
-	{"tlsCrlCheckAll",       no_argument,       0, 'J'},
-	{"tlsCertBlackList",     required_argument, 0, 'O'},
-	{"tlsLogSessionInfo",    no_argument,       0, 'Q'},
-	{"tlsKeyFile",           required_argument, 0, 'Z'},
-	{"tlsKeyFilePassword",   optional_argument, 0, '`'},
-	{"tlsCertFile",          required_argument, 0, 'y'},
-	{"tlsLoginOnly",         no_argument,       0, 'f'},
-	{"auth",                 required_argument, 0, 'e'},
+	{"help",                  no_argument,       0, '9'},
+	{"hosts",                 required_argument, 0, 'h'},
+	{"port",                  required_argument, 0, 'p'},
+	{"user",                  required_argument, 0, 'U'},
+	{"password",              optional_argument, 0, 'P'},
+	{"services-alternate",    no_argument,       0, '*'},
+	{"namespace",             required_argument, 0, 'n'},
+	{"set",                   required_argument, 0, 's'},
+	{"bin",                   required_argument, 0, 'b'},
+	{"start-key",             required_argument, 0, 'K'},
+	{"keys",                  required_argument, 0, 'k'},
+	{"udf-package-name",      required_argument, 0, ':'},
+	{"upn",                   required_argument, 0, ':'},
+	{"udf-function-name",     required_argument, 0, ';'},
+	{"ufn",                   required_argument, 0, ';'},
+	{"udf-function-values",   required_argument, 0, '"'},
+	{"ufv",                   required_argument, 0, '"'},
+	{"object-spec",           required_argument, 0, 'o'},
+	{"random",                no_argument,       0, 'R'},
+	{"duration",              required_argument, 0, 't'},
+	{"workload",              required_argument, 0, 'w'},
+	{"workload-stages",       required_argument, 0, '.'},
+	{"read-bins",             required_argument, 0, '+'},
+	{"write-bins",            required_argument, 0, '-'},
+	{"threads",               required_argument, 0, 'z'},
+	{"throughput",            required_argument, 0, 'g'},
+	{"batch-size",            required_argument, 0, '0'},
+	{"compress",              no_argument,       0, '4'},
+	{"compression-ratio",     required_argument, 0, '5'},
+	{"socket-timeout",        required_argument, 0, '1'},
+	{"read-socket-timeout",   required_argument, 0, '2'},
+	{"write-socket-timeout",  required_argument, 0, '3'},
+	{"timeout",               required_argument, 0, 'T'},
+	{"read-timeout",          required_argument, 0, 'X'},
+	{"write-timeout",         required_argument, 0, 'V'},
+	{"max-retries",           required_argument, 0, 'r'},
+	{"debug",                 no_argument,       0, 'd'},
+	{"latency",               no_argument,       0, 'L'},
+	{"percentiles",           required_argument, 0, '8'},
+	{"output-file",           required_argument, 0, '6'},
+	{"output-period",         required_argument, 0, '7'},
+	{"hdr-hist",              required_argument, 0, '/'},
+	{"shared",                no_argument,       0, 'S'},
+	{"replica",               required_argument, 0, 'C'},
+	{"read-mode-ap",          required_argument, 0, 'N'},
+	{"read-mode-sc",          required_argument, 0, 'B'},
+	{"commit-level",          required_argument, 0, 'M'},
+	{"conn-pools-per-node",   required_argument, 0, 'Y'},
+	{"durable-delete",        no_argument,       0, 'D'},
+	{"async",                 no_argument,       0, 'a'},
+	{"async-max-commands",    required_argument, 0, 'c'},
+	{"event-loops",           required_argument, 0, 'W'},
+	{"tls-enable",            no_argument,       0, TLS_OPT_ENABLE},
+	{"tls-ca-file",           required_argument, 0, TLS_OPT_CA_FILE},
+	{"tls-ca-path",           required_argument, 0, TLS_OPT_CA_PATH},
+	{"tls-protocols",         required_argument, 0, TLS_OPT_PROTOCOLS},
+	{"tls-cipher-suite",      required_argument, 0, TLS_OPT_CIPHER_SUITE},
+	{"tls-crl-check",         no_argument,       0, TLS_OPT_CRL_CHECK},
+	{"tls-crl-check-all",     no_argument,       0, TLS_OPT_CRL_CHECK_ALL},
+	{"tls-cert-black-list",   required_argument, 0, TLS_OPT_CERT_BLACK_LIST},
+	{"tls-log-session-info",  no_argument,       0, TLS_OPT_LOG_SESSION_INFO},
+	{"tls-key-file",          required_argument, 0, TLS_OPT_KEY_FILE},
+	{"tls-key-file-password", optional_argument, 0, TLS_OPT_KEY_FILE_PASSWORD},
+	{"tls-cert-file",         required_argument, 0, TLS_OPT_CERT_FILE},
+	{"tls-login-only",        no_argument,       0, TLS_OPT_LOGIN_ONLY},
+	{"auth",                  required_argument, 0, 'e'},
+
+	{"servicesAlternate",    no_argument,       0, WARN_OFF | '*'},
+	{"startKey",             required_argument, 0, WARN_OFF | 'K'},
+	{"udfPackageName",       required_argument, 0, WARN_OFF | ':'},
+	{"udfFunctionName",      required_argument, 0, WARN_OFF | ';'},
+	{"udfFunctionValues",    required_argument, 0, WARN_OFF | '"'},
+	{"objectSpec",           required_argument, 0, WARN_OFF | 'o'},
+	{"workloadStages",       required_argument, 0, WARN_OFF | '.'},
+	{"readBins",             required_argument, 0, WARN_OFF | '+'},
+	{"writeBins",            required_argument, 0, WARN_OFF | '-'},
+	{"batchSize",            required_argument, 0, WARN_OFF | '0'},
+	{"compressionRatio",     required_argument, 0, WARN_OFF | '5'},
+	{"socketTimeout",        required_argument, 0, WARN_OFF | '1'},
+	{"readSocketTimeout",    required_argument, 0, WARN_OFF | '2'},
+	{"writeSocketTimeout",   required_argument, 0, WARN_OFF | '3'},
+	{"readTimeout",          required_argument, 0, WARN_OFF | 'X'},
+	{"writeTimeout",         required_argument, 0, WARN_OFF | 'V'},
+	{"maxRetries",           required_argument, 0, WARN_OFF | 'r'},
+	{"outputFile",           required_argument, 0, WARN_OFF | '6'},
+	{"outputPeriod",         required_argument, 0, WARN_OFF | '7'},
+	{"hdrHist",              required_argument, 0, WARN_OFF | '/'},
+	{"readModeAP",           required_argument, 0, WARN_OFF | 'N'},
+	{"readModeSC",           required_argument, 0, WARN_OFF | 'B'},
+	{"commitLevel",          required_argument, 0, WARN_OFF | 'M'},
+	{"connPoolsPerNode",     required_argument, 0, WARN_OFF | 'Y'},
+	{"durableDelete",        no_argument,       0, WARN_OFF | 'D'},
+	{"asyncMaxCommands",     required_argument, 0, WARN_OFF | 'c'},
+	{"eventLoops",           required_argument, 0, WARN_OFF | 'W'},
+	{"tlsEnable",            no_argument,       0, WARN_OFF | TLS_OPT_ENABLE},
+	{"tlsCaFile",            required_argument, 0, WARN_OFF | TLS_OPT_CA_FILE},
+	{"tlsCaPath",            required_argument, 0, WARN_OFF | TLS_OPT_CA_PATH},
+	{"tlsProtocols",         required_argument, 0, WARN_OFF | TLS_OPT_PROTOCOLS},
+	{"tlsCipherSuite",       required_argument, 0, WARN_OFF | TLS_OPT_CIPHER_SUITE},
+	{"tlsCrlCheck",          no_argument,       0, WARN_OFF | TLS_OPT_CRL_CHECK},
+	{"tlsCrlCheckAll",       no_argument,       0, WARN_OFF | TLS_OPT_CRL_CHECK_ALL},
+	{"tlsCertBlackList",     required_argument, 0, WARN_OFF | TLS_OPT_CERT_BLACK_LIST},
+	{"tlsLogSessionInfo",    no_argument,       0, WARN_OFF | TLS_OPT_LOG_SESSION_INFO},
+	{"tlsKeyFile",           required_argument, 0, WARN_OFF | TLS_OPT_KEY_FILE},
+	{"tlsKeyFilePassword",   optional_argument, 0, WARN_OFF | TLS_OPT_KEY_FILE_PASSWORD},
+	{"tlsCertFile",          required_argument, 0, WARN_OFF | TLS_OPT_CERT_FILE},
+	{"tlsLoginOnly",         no_argument,       0, WARN_OFF | TLS_OPT_LOGIN_ONLY},
+
 	{0, 0, 0, 0}
 };
 
@@ -124,6 +188,7 @@ LOCAL_HELPER void print_usage(const char* program);
 LOCAL_HELPER void print_args(args_t* args);
 LOCAL_HELPER int validate_args(args_t* args);
 LOCAL_HELPER stage_def_t* get_or_init_stage(args_t* args);
+LOCAL_HELPER const char* camelcase_to_dash(const char* camel_str);
 LOCAL_HELPER int set_args(int argc, char * const* argv, args_t* args);
 LOCAL_HELPER void _load_defaults(args_t* args);
 LOCAL_HELPER int _load_defaults_post(args_t* args);
@@ -199,7 +264,7 @@ print_usage(const char* program)
 	printf("   intervening space (ie. -Pmypass).\n");
 	printf("\n");
 
-	printf("   --servicesAlternate\n");
+	printf("   --services-alternate\n");
 	printf("   Enables \"services-alternate\" instead of \"services\" when connecting to the server\n");
 	printf("\n");
 
@@ -216,7 +281,7 @@ print_usage(const char* program)
 	printf("   <bin_name>_2, and so on.\n");
 	printf("\n");
 
-	printf("   --workloadStages <path/to/workload_stages.yml>\n");
+	printf("   --workload-stages <path/to/workload_stages.yml>\n");
 	printf("   Accepts a path to a workload stages yml file, which should contain a list of\n");
 	printf("       workload stages to run through.\n");
 	printf("   Each stage must include:\n");
@@ -237,7 +302,7 @@ print_usage(const char* program)
 	printf("     batch-size: specifies the batch size of reads for this stage. Default is 1\n");
 	printf("\n");
 
-	printf("-K --startKey <start> # Default: 0\n");
+	printf("-K --start-key <start> # Default: 0\n");
 	printf("   Set the starting value of the working set of keys. If using an\n");
 	printf("   'insert' workload, the start_value indicates the first value to\n");
 	printf("   write. Otherwise, the start_value indicates the smallest value in\n");
@@ -247,26 +312,26 @@ print_usage(const char* program)
 	printf("-k --keys <count>     # Default: 1000000\n");
 	printf("   Set the number of keys the client is dealing with. If using an\n");
 	printf("   'insert' workload (detailed below), the client will write this\n");
-	printf("   number of keys, starting from value = startKey. Otherwise, the\n");
+	printf("   number of keys, starting from value = start-key. Otherwise, the\n");
 	printf("   client will read and update randomly across the values between\n");
-	printf("   startKey and startKey + num_keys.  startKey can be set using\n");
-	printf("   '-K' or '--startKey'.\n");
+	printf("   startKey and start-key + num_keys.  start-key can be set using\n");
+	printf("   '-K' or '--start-key'.\n");
 	printf("\n");
 
-	printf("-upn --udfPackageName <package_name>\n");
+	printf("-upn --udf-package-name <package_name>\n");
 	printf("   The package name for the udf to be called\n");
 	printf("\n");
 
-	printf("-ufn --udfFunctionName <function_name>\n");
+	printf("-ufn --udf-function-name <function_name>\n");
 	printf("   The name of the UDF function in the package to be called\n");
 	printf("\n");
 
-	printf("-ufv --udfFunctionValues <fn_vals>\n");
+	printf("-ufv --udf-function-values <fn_vals>\n");
 	printf("   The arguments to be passed to the udf when called, which are given\n");
-	printf("   as an objet spec (see --objectSpec).\n");
+	printf("   as an objet spec (see --object-spec).\n");
 	printf("\n");
 
-	printf("-o --objectSpec describes a comma-separated bin specification\n");
+	printf("-o --object-spec describes a comma-separated bin specification\n");
 	printf("   Scalar bins:\n");
 	printf("      b | I<bytes> | B<size> | S<length> | D | <const> # Default: I\n");
 	printf("\n");
@@ -309,13 +374,13 @@ print_usage(const char* program)
 	printf("      -o I2,S12,[3*I1] => b1: 478; b2: \"a09dfwu3ji2r\"; b3: [12, 45, 209])\n");
 	printf("\n");
 
-	printf("   --readBins        # Default: all bins\n");
+	printf("   --read-bins        # Default: all bins\n");
 	printf("   Specifies which bins from the object-spec to load from the database on read\n");
 	printf("   transactions. Must be given as a comma-separated list of bin numbers,\n");
 	printf("   starting from 1 (i.e. \"1,3,4,6\").\n");
 	printf("\n");
 
-	printf("   --writeBins        # Default: all bins\n");
+	printf("   --write-bins       # Default: all bins\n");
 	printf("   Specifies which bins from the object-spec to generate and store in the\n");
 	printf("   database on write transactions. Must be given as a comma-separated list\n");
 	printf("   of bin numbers, starting from 1 (i.e. \"1,3,4,6\").\n");
@@ -347,7 +412,7 @@ print_usage(const char* program)
 	printf("   If tps is zero, do not throttle throughput.\n");
 	printf("\n");
 
-	printf("   --batchSize <size> # Default: 1\n");
+	printf("   --batch-size <size> # Default: 1\n");
 	printf("   Enable batch mode with number of records to process in each batch get call.\n");
 	printf("   Batch mode is valid only for RU and RUF workloads. Batch mode is disabled by default.\n");
 	printf("\n");
@@ -357,20 +422,20 @@ print_usage(const char* program)
 	printf("   Internally, this sets the compression policy to true.\n");
 	printf("\n");
 
-	printf("   --compressionRatio <ratio> # Default: 1\n");
+	printf("   --compression-ratio <ratio> # Default: 1\n");
 	printf("   Sets the desired compression ratio for binary data.\n");
 	printf("   Causes the benchmark tool to generate data which will roughly compress by this proportion.\n");
 	printf("\n");
 
-	printf("   --socketTimeout <ms> # Default: 30000\n");
+	printf("   --socket-timeout <ms> # Default: 30000\n");
 	printf("   Read/Write socket timeout in milliseconds.\n");
 	printf("\n");
 
-	printf("   --readSocketTimeout <ms> # Default: 30000\n");
+	printf("   --read-socket-timeout <ms> # Default: 30000\n");
 	printf("   Read socket timeout in milliseconds.\n");
 	printf("\n");
 
-	printf("   --writeSocketTimeout <ms> # Default: 30000\n");
+	printf("   --write-socket-timeout <ms> # Default: 30000\n");
 	printf("   Write socket timeout in milliseconds.\n");
 	printf("\n");
 
@@ -378,15 +443,15 @@ print_usage(const char* program)
 	printf("   Read/Write total timeout in milliseconds.\n");
 	printf("\n");
 
-	printf("   --readTimeout <ms> # Default: 0\n");
+	printf("   --read-timeout <ms> # Default: 0\n");
 	printf("   Read total timeout in milliseconds.\n");
 	printf("\n");
 
-	printf("   --writeTimeout <ms> # Default: 0\n");
+	printf("   --write-timeout <ms> # Default: 0\n");
 	printf("   Write total timeout in milliseconds.\n");
 	printf("\n");
 
-	printf("   --maxRetries <number> # Default: 1\n");
+	printf("   --max-retries <number> # Default: 1\n");
 	printf("   Maximum number of retries before aborting the current transaction.\n");
 	printf("\n");
 
@@ -403,19 +468,19 @@ print_usage(const char* program)
 	printf("   histogram.\n");
 	printf("\n");
 
-	printf("   --outputFile  # Default: stdout\n");
+	printf("   --output-file  # Default: stdout\n");
 	printf("   Specifies an output file to write periodic latency data, which enables\n");
 	printf("   the tracking of transaction latencies in microseconds in a histogram.\n");
 	printf("   Currently uses the default layout.\n");
 	printf("   The file is opened in append mode.\n");
 	printf("\n");
 
-	printf("   --outputPeriod <seconds>  # Default: 1s\n");
+	printf("   --output-period <seconds>  # Default: 1s\n");
 	printf("   Specifies the period between successive snapshots of the periodic\n");
 	printf("   latency histogram.\n");
 	printf("\n");
 
-	printf("   --hdrHist <path/to/output>  # Default: off\n");
+	printf("   --hdr-hist <path/to/output>  # Default: off\n");
 	printf("   Enables the cumulative HDR histogram and specifies the directory to\n");
 	printf("   dump the cumulative HDR histogram summary.\n");
 	printf("\n");
@@ -428,23 +493,23 @@ print_usage(const char* program)
 	printf("   Which replica to use for reads.\n");
 	printf("\n");
 
-	printf("-N --readModeAP {one,all} # Default: one\n");
+	printf("-N --read-mode-ap {one,all} # Default: one\n");
 	printf("   Read mode for AP (availability) namespaces.\n");
 	printf("\n");
 
-	printf("-B --readModeSC {session,linearize,allowReplica,allowUnavailable} # Default: session\n");
+	printf("-B --read-mode-sc {session,linearize,allowReplica,allowUnavailable} # Default: session\n");
 	printf("   Read mode for SC (strong consistency) namespaces.\n");
 	printf("\n");
 
-	printf("-M --commitLevel {all,master} # Default: all\n");
+	printf("-M --commit-level {all,master} # Default: all\n");
 	printf("   Write commit guarantee level.\n");
 	printf("\n");
 
-	printf("-Y --connPoolsPerNode <num>  # Default: 1\n");
+	printf("-Y --conn-pools-per-node <num>  # Default: 1\n");
 	printf("   Number of connection pools per node.\n");
 	printf("\n");
 
-	printf("-D --durableDelete  # Default: durableDelete mode is false.\n");
+	printf("-D --durable-delete  # Default: durableDelete mode is false.\n");
 	printf("   All transactions will set the durable-delete flag which indicates\n");
 	printf("   to the server that if the transaction results in a delete, to generate\n");
 	printf("   a tombstone for the deleted record.\n");
@@ -454,56 +519,56 @@ print_usage(const char* program)
 	printf("   Enable asynchronous mode.\n");
 	printf("\n");
 
-	printf("-c --asyncMaxCommands <command count> # Default: 50\n");
+	printf("-c --async-max-commands <command count> # Default: 50\n");
 	printf("   Maximum number of concurrent asynchronous commands that are active at any point\n");
 	printf("   in time.\n");
 	printf("\n");
 
-	printf("-W --eventLoops <thread count> # Default: 1\n");
+	printf("-W --event-loops <thread count> # Default: 1\n");
 	printf("   Number of event loops (or selector threads) when running in asynchronous mode.\n");
 	printf("\n");
 
-	printf("   --tlsEnable         # Default: TLS disabled\n");
+	printf("   --tls-enable         # Default: TLS disabled\n");
 	printf("   Enable TLS.\n");
 	printf("\n");
 
-	printf("   --tlsCaFile <path>\n");
+	printf("   --tls-ca-file <path>\n");
 	printf("   Set the TLS certificate authority file.\n");
 	printf("\n");
 
-	printf("   --tlsCaPath <path>\n");
+	printf("   --tls-ca-path <path>\n");
 	printf("   Set the TLS certificate authority directory.\n");
 	printf("\n");
 
-	printf("   --tlsProtocols <protocols>\n");
+	printf("   --tls-protocols <protocols>\n");
 	printf("   Set the TLS protocol selection criteria.\n");
 	printf("\n");
 
-	printf("   --tlsCipherSuite <suite>\n");
+	printf("   --tls-cipher-suite <suite>\n");
 	printf("   Set the TLS cipher selection criteria.\n");
 	printf("\n");
 
-	printf("   --tlsCrlCheck\n");
+	printf("   --tls-crl-check\n");
 	printf("   Enable CRL checking for leaf certs.\n");
 	printf("\n");
 
-	printf("   --tlsCrlCheckAll\n");
+	printf("   --tls-crl-check-all\n");
 	printf("   Enable CRL checking for all certs.\n");
 	printf("\n");
 
-	printf("   --tlsCertBlackList <path>\n");
+	printf("   --tls-cert-black-list <path>\n");
 	printf("   Path to a certificate blacklist file.\n");
 	printf("\n");
 
-	printf("   --tlsLogSessionInfo\n");
+	printf("   --tls-log-session-info\n");
 	printf("   Log TLS connected session info.\n");
 	printf("\n");
 
-	printf("   --tlsKeyFile <path>\n");
+	printf("   --tls-key-file <path>\n");
 	printf("   Set the TLS client key file for mutual authentication.\n");
 	printf("\n");
 
-	printf("   --tlsKeyFilePassword=TLS_KEYFILE_PASSWORD\n");
+	printf("   --tls-key-file-password=TLS_KEYFILE_PASSWORD\n");
 	printf("   Password to load protected tls-keyfile.\n");
 	printf("   It can be one of the following:\n");
 	printf("     1) Environment varaible: 'env:<VAR>'\n");
@@ -514,11 +579,11 @@ print_usage(const char* program)
 	printf("   specified and no password is given.\n");
 	printf("\n");
 
-	printf("   --tlsCertFile <path>\n");
+	printf("   --tls-cert-file <path>\n");
 	printf("   Set the TLS client certificate chain file for mutual authentication.\n");
 	printf("\n");
 
-	printf("   --tlsLoginOnly\n");
+	printf("   --tls-login-only\n");
 	printf("   Use TLS for node login only.\n");
 	printf("\n");
 
@@ -536,7 +601,7 @@ print_args(args_t* args)
 	printf("services-alternate:     %s\n", boolstring(args->use_services_alternate));
 	printf("namespace:              %s\n", args->namespace);
 	printf("set:                    %s\n", args->set);
-	printf("startKey:               %" PRIu64 "\n", args->start_key);
+	printf("start-key:              %" PRIu64 "\n", args->start_key);
 	printf("keys/records:           %" PRIu64 "\n", args->keys);
 
 	char buf[1024];
@@ -807,6 +872,26 @@ get_or_init_stage(args_t* args)
 	return &args->stage_defs.stages[0];
 }
 
+LOCAL_HELPER const char*
+camelcase_to_dash(const char* camel_str)
+{
+	static char tmp[1024];
+	uint32_t j = 0;
+	for (uint32_t i = 0; camel_str[i] != '\0' && j < sizeof(tmp)-2; i++) {
+		if ('A' <= camel_str[i] && camel_str[i] <= 'Z') {
+			tmp[j] = '-';
+			tmp[j + 1] = camel_str[i] + ('a' - 'A');
+			j += 2;
+		}
+		else {
+			tmp[j] = camel_str[i];
+			j++;
+		}
+	}
+	tmp[j] = '\0';
+	return tmp;
+}
+
 LOCAL_HELPER int
 set_args(int argc, char * const* argv, args_t* args)
 {
@@ -815,7 +900,15 @@ set_args(int argc, char * const* argv, args_t* args)
 
 	while ((c = getopt_long_only(argc, argv, short_options, long_options,
 					&option_index)) != -1) {
-		switch (c) {
+
+		if (c & WARN_OFF) {
+			const char* opt_name = long_options[option_index].name;
+			fprintf(stderr, "Warning: camelcase argument \"--%s\" is now "
+					"deprecated. Use \"--%s\" instead\n",
+					opt_name, camelcase_to_dash(opt_name));
+		}
+
+		switch (c & ~WARN_OFF) {
 			case '9':
 				print_usage(argv[0]);
 				return -1;
@@ -1199,47 +1292,47 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->event_loop_capacity = atoi(optarg);
 				break;
 
-			case 'A':
+			case TLS_OPT_ENABLE:
 				args->tls.enable = true;
 				break;
 
-			case 'E':
+			case TLS_OPT_CA_FILE:
 				args->tls.cafile = strdup(optarg);
 				break;
 
-			case 'F':
+			case TLS_OPT_CA_PATH:
 				args->tls.capath = strdup(optarg);
 				break;
 
-			case 'G':
+			case TLS_OPT_PROTOCOLS:
 				args->tls.protocols = strdup(optarg);
 				break;
 
-			case 'H':
+			case TLS_OPT_CIPHER_SUITE:
 				args->tls.cipher_suite = strdup(optarg);
 				break;
 
-			case 'I':
+			case TLS_OPT_CRL_CHECK:
 				args->tls.crl_check = true;
 				break;
 
-			case 'J':
+			case TLS_OPT_CRL_CHECK_ALL:
 				args->tls.crl_check_all = true;
 				break;
 
-			case 'O':
+			case TLS_OPT_CERT_BLACK_LIST:
 				args->tls.cert_blacklist = strdup(optarg);
 				break;
 
-			case 'Q':
+			case TLS_OPT_LOG_SESSION_INFO:
 				args->tls.log_session_info = true;
 				break;
 
-			case 'Z':
+			case TLS_OPT_KEY_FILE:
 				args->tls.keyfile = strdup(optarg);
 				break;
 
-			case '`':
+			case TLS_OPT_KEY_FILE_PASSWORD:
 				if (optarg == NULL) {
 					// no password given
 					args->tls.keyfile_pw = strdup("");
@@ -1249,11 +1342,11 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				break;
 
-			case 'y':
+			case TLS_OPT_CERT_FILE:
 				args->tls.certfile = strdup(optarg);
 				break;
 
-			case 'f':
+			case TLS_OPT_LOGIN_ONLY:
 				args->tls.for_login_only = true;
 				break;
 

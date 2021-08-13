@@ -35,20 +35,20 @@ end
 def test_random_udf():
 	lib.upload_udf("test_module.lua", udf_module)
 	# initialize all records to have just one bin "testbin" with value 1
-	lib.run_benchmark("--workload I --startKey 0 --keys 20 -o 1")
+	lib.run_benchmark("--workload I --start-key 0 --keys 20 -o 1")
 	# the UDF should eventually reach all 20 records, incrementing "testbin" to 2
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
-			"-ufn increment_bin_to_2 -ufv \\\"testbin\\\" --startKey 0 --keys 20 --random",
+			"-ufn increment_bin_to_2 -ufv \\\"testbin\\\" --start-key 0 --keys 20 --random",
 			do_reset=False)
 	lib.check_for_range(0, 20, lambda meta, key, bins: lib.obj_spec_is_const_I(bins["testbin"], 2))
 
 def test_random_udf_async():
 	lib.upload_udf("test_module.lua", udf_module)
 	# initialize all records to have just one bin "testbin" with value 1
-	lib.run_benchmark("--workload I --startKey 0 --keys 20 -o 1")
+	lib.run_benchmark("--workload I --start-key 0 --keys 20 -o 1")
 	# the UDF should eventually reach all 20 records, incrementing "testbin" to 2
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
-			"-ufn increment_bin_to_2 -ufv \\\"testbin\\\" --startKey 0 " +
+			"-ufn increment_bin_to_2 -ufv \\\"testbin\\\" --start-key 0 " +
 			"--keys 20 --random --async",
 			do_reset=False)
 	lib.check_for_range(0, 20, lambda meta, key, bins: lib.obj_spec_is_const_I(bins["testbin"], 2))
@@ -56,10 +56,10 @@ def test_random_udf_async():
 def test_random_udf_subrange():
 	lib.upload_udf("test_module.lua", udf_module)
 	# initialize all records to have just one bin "testbin" with value 1
-	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o 1")
+	lib.run_benchmark("--workload I --start-key 0 --keys 100 -o 1")
 	# the UDF should eventually reach these 20 records, incrementing "testbin" to 2
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
-			"-ufn increment_bin_to_2 -ufv \\\"testbin\\\" --startKey 15 --keys 20 --random",
+			"-ufn increment_bin_to_2 -ufv \\\"testbin\\\" --start-key 15 --keys 20 --random",
 			do_reset=False)
 
 	assert(len(lib.scan_records()) == 100)
@@ -70,10 +70,10 @@ def test_random_udf_subrange():
 def test_random_udf_subrange_async():
 	lib.upload_udf("test_module.lua", udf_module)
 	# initialize all records to have just one bin "testbin" with value 1
-	lib.run_benchmark("--workload I --startKey 0 --keys 100 -o 1")
+	lib.run_benchmark("--workload I --start-key 0 --keys 100 -o 1")
 	# the UDF should eventually reach these 20 records, incrementing "testbin" to 2
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
-			"-ufn increment_bin_to_2 -ufv \\\"testbin\\\" --startKey 15 " +
+			"-ufn increment_bin_to_2 -ufv \\\"testbin\\\" --start-key 15 " +
 			"--keys 20 --random --async",
 			do_reset=False)
 
@@ -98,10 +98,10 @@ def test_set_bin_random_bool():
 
 	lib.upload_udf("test_module.lua", udf_module)
 	# initialize all records to have just one bin "testbin" with value 1
-	lib.run_benchmark("--workload I --startKey 0 --keys 20 -o 1")
+	lib.run_benchmark("--workload I --start-key 0 --keys 20 -o 1")
 	# the UDF should eventually reach all 20 records, incrementing "testbin" to 2
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
-			"-ufn set_bin -ufv \\\"bool_bin\\\",b --startKey 0 --keys 20 " +
+			"-ufn set_bin -ufv \\\"bool_bin\\\",b --start-key 0 --keys 20 " +
 			"--random",
 			do_reset=False)
 	lib.check_for_range(0, 20, check_bin)
@@ -123,10 +123,10 @@ def test_set_bin_random_bool_async():
 
 	lib.upload_udf("test_module.lua", udf_module)
 	# initialize all records to have just one bin "testbin" with value 1
-	lib.run_benchmark("--workload I --startKey 0 --keys 20 -o 1")
+	lib.run_benchmark("--workload I --start-key 0 --keys 20 -o 1")
 	# the UDF should eventually reach all 20 records, incrementing "testbin" to 2
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
-			"-ufn set_bin -ufv \\\"bool_bin\\\",b --startKey 0 --keys 20 " +
+			"-ufn set_bin -ufv \\\"bool_bin\\\",b --start-key 0 --keys 20 " +
 			"--random --async",
 			do_reset=False)
 	lib.check_for_range(0, 20, check_bin)
@@ -148,10 +148,10 @@ def test_set_bin_fixed_bool():
 
 	lib.upload_udf("test_module.lua", udf_module)
 	# initialize all records to have just one bin "testbin" with value 1
-	lib.run_benchmark("--workload I --startKey 0 --keys 20 -o 1")
+	lib.run_benchmark("--workload I --start-key 0 --keys 20 -o 1")
 	# the UDF should eventually reach all 20 records, incrementing "testbin" to 2
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
-			"-ufn set_bin -ufv \\\"bool_bin\\\",b --startKey 0 --keys 20 -z 1",
+			"-ufn set_bin -ufv \\\"bool_bin\\\",b --start-key 0 --keys 20 -z 1",
 			do_reset=False)
 	lib.check_for_range(0, 20, check_bin)
 	assert((true_cnt > 0 and false_cnt == 0) or (true_cnt == 0 and false_cnt > 0))
@@ -172,10 +172,10 @@ def test_set_bin_fixed_bool_async():
 
 	lib.upload_udf("test_module.lua", udf_module)
 	# initialize all records to have just one bin "testbin" with value 1
-	lib.run_benchmark("--workload I --startKey 0 --keys 20 -o 1")
+	lib.run_benchmark("--workload I --start-key 0 --keys 20 -o 1")
 	# the UDF should eventually reach all 20 records, incrementing "testbin" to 2
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
-			"-ufn set_bin -ufv \\\"bool_bin\\\",b --startKey 0 --keys 20 " +
+			"-ufn set_bin -ufv \\\"bool_bin\\\",b --start-key 0 --keys 20 " +
 			"-z 1 --async",
 			do_reset=False)
 	lib.check_for_range(0, 20, check_bin)
@@ -193,7 +193,7 @@ def test_const_map():
 	# the UDF should eventually reach all 100 records, writing both "bin_1" and "bin_2"
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
 			"-ufn read_object -ufv \"{\\\"write_bin_1\\\":b,\\\"random_value\\\":I1}\" " +
-			"--startKey 0 --keys 100 --random",
+			"--start-key 0 --keys 100 --random",
 			do_reset=False)
 	lib.check_for_range(0, 100, check_bin)
 
@@ -209,7 +209,7 @@ def test_const_map_async():
 	# the UDF should eventually reach all 100 records, writing both "bin_1" and "bin_2"
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
 			"-ufn read_object -ufv \"{\\\"write_bin_1\\\":b,\\\"random_value\\\":I1}\" " +
-			"--startKey 0 --keys 100 --random --async",
+			"--start-key 0 --keys 100 --random --async",
 			do_reset=False)
 	lib.check_for_range(0, 100, check_bin)
 
@@ -231,7 +231,7 @@ def test_const_fixed_map():
 	# the UDF should eventually reach all 100 records, writing both "bin_1" and "bin_2"
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
 			"-ufn read_object -ufv \"{\\\"write_bin_1\\\":true,\\\"random_value\\\":I1}\" " +
-			"--startKey 0 --keys 100 -z 1",
+			"--start-key 0 --keys 100 -z 1",
 			do_reset=False)
 	lib.check_for_range(0, 100, check_bin)
 
@@ -253,7 +253,7 @@ def test_const_fixed_map_async():
 	# the UDF should eventually reach all 100 records, writing both "bin_1" and "bin_2"
 	lib.run_benchmark("--duration 1 --workload RUF,0,0 -upn test_module " +
 			"-ufn read_object -ufv \"{\\\"write_bin_1\\\":true,\\\"random_value\\\":I1}\" " +
-			"--startKey 0 --keys 100 -z 1 --async",
+			"--start-key 0 --keys 100 -z 1 --async",
 			do_reset=False)
 	lib.check_for_range(0, 100, check_bin)
 
