@@ -122,8 +122,8 @@ static struct option long_options[] = {
 	{"event-loops",           required_argument, 0, 'W'},
 	{"tls-enable",            no_argument,       0, TLS_OPT_ENABLE},
 	{"tls-name",              no_argument,       0, TLS_OPT_NAME},
-	{"tls-ca-file",           required_argument, 0, TLS_OPT_CA_FILE},
-	{"tls-ca-path",           required_argument, 0, TLS_OPT_CA_PATH},
+	{"tls-cafile",           required_argument, 0, TLS_OPT_CA_FILE},
+	{"tls-capath",           required_argument, 0, TLS_OPT_CA_PATH},
 	{"tls-protocols",         required_argument, 0, TLS_OPT_PROTOCOLS},
 	{"tls-cipher-suite",      required_argument, 0, TLS_OPT_CIPHER_SUITE},
 	{"tls-crl-check",         no_argument,       0, TLS_OPT_CRL_CHECK},
@@ -533,11 +533,11 @@ print_usage(const char* program)
 	printf("   Enable TLS.\n");
 	printf("\n");
 
-	printf("   --tls-ca-file <path>\n");
+	printf("   --tls-cafile <path>\n");
 	printf("   Set the TLS certificate authority file.\n");
 	printf("\n");
 
-	printf("   --tls-ca-path <path>\n");
+	printf("   --tls-capath <path>\n");
 	printf("   Set the TLS certificate authority directory.\n");
 	printf("\n");
 
