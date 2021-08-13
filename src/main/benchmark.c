@@ -184,6 +184,10 @@ connect_to_server(args_t* args, aerospike* client)
 	
 	as_config cfg;
 	as_config_init(&cfg);
+
+	if (args->tls_name != NULL) {
+		as_config_set_cluster_name(&cfg, args->tls_name);
+	}
 	
 	if (! as_config_add_hosts(&cfg, args->hosts, args->port)) {
 		blog_error("Invalid host(s) %s\n", args->hosts);
