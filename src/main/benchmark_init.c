@@ -121,6 +121,7 @@ static struct option long_options[] = {
 	{"async-max-commands",    required_argument, 0, 'c'},
 	{"event-loops",           required_argument, 0, 'W'},
 	{"tls-enable",            no_argument,       0, TLS_OPT_ENABLE},
+	{"tls-name",              no_argument,       0, TLS_OPT_NAME},
 	{"tls-ca-file",           required_argument, 0, TLS_OPT_CA_FILE},
 	{"tls-ca-path",           required_argument, 0, TLS_OPT_CA_PATH},
 	{"tls-protocols",         required_argument, 0, TLS_OPT_PROTOCOLS},
@@ -1296,6 +1297,10 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->tls.enable = true;
 				break;
 
+			case TLS_OPT_NAME:
+				args->tls_name = strdup(optarg);
+				break;
+
 			case TLS_OPT_CA_FILE:
 				args->tls.cafile = strdup(optarg);
 				break;
@@ -1423,6 +1428,7 @@ _load_defaults(args_t* args)
 	args->async_max_commands = 50;
 	args->event_loop_capacity = 1;
 	memset(&args->tls, 0, sizeof(as_config_tls));
+	args->tls_name = NULL;
 	args->auth_mode = AS_AUTH_INTERNAL;
 
 	double p1 = 50.,
@@ -1473,15 +1479,11 @@ _free_args(args_t* args)
 		cf_free(args->workload_stages_file);
 		free_workload_config(&args->stages);
 	}
-	if (args->hdr_output) {
-		cf_free(args->hdr_output);
-	}
-	if (args->histogram_output) {
-		cf_free(args->histogram_output);
-	}
+	cf_free(args->hdr_output);
+	cf_free(args->histogram_output);
 	cf_free(args->bin_name);
 	as_vector_destroy(&args->latency_percentiles);
-
-	free(args->hosts);
+	cf_free(args->tls_name);
+	cf_free(args->hosts);
 }
 

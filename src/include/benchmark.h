@@ -85,6 +85,7 @@ typedef struct args_s {
 	int async_max_commands;
 	int event_loop_capacity;
 	as_config_tls tls;
+	char* tls_name;
 	as_auth_mode auth_mode;
 } args_t;
 
