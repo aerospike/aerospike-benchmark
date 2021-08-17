@@ -363,16 +363,16 @@ print_usage(const char* program)
 	printf("   Collection bins:\n");
 	printf("      [] - a list\n");
 	printf("         [3*I2] - ex: [312, 1651, 756]\n");
-	printf("         [I2, S4, I2] - ex: [892, \"sf8h\", 8712]\n");
-	printf("         [2*S12, 3*I1] - ex: [\"bf90wek1a0cv\", \"pl3k2dkfi0sn\", 18, 109, 212]\n");
-	printf("         [3*[I1, I1]] - ex: [[1,11],[123,221],[78,241]]\n");
+	printf("         [I2,S4,I2] - ex: [892, \"sf8h\", 8712]\n");
+	printf("         [2*S12,3*I1] - ex: [\"bf90wek1a0cv\", \"pl3k2dkfi0sn\", 18, 109, 212]\n");
+	printf("         [3*[I1,I1]] - ex: [[1,11],[123,221],[78,241]]\n");
 	printf("\n");
 	printf("      {} - a map\n");
 	printf("         {5*S1:I1} - ex {\"a\":1, \"b\":2, \"d\":4, \"z\":26, \"e\":5}\n");
-	printf("         {2*S1:[3*I:1], 1*I1:S1} - ex {\"a\": [1,2,3], \"b\": [6,7,8], 10: \"x\"}\n");
+	printf("         {2*S1:[3*I,1],1*I1:S1} - ex {\"a\": [1,2,3], \"b\": [6,7,8], 10: \"x\"}\n");
 	printf("\n");
 	printf("   Example:\n");
-	printf("      -o I2,S12,[3*I1] => b1: 478; b2: \"a09dfwu3ji2r\"; b3: [12, 45, 209])\n");
+	printf("      -o \"I2, S12, [3*I1]\" => b1: 478; b2: \"a09dfwu3ji2r\"; b3: [12, 45, 209])\n");
 	printf("\n");
 
 	printf("   --read-bins        # Default: all bins\n");
@@ -531,6 +531,10 @@ print_usage(const char* program)
 
 	printf("   --tls-enable         # Default: TLS disabled\n");
 	printf("   Enable TLS.\n");
+	printf("\n");
+
+	printf("   --tls-name <name>    # Default: none\n");
+	printf("   Set the default TLS name to use when connecting to the seed nodes.\n");
 	printf("\n");
 
 	printf("   --tls-cafile <path>\n");
