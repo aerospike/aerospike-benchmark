@@ -535,7 +535,7 @@ snprint_obj_spec(const struct obj_spec_s* obj_spec, char* out_str,
 		cnt += obj_spec->bin_specs[i].n_repeats;
 
 		if (cnt != obj_spec->n_bin_specs && str_size > 0) {
-			sprint(&out_str, str_size, ",");
+			sprint(&out_str, str_size, ", ");
 		}
 	}
 	// null-terminate in case str was never written to

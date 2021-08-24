@@ -353,8 +353,8 @@ print_usage(const char* program)
 	printf("         S16 - a string with a 16 character length. ex: \"uir9a2mskd4poiur\"\n");
 	printf("      D) Generate a Double bin or value (8 byte)\n");
 	printf("      <const>) A constant value of any of the above types (besides bytes):\n");
-	printf("         Const boolean: either \"T\", \"true\" (case insensitive), \"F\", or\n");
-	printf("            \"false\" (case insensitive)\n");
+	printf("         Const boolean: either T, true (case insensitive), F, or\n");
+	printf("            false (case insensitive)\n");
 	printf("         Const integer: i.e. 123, 1024, 0x3ff, -10, etc.\n");
 	printf("         Const string: i.e. \"test string\", \"string\\twith\\ttabs\\n\", etc.\n");
 	printf("         Const double: i.e. 123.456, 3.14f, -10.20\n");
@@ -373,6 +373,7 @@ print_usage(const char* program)
 	printf("\n");
 	printf("   Example:\n");
 	printf("      -o \"I2, S12, [3*I1]\" => b1: 478; b2: \"a09dfwu3ji2r\"; b3: [12, 45, 209])\n");
+	printf("      -o \"123, \\\"test string\\\", [true, 3.14]\" => const, always same value\n");
 	printf("\n");
 
 	printf("   --read-bins        # Default: all bins\n");
