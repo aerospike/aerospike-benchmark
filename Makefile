@@ -71,15 +71,27 @@ else
 endif
 
 ifeq ($(EVENT_LIB),libev)
-  LDFLAGS += -lev
+  ifeq ($(LIBEV_STATIC_PATH),)
+    LDFLAGS += -lev
+  else
+    LDFLAGS += $(LIBEV_STATIC_PATH)/libev.a
+  endif
 endif
 
 ifeq ($(EVENT_LIB),libuv)
-  LDFLAGS += -luv
+  ifeq ($(LIBUV_STATIC_PATH),)
+    LDFLAGS += -luv
+  else
+    LDFLAGS += $(LIBUV_STATIC_PATH)/libuv.a
+  endif
 endif
 
 ifeq ($(EVENT_LIB),libevent)
-  LDFLAGS += -levent_core -levent_pthreads
+  ifeq ($(LIBEVENT_STATIC_PATH),)
+    LDFLAGS += -levent_core -levent_pthreads
+  else
+    LDFLAGS += $(LIBEVENT_STATIC_PATH)/libevent_core.a $(LIBEVENT_STATIC_PATH)/libevent_pthreads.a
+  endif
 endif
 
 LDFLAGS += -lpthread
