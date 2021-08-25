@@ -45,7 +45,7 @@
 
 static const char* short_options = "h:p:U:P:n:s:b:K:k:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
 
-#define WARN_OFF 0x40000000
+#define WARN_MSG 0x40000000
 
 /*
  * Identifies the TLS client command line options.
@@ -122,8 +122,8 @@ static struct option long_options[] = {
 	{"event-loops",           required_argument, 0, 'W'},
 	{"tls-enable",            no_argument,       0, TLS_OPT_ENABLE},
 	{"tls-name",              no_argument,       0, TLS_OPT_NAME},
-	{"tls-cafile",           required_argument, 0, TLS_OPT_CA_FILE},
-	{"tls-capath",           required_argument, 0, TLS_OPT_CA_PATH},
+	{"tls-cafile",            required_argument, 0, TLS_OPT_CA_FILE},
+	{"tls-capath",            required_argument, 0, TLS_OPT_CA_PATH},
 	{"tls-protocols",         required_argument, 0, TLS_OPT_PROTOCOLS},
 	{"tls-cipher-suite",      required_argument, 0, TLS_OPT_CIPHER_SUITE},
 	{"tls-crl-check",         no_argument,       0, TLS_OPT_CRL_CHECK},
@@ -136,46 +136,46 @@ static struct option long_options[] = {
 	{"tls-login-only",        no_argument,       0, TLS_OPT_LOGIN_ONLY},
 	{"auth",                  required_argument, 0, 'e'},
 
-	{"servicesAlternate",    no_argument,       0, WARN_OFF | '*'},
-	{"startKey",             required_argument, 0, WARN_OFF | 'K'},
-	{"udfPackageName",       required_argument, 0, WARN_OFF | ':'},
-	{"udfFunctionName",      required_argument, 0, WARN_OFF | ';'},
-	{"udfFunctionValues",    required_argument, 0, WARN_OFF | '"'},
-	{"objectSpec",           required_argument, 0, WARN_OFF | 'o'},
-	{"workloadStages",       required_argument, 0, WARN_OFF | '.'},
-	{"readBins",             required_argument, 0, WARN_OFF | '+'},
-	{"writeBins",            required_argument, 0, WARN_OFF | '-'},
-	{"batchSize",            required_argument, 0, WARN_OFF | '0'},
-	{"compressionRatio",     required_argument, 0, WARN_OFF | '5'},
-	{"socketTimeout",        required_argument, 0, WARN_OFF | '1'},
-	{"readSocketTimeout",    required_argument, 0, WARN_OFF | '2'},
-	{"writeSocketTimeout",   required_argument, 0, WARN_OFF | '3'},
-	{"readTimeout",          required_argument, 0, WARN_OFF | 'X'},
-	{"writeTimeout",         required_argument, 0, WARN_OFF | 'V'},
-	{"maxRetries",           required_argument, 0, WARN_OFF | 'r'},
-	{"outputFile",           required_argument, 0, WARN_OFF | '6'},
-	{"outputPeriod",         required_argument, 0, WARN_OFF | '7'},
-	{"hdrHist",              required_argument, 0, WARN_OFF | '/'},
-	{"readModeAP",           required_argument, 0, WARN_OFF | 'N'},
-	{"readModeSC",           required_argument, 0, WARN_OFF | 'B'},
-	{"commitLevel",          required_argument, 0, WARN_OFF | 'M'},
-	{"connPoolsPerNode",     required_argument, 0, WARN_OFF | 'Y'},
-	{"durableDelete",        no_argument,       0, WARN_OFF | 'D'},
-	{"asyncMaxCommands",     required_argument, 0, WARN_OFF | 'c'},
-	{"eventLoops",           required_argument, 0, WARN_OFF | 'W'},
-	{"tlsEnable",            no_argument,       0, WARN_OFF | TLS_OPT_ENABLE},
-	{"tlsCaFile",            required_argument, 0, WARN_OFF | TLS_OPT_CA_FILE},
-	{"tlsCaPath",            required_argument, 0, WARN_OFF | TLS_OPT_CA_PATH},
-	{"tlsProtocols",         required_argument, 0, WARN_OFF | TLS_OPT_PROTOCOLS},
-	{"tlsCipherSuite",       required_argument, 0, WARN_OFF | TLS_OPT_CIPHER_SUITE},
-	{"tlsCrlCheck",          no_argument,       0, WARN_OFF | TLS_OPT_CRL_CHECK},
-	{"tlsCrlCheckAll",       no_argument,       0, WARN_OFF | TLS_OPT_CRL_CHECK_ALL},
-	{"tlsCertBlackList",     required_argument, 0, WARN_OFF | TLS_OPT_CERT_BLACK_LIST},
-	{"tlsLogSessionInfo",    no_argument,       0, WARN_OFF | TLS_OPT_LOG_SESSION_INFO},
-	{"tlsKeyFile",           required_argument, 0, WARN_OFF | TLS_OPT_KEY_FILE},
-	{"tlsKeyFilePassword",   optional_argument, 0, WARN_OFF | TLS_OPT_KEY_FILE_PASSWORD},
-	{"tlsCertFile",          required_argument, 0, WARN_OFF | TLS_OPT_CERT_FILE},
-	{"tlsLoginOnly",         no_argument,       0, WARN_OFF | TLS_OPT_LOGIN_ONLY},
+	{"servicesAlternate",     no_argument,       0, WARN_MSG | '*'},
+	{"startKey",              required_argument, 0, WARN_MSG | 'K'},
+	{"udfPackageName",        required_argument, 0, WARN_MSG | ':'},
+	{"udfFunctionName",       required_argument, 0, WARN_MSG | ';'},
+	{"udfFunctionValues",     required_argument, 0, WARN_MSG | '"'},
+	{"objectSpec",            required_argument, 0, WARN_MSG | 'o'},
+	{"workloadStages",        required_argument, 0, WARN_MSG | '.'},
+	{"readBins",              required_argument, 0, WARN_MSG | '+'},
+	{"writeBins",             required_argument, 0, WARN_MSG | '-'},
+	{"batchSize",             required_argument, 0, WARN_MSG | '0'},
+	{"compressionRatio",      required_argument, 0, WARN_MSG | '5'},
+	{"socketTimeout",         required_argument, 0, WARN_MSG | '1'},
+	{"readSocketTimeout",     required_argument, 0, WARN_MSG | '2'},
+	{"writeSocketTimeout",    required_argument, 0, WARN_MSG | '3'},
+	{"readTimeout",           required_argument, 0, WARN_MSG | 'X'},
+	{"writeTimeout",          required_argument, 0, WARN_MSG | 'V'},
+	{"maxRetries",            required_argument, 0, WARN_MSG | 'r'},
+	{"outputFile",            required_argument, 0, WARN_MSG | '6'},
+	{"outputPeriod",          required_argument, 0, WARN_MSG | '7'},
+	{"hdrHist",               required_argument, 0, WARN_MSG | '/'},
+	{"readModeAP",            required_argument, 0, WARN_MSG | 'N'},
+	{"readModeSC",            required_argument, 0, WARN_MSG | 'B'},
+	{"commitLevel",           required_argument, 0, WARN_MSG | 'M'},
+	{"connPoolsPerNode",      required_argument, 0, WARN_MSG | 'Y'},
+	{"durableDelete",         no_argument,       0, WARN_MSG | 'D'},
+	{"asyncMaxCommands",      required_argument, 0, WARN_MSG | 'c'},
+	{"eventLoops",            required_argument, 0, WARN_MSG | 'W'},
+	{"tlsEnable",             no_argument,       0, WARN_MSG | TLS_OPT_ENABLE},
+	{"tlsCaFile",             required_argument, 0, WARN_MSG | TLS_OPT_CA_FILE},
+	{"tlsCaPath",             required_argument, 0, WARN_MSG | TLS_OPT_CA_PATH},
+	{"tlsProtocols",          required_argument, 0, WARN_MSG | TLS_OPT_PROTOCOLS},
+	{"tlsCipherSuite",        required_argument, 0, WARN_MSG | TLS_OPT_CIPHER_SUITE},
+	{"tlsCrlCheck",           no_argument,       0, WARN_MSG | TLS_OPT_CRL_CHECK},
+	{"tlsCrlCheckAll",        no_argument,       0, WARN_MSG | TLS_OPT_CRL_CHECK_ALL},
+	{"tlsCertBlackList",      required_argument, 0, WARN_MSG | TLS_OPT_CERT_BLACK_LIST},
+	{"tlsLogSessionInfo",     no_argument,       0, WARN_MSG | TLS_OPT_LOG_SESSION_INFO},
+	{"tlsKeyFile",            required_argument, 0, WARN_MSG | TLS_OPT_KEY_FILE},
+	{"tlsKeyFilePassword",    optional_argument, 0, WARN_MSG | TLS_OPT_KEY_FILE_PASSWORD},
+	{"tlsCertFile",           required_argument, 0, WARN_MSG | TLS_OPT_CERT_FILE},
+	{"tlsLoginOnly",          no_argument,       0, WARN_MSG | TLS_OPT_LOGIN_ONLY},
 
 	{0, 0, 0, 0}
 };
@@ -315,7 +315,7 @@ print_usage(const char* program)
 	printf("   'insert' workload (detailed below), the client will write this\n");
 	printf("   number of keys, starting from value = start-key. Otherwise, the\n");
 	printf("   client will read and update randomly across the values between\n");
-	printf("   startKey and start-key + num_keys.  start-key can be set using\n");
+	printf("   start-key and start-key + num_keys.  start-key can be set using\n");
 	printf("   '-K' or '--start-key'.\n");
 	printf("\n");
 
@@ -843,19 +843,19 @@ validate_args(args_t* args)
 	}
 
 	if (args->conn_pools_per_node <= 0 || args->conn_pools_per_node > 1000) {
-		printf("Invalid connPoolsPerNode: %d  Valid values: [1-1000]\n",
+		printf("Invalid conn-pools-per-node: %d  Valid values: [1-1000]\n",
 				args->conn_pools_per_node);
 		return 1;
 	}
 
 	if (args->async_max_commands <= 0 || args->async_max_commands > 5000) {
-		printf("Invalid asyncMaxCommands: %d  Valid values: [1-5000]\n",
+		printf("Invalid async-max-commands: %d  Valid values: [1-5000]\n",
 				args->async_max_commands);
 		return 1;
 	}
 
 	if (args->event_loop_capacity <= 0 || args->event_loop_capacity > 1000) {
-		printf("Invalid eventLoops: %d  Valid values: [1-1000]\n",
+		printf("Invalid event-loops: %d  Valid values: [1-1000]\n",
 				args->event_loop_capacity);
 		return 1;
 	}
@@ -907,14 +907,14 @@ set_args(int argc, char * const* argv, args_t* args)
 	while ((c = getopt_long_only(argc, argv, short_options, long_options,
 					&option_index)) != -1) {
 
-		if (c & WARN_OFF) {
+		if (c & WARN_MSG) {
 			const char* opt_name = long_options[option_index].name;
 			fprintf(stderr, "Warning: camelcase argument \"--%s\" is now "
 					"deprecated. Use \"--%s\" instead\n",
 					opt_name, camelcase_to_dash(opt_name));
 		}
 
-		switch (c & ~WARN_OFF) {
+		switch (c & ~WARN_MSG) {
 			case '9':
 				print_usage(argv[0]);
 				return -1;
@@ -1070,7 +1070,7 @@ set_args(int argc, char * const* argv, args_t* args)
 			case '+': {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
-							"file and the readBins flag\n");
+							"file and the read-bins flag\n");
 					return -1;
 				}
 				struct stage_def_s* stage = get_or_init_stage(args);
@@ -1081,7 +1081,7 @@ set_args(int argc, char * const* argv, args_t* args)
 			case '-': {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
-							"file and the writeBins flag\n");
+							"file and the write-bins flag\n");
 					return -1;
 				}
 				struct stage_def_s* stage = get_or_init_stage(args);
@@ -1233,7 +1233,7 @@ set_args(int argc, char * const* argv, args_t* args)
 					args->read_mode_ap = AS_POLICY_READ_MODE_AP_ALL;
 				}
 				else {
-					printf("readModeAP must be one or all\n");
+					printf("read-mode-ap must be one or all\n");
 					return 1;
 				}
 				break;
@@ -1252,7 +1252,7 @@ set_args(int argc, char * const* argv, args_t* args)
 					args->read_mode_sc = AS_POLICY_READ_MODE_SC_ALLOW_UNAVAILABLE;
 				}
 				else {
-					printf("readModeSC must be session | linearize | "
+					printf("read-mode-sc must be session | linearize | "
 							"allowReplica | allowUnavailable\n");
 					return 1;
 				}
@@ -1461,7 +1461,7 @@ _load_defaults_post(args_t* args)
 		struct stage_def_s* stage = get_or_init_stage(args);
 
 		stage->desc = strdup("default config (specify your own with "
-				"--workloadStages)");
+				"--workload-stages)");
 
 		if (stage->workload_str == NULL) {
 			stage->workload_str = strdup("RU");
