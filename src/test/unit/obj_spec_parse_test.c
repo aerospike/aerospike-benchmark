@@ -479,11 +479,11 @@ DEFINE_FAILING_TCASE(test_multi_map_repeat_const_key,
 /*
  * Multiple bins test cases
  */
-DEFINE_TCASE(test_two_bins, "I1,I2");
-DEFINE_TCASE(test_three_bins, "I1,I2,I3");
-DEFINE_TCASE(test_mixed_bins, "S12,I6,B20");
-DEFINE_TCASE(test_many_bins, "I1,I2,I3,I4,S1,S2,S3,S4,D,b,B1,B2,B3,B4");
-DEFINE_TCASE(test_repeated_bins, "I1,I1,D,D,S10,S10,B5,B5,b,b");
+DEFINE_TCASE(test_two_bins, "I1, I2");
+DEFINE_TCASE(test_three_bins, "I1, I2, I3");
+DEFINE_TCASE(test_mixed_bins, "S12, I6, B20");
+DEFINE_TCASE(test_many_bins, "I1, I2, I3, I4, S1, S2, S3, S4, D, b, B1, B2, B3, B4");
+DEFINE_TCASE(test_repeated_bins, "I1, I1, D, D, S10, S10, B5, B5, b, b");
 DEFINE_FAILING_TCASE(test_no_commas, "I1D", "need commas separating tokens");
 DEFINE_FAILING_TCASE(test_spaces, "I1 D", "need commas separating tokens");
 
@@ -514,7 +514,7 @@ DEFINE_TCASE(test_const_nested_map, "{1:{\"species\":\"human\", \"name\":\"clayt
 		"2:{456:false, 123:true}}");
 DEFINE_TCASE(test_const_nested_mixed, "{1:{\"species\":\"human\", "
 		"\"names\":[\"clayton\", \"clay\", 1234]}, "
-		"2:[456, false, 123, true]},[{456:\"hi\"}, {\"hello\":789}]");
+		"2:[456, false, 123, true]}, [{456:\"hi\"}, {\"hello\":789}]");
 
 
 /*
@@ -563,16 +563,16 @@ DEFINE_FAILING_TCASE(test_mult_list_too_many_elements, "[3000000000*I4,300000000
 /*
  * write-bins test cases
  */
-DEFINE_TCASE_WRITE_BINS(test_wb_simple, "I4,D", ((uint32_t[]) { 0, 1 }), 2);
-DEFINE_TCASE_WRITE_BINS(test_wb_odds, "I1,I2,I3,I4,I5,I6,I7,I8",
+DEFINE_TCASE_WRITE_BINS(test_wb_simple, "I4, D", ((uint32_t[]) { 0, 1 }), 2);
+DEFINE_TCASE_WRITE_BINS(test_wb_odds, "I1, I2, I3, I4, I5, I6, I7, I8",
 		((uint32_t[]) { 0, 2, 4, 6 }), 4);
-DEFINE_TCASE_WRITE_BINS(test_wb_evens, "I1,I2,I3,I4,I5,I6,I7,I8",
+DEFINE_TCASE_WRITE_BINS(test_wb_evens, "I1, I2, I3, I4, I5, I6, I7, I8",
 		((uint32_t[]) { 1, 3, 5, 7 }), 4);
-DEFINE_TCASE_WRITE_BINS(test_wb_lists, "I4,[I6,B10],B20,[[S20,I8],S10]",
+DEFINE_TCASE_WRITE_BINS(test_wb_lists, "I4, [I6,B10], B20, [[S20,I8],S10]",
 		((uint32_t[]) { 1, 3 }), 2);
-DEFINE_TCASE_WRITE_BINS(test_wb_maps, "{5*S10:B20},[3*{I4:S5},D],B10,{I4:I8}",
+DEFINE_TCASE_WRITE_BINS(test_wb_maps, "{5*S10:B20}, [3*{I4:S5},D], B10, {I4:I8}",
 		((uint32_t[]) { 0, 1, 3 }), 3);
-DEFINE_TCASE_WRITE_BINS(test_wb_repeats, "30*I3,27*S10,D,I1,I2,b,I5,10*[5*I6]",
+DEFINE_TCASE_WRITE_BINS(test_wb_repeats, "30*I3, 27*S10, D, I1, I2, b, I5, 10*[5*I6]",
 		((uint32_t[]) { 14, 27, 30, 56, 57, 59, 63, 66, 71 }), 9);
 
 
@@ -615,14 +615,14 @@ DEFINE_BIN_NAME_TOO_LARGE(bin_name_4_dig_too_large, 8192, "abcdefghijk");
 /*
  * Spacing test cases
  */
-DEFINE_TCASE_DIFF(test_space, "I, D", "I4,D");
-DEFINE_TCASE_DIFF(test_space_in_list, "I, [B12, S15]", "I4,[B12,S15]");
+DEFINE_TCASE_DIFF(test_space, "I, D", "I4, D");
+DEFINE_TCASE_DIFF(test_space_in_list, "I, [B12, S15]", "I4, [B12,S15]");
 DEFINE_TCASE_DIFF(test_space_map_after_key, "{S12 :I7}", "{S12:I7}");
 DEFINE_TCASE_DIFF(test_space_map_before_value, "{B8: b}", "{B8:b}");
 DEFINE_TCASE_DIFF(test_space_map_both, "{I2 : S1}", "{I2:S1}");
-DEFINE_TCASE_DIFF(test_space_mult_before, "4 *I, [ 3 *b, 2 *{3 *S10:B20}]", "4*I4,[3*b,2*{3*S10:B20}]");
-DEFINE_TCASE_DIFF(test_space_mult_after, "4* I, [3* b, 2* {3* S10:B20}]", "4*I4,[3*b,2*{3*S10:B20}]");
-DEFINE_TCASE_DIFF(test_space_mult_both, "4 * I, [3 * b, 2 * {3 * S10:B20}]", "4*I4,[3*b,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_before, "4 *I,[ 3 *b, 2 *{3 *S10:B20}]", "4*I4, [3*b,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_after, "4* I,[3* b, 2* {3* S10:B20}]", "4*I4, [3*b,2*{3*S10:B20}]");
+DEFINE_TCASE_DIFF(test_space_mult_both, "4 * I,[3 * b, 2 * {3 * S10:B20}]", "4*I4, [3*b,2*{3*S10:B20}]");
 DEFINE_TCASE_DIFF(test_space_list, "[ I, D, S20 ]", "[I4,D,S20]");
 DEFINE_TCASE_DIFF(test_space_map, "{ S20 : B10 }", "{S20:B10}");
 

@@ -130,8 +130,8 @@ static struct option long_options[] = {
 	{"tls-crl-check-all",     no_argument,       0, TLS_OPT_CRL_CHECK_ALL},
 	{"tls-cert-black-list",   required_argument, 0, TLS_OPT_CERT_BLACK_LIST},
 	{"tls-log-session-info",  no_argument,       0, TLS_OPT_LOG_SESSION_INFO},
-	{"tls-key-file",          required_argument, 0, TLS_OPT_KEY_FILE},
-	{"tls-key-file-password", optional_argument, 0, TLS_OPT_KEY_FILE_PASSWORD},
+	{"tls-keyfile",          required_argument, 0, TLS_OPT_KEY_FILE},
+	{"tls-keyfile-password", optional_argument, 0, TLS_OPT_KEY_FILE_PASSWORD},
 	{"tls-cert-file",         required_argument, 0, TLS_OPT_CERT_FILE},
 	{"tls-login-only",        no_argument,       0, TLS_OPT_LOGIN_ONLY},
 	{"auth",                  required_argument, 0, 'e'},
@@ -570,11 +570,11 @@ print_usage(const char* program)
 	printf("   Log TLS connected session info.\n");
 	printf("\n");
 
-	printf("   --tls-key-file <path>\n");
+	printf("   --tls-keyfile <path>\n");
 	printf("   Set the TLS client key file for mutual authentication.\n");
 	printf("\n");
 
-	printf("   --tls-key-file-password=TLS_KEYFILE_PASSWORD\n");
+	printf("   --tls-keyfile-password=TLS_KEYFILE_PASSWORD\n");
 	printf("   Password to load protected tls-keyfile.\n");
 	printf("   It can be one of the following:\n");
 	printf("     1) Environment varaible: 'env:<VAR>'\n");
