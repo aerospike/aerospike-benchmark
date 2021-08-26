@@ -128,11 +128,11 @@ static struct option long_options[] = {
 	{"tls-cipher-suite",      required_argument, 0, TLS_OPT_CIPHER_SUITE},
 	{"tls-crl-check",         no_argument,       0, TLS_OPT_CRL_CHECK},
 	{"tls-crl-check-all",     no_argument,       0, TLS_OPT_CRL_CHECK_ALL},
-	{"tls-cert-black-list",   required_argument, 0, TLS_OPT_CERT_BLACK_LIST},
+	{"tls-cert-blacklist",   required_argument, 0, TLS_OPT_CERT_BLACK_LIST},
 	{"tls-log-session-info",  no_argument,       0, TLS_OPT_LOG_SESSION_INFO},
 	{"tls-keyfile",          required_argument, 0, TLS_OPT_KEY_FILE},
 	{"tls-keyfile-password", optional_argument, 0, TLS_OPT_KEY_FILE_PASSWORD},
-	{"tls-cert-file",         required_argument, 0, TLS_OPT_CERT_FILE},
+	{"tls-certfile",         required_argument, 0, TLS_OPT_CERT_FILE},
 	{"tls-login-only",        no_argument,       0, TLS_OPT_LOGIN_ONLY},
 	{"auth",                  required_argument, 0, 'e'},
 
@@ -562,7 +562,7 @@ print_usage(const char* program)
 	printf("   Enable CRL checking for all certs.\n");
 	printf("\n");
 
-	printf("   --tls-cert-black-list <path>\n");
+	printf("   --tls-cert-blacklist <path>\n");
 	printf("   Path to a certificate blacklist file.\n");
 	printf("\n");
 
@@ -585,7 +585,7 @@ print_usage(const char* program)
 	printf("   specified and no password is given.\n");
 	printf("\n");
 
-	printf("   --tls-cert-file <path>\n");
+	printf("   --tls-certfile <path>\n");
 	printf("   Set the TLS client certificate chain file for mutual authentication.\n");
 	printf("\n");
 
