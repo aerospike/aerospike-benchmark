@@ -121,7 +121,7 @@ static struct option long_options[] = {
 	{"async-max-commands",    required_argument, 0, 'c'},
 	{"event-loops",           required_argument, 0, 'W'},
 	{"tls-enable",            no_argument,       0, TLS_OPT_ENABLE},
-	{"tls-name",              no_argument,       0, TLS_OPT_NAME},
+	{"tls-name",              required_argument, 0, TLS_OPT_NAME},
 	{"tls-cafile",            required_argument, 0, TLS_OPT_CA_FILE},
 	{"tls-capath",            required_argument, 0, TLS_OPT_CA_PATH},
 	{"tls-protocols",         required_argument, 0, TLS_OPT_PROTOCOLS},
@@ -719,6 +719,7 @@ print_args(args_t* args)
 
 	if (args->tls.enable) {
 		printf("TLS:                    enabled\n");
+		printf("TLS name:               %s\n", args->tls_name);
 		printf("TLS cafile:             %s\n", args->tls.cafile);
 		printf("TLS capath:             %s\n", args->tls.capath);
 		printf("TLS protocols:          %s\n", args->tls.protocols);
@@ -1375,16 +1376,15 @@ set_args(int argc, char * const* argv, args_t* args)
 	}
 
 	if (args->tls.keyfile && args->tls.keyfile_pw) {
-		char* old_keyfile_pw = args->tls.keyfile_pw;
-
 		if (strcmp(args->tls.keyfile_pw, "") == 0) {
 			args->tls.keyfile_pw = getpass("Enter TLS-Keyfile Password: ");
 		}
 
-		if (!tls_read_password(args->tls.keyfile_pw, &args->tls.keyfile_pw)) {
+		char* old_pass = args->tls.keyfile_pw;
+		if (!tls_read_password(old_pass, &args->tls.keyfile_pw)) {
 			return 1;
 		}
-		cf_free(old_keyfile_pw);
+		cf_free(old_pass);
 	}
 
 	return validate_args(args);
