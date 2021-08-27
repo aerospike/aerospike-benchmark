@@ -15,6 +15,7 @@ For more information on how to use the benchmark tool and configure it to your n
 Before building, you need to have a local copy of the [Aerospike C Client](https://github.com/aerospike/aerospike-client-c) and to have built it. After this, set the environment variable `CLIENTREPO` to point to the directory containing the built C client.
 
 Additional external dependencies:
+ * OpenSSL (libssl and libcrypto)
  * libyaml-devel
  * libev, libuv, or libevent, if an event library is used
 
@@ -34,6 +35,11 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 ```
 
 Now, the benchmark executable will be located at `target/benchmark`.
+
+
+#### Build with static linkage
+
+To statically link the benchmark tool to external libraries, pass `<LIB_NAME>_STATIC_PATH` as an argument to `make`.
 
 
 ### Running Tests and Coverage
