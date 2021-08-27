@@ -339,7 +339,7 @@ tls_read_password(char *value, char **ptr)
 		return password_file(value + 5, ptr);
 	}
 
-	*ptr = value;
+	*ptr = strdup(value);
 	return true;
 }
 
