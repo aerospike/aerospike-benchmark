@@ -39,7 +39,9 @@ Now, the benchmark executable will be located at `target/benchmark`.
 
 #### Build with static linkage
 
-To statically link the benchmark tool to external libraries, pass `<LIB_NAME>_STATIC_PATH` as an argument to `make`.
+To statically link the benchmark tool to external libraries, pass `<LIB_NAME>_STATIC_PATH`, set to the directory containing the respective static libraries, as an argument to `make`. To get these, you'll likely need to compile the library itself from source.
+
+For example, for static linking against OpenSSL, with libssl.a and libcrypto.a in the directory /usr/local/lib, compile with `OPENSSL_STATIC_PATH=/usr/local/lib`.
 
 
 ### Running Tests and Coverage
