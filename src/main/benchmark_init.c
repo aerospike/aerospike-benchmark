@@ -128,11 +128,11 @@ static struct option long_options[] = {
 	{"tls-cipher-suite",      required_argument, 0, TLS_OPT_CIPHER_SUITE},
 	{"tls-crl-check",         no_argument,       0, TLS_OPT_CRL_CHECK},
 	{"tls-crl-check-all",     no_argument,       0, TLS_OPT_CRL_CHECK_ALL},
-	{"tls-cert-blacklist",   required_argument, 0, TLS_OPT_CERT_BLACK_LIST},
+	{"tls-cert-blacklist",    required_argument, 0, TLS_OPT_CERT_BLACK_LIST},
 	{"tls-log-session-info",  no_argument,       0, TLS_OPT_LOG_SESSION_INFO},
-	{"tls-keyfile",          required_argument, 0, TLS_OPT_KEY_FILE},
-	{"tls-keyfile-password", optional_argument, 0, TLS_OPT_KEY_FILE_PASSWORD},
-	{"tls-certfile",         required_argument, 0, TLS_OPT_CERT_FILE},
+	{"tls-keyfile",           required_argument, 0, TLS_OPT_KEY_FILE},
+	{"tls-keyfile-password",  optional_argument, 0, TLS_OPT_KEY_FILE_PASSWORD},
+	{"tls-certfile",          required_argument, 0, TLS_OPT_CERT_FILE},
 	{"tls-login-only",        no_argument,       0, TLS_OPT_LOGIN_ONLY},
 	{"auth",                  required_argument, 0, 'e'},
 
@@ -1345,8 +1345,16 @@ set_args(int argc, char * const* argv, args_t* args)
 
 			case TLS_OPT_KEY_FILE_PASSWORD:
 				if (optarg == NULL) {
-					// no password given
-					args->tls.keyfile_pw = strdup("");
+					if (optind < argc &&
+							argv[optind] != NULL &&
+							argv[optind][0] != '\0' &&
+							argv[optind][0] != '-') {
+						args->tls.keyfile_pw = strdup(argv[optind]);
+					}
+					else {
+						// no password given
+						args->tls.keyfile_pw = strdup("");
+					}
 				}
 				else {
 					args->tls.keyfile_pw = strdup(optarg);
@@ -1377,6 +1385,7 @@ set_args(int argc, char * const* argv, args_t* args)
 
 	if (args->tls.keyfile && args->tls.keyfile_pw) {
 		if (strcmp(args->tls.keyfile_pw, "") == 0) {
+			printf("keyfile pw: %s\n", args->tls.keyfile_pw);
 			args->tls.keyfile_pw = getpass("Enter TLS-Keyfile Password: ");
 		}
 
