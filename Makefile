@@ -102,15 +102,16 @@ else ifeq ($(OS),FreeBSD)
   LDFLAGS += -lrt
 endif
 
+LDFLAGS += -lm -lz -lcyaml
+TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
+LDFLAGS += -Ltarget/lib -flto
+
 ifeq ($(LIBYAML_STATIC_PATH),)
   LDFLAGS += -lyaml
 else
   LDFLAGS += $(LIBYAML_STATIC_PATH)/libyaml.a
 endif
 
-LDFLAGS += -lm -lz -lcyaml
-TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
-LDFLAGS += -Ltarget/lib -flto
 CC = cc
 AR = ar
 
