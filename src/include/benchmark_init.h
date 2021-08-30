@@ -21,40 +21,5 @@
  ******************************************************************************/
 #pragma once
 
-#include <time.h>
-
-#include <hdr_histogram/hdr_histogram.h>
-#include <hdr_histogram/hdr_time.h>
-#include <benchmark.h>
-#include <common.h>
-#include <coordinator.h>
-
-
-/*
- * initialize the histograms in cdata according to the arguments in args,
- * setting the start time and start_timespec if args->hdr_output is not NULL
- * (i.e. if the summary histogram is enabled)
- */
-int initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
-		hdr_timespec* start_timespec);
-
-/*
- * frees the histograms in cdata
- */
-void free_histograms(cdata_t* cdata, args_t* args);
-
-/*
- * to be called after the benchmark is complete in order to save summary data
- * from the cumulative histograms
- */
-void record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
-		hdr_timespec* start_timespec);
-
-
-/*
- * init function of the worker thread responsible for periodic output
- *
- * udata should be a pointer to a threaddata struct
- */
-void* periodic_output_worker(void* tdata);
+int benchmark_init(int argc, char* argv[]);
 

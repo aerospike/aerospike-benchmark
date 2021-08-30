@@ -12,6 +12,11 @@
 
 #define TEST_SUITE_NAME "thread coordinator"
 
+#ifdef __APPLE__
+
+typedef void (*sighandler_t)(int);
+
+#endif /* __APPLE__ */
 
 /*
  * forward declare all local functions from coordinator (which aren't visible

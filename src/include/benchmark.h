@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2008-2020 by Aerospike.
+ * Copyright 2008-2021 by Aerospike.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -26,6 +26,7 @@
 #include <aerospike/as_password.h>
 #include <aerospike/as_random.h>
 #include <aerospike/as_record.h>
+#include <aerospike/as_udf.h>
 
 #include <hdr_histogram/hdr_histogram.h>
 #include <dynamic_throttle.h>
@@ -44,7 +45,7 @@ typedef struct args_s {
 	char password[AS_PASSWORD_SIZE];
 	const char* namespace;
 	const char* set;
-	const char* bin_name;
+	char* bin_name;
 	uint64_t start_key;
 	uint64_t keys;
 
@@ -84,6 +85,7 @@ typedef struct args_s {
 	int async_max_commands;
 	int event_loop_capacity;
 	as_config_tls tls;
+	char* tls_name;
 	as_auth_mode auth_mode;
 } args_t;
 
@@ -98,35 +100,40 @@ typedef struct clientdata_s {
 	aerospike client;
 
 	// TODO make all these counts thread-local to reduce contention
-	uint32_t write_count;
-	uint32_t write_timeout_count;
-	uint32_t write_error_count;
-
 	uint32_t read_count;
 	uint32_t read_timeout_count;
 	uint32_t read_error_count;
 
+	uint32_t write_count;
+	uint32_t write_timeout_count;
+	uint32_t write_error_count;
+
+	uint32_t udf_count;
+	uint32_t udf_timeout_count;
+	uint32_t udf_error_count;
+
+	FILE* hdr_comp_read_output;
+	FILE* hdr_text_read_output;
+	FILE* hdr_comp_write_output;
+	FILE* hdr_text_write_output;
+	FILE* hdr_comp_udf_output;
+	FILE* hdr_text_udf_output;
+
 	struct hdr_histogram* read_hdr;
 	struct hdr_histogram* write_hdr;
+	struct hdr_histogram* udf_hdr;
 	as_vector latency_percentiles;
 
 	FILE* histogram_output;
 	int histogram_period;
-	histogram_t write_histogram;
 	histogram_t read_histogram;
-
-	FILE* hdr_comp_write_output;
-	FILE* hdr_text_write_output;
-	FILE* hdr_comp_read_output;
-	FILE* hdr_text_read_output;
-	struct hdr_histogram* summary_read_hdr;
-	struct hdr_histogram* summary_write_hdr;
+	histogram_t write_histogram;
+	histogram_t udf_histogram;
 
 	uint32_t tdata_count;
 
 	int async_max_commands;
 	int transaction_worker_threads;
-	int read_pct;
 
 	float compression_ratio;
 	bool latency;
@@ -157,8 +164,13 @@ typedef struct threaddata_s {
 	bool finished;
 
 	as_record fixed_value;
+	as_list* fixed_udf_fn_args;
 } tdata_t;
 
+
+void load_defaults(args_t* args);
+int load_defaults_post(args_t* args);
+void free_args(args_t* args);
 
 int run_benchmark(args_t* args);
 

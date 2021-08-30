@@ -19,6 +19,16 @@
 // Typedefs & constants.
 //
 
+static const cyaml_schema_field_t udf_spec_mapping_schema[] = {
+	CYAML_FIELD_STRING_PTR("module", CYAML_FLAG_POINTER_NULL_STR,
+			udf_spec_t, udf_package_name, 0, sizeof(as_udf_module_name)),
+	CYAML_FIELD_STRING_PTR("function", CYAML_FLAG_POINTER_NULL_STR,
+			udf_spec_t, udf_fn_name, 0, sizeof(as_udf_function_name)),
+	CYAML_FIELD_STRING_PTR("args", CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
+			udf_spec_t, udf_fn_args, 0, CYAML_UNLIMITED),
+	CYAML_FIELD_END
+};
+
 /* CYAML mapping schema fields array for stages */
 static const cyaml_schema_field_t stage_mapping_schema[] = {
 	CYAML_FIELD_UINT("stage", 0,
@@ -27,7 +37,7 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			CYAML_FLAG_POINTER_NULL_STR | CYAML_FLAG_OPTIONAL,
 			stage_def_t, desc,
 			0, CYAML_UNLIMITED),
-	CYAML_FIELD_UINT("duration", 0,
+	CYAML_FIELD_UINT("duration", CYAML_FLAG_OPTIONAL | CYAML_FLAG_DEFAULT_ONES,
 			stage_def_t, duration),
 	CYAML_FIELD_STRING_PTR("workload", 0,
 			stage_def_t, workload_str,
@@ -58,6 +68,8 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			stage_def_t, async),
 	CYAML_FIELD_BOOL("random", CYAML_FLAG_OPTIONAL,
 			stage_def_t, random),
+	CYAML_FIELD_MAPPING("udf", CYAML_FLAG_DEFAULT | CYAML_FLAG_OPTIONAL,
+			stage_def_t, udf_spec, udf_spec_mapping_schema),
 	CYAML_FIELD_END
 };
 
@@ -127,49 +139,95 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 {
 	char* endptr;
 
-	switch (*workload_str) {
-		case 'I': {
-			workload->type = WORKLOAD_TYPE_LINEAR;
-			break;
+	if (strcmp(workload_str, "I") == 0) {
+		workload->type = WORKLOAD_TYPE_LINEAR;
+	}
+	else if (strncmp(workload_str, "RUF", 3) == 0) {
+		float read_pct, write_pct;
+		if (workload_str[3] == '\0') {
+			read_pct = WORKLOAD_RANDOM_UDF_DEFAULT_READ_PCT;
+			write_pct = WORKLOAD_RANDOM_UDF_DEFAULT_WRITE_PCT;
 		}
-		case 'R': {
-			float pct;
-			if (workload_str[1] == 'U' && workload_str[2] == '\0') {
-				pct = WORKLOAD_RANDOM_DEFAULT_PCT;
-			}
-			else {
-				if (workload_str[1] != 'U' || workload_str[2] != ',') {
-					fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
-					return -1;
-				}
-				pct = strtod(workload_str + 3, &endptr);
-				if (workload_str[3] == '\0' || *endptr != '\0') {
-					fprintf(stderr, "\"%s\" not a floating point number\n",
-							workload_str + 3);
-					return -1;
-				}
-				if (pct <= 0 || pct > 100) {
-					fprintf(stderr, "%f not a percentage greater than 0\n",
-							pct);
-					return -1;
-				}
-			}
-			workload->type = WORKLOAD_TYPE_RANDOM;
-			workload->pct = pct;
-			break;
-		}
-		case 'D': {
-			if (workload_str[1] != 'B' || workload_str[2] != '\0') {
-				fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+		else if (workload_str[3] == ',') {
+			read_pct = strtod(workload_str + 4, &endptr);
+			if (workload_str[4] == '\0') {
+				fprintf(stderr, "\"%s\" not a floating point number\n",
+						workload_str + 4);
 				return -1;
 			}
-			workload->type = WORKLOAD_TYPE_DELETE;
-			break;
+			if (*endptr != ',') {
+				fprintf(stderr, "must supply both read percent and update "
+						"percent on RUF workload\n");
+				return -1;
+			}
+
+			char* endptr2;
+			write_pct = strtod(endptr + 1, &endptr2);
+			if (*endptr == '\0' || *endptr2 != '\0') {
+				fprintf(stderr, "\"%s\" not a floating point number\n",
+						endptr + 1);
+				return -1;
+			}
+
+			if (read_pct < 0 || read_pct > 100) {
+				fprintf(stderr, "%f not a valid percentage value\n",
+						read_pct);
+				return -1;
+			}
+			if (write_pct < 0 || write_pct > 100) {
+				fprintf(stderr, "%f not a valid percentage value\n",
+						write_pct);
+				return -1;
+			}
+			if (read_pct + write_pct >= 100) {
+				fprintf(stderr, "read percent and write percent together total "
+						">= 100%% (%g + %g = %g)\n",
+						read_pct, write_pct, read_pct + write_pct);
+				return -1;
+			}
 		}
-		default:
+		else {
 			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
 			return -1;
+		}
+
+		workload->type = WORKLOAD_TYPE_RANDOM_UDF;
+		workload->read_pct = read_pct;
+		workload->write_pct = write_pct;
 	}
+	else if (strncmp(workload_str, "RU", 2) == 0) {
+		float pct;
+		if (workload_str[2] == '\0') {
+			pct = WORKLOAD_RANDOM_DEFAULT_PCT;
+		}
+		else if (workload_str[2] == ',') {
+			pct = strtod(workload_str + 3, &endptr);
+			if (workload_str[3] == '\0' || *endptr != '\0') {
+				fprintf(stderr, "\"%s\" not a floating point number\n",
+						workload_str + 3);
+				return -1;
+			}
+			if (pct < 0 || pct > 100) {
+				fprintf(stderr, "%f not a valid percentage value\n", pct);
+				return -1;
+			}
+		}
+		else {
+			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+			return -1;
+		}
+
+		workload->type = WORKLOAD_TYPE_RANDOM;
+		workload->read_pct = pct;
+	}
+	else if (strcmp(workload_str, "DB") == 0) {
+		workload->type = WORKLOAD_TYPE_DELETE;
+	}
+	else {
+		fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -187,6 +245,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 
 	stages->stages = (stage_t*) cf_malloc(stage_defs->n_stages * sizeof(stage_t));
 	stages->n_stages = stage_defs->n_stages;
+	stages->valid = true;
 
 	for (uint32_t i = 0; i < n_stages; i++) {
 		stage_def_t* stage_def = &stage_defs->stages[i];
@@ -217,7 +276,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 
 		if (stage->key_start >= stage->key_end) {
 			fprintf(stderr,
-					"key_start (%lu) must be less than key_end (%lu)\n",
+					"key_start (%" PRIu64 ") must be less than key_end (%" PRIu64 ")\n",
 					stage->key_start, stage->key_end);
 			ret = -1;
 		}
@@ -316,6 +375,39 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			stage->write_bins = NULL;
 			stage->n_write_bins = 0;
 		}
+
+		if (workload_contains_udfs(&stage->workload)) {
+			if (stage_def->udf_spec.udf_fn_name == NULL) {
+				fprintf(stderr, "Must provide a UDF function name\n");
+				ret = -1;
+
+				memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
+			}
+			else if (stage_def->udf_spec.udf_package_name == NULL) {
+				fprintf(stderr, "Must provide a UDF package name\n");
+				ret = -1;
+
+				memset(&stage->udf_fn_args, 0, sizeof(stage->udf_fn_args));
+			}
+			else if (ret == 0) {
+				const char* args_str = stage_def->udf_spec.udf_fn_args != NULL ?
+					stage_def->udf_spec.udf_fn_args : "";
+
+				strncpy(stage->udf_package_name, stage_def->udf_spec.udf_package_name,
+						sizeof(as_udf_module_name));
+				strncpy(stage->udf_fn_name, stage_def->udf_spec.udf_fn_name,
+						sizeof(as_udf_function_name));
+				ret = obj_spec_parse(&stage->udf_fn_args, args_str);
+			}
+		}
+		else {
+			if (stage_def->udf_spec.udf_package_name != NULL ||
+					stage_def->udf_spec.udf_fn_name != NULL ||
+					stage_def->udf_spec.udf_fn_args != NULL) {
+				fprintf(stderr, "Workload must contain UDF calls to be run with UDF's\n");
+				ret = -1;
+			}
+		}
 	}
 
 	if (ret != 0) {
@@ -337,9 +429,9 @@ int parse_workload_config_file(const char* file, stages_t* stages,
 			&stage_defs.n_stages);
 	if (err != CYAML_OK) {
 		fprintf(stderr, "ERROR: %s\n", cyaml_strerror(err));
+		stages->valid = false;
 		return -1;
 	}
-	stages->valid = true;
 
 	int ret = stages_set_defaults_and_parse(stages, &stage_defs, args);
 	free_stage_defs(&stage_defs);
@@ -354,13 +446,16 @@ void free_stage_defs(stage_defs_t* stage_defs)
 void free_workload_config(stages_t* stages)
 {
 	if (stages->valid) {
-		// first go through and free the parts that aren't part of the yaml struct
 		for (uint32_t i = 0; i < stages->n_stages; i++) {
 			stage_t* stage = &stages->stages[i];
 			cf_free(stage->desc);
 			obj_spec_free(&stage->obj_spec);
 			_free_bins_selection(stage->read_bins);
 			cf_free(stage->write_bins);
+
+			if (workload_contains_udfs(&stage->workload)) {
+				obj_spec_free(&stage->udf_fn_args);
+			}
 		}
 		cf_free(stages->stages);
 	}
@@ -381,10 +476,30 @@ void stages_shallow_copy(stages_t* dst, const stages_t* src)
 	dst->valid = false;
 }
 
-bool stages_contains_reads(const stages_t* stages)
+bool stages_contain_writes(const stages_t* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (workload_contains_writes(&stages->stages[i].workload)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool stages_contain_reads(const stages_t* stages)
 {
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		if (workload_contains_reads(&stages->stages[i].workload)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool stages_contain_udfs(const stages_t* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (workload_contains_udfs(&stages->stages[i].workload)) {
 			return true;
 		}
 	}
@@ -414,7 +529,8 @@ void stages_print(const stages_t* stages)
 	const static char* workloads[] = {
 		"I",
 		"RU",
-		"DB"
+		"DB",
+		"UDF"
 	};
 
 	char obj_spec_buf[512];
@@ -422,13 +538,13 @@ void stages_print(const stages_t* stages)
 		const stage_t* stage = &stages->stages[i];
 
 		snprint_obj_spec(&stage->obj_spec, obj_spec_buf, sizeof(obj_spec_buf));
-		printf( "- duration: %lu\n"
+		printf( "- duration: %" PRIu64 "\n"
 				"  desc: %s\n"
-				"  tps: %lu\n"
-				"  key-start: %lu\n"
-				"  key-end: %lu\n"
-				"  pause: %lu\n"
-				"  batch-size: %u\n"
+				"  tps: %" PRIu64 "\n"
+				"  key-start: %" PRIu64 "\n"
+				"  key-end: %" PRIu64 "\n"
+				"  pause: %" PRIu64 "\n"
+				"  batch-size: %" PRIu32 "\n"
 				"  async: %s\n"
 				"  random: %s\n",
 				stage->duration, stage->desc, stage->tps, stage->key_start,
@@ -438,7 +554,10 @@ void stages_print(const stages_t* stages)
 		printf( "  workload: %s",
 				workloads[stage->workload.type]);
 		if (stage->workload.type == WORKLOAD_TYPE_RANDOM) {
-			printf(",%g%%\n", stage->workload.pct);
+			printf(",%g%%\n", stage->workload.read_pct);
+		}
+		else if (stage->workload.type == WORKLOAD_TYPE_RANDOM_UDF) {
+			printf(",%g%%,%g%%\n", stage->workload.read_pct, stage->workload.write_pct);
 		}
 		else {
 			printf("\n");
@@ -482,35 +601,17 @@ void stages_print(const stages_t* stages)
 		else {
 			printf("  write-bins: (null)\n");
 		}
-	}
-}
 
-void stages_print_defs(const stage_defs_t* stage_defs,
-		const struct args_s* args)
-{
-	for (uint32_t i = 0; i < stage_defs->n_stages; i++) {
-		const stage_def_t* stage = &stage_defs->stages[i];
-
-		printf( "- stage: %u\n"
-				"  duration: %lu\n"
-				"  desc: %s\n"
-				"  tps: %lu\n"
-				"  key-start: %lu\n"
-				"  key-end: %lu\n"
-				"  pause: %lu\n"
-				"  batch-size: %u\n"
-				"  async: %s\n"
-				"  random: %s\n"
-				"  workload: %s\n"
-				"  object-spec: %s\n"
-				"  read-bins: %s\n"
-				"  write-bins: %s\n",
-				i + 1, stage->duration, stage->desc, stage->tps,
-				stage->key_start, stage->key_end, stage->pause,
-				stage->batch_size, boolstring(stage->async),
-				boolstring(stage->random), stage->workload_str,
-				stage->obj_spec_str, stage->read_bins_str,
-				stage->write_bins_str);
+		if (workload_contains_udfs(&stage->workload)) {
+			snprint_obj_spec(&stage->udf_fn_args, obj_spec_buf, sizeof(obj_spec_buf));
+			printf( "  udf:\n"
+					"    module: %.*s\n"
+					"    function: %.*s\n"
+					"    args: [%s]\n",
+					(int) sizeof(as_udf_module_name), stage->udf_package_name,
+					(int) sizeof(as_udf_function_name), stage->udf_fn_name,
+					obj_spec_buf);
+		}
 	}
 }
 
@@ -558,14 +659,15 @@ _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
 			return NULL;
 		}
 		if (bin_num > n_bins) {
-			fprintf(stderr, "No such bin %lu (there are only %u bins)\n",
+			fprintf(stderr, "No such bin %" PRIu64 " (there are only %" PRIu32
+					" bins)\n",
 					bin_num, n_bins);
 			_parse_bins_destroy(&bins, mode);
 			return NULL;
 		}
 		if (bin_num <= prev_bin_num) {
 			fprintf(stderr, "Bins must appear in ascending order "
-					"(%lu <= %lu)\n",
+					"(%" PRIu64 " <= %" PRIu64 ")\n",
 					bin_num, prev_bin_num);
 			_parse_bins_destroy(&bins, mode);
 			return NULL;

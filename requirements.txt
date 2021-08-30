@@ -1,0 +1,4 @@
+aerospike
+docker
+pytest
+six

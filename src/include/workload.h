@@ -30,8 +30,12 @@
 #define WORKLOAD_TYPE_LINEAR 0x0
 #define WORKLOAD_TYPE_RANDOM 0x1
 #define WORKLOAD_TYPE_DELETE 0x2
+#define WORKLOAD_TYPE_RANDOM_UDF 0x3
 
 #define WORKLOAD_RANDOM_DEFAULT_PCT 50.f
+
+#define WORKLOAD_RANDOM_UDF_DEFAULT_READ_PCT 40.f
+#define WORKLOAD_RANDOM_UDF_DEFAULT_WRITE_PCT 40.f
 
 // the default number of seconds an infinite workload will run if not specified
 #define DEFAULT_RANDOM_DURATION 10
@@ -52,13 +56,21 @@ typedef struct workload_s {
 	 *  		bins that were created by prior stages
 	 */
 	uint8_t type;
+
 	/*
-	 * percent of keys to initialize, for LINEAR,
-	 * percent of reads (rest are writes), for RANDOM
+	 * read_pct = percent of reads (rest are writes), for RANDOM
+	 * 100 - read_pct - write_pct = percent of UDF ops, for RANDOM_UDF
 	 */
-	float pct;
+	float read_pct;
+	float write_pct;
 } workload_t;
 
+
+typedef struct udf_spec_s {
+	char* udf_package_name;
+	char* udf_fn_name;
+	char* udf_fn_args;
+} udf_spec_t;
 
 typedef struct stage_def_s {
 	// minimum stage duration in seconds
@@ -94,6 +106,8 @@ typedef struct stage_def_s {
 	char* read_bins_str;
 
 	char* write_bins_str;
+
+	udf_spec_t udf_spec;
 } stage_def_t;
 
 
@@ -137,6 +151,10 @@ typedef struct stage_s {
 
 	uint32_t* write_bins;
 	uint32_t n_write_bins;
+
+	as_udf_module_name udf_package_name;
+	as_udf_function_name udf_fn_name;
+	obj_spec_t udf_fn_args;
 } stage_t;
 
 
@@ -156,17 +174,25 @@ typedef struct stages_s {
 
 static inline bool workload_is_random(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM;
+	return workload->type == WORKLOAD_TYPE_RANDOM ||
+		workload->type == WORKLOAD_TYPE_RANDOM_UDF;
 }
 
 static inline bool workload_contains_reads(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM;
+	return (workload->type == WORKLOAD_TYPE_RANDOM && workload->read_pct != 0) ||
+		(workload->type == WORKLOAD_TYPE_RANDOM_UDF && workload->read_pct != 0);
 }
 
 static inline bool workload_contains_writes(const workload_t* workload)
 {
-	return workload->type != WORKLOAD_TYPE_RANDOM || workload->pct != 100;
+	return (workload->type != WORKLOAD_TYPE_RANDOM || workload->read_pct != 100) &&
+		(workload->type != WORKLOAD_TYPE_RANDOM_UDF || workload->write_pct != 0);
+}
+
+static inline bool workload_contains_udfs(const workload_t* workload)
+{
+	return workload->type == WORKLOAD_TYPE_RANDOM_UDF;
 }
 
 static inline bool stages_contain_async(const stages_t* stages)
@@ -195,7 +221,7 @@ static inline bool stages_contain_random(const stages_t* stages)
  */
 static inline bool workload_is_infinite(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM;
+	return workload->type == WORKLOAD_TYPE_RANDOM || workload->type == WORKLOAD_TYPE_RANDOM_UDF;
 }
 
 static inline void fprint_stage(FILE* out_file, const stages_t* stages,
@@ -241,9 +267,19 @@ void stages_move(stages_t* dst, stages_t* src);
 void stages_shallow_copy(stages_t* dst, const stages_t* src);
 
 /*
+ * returns true if any of the stages will perform writes
+ */
+bool stages_contain_writes(const stages_t*);
+
+/*
  * returns true if any of the stages will perform reads
  */
-bool stages_contains_reads(const stages_t*);
+bool stages_contain_reads(const stages_t*);
+
+/*
+ * returns true if any of the stages will perform UDF ops
+ */
+bool stages_contain_udfs(const stages_t*);
 
 /*
  * generates a random key for the stage
