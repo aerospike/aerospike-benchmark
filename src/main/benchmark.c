@@ -50,6 +50,7 @@ LOCAL_HELPER bool as_client_log_cb(as_log_level level, const char* func,
 		const char* file, uint32_t line, const char* fmt, ...);
 LOCAL_HELPER int connect_to_server(args_t* args, aerospike* client);
 LOCAL_HELPER bool is_single_bin(aerospike* client, const char* namespace);
+LOCAL_HELPER void add_default_tls_host(as_config *as_conf, const char* tls_name);
 LOCAL_HELPER tdata_t* init_tdata(cdata_t* cdata, thr_coord_t* coord,
 		uint32_t t_idx);
 LOCAL_HELPER void destroy_tdata(tdata_t* tdata);
@@ -185,13 +186,13 @@ connect_to_server(args_t* args, aerospike* client)
 	as_config cfg;
 	as_config_init(&cfg);
 
-	if (args->tls_name != NULL) {
-		as_config_set_cluster_name(&cfg, args->tls_name);
-	}
-	
-	if (! as_config_add_hosts(&cfg, args->hosts, args->port)) {
+	if (!as_config_add_hosts(&cfg, args->hosts, args->port)) {
 		blog_error("Invalid host(s) %s\n", args->hosts);
 		return 3;
+	}
+
+	if (args->tls_name != NULL) {
+		add_default_tls_host(&cfg, args->tls_name);
 	}
 
 	as_config_set_user(&cfg, args->user, args->password);
@@ -305,6 +306,24 @@ is_single_bin(aerospike* client, const char* namespace)
 		blog_error("Info request failed: %d - %s\n", err.code, err.message);
 	}
 	return single_bin;
+}
+
+/*
+ * Sets the tls name of all hosts which don't have a set tls name.
+ */
+static void
+add_default_tls_host(as_config *as_conf, const char* tls_name)
+{
+	as_host* host;
+	uint32_t num_hosts = as_conf->hosts->capacity;
+
+	for (uint32_t i = 0; i < num_hosts; i++) {
+		host = (as_host*) as_vector_get(as_conf->hosts, i);
+
+		if(host->tls_name == NULL) {
+			host->tls_name = strdup(tls_name);
+		}
+	}
 }
 
 /*
