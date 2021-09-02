@@ -311,7 +311,7 @@ is_single_bin(aerospike* client, const char* namespace)
 /*
  * Sets the tls name of all hosts which don't have a set tls name.
  */
-static void
+LOCAL_HELPER void
 add_default_tls_host(as_config *as_conf, const char* tls_name)
 {
 	as_host* host;
