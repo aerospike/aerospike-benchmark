@@ -593,7 +593,7 @@ print_usage(const char* program)
 	printf("   Use TLS for node login only.\n");
 	printf("\n");
 
-	printf("   --auth {INTERNAL,EXTERNAL,EXTERNAL_SECURE} # Default: INTERNAL\n");
+	printf("   --auth {INTERNAL,EXTERNAL,EXTERNAL_SECURE,PKI} # Default: INTERNAL\n");
 	printf("   Set authentication mode when user/password is defined.\n");
 	printf("\n");
 }
@@ -743,6 +743,9 @@ print_args(args_t* args)
 			break;
 		case AS_AUTH_EXTERNAL_INSECURE:
 			s = "EXTERNAL_INSECURE";
+			break;
+		case AS_AUTH_PKI:
+			s = "PKI";
 			break;
 		default:
 			s = "unknown";
