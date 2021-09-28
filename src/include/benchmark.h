@@ -68,8 +68,6 @@ typedef struct args_s {
 	int max_retries;
 	bool debug;
 	bool latency;
-	int latency_columns;
-	int latency_shift;
 	as_vector latency_percentiles;
 	bool latency_histogram;
 	char* histogram_output;
