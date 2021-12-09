@@ -341,7 +341,7 @@ def run_benchmark(args, ip=None, port=PORT, expect_success=True, do_reset=True):
 		cmd = "valgrind --tool=memcheck --leak-check=full --track-origins=yes "
 	else:
 		cmd = ""
-	cmd += "test_target/benchmark -h %s:%d -n %s -s %s %s" % \
+	cmd += "test_target/asbench -h %s:%d -n %s -s %s %s" % \
 			(ip, port, NAMESPACE, SET, args)
 
 	print("executing:", cmd)

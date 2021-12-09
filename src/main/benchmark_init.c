@@ -43,7 +43,7 @@
 // Typedefs & constants.
 //
 
-static const char* short_options = "h:p:U:P:n:s:b:K:k:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
+static const char* short_options = "V:h:p:U:P:n:s:b:K:k:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
 
 #define WARN_MSG 0x40000000
 
@@ -64,15 +64,15 @@ typedef enum {
 	TLS_OPT_KEY_FILE,
 	TLS_OPT_KEY_FILE_PASSWORD,
 	TLS_OPT_CERT_FILE,
-	TLS_OPT_LOGIN_ONLY
+	TLS_OPT_LOGIN_ONLY,
+	TLS_OPT_AUTH
 } tls_opt;
 
 /*
  * Generic benchmark options without a short option equivalent.
  */
 typedef enum {
-	BENCH_OPT_VERSION = 2000,
-	BENCH_OPT_HELP,
+	BENCH_OPT_HELP = 2000,
 	BENCH_OPT_SERVICES_ALTERNATE,
 	BENCH_OPT_UDF_PACKAGE_NAME,
 	BENCH_OPT_UDF_FUNCTION_NAME,
@@ -86,6 +86,9 @@ typedef enum {
 	BENCH_OPT_SOCKET_TIMEOUT,
 	BENCH_OPT_READ_SOCKET_TIMEOUT,
 	BENCH_OPT_WRITE_SOCKET_TIMEOUT,
+	BENCH_OPT_READ_SOCKET_TOTAL_TIMEOUT,
+	BENCH_OPT_WRITE_SOCKET_TOTAL_TIMEOUT,
+	BENCH_OPT_MAX_RETRIES,
 	BENCH_OPT_PERCENTILES,
 	BENCH_OPT_OUTPUT_FILE,
 	BENCH_OPT_OUTPUT_PERIOD,
@@ -93,7 +96,7 @@ typedef enum {
 } benchmark_opt;
 
 static struct option long_options[] = {
-	{"version",               no_argument,       0, BENCH_OPT_VERSION},
+	{"version",               no_argument,       0, 'V'},
 	{"help",                  no_argument,       0, BENCH_OPT_HELP},
 	{"hosts",                 required_argument, 0, 'h'},
 	{"port",                  required_argument, 0, 'p'},
@@ -127,9 +130,9 @@ static struct option long_options[] = {
 	{"read-socket-timeout",   required_argument, 0, BENCH_OPT_READ_SOCKET_TIMEOUT},
 	{"write-socket-timeout",  required_argument, 0, BENCH_OPT_WRITE_SOCKET_TIMEOUT},
 	{"timeout",               required_argument, 0, 'T'},
-	{"read-timeout",          required_argument, 0, 'X'},
-	{"write-timeout",         required_argument, 0, 'V'},
-	{"max-retries",           required_argument, 0, 'r'},
+	{"read-timeout",          required_argument, 0, BENCH_OPT_READ_SOCKET_TOTAL_TIMEOUT},
+	{"write-timeout",         required_argument, 0, BENCH_OPT_WRITE_SOCKET_TOTAL_TIMEOUT},
+	{"max-retries",           required_argument, 0, BENCH_OPT_MAX_RETRIES},
 	{"debug",                 no_argument,       0, 'd'},
 	{"latency",               no_argument,       0, 'L'},
 	{"percentiles",           required_argument, 0, BENCH_OPT_PERCENTILES},
@@ -160,7 +163,7 @@ static struct option long_options[] = {
 	{"tls-keyfile-password",  optional_argument, 0, TLS_OPT_KEY_FILE_PASSWORD},
 	{"tls-certfile",          required_argument, 0, TLS_OPT_CERT_FILE},
 	{"tls-login-only",        no_argument,       0, TLS_OPT_LOGIN_ONLY},
-	{"auth",                  required_argument, 0, 'e'},
+	{"auth",                  required_argument, 0, TLS_OPT_AUTH},
 
 	{"servicesAlternate",     no_argument,       0, WARN_MSG | BENCH_OPT_SERVICES_ALTERNATE},
 	{"startKey",              required_argument, 0, WARN_MSG | 'K'},
@@ -176,9 +179,9 @@ static struct option long_options[] = {
 	{"socketTimeout",         required_argument, 0, WARN_MSG | BENCH_OPT_SOCKET_TIMEOUT},
 	{"readSocketTimeout",     required_argument, 0, WARN_MSG | BENCH_OPT_READ_SOCKET_TIMEOUT},
 	{"writeSocketTimeout",    required_argument, 0, WARN_MSG | BENCH_OPT_WRITE_SOCKET_TIMEOUT},
-	{"readTimeout",           required_argument, 0, WARN_MSG | 'X'},
-	{"writeTimeout",          required_argument, 0, WARN_MSG | 'V'},
-	{"maxRetries",            required_argument, 0, WARN_MSG | 'r'},
+	{"readTimeout",           required_argument, 0, WARN_MSG | BENCH_OPT_READ_SOCKET_TOTAL_TIMEOUT},
+	{"writeTimeout",          required_argument, 0, WARN_MSG | BENCH_OPT_WRITE_SOCKET_TOTAL_TIMEOUT},
+	{"maxRetries",            required_argument, 0, WARN_MSG | BENCH_OPT_MAX_RETRIES},
 	{"outputFile",            required_argument, 0, WARN_MSG | BENCH_OPT_OUTPUT_FILE},
 	{"outputPeriod",          required_argument, 0, WARN_MSG | BENCH_OPT_OUTPUT_PERIOD},
 	{"hdrHist",               required_argument, 0, WARN_MSG | BENCH_OPT_HDR_HIST},
@@ -266,6 +269,10 @@ print_usage(const char* program)
 {
 	printf("Usage: %s <options>\n", program);
 	printf("options:\n");
+	printf("\n");
+
+	printf("-V --version\n");
+	printf("   Prints the current version of asbench\n");
 	printf("\n");
 
 	printf("   --help\n");
@@ -952,7 +959,7 @@ set_args(int argc, char * const* argv, args_t* args)
 		}
 
 		switch (c & ~WARN_MSG) {
-			case BENCH_OPT_VERSION:
+			case 'V':
 				print_version();
 				return -1;
 
@@ -1182,15 +1189,15 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->write_total_timeout = args->read_total_timeout;
 				break;
 
-			case 'X':
+			case BENCH_OPT_READ_SOCKET_TOTAL_TIMEOUT:
 				args->read_total_timeout = atoi(optarg);
 				break;
 
-			case 'V':
+			case BENCH_OPT_WRITE_SOCKET_TOTAL_TIMEOUT:
 				args->write_total_timeout = atoi(optarg);
 				break;
 
-			case 'r':
+			case BENCH_OPT_MAX_RETRIES:
 				args->max_retries = atoi(optarg);
 				break;
 
@@ -1409,7 +1416,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->tls.for_login_only = true;
 				break;
 
-			case 'e':
+			case TLS_OPT_AUTH:
 				if (!as_auth_mode_from_string(&args->auth_mode, optarg)) {
 					printf("invalid authentication mode: %s\n", optarg);
 					return 1;
