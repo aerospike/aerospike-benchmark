@@ -180,7 +180,7 @@ info:
 
 
 .PHONY: build
-build: target/benchmark
+build: target/asbench
 
 .PHONY: archive
 archive: $(OBJECTS) target/libbench.a
@@ -218,7 +218,7 @@ target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogra
 target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | target/lib
 	cp $< $@
 
-target/benchmark: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
+target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
@@ -230,7 +230,7 @@ modules/libcyaml/build/debug/libcyaml.a:
 
 .PHONY: run
 run: build
-	./target/benchmark -h $(AS_HOST) -p $(AS_PORT)
+	./target/asbench -h $(AS_HOST) -p $(AS_PORT)
 
 .PHONY: test
 test: unit integration
@@ -273,14 +273,14 @@ test_target/test: $(TEST_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(P
 test_target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | test_target/lib
 	cp $< $@
 
-test_target/benchmark: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
 	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
 -include $(wildcard $(TEST_DEPENDENCIES))
 
 # integration testing
 .PHONY: integration
-integration: test_target/benchmark
+integration: test_target/asbench
 	@./integration_tests.sh $(DIR_ENV)
 
 # Summary requires the lcov tool to be installed
