@@ -98,17 +98,17 @@ typedef struct clientdata_s {
 	aerospike client;
 
 	// TODO make all these counts thread-local to reduce contention
-	uint32_t read_count;
-	uint32_t read_timeout_count;
-	uint32_t read_error_count;
+	uint64_t read_count;
+	uint64_t read_timeout_count;
+	uint64_t read_error_count;
 
-	uint32_t write_count;
-	uint32_t write_timeout_count;
-	uint32_t write_error_count;
+	uint64_t write_count;
+	uint64_t write_timeout_count;
+	uint64_t write_error_count;
 
-	uint32_t udf_count;
-	uint32_t udf_timeout_count;
-	uint32_t udf_error_count;
+	uint64_t udf_count;
+	uint64_t udf_timeout_count;
+	uint64_t udf_error_count;
 
 	FILE* hdr_comp_read_output;
 	FILE* hdr_text_read_output;

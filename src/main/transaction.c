@@ -183,7 +183,7 @@ _record_read(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_read_output != NULL) {
 		histogram_add(&cdata->read_histogram, dt_us);
 	}
-	as_incr_uint32(&cdata->read_count);
+	as_incr_uint64(&cdata->read_count);
 }
 
 LOCAL_HELPER void
@@ -195,7 +195,7 @@ _record_write(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_write_output != NULL) {
 		histogram_add(&cdata->write_histogram, dt_us);
 	}
-	as_incr_uint32(&cdata->write_count);
+	as_incr_uint64(&cdata->write_count);
 }
 
 LOCAL_HELPER void
@@ -207,7 +207,7 @@ _record_udf(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_udf_output != NULL) {
 		histogram_add(&cdata->udf_histogram, dt_us);
 	}
-	as_incr_uint32(&cdata->udf_count);
+	as_incr_uint64(&cdata->udf_count);
 }
 
 
@@ -234,10 +234,10 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint32(&cdata->write_timeout_count);
+		as_incr_uint64(&cdata->write_timeout_count);
 	}
 	else {
-		as_incr_uint32(&cdata->write_error_count);
+		as_incr_uint64(&cdata->write_error_count);
 
 		if (cdata->debug) {
 			blog_error("Write error: ns=%s set=%s key=%d bin=%s code=%d "
@@ -280,10 +280,10 @@ _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint32(&cdata->read_timeout_count);
+		as_incr_uint64(&cdata->read_timeout_count);
 	}
 	else {
-		as_incr_uint32(&cdata->read_error_count);
+		as_incr_uint64(&cdata->read_error_count);
 
 		if (cdata->debug) {
 			blog_error("Read error: ns=%s set=%s key=%d bin=%s code=%d "
@@ -317,10 +317,10 @@ _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint32(&cdata->read_timeout_count);
+		as_incr_uint64(&cdata->read_timeout_count);
 	}
 	else {
-		as_incr_uint32(&cdata->read_error_count);
+		as_incr_uint64(&cdata->read_error_count);
 
 		if (cdata->debug) {
 			blog_error("Batch read error: ns=%s set=%s bin=%s code=%d "
@@ -370,10 +370,10 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint32(&cdata->udf_timeout_count);
+		as_incr_uint64(&cdata->udf_timeout_count);
 	}
 	else {
-		as_incr_uint32(&cdata->udf_error_count);
+		as_incr_uint64(&cdata->udf_error_count);
 
 		if (cdata->debug) {
 			blog_error("UDF error: ns=%s set=%s key=%d bin=%s code=%d "
@@ -535,6 +535,7 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 		obj_spec_populate_bins(&stage->obj_spec, rec, random,
 				cdata->bin_name, stage->write_bins, stage->n_write_bins,
 				cdata->compression_ratio);
+		rec->ttl = stage->ttl;
 	}
 	else {
 		rec = &tdata->fixed_value;
@@ -854,24 +855,24 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	else {
 		if (err->code == AEROSPIKE_ERR_TIMEOUT) {
 			if (adata->op == read) {
-				as_incr_uint32(&cdata->read_timeout_count);
+				as_incr_uint64(&cdata->read_timeout_count);
 			}
 			else if (adata->op == udf) {
-				as_incr_uint32(&cdata->udf_timeout_count);
+				as_incr_uint64(&cdata->udf_timeout_count);
 			}
 			else {
-				as_incr_uint32(&cdata->write_timeout_count);
+				as_incr_uint64(&cdata->write_timeout_count);
 			}
 		}
 		else {
 			if (adata->op == read) {
-				as_incr_uint32(&cdata->read_error_count);
+				as_incr_uint64(&cdata->read_error_count);
 			}
 			else if (adata->op == udf) {
-				as_incr_uint32(&cdata->udf_error_count);
+				as_incr_uint64(&cdata->udf_error_count);
 			}
 			else {
-				as_incr_uint32(&cdata->write_error_count);
+				as_incr_uint64(&cdata->write_error_count);
 			}
 
 			if (cdata->debug) {
@@ -1351,6 +1352,7 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 					tdata->random, NULL, 0);
 			tdata->fixed_udf_fn_args = as_list_fromval(val);
 		}
+		tdata->fixed_value.ttl = stage->ttl;
 	}
 }
 

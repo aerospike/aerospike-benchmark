@@ -405,21 +405,21 @@ periodic_output_worker(void* udata)
 		int64_t elapsed = time - prev_time;
 		prev_time = time;
 
-		uint32_t write_current = as_fas_uint32(&cdata->write_count, 0);
-		uint32_t write_timeout_current = as_fas_uint32(&cdata->write_timeout_count, 0);
-		uint32_t write_error_current = as_fas_uint32(&cdata->write_error_count, 0);
-		uint32_t read_current = as_fas_uint32(&cdata->read_count, 0);
-		uint32_t read_timeout_current = as_fas_uint32(&cdata->read_timeout_count, 0);
-		uint32_t read_error_current = as_fas_uint32(&cdata->read_error_count, 0);
-		uint32_t udf_current = as_fas_uint32(&cdata->udf_count, 0);
-		uint32_t udf_timeout_current = as_fas_uint32(&cdata->udf_timeout_count, 0);
-		uint32_t udf_error_current = as_fas_uint32(&cdata->udf_error_count, 0);
+		uint64_t write_current = as_fas_uint64(&cdata->write_count, 0);
+		uint64_t write_timeout_current = as_fas_uint64(&cdata->write_timeout_count, 0);
+		uint64_t write_error_current = as_fas_uint64(&cdata->write_error_count, 0);
+		uint64_t read_current = as_fas_uint64(&cdata->read_count, 0);
+		uint64_t read_timeout_current = as_fas_uint64(&cdata->read_timeout_count, 0);
+		uint64_t read_error_current = as_fas_uint64(&cdata->read_error_count, 0);
+		uint64_t udf_current = as_fas_uint64(&cdata->udf_count, 0);
+		uint64_t udf_timeout_current = as_fas_uint64(&cdata->udf_timeout_count, 0);
+		uint64_t udf_error_current = as_fas_uint64(&cdata->udf_error_count, 0);
 
 		cdata->period_begin = time;
 
-		uint32_t write_tps = (uint32_t)((double)write_current * 1000000 / elapsed + 0.5);
-		uint32_t read_tps = (uint32_t)((double)read_current * 1000000 / elapsed + 0.5);
-		uint32_t udf_tps = (uint32_t)((double)udf_current * 1000000 / elapsed + 0.5);
+		uint64_t write_tps = (uint64_t)((double)write_current * 1000000 / elapsed + 0.5);
+		uint64_t read_tps = (uint64_t)((double)read_current * 1000000 / elapsed + 0.5);
+		uint64_t udf_tps = (uint64_t)((double)udf_current * 1000000 / elapsed + 0.5);
 
 		bool any_records = write_current + write_timeout_current + write_error_current +
 			read_current + read_timeout_current + read_error_current +
@@ -427,18 +427,18 @@ periodic_output_worker(void* udata)
 		if (any_records) {
 			blog_info("");
 			if (has_writes) {
-				printf("write(tps=%d timeouts=%d errors=%d) ",
+				printf("write(tps=%" PRId64 " timeouts=%" PRId64 " errors=%" PRId64 ") ",
 						write_tps, write_timeout_current, write_error_current);
 			}
 			if (has_reads) {
-				printf("read(tps=%d timeouts=%d errors=%d) ",
+				printf("read(tps=%" PRId64 " timeouts=%" PRId64 " errors=%" PRId64 ") ",
 						read_tps, read_timeout_current, read_error_current);
 			}
 			if (has_udfs) {
-				printf("udf(tps=%d timeouts=%d errors=%d) ",
+				printf("udf(tps=%" PRId64 " timeouts=%" PRId64 " errors=%" PRId64 ") ",
 						udf_tps, udf_timeout_current, udf_error_current);
 			}
-			printf("total(tps=%d timeouts=%d errors=%d)\n",
+			printf("total(tps=%" PRId64 " timeouts=%" PRId64 " errors=%" PRId64 ")\n",
 					write_tps + read_tps + udf_tps,
 					write_timeout_current + read_timeout_current + udf_timeout_current,
 					write_error_current + read_error_current + udf_error_current);

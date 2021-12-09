@@ -68,6 +68,8 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			stage_def_t, async),
 	CYAML_FIELD_BOOL("random", CYAML_FLAG_OPTIONAL,
 			stage_def_t, random),
+	CYAML_FIELD_UINT("expiration-time", CYAML_FLAG_OPTIONAL,
+			stage_def_t, ttl),
 	CYAML_FIELD_MAPPING("udf", CYAML_FLAG_DEFAULT | CYAML_FLAG_OPTIONAL,
 			stage_def_t, udf_spec, udf_spec_mapping_schema),
 	CYAML_FIELD_END
@@ -256,6 +258,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		stage->pause = stage_def->pause;
 		stage->async = stage_def->async;
 		stage->random = stage_def->random;
+		stage->ttl = stage_def->ttl;
 
 		if (stage_def->key_start == -1LU) {
 			// if key_start wasn't specified, then inherit from the global context
@@ -546,10 +549,12 @@ void stages_print(const stages_t* stages)
 				"  pause: %" PRIu64 "\n"
 				"  batch-size: %" PRIu32 "\n"
 				"  async: %s\n"
-				"  random: %s\n",
+				"  random: %s\n"
+				"  ttl: %" PRId64 "\n",
 				stage->duration, stage->desc, stage->tps, stage->key_start,
 				stage->key_end, stage->pause, stage->batch_size,
-				boolstring(stage->async), boolstring(stage->random));
+				boolstring(stage->async), boolstring(stage->random),
+				stage->ttl);
 
 		printf( "  workload: %s",
 				workloads[stage->workload.type]);

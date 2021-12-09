@@ -43,7 +43,7 @@
 // Typedefs & constants.
 //
 
-static const char* short_options = "V:h:p:U:P:n:s:b:K:k:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
+static const char* short_options = "V:h:p:U:P:n:s:b:K:k:o:Re:t:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
 
 #define WARN_MSG 0x40000000
 
@@ -116,6 +116,7 @@ static struct option long_options[] = {
 	{"ufv",                   required_argument, 0, BENCH_OPT_UDF_FUNCTION_VALUES},
 	{"object-spec",           required_argument, 0, 'o'},
 	{"random",                no_argument,       0, 'R'},
+	{"expiration-time",       required_argument, 0, 'e'},
 	{"duration",              required_argument, 0, 't'},
 	{"workload",              required_argument, 0, 'w'},
 	{"workload-stages",       required_argument, 0, BENCH_OPT_WORKLOAD_STAGES},
@@ -431,6 +432,11 @@ print_usage(const char* program)
 	printf("-R --random          # Default: static fixed bin values\n");
 	printf("   Use dynamically generated random bin values instead of default static fixed bin values.\n");
 	printf("\n");
+
+	printf("-e --expiration-time # Default: 0, i.e. adopt the default TTL value from the namespace\n");
+	printf("   Set the TTL of all records written in write transactions. Options are -1 (no TTL, never expire),\n");
+	printf("   -2 (no change TTL, i.e. the record TTL will not be modified by this write transaction),\n");
+	printf("   0 (adopt default TTL value from namespace) and >0 (the TTL of the record in seconds).\n");
 
 	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RUF), 0 for finite (I, DB)\n");
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
@@ -1052,7 +1058,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 			}
 
-			case 'R':
+			case 'R': {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the random flag\n");
@@ -1061,6 +1067,24 @@ set_args(int argc, char * const* argv, args_t* args)
 				struct stage_def_s* stage = get_or_init_stage(args);
 				stage->random = true;
 				break;
+			}
+
+			case 'e': {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							" file and the expiration-time flag\n");
+					return -1;
+				}
+				struct stage_def_s* stage = get_or_init_stage(args);
+				char* endptr;
+				stage->ttl = strtoll(optarg, &endptr, 10);
+				if (*optarg == '\0' || *endptr != '\0') {
+					printf("string \"%s\" is not a decimal point number\n",
+							optarg);
+					return -1;
+				}
+				break;
+			}
 
 			case 't': {
 				if (args->workload_stages_file != NULL) {

@@ -81,6 +81,8 @@ typedef struct stage_def_s {
 
 	// max transactions per second
 	uint64_t tps;
+	// record TTL used in write transactions
+	uint64_t ttl;
 
 	uint64_t key_start;
 	uint64_t key_end;
@@ -126,6 +128,8 @@ typedef struct stage_s {
 
 	// max transactions per second
 	uint64_t tps;
+	// record TTL used in write transactions
+	uint64_t ttl;
 
 	uint64_t key_start;
 	uint64_t key_end;
