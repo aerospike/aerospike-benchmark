@@ -67,49 +67,75 @@ typedef enum {
 	TLS_OPT_LOGIN_ONLY
 } tls_opt;
 
+/*
+ * Generic benchmark options without a short option equivalent.
+ */
+typedef enum {
+	BENCH_OPT_VERSION = 2000,
+	BENCH_OPT_HELP,
+	BENCH_OPT_SERVICES_ALTERNATE,
+	BENCH_OPT_UDF_PACKAGE_NAME,
+	BENCH_OPT_UDF_FUNCTION_NAME,
+	BENCH_OPT_UDF_FUNCTION_VALUES,
+	BENCH_OPT_WORKLOAD_STAGES,
+	BENCH_OPT_READ_BINS,
+	BENCH_OPT_WRITE_BINS,
+	BENCH_OPT_BATCH_SIZE,
+	BENCH_OPT_COMPRESS,
+	BENCH_OPT_COMPRESSION_RATIO,
+	BENCH_OPT_SOCKET_TIMEOUT,
+	BENCH_OPT_READ_SOCKET_TIMEOUT,
+	BENCH_OPT_WRITE_SOCKET_TIMEOUT,
+	BENCH_OPT_PERCENTILES,
+	BENCH_OPT_OUTPUT_FILE,
+	BENCH_OPT_OUTPUT_PERIOD,
+	BENCH_OPT_HDR_HIST
+} benchmark_opt;
+
 static struct option long_options[] = {
-	{"help",                  no_argument,       0, '9'},
+	{"version",               no_argument,       0, BENCH_OPT_VERSION},
+	{"help",                  no_argument,       0, BENCH_OPT_HELP},
 	{"hosts",                 required_argument, 0, 'h'},
 	{"port",                  required_argument, 0, 'p'},
 	{"user",                  required_argument, 0, 'U'},
 	{"password",              optional_argument, 0, 'P'},
-	{"services-alternate",    no_argument,       0, '*'},
+	{"services-alternate",    no_argument,       0, BENCH_OPT_SERVICES_ALTERNATE},
 	{"namespace",             required_argument, 0, 'n'},
 	{"set",                   required_argument, 0, 's'},
 	{"bin",                   required_argument, 0, 'b'},
 	{"start-key",             required_argument, 0, 'K'},
 	{"keys",                  required_argument, 0, 'k'},
-	{"udf-package-name",      required_argument, 0, ':'},
-	{"upn",                   required_argument, 0, ':'},
-	{"udf-function-name",     required_argument, 0, ';'},
-	{"ufn",                   required_argument, 0, ';'},
-	{"udf-function-values",   required_argument, 0, '"'},
-	{"ufv",                   required_argument, 0, '"'},
+	{"udf-package-name",      required_argument, 0, BENCH_OPT_UDF_PACKAGE_NAME},
+	{"upn",                   required_argument, 0, BENCH_OPT_UDF_PACKAGE_NAME},
+	{"udf-function-name",     required_argument, 0, BENCH_OPT_UDF_FUNCTION_NAME},
+	{"ufn",                   required_argument, 0, BENCH_OPT_UDF_FUNCTION_NAME},
+	{"udf-function-values",   required_argument, 0, BENCH_OPT_UDF_FUNCTION_VALUES},
+	{"ufv",                   required_argument, 0, BENCH_OPT_UDF_FUNCTION_VALUES},
 	{"object-spec",           required_argument, 0, 'o'},
 	{"random",                no_argument,       0, 'R'},
 	{"duration",              required_argument, 0, 't'},
 	{"workload",              required_argument, 0, 'w'},
-	{"workload-stages",       required_argument, 0, '.'},
-	{"read-bins",             required_argument, 0, '+'},
-	{"write-bins",            required_argument, 0, '-'},
+	{"workload-stages",       required_argument, 0, BENCH_OPT_WORKLOAD_STAGES},
+	{"read-bins",             required_argument, 0, BENCH_OPT_READ_BINS},
+	{"write-bins",            required_argument, 0, BENCH_OPT_WRITE_BINS},
 	{"threads",               required_argument, 0, 'z'},
 	{"throughput",            required_argument, 0, 'g'},
-	{"batch-size",            required_argument, 0, '0'},
-	{"compress",              no_argument,       0, '4'},
-	{"compression-ratio",     required_argument, 0, '5'},
-	{"socket-timeout",        required_argument, 0, '1'},
-	{"read-socket-timeout",   required_argument, 0, '2'},
-	{"write-socket-timeout",  required_argument, 0, '3'},
+	{"batch-size",            required_argument, 0, BENCH_OPT_BATCH_SIZE},
+	{"compress",              no_argument,       0, BENCH_OPT_COMPRESS},
+	{"compression-ratio",     required_argument, 0, BENCH_OPT_COMPRESSION_RATIO},
+	{"socket-timeout",        required_argument, 0, BENCH_OPT_SOCKET_TIMEOUT},
+	{"read-socket-timeout",   required_argument, 0, BENCH_OPT_READ_SOCKET_TIMEOUT},
+	{"write-socket-timeout",  required_argument, 0, BENCH_OPT_WRITE_SOCKET_TIMEOUT},
 	{"timeout",               required_argument, 0, 'T'},
 	{"read-timeout",          required_argument, 0, 'X'},
 	{"write-timeout",         required_argument, 0, 'V'},
 	{"max-retries",           required_argument, 0, 'r'},
 	{"debug",                 no_argument,       0, 'd'},
 	{"latency",               no_argument,       0, 'L'},
-	{"percentiles",           required_argument, 0, '8'},
-	{"output-file",           required_argument, 0, '6'},
-	{"output-period",         required_argument, 0, '7'},
-	{"hdr-hist",              required_argument, 0, '/'},
+	{"percentiles",           required_argument, 0, BENCH_OPT_PERCENTILES},
+	{"output-file",           required_argument, 0, BENCH_OPT_OUTPUT_FILE},
+	{"output-period",         required_argument, 0, BENCH_OPT_OUTPUT_PERIOD},
+	{"hdr-hist",              required_argument, 0, BENCH_OPT_HDR_HIST},
 	{"shared",                no_argument,       0, 'S'},
 	{"replica",               required_argument, 0, 'C'},
 	{"read-mode-ap",          required_argument, 0, 'N'},
@@ -136,26 +162,26 @@ static struct option long_options[] = {
 	{"tls-login-only",        no_argument,       0, TLS_OPT_LOGIN_ONLY},
 	{"auth",                  required_argument, 0, 'e'},
 
-	{"servicesAlternate",     no_argument,       0, WARN_MSG | '*'},
+	{"servicesAlternate",     no_argument,       0, WARN_MSG | BENCH_OPT_SERVICES_ALTERNATE},
 	{"startKey",              required_argument, 0, WARN_MSG | 'K'},
-	{"udfPackageName",        required_argument, 0, WARN_MSG | ':'},
-	{"udfFunctionName",       required_argument, 0, WARN_MSG | ';'},
-	{"udfFunctionValues",     required_argument, 0, WARN_MSG | '"'},
+	{"udfPackageName",        required_argument, 0, WARN_MSG | BENCH_OPT_UDF_PACKAGE_NAME},
+	{"udfFunctionName",       required_argument, 0, WARN_MSG | BENCH_OPT_UDF_FUNCTION_NAME},
+	{"udfFunctionValues",     required_argument, 0, WARN_MSG | BENCH_OPT_UDF_FUNCTION_VALUES},
 	{"objectSpec",            required_argument, 0, WARN_MSG | 'o'},
-	{"workloadStages",        required_argument, 0, WARN_MSG | '.'},
-	{"readBins",              required_argument, 0, WARN_MSG | '+'},
-	{"writeBins",             required_argument, 0, WARN_MSG | '-'},
-	{"batchSize",             required_argument, 0, WARN_MSG | '0'},
-	{"compressionRatio",      required_argument, 0, WARN_MSG | '5'},
-	{"socketTimeout",         required_argument, 0, WARN_MSG | '1'},
-	{"readSocketTimeout",     required_argument, 0, WARN_MSG | '2'},
-	{"writeSocketTimeout",    required_argument, 0, WARN_MSG | '3'},
+	{"workloadStages",        required_argument, 0, WARN_MSG | BENCH_OPT_WORKLOAD_STAGES},
+	{"readBins",              required_argument, 0, WARN_MSG | BENCH_OPT_READ_BINS},
+	{"writeBins",             required_argument, 0, WARN_MSG | BENCH_OPT_WRITE_BINS},
+	{"batchSize",             required_argument, 0, WARN_MSG | BENCH_OPT_BATCH_SIZE},
+	{"compressionRatio",      required_argument, 0, WARN_MSG | BENCH_OPT_COMPRESSION_RATIO},
+	{"socketTimeout",         required_argument, 0, WARN_MSG | BENCH_OPT_SOCKET_TIMEOUT},
+	{"readSocketTimeout",     required_argument, 0, WARN_MSG | BENCH_OPT_READ_SOCKET_TIMEOUT},
+	{"writeSocketTimeout",    required_argument, 0, WARN_MSG | BENCH_OPT_WRITE_SOCKET_TIMEOUT},
 	{"readTimeout",           required_argument, 0, WARN_MSG | 'X'},
 	{"writeTimeout",          required_argument, 0, WARN_MSG | 'V'},
 	{"maxRetries",            required_argument, 0, WARN_MSG | 'r'},
-	{"outputFile",            required_argument, 0, WARN_MSG | '6'},
-	{"outputPeriod",          required_argument, 0, WARN_MSG | '7'},
-	{"hdrHist",               required_argument, 0, WARN_MSG | '/'},
+	{"outputFile",            required_argument, 0, WARN_MSG | BENCH_OPT_OUTPUT_FILE},
+	{"outputPeriod",          required_argument, 0, WARN_MSG | BENCH_OPT_OUTPUT_PERIOD},
+	{"hdrHist",               required_argument, 0, WARN_MSG | BENCH_OPT_HDR_HIST},
 	{"readModeAP",            required_argument, 0, WARN_MSG | 'N'},
 	{"readModeSC",            required_argument, 0, WARN_MSG | 'B'},
 	{"commitLevel",           required_argument, 0, WARN_MSG | 'M'},
@@ -185,6 +211,7 @@ static struct option long_options[] = {
 // Forward declarations.
 //
 
+LOCAL_HELPER void print_version();
 LOCAL_HELPER void print_usage(const char* program);
 LOCAL_HELPER void print_args(args_t* args);
 LOCAL_HELPER int validate_args(args_t* args);
@@ -227,6 +254,12 @@ benchmark_init(int argc, char* argv[])
 //==========================================================
 // Local helpers.
 //
+
+LOCAL_HELPER void
+print_version()
+{
+	printf("asbench version 1.4.0\n");
+}
 
 LOCAL_HELPER void
 print_usage(const char* program)
@@ -919,14 +952,18 @@ set_args(int argc, char * const* argv, args_t* args)
 		}
 
 		switch (c & ~WARN_MSG) {
-			case '9':
+			case BENCH_OPT_VERSION:
+				print_version();
+				return -1;
+
+			case BENCH_OPT_HELP:
 				print_usage(argv[0]);
 				return -1;
-			case 'h': {
+
+			case 'h':
 				free(args->hosts);
 				args->hosts = strdup(optarg);
 				break;
-			}
 
 			case 'p':
 				args->port = atoi(optarg);
@@ -940,7 +977,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
 				break;
 
-			case '*':
+			case BENCH_OPT_SERVICES_ALTERNATE:
 				args->use_services_alternate = true;
 				break;
 
@@ -964,7 +1001,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->keys = strtoull(optarg, NULL, 10);
 				break;
 
-			case ':': {
+			case BENCH_OPT_UDF_PACKAGE_NAME: {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the udf package name flag\n");
@@ -983,7 +1020,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 			}
 
-			case ';': {
+			case BENCH_OPT_UDF_FUNCTION_NAME: {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the udf function name flag\n");
@@ -1002,7 +1039,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 			}
 
-			case '"': {
+			case BENCH_OPT_UDF_FUNCTION_VALUES: {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the udf function args flag\n");
@@ -1061,7 +1098,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 			}
 
-			case '.': {
+			case BENCH_OPT_WORKLOAD_STAGES: {
 				if (args->stage_defs.stages != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the workload flag\n");
@@ -1071,7 +1108,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 			}
 
-			case '+': {
+			case BENCH_OPT_READ_BINS: {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the read-bins flag\n");
@@ -1082,7 +1119,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 			}
 
-			case '-': {
+			case BENCH_OPT_WRITE_BINS: {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the write-bins flag\n");
@@ -1108,7 +1145,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 			}
 
-			case '0': {
+			case BENCH_OPT_BATCH_SIZE: {
 				if (args->workload_stages_file != NULL) {
 					fprintf(stderr, "Cannot specify both a workload stages "
 							"file and the workload flag\n");
@@ -1119,24 +1156,24 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 			}
 
-			case '4':
+			case BENCH_OPT_COMPRESS:
 				args->enable_compression = true;
 				break;
 
-			case '5':
+			case BENCH_OPT_COMPRESSION_RATIO:
 				args->compression_ratio = (float) atof(optarg);
 				break;
 
-			case '1':
+			case BENCH_OPT_SOCKET_TIMEOUT:
 				args->read_socket_timeout = atoi(optarg);
 				args->write_socket_timeout = args->read_socket_timeout;
 				break;
 
-			case '2':
+			case BENCH_OPT_READ_SOCKET_TIMEOUT:
 				args->read_socket_timeout = atoi(optarg);
 				break;
 
-			case '3':
+			case BENCH_OPT_WRITE_SOCKET_TIMEOUT:
 				args->write_socket_timeout = atoi(optarg);
 				break;
 
@@ -1165,7 +1202,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->latency = true;
 				break;
 
-			case '8':
+			case BENCH_OPT_PERCENTILES:
 				; // parse percentiles as a comma-separated list
 				as_vector * perc = &args->latency_percentiles;
 				as_vector_clear(perc);
@@ -1194,18 +1231,18 @@ set_args(int argc, char * const* argv, args_t* args)
 				free(_tmp);
 				break;
 
-			case '6':
+			case BENCH_OPT_OUTPUT_FILE:
 				args->latency_histogram = true;
 				if (strcmp(optarg, "stdout") != 0) {
 					args->histogram_output = strdup(optarg);
 				}
 				break;
 
-			case '7':
+			case BENCH_OPT_OUTPUT_PERIOD:
 				args->histogram_period = atoi(optarg);
 				break;
 
-			case '/':
+			case BENCH_OPT_HDR_HIST:
 				args->hdr_output = strdup(optarg);
 				break;
 
