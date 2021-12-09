@@ -628,9 +628,6 @@ print_args(args_t* args)
 	printf("debug:                  %s\n", boolstring(args->debug));
 
 	if (args->latency) {
-		printf("latency:                %d columns, shift exponent %d\n",
-				args->latency_columns, args->latency_shift);
-
 		printf("hdr histogram format:   UTC-time, seconds-running, total, "
 				"min-latency, max-latency, ");
 		for (uint32_t i = 0; i < args->latency_percentiles.size; i++) {
@@ -800,18 +797,6 @@ validate_args(args_t* args)
 	if (args->write_total_timeout < 0) {
 		printf("Invalid write total timeout: %d  Valid values: [>= 0]\n",
 				args->write_total_timeout);
-		return 1;
-	}
-
-	if (args->latency_columns < 0 || args->latency_columns > 16) {
-		printf("Invalid latency columns: %d  Valid values: [1-16]\n",
-				args->latency_columns);
-		return 1;
-	}
-
-	if (args->latency_shift < 0 || args->latency_shift > 5) {
-		printf("Invalid latency shift: %d  Valid values: [1-5]\n",
-				args->latency_shift);
 		return 1;
 	}
 
@@ -1428,8 +1413,6 @@ _load_defaults(args_t* args)
 	args->max_retries = 1;
 	args->debug = false;
 	args->latency = false;
-	args->latency_columns = 4;
-	args->latency_shift = 3;
 	as_vector_init(&args->latency_percentiles, sizeof(double), 5);
 	args->latency_histogram = false;
 	args->histogram_output = NULL;

@@ -61,3 +61,39 @@ def test_random_read_batch_async():
 			cnt += 1
 	assert(cnt == n_recs)
 
+def test_random_read_only():
+	lib.run_benchmark("--workload I --start-key 0 --keys 100")
+
+	recs = [lib.get_record(key) for key in range(0, 100)]
+
+	lib.run_benchmark("--duration 1 --workload RU,100 --start-key 0 --keys 100", do_reset=False)
+
+	# this should exactly match recs
+	recs2 = [lib.get_record(key) for key in range(0, 100)]
+
+	for rec1, rec2 in zip(recs, recs2):
+		(dig1, meta1, bins1) = rec1
+		(dig2, meta2, bins2) = rec2
+
+		assert(len(rec1) == len(rec2))
+		for bin_name in bins1:
+			assert(bins1[bin_name] == bins2[bin_name])
+
+def test_random_read_only_async():
+	lib.run_benchmark("--workload I --start-key 0 --keys 100 --async")
+
+	recs = [lib.get_record(key) for key in range(0, 100)]
+
+	lib.run_benchmark("--duration 1 --workload RU,100 --start-key 0 --keys 100 --async", do_reset=False)
+
+	# this should exactly match recs
+	recs2 = [lib.get_record(key) for key in range(0, 100)]
+
+	for rec1, rec2 in zip(recs, recs2):
+		(dig1, meta1, bins1) = rec1
+		(dig2, meta2, bins2) = rec2
+
+		assert(len(rec1) == len(rec2))
+		for bin_name in bins1:
+			assert(bins1[bin_name] == bins2[bin_name])
+
