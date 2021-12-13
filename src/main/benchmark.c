@@ -196,6 +196,8 @@ connect_to_server(args_t* args, aerospike* client)
 	}
 
 	as_config_set_user(&cfg, args->user, args->password);
+	cfg.rack_aware = (args->replica == AS_POLICY_REPLICA_PREFER_RACK);
+	cfg.rack_id = cfg.rack_aware ? args->rack_id : 0;
 	cfg.use_shm = args->use_shm;
 	cfg.conn_timeout_ms = 10000;
 	cfg.login_timeout_ms = 10000;

@@ -92,7 +92,8 @@ typedef enum {
 	BENCH_OPT_PERCENTILES,
 	BENCH_OPT_OUTPUT_FILE,
 	BENCH_OPT_OUTPUT_PERIOD,
-	BENCH_OPT_HDR_HIST
+	BENCH_OPT_HDR_HIST,
+	BENCH_OPT_RACK_ID
 } benchmark_opt;
 
 static struct option long_options[] = {
@@ -142,6 +143,7 @@ static struct option long_options[] = {
 	{"hdr-hist",              required_argument, 0, BENCH_OPT_HDR_HIST},
 	{"shared",                no_argument,       0, 'S'},
 	{"replica",               required_argument, 0, 'C'},
+	{"rack-id",               required_argument, 0, BENCH_OPT_RACK_ID},
 	{"read-mode-ap",          required_argument, 0, 'N'},
 	{"read-mode-sc",          required_argument, 0, 'B'},
 	{"commit-level",          required_argument, 0, 'M'},
@@ -537,8 +539,20 @@ print_usage(const char* program)
 	printf("   Use shared memory cluster tending.\n");
 	printf("\n");
 
-	printf("-C --replica {master,any,sequence} # Default: master\n");
+	printf("-C --replica {master,any,sequence,prefer-rack} # Default: master\n");
 	printf("   Which replica to use for reads.\n");
+	printf("     master: Always use node containing master partition.\n");
+	printf("     any: Distribute reads across master and proles in round-robin fashion.\n");
+	printf("     sequence: Always try master first. If master fails, try proles\n");
+	printf("       in sequence.\n");
+	printf("     preferRack: Always try node on the same rack as the benchmark first.\n");
+	printf("       If no nodes on the same rack, use sequence. This option requires\n");
+	printf("       rack-id to be set.\n");
+	printf("\n");
+
+	printf("   --rack-id <n>\n");
+	printf("   Which rack this instance of the asbench resides. Required with\n");
+	printf("   replica policy prefer-rack.\n");
 	printf("\n");
 
 	printf("-N --read-mode-ap {one,all} # Default: one\n");
@@ -724,6 +738,9 @@ print_args(args_t* args)
 		case AS_POLICY_REPLICA_SEQUENCE:
 			str = "sequence";
 			break;
+		case AS_POLICY_REPLICA_PREFER_RACK:
+			str = "prefer-rack";
+			break;
 		default:
 			str = "unknown";
 			break;
@@ -874,6 +891,16 @@ validate_args(args_t* args)
 	if ((args->latency_histogram || args->latency) &&
 			args->histogram_period <= 0) {
 		printf("Invalid histogram period: %ds\n", args->histogram_period);
+		return 1;
+	}
+
+	if (args->replica != AS_POLICY_REPLICA_PREFER_RACK && args->rack_id != -1) {
+		printf("Cannot specify rack-id unless replica policy is \"prefer-rack\"\n");
+		return 1;
+	}
+
+	if (args->replica == AS_POLICY_REPLICA_PREFER_RACK && args->rack_id == -1) {
+		printf("With replica policy \"prefer-rack\", must specify a rack-id\n");
 		return 1;
 	}
 
@@ -1276,10 +1303,17 @@ set_args(int argc, char * const* argv, args_t* args)
 				else if (strcmp(optarg, "sequence") == 0) {
 					args->replica = AS_POLICY_REPLICA_SEQUENCE;
 				}
+				else if (strcmp(optarg, "prefer-rack") == 0) {
+					args->replica = AS_POLICY_REPLICA_PREFER_RACK;
+				}
 				else {
-					printf("replica must be master | any | sequence\n");
+					printf("replica must be master | any | sequence | prefer-rack\n");
 					return 1;
 				}
+				break;
+
+			case BENCH_OPT_RACK_ID:
+				args->rack_id = atoi(optarg);
 				break;
 
 			case 'N':
@@ -1488,6 +1522,7 @@ _load_defaults(args_t* args)
 	args->hdr_output = NULL;
 	args->use_shm = false;
 	args->replica = AS_POLICY_REPLICA_SEQUENCE;
+	args->rack_id = -1;
 	args->read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;
 	args->read_mode_sc = AS_POLICY_READ_MODE_SC_SESSION;
 	args->write_commit_level = AS_POLICY_COMMIT_LEVEL_ALL;
