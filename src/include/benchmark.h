@@ -74,6 +74,7 @@ typedef struct args_s {
 	int histogram_period;
 	char* hdr_output;
 	bool use_shm;
+	as_policy_key key;
 	as_policy_replica replica;
 	int rack_id;
 	as_policy_read_mode_ap read_mode_ap;

@@ -93,7 +93,8 @@ typedef enum {
 	BENCH_OPT_OUTPUT_FILE,
 	BENCH_OPT_OUTPUT_PERIOD,
 	BENCH_OPT_HDR_HIST,
-	BENCH_OPT_RACK_ID
+	BENCH_OPT_RACK_ID,
+	BENCH_OPT_SEND_KEY
 } benchmark_opt;
 
 static struct option long_options[] = {
@@ -152,6 +153,7 @@ static struct option long_options[] = {
 	{"async",                 no_argument,       0, 'a'},
 	{"async-max-commands",    required_argument, 0, 'c'},
 	{"event-loops",           required_argument, 0, 'W'},
+	{"send-key",              no_argument,       0, BENCH_OPT_SEND_KEY},
 	{"tls-enable",            no_argument,       0, TLS_OPT_ENABLE},
 	{"tls-name",              required_argument, 0, TLS_OPT_NAME},
 	{"tls-cafile",            required_argument, 0, TLS_OPT_CA_FILE},
@@ -539,6 +541,10 @@ print_usage(const char* program)
 	printf("   Use shared memory cluster tending.\n");
 	printf("\n");
 
+	printf("   --send-key  # Default: false\n");
+	printf("   Enables the key policy AS_POLICY_KEY_SEND, which sends the key value in\n");
+	printf("   addition to the key digest.\n");
+
 	printf("-C --replica {master,any,sequence,prefer-rack} # Default: master\n");
 	printf("   Which replica to use for reads.\n");
 	printf("     master: Always use node containing master partition.\n");
@@ -726,6 +732,8 @@ print_args(args_t* args)
 	}
 
 	printf("shared memory:          %s\n", boolstring(args->use_shm));
+
+	printf("send-key:               %s\n", boolstring(args->key == AS_POLICY_KEY_SEND));
 
 	const char* str;
 	switch (args->replica) {
@@ -1389,6 +1397,10 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->event_loop_capacity = atoi(optarg);
 				break;
 
+			case BENCH_OPT_SEND_KEY:
+				args->key = AS_POLICY_KEY_SEND;
+				break;
+
 			case TLS_OPT_ENABLE:
 				args->tls.enable = true;
 				break;
@@ -1521,6 +1533,7 @@ _load_defaults(args_t* args)
 	args->histogram_period = 1;
 	args->hdr_output = NULL;
 	args->use_shm = false;
+	args->key = AS_POLICY_KEY_DIGEST;
 	args->replica = AS_POLICY_REPLICA_SEQUENCE;
 	args->rack_id = -1;
 	args->read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;

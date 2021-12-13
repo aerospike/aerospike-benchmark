@@ -217,6 +217,7 @@ connect_to_server(args_t* args, aerospike* client)
 	p->read.base.total_timeout = args->read_total_timeout;
 	p->read.base.max_retries = args->max_retries;
 	p->read.base.compress = args->enable_compression;
+	p->read.key = args->key;
 	p->read.replica = args->replica;
 	p->read.read_mode_ap = args->read_mode_ap;
 	p->read.read_mode_sc = args->read_mode_sc;
@@ -225,6 +226,7 @@ connect_to_server(args_t* args, aerospike* client)
 	p->write.base.total_timeout = args->write_total_timeout;
 	p->write.base.max_retries = args->max_retries;
 	p->write.base.compress = args->enable_compression;
+	p->write.key = args->key;
 	p->write.replica = args->replica;
 	p->write.commit_level = args->write_commit_level;
 	p->write.durable_delete = args->durable_deletes;
@@ -233,6 +235,7 @@ connect_to_server(args_t* args, aerospike* client)
 	p->operate.base.total_timeout = args->write_total_timeout;
 	p->operate.base.max_retries = args->max_retries;
 	p->operate.base.compress = args->enable_compression;
+	p->operate.key = args->key;
 	p->operate.replica = args->replica;
 	p->operate.commit_level = args->write_commit_level;
 	p->operate.durable_delete = args->durable_deletes;
@@ -243,6 +246,7 @@ connect_to_server(args_t* args, aerospike* client)
 	p->remove.base.total_timeout = args->write_total_timeout;
 	p->remove.base.max_retries = args->max_retries;
 	p->remove.base.compress = args->enable_compression;
+	p->remove.key = args->key;
 	p->remove.replica = args->replica;
 	p->remove.commit_level = args->write_commit_level;
 	p->remove.durable_delete = args->durable_deletes;
