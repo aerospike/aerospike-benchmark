@@ -19,5 +19,5 @@ else
 	. "${1}"/bin/activate
 fi
 
-pytest src/test/integration/test_ttl.py
+pytest src/test/integration/
 

@@ -183,7 +183,7 @@ _record_read(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_read_output != NULL) {
 		histogram_add(&cdata->read_histogram, dt_us);
 	}
-	as_incr_uint64(&cdata->read_count);
+	as_incr_uint64(&cdata->read_hit_count);
 }
 
 LOCAL_HELPER void
@@ -271,7 +271,7 @@ _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		end = cf_getus();
 	}
 
-	if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+	if (status == AEROSPIKE_OK) {
 		_record_read(cdata, end - start);
 		as_record_destroy(rec);
 		throttle(tdata, coord);
@@ -279,7 +279,10 @@ _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	// Handle error conditions.
-	if (status == AEROSPIKE_ERR_TIMEOUT) {
+	if (status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+		as_incr_uint64(&cdata->read_miss_count);
+	}
+	else if (status == AEROSPIKE_ERR_TIMEOUT) {
 		as_incr_uint64(&cdata->read_timeout_count);
 	}
 	else {

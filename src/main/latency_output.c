@@ -408,7 +408,8 @@ periodic_output_worker(void* udata)
 		uint64_t write_current = as_fas_uint64(&cdata->write_count, 0);
 		uint64_t write_timeout_current = as_fas_uint64(&cdata->write_timeout_count, 0);
 		uint64_t write_error_current = as_fas_uint64(&cdata->write_error_count, 0);
-		uint64_t read_current = as_fas_uint64(&cdata->read_count, 0);
+		uint64_t read_hit_current = as_fas_uint64(&cdata->read_hit_count, 0);
+		uint64_t read_miss_current = as_fas_uint64(&cdata->read_miss_count, 0);
 		uint64_t read_timeout_current = as_fas_uint64(&cdata->read_timeout_count, 0);
 		uint64_t read_error_current = as_fas_uint64(&cdata->read_error_count, 0);
 		uint64_t udf_current = as_fas_uint64(&cdata->udf_count, 0);
@@ -418,28 +419,38 @@ periodic_output_worker(void* udata)
 		cdata->period_begin = time;
 
 		uint64_t write_tps = (uint64_t)((double)write_current * 1000000 / elapsed + 0.5);
-		uint64_t read_tps = (uint64_t)((double)read_current * 1000000 / elapsed + 0.5);
+		uint64_t read_hit_tps = (uint64_t)((double)read_hit_current * 1000000 / elapsed + 0.5);
+		uint64_t read_miss_tps = (uint64_t)((double)read_miss_current * 1000000 / elapsed + 0.5);
 		uint64_t udf_tps = (uint64_t)((double)udf_current * 1000000 / elapsed + 0.5);
 
-		bool any_records = write_current + write_timeout_current + write_error_current +
-			read_current + read_timeout_current + read_error_current +
-			udf_current + udf_timeout_current + udf_error_current != 0;
+		bool any_records = write_current + write_timeout_current +
+			write_error_current + read_hit_current + read_miss_current +
+			read_timeout_current + read_error_current + udf_current +
+			udf_timeout_current + udf_error_current != 0;
 		if (any_records) {
 			blog_info("");
 			if (has_writes) {
-				printf("write(tps=%" PRId64 " timeouts=%" PRId64 " errors=%" PRId64 ") ",
-						write_tps, write_timeout_current, write_error_current);
+				printf("write(tps=%" PRId64 " (hit=%" PRId64 " miss=%lu) "
+						"timeouts=%" PRId64 " errors=%" PRId64 ") ",
+						write_tps, write_tps, 0lu,
+						write_timeout_current, write_error_current);
 			}
 			if (has_reads) {
-				printf("read(tps=%" PRId64 " timeouts=%" PRId64 " errors=%" PRId64 ") ",
-						read_tps, read_timeout_current, read_error_current);
+				printf("read(tps=%" PRId64 " (hit=%" PRId64 " miss=%" PRId64 ") "
+						"timeouts=%" PRId64 " errors=%" PRId64 ") ",
+						read_hit_tps + read_miss_tps, read_hit_tps, read_miss_tps,
+						read_timeout_current, read_error_current);
 			}
 			if (has_udfs) {
-				printf("udf(tps=%" PRId64 " timeouts=%" PRId64 " errors=%" PRId64 ") ",
-						udf_tps, udf_timeout_current, udf_error_current);
+				printf("udf(tps=%" PRId64 " (hit=%" PRId64 " miss=%lu) "
+						"timeouts=%" PRId64 " errors=%" PRId64 ") ",
+						udf_tps, udf_tps, 0lu,
+						udf_timeout_current, udf_error_current);
 			}
-			printf("total(tps=%" PRId64 " timeouts=%" PRId64 " errors=%" PRId64 ")\n",
-					write_tps + read_tps + udf_tps,
+			printf("total(tps=%" PRId64 " (hit=%" PRId64 " miss=%" PRId64 ") "
+					"timeouts=%" PRId64 " errors=%" PRId64 ")\n",
+					write_tps + read_hit_tps + read_miss_tps + udf_tps,
+					write_tps + read_hit_tps + udf_tps, read_miss_tps,
 					write_timeout_current + read_timeout_current + udf_timeout_current,
 					write_error_current + read_error_current + udf_error_current);
 		}

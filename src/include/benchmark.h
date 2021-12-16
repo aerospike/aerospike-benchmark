@@ -100,7 +100,8 @@ typedef struct clientdata_s {
 	aerospike client;
 
 	// TODO make all these counts thread-local to reduce contention
-	uint64_t read_count;
+	uint64_t read_hit_count;
+	uint64_t read_miss_count;
 	uint64_t read_timeout_count;
 	uint64_t read_error_count;
 
