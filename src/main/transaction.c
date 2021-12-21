@@ -96,6 +96,8 @@ LOCAL_HELPER void random_write(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void random_udf(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_delete(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
 
 // Synchronous workload methods
 LOCAL_HELPER void linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
@@ -106,6 +108,8 @@ LOCAL_HELPER void random_read_write_udf(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage);
+LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
 
 // Asynchronous workload helper methods
 LOCAL_HELPER void random_read_async(tdata_t* tdata, cdata_t* cdata,
@@ -113,6 +117,8 @@ LOCAL_HELPER void random_read_async(tdata_t* tdata, cdata_t* cdata,
 LOCAL_HELPER void random_write_async(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
 LOCAL_HELPER void random_udf_async(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
+LOCAL_HELPER void random_delete_async(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
 
 // Asynchronous workload methods
@@ -129,11 +135,13 @@ LOCAL_HELPER void _async_val_listener(as_error* err, as_val* val, void* udata,
 LOCAL_HELPER struct async_data_s* queue_pop_wait(queue_t* adata_q);
 LOCAL_HELPER void linear_writes_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
-LOCAL_HELPER void rand_read_write_async(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void random_read_write_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
-LOCAL_HELPER void rand_read_write_udf_async(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 LOCAL_HELPER void linear_deletes_async(tdata_t* tdata, cdata_t* cdata,
+	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
+LOCAL_HELPER void random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 
 // Main worker thread loop
@@ -676,6 +684,27 @@ random_udf(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	as_key_destroy(&key);
 }
 
+LOCAL_HELPER void
+random_delete(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	as_key key;
+	as_record* rec;
+
+	// generate a random key
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+	_gen_key(key_val, &key, cdata);
+
+	// create a record
+	rec = _gen_nil_record(tdata);
+
+	// write this record to the database
+	_write_record_sync(tdata, cdata, coord, &key, rec);
+
+	_destroy_record(rec, stage);
+	as_key_destroy(&key);
+}
+
 
 /******************************************************************************
  * Synchronous workload methods
@@ -826,6 +855,41 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	thr_coordinator_complete(coord);
 }
 
+LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage)
+{
+	// multiply pct by 2**24 before dividing by 100 and casting to an int,
+	// since floats have 24 bits of precision including the leading 1,
+	// so that read_pct is pct% between 0 and 2**24
+	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
+	uint32_t write_pct = (uint32_t) ((0x01000000 * stage->workload.write_pct) / 100);
+
+	// store the cumulative probability in write_pct
+	write_pct = read_pct + write_pct;
+
+	// since there is no specific target number of transactions required before
+	// the stage is finished, only a timeout, tell the coordinator we are ready
+	// to finish as soon as the timer runs out
+	thr_coordinator_complete(coord);
+
+	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+		// roll the die
+		uint32_t die = as_random_next_uint32(tdata->random);
+		// floats have 24 bits of precision (including implicit leading 1)
+		die &= 0x00ffffff;
+
+		if (die < read_pct) {
+			random_read(tdata, cdata, coord, stage);
+		}
+		else if (die < write_pct) {
+			random_write(tdata, cdata, coord, stage);
+		}
+		else {
+			random_delete(tdata, cdata, coord, stage);
+		}
+	}
+}
+
 /******************************************************************************
  * Asynchronous workload helper methods
  *****************************************************************************/
@@ -895,6 +959,24 @@ random_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	adata->op = udf;
 
 	_apply_udf_async(&adata->key, adata, tdata, cdata, stage);
+}
+
+LOCAL_HELPER void
+random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, struct async_data_s* adata)
+{
+	as_record* rec;
+
+	// generate a random key
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+
+	_gen_key(key_val, &adata->key, cdata);
+	rec = _gen_nil_record(tdata);
+	adata->op = write;
+
+	_write_record_async(&adata->key, rec, adata, cdata);
+
+	_destroy_record(rec, stage);
 }
 
 
@@ -1066,7 +1148,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 }
 
 LOCAL_HELPER void
-rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+random_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, queue_t* adata_q)
 {
 	struct async_data_s* adata;
@@ -1112,7 +1194,7 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 }
 
 LOCAL_HELPER void
-rand_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, queue_t* adata_q)
 {
 	struct async_data_s* adata;
@@ -1207,6 +1289,59 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	thr_coordinator_complete(coord);
 }
 
+LOCAL_HELPER void
+random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, queue_t* adata_q)
+{
+	struct async_data_s* adata;
+
+	struct timespec wake_time;
+	uint64_t start_time;
+
+	// multiply pct by 2**24 before dividing by 100 and casting to an int,
+	// since floats have 24 bits of precision including the leading 1,
+	// so that read_pct is pct% between 0 and 2**24
+	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
+	uint32_t write_pct = (uint32_t) ((0x01000000 * stage->workload.write_pct) / 100);
+
+	// store the cumulative probability in write_pct
+	write_pct = read_pct + write_pct;
+
+	// since this workload has no target number of transactions to be made, we
+	// are always ready to be reaped, and so we notify the coordinator that we
+	// are finished with our required tasks and can be stopped whenever
+	thr_coordinator_complete(coord);
+
+	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+
+		adata = queue_pop_wait(adata_q);
+
+		clock_gettime(COORD_CLOCK, &wake_time);
+		start_time = timespec_to_us(&wake_time);
+		adata->start_time = start_time;
+
+		// roll the die
+		uint32_t die = as_random_next_uint32(tdata->random);
+		// floats have 24 bits of precision (including implicit leading 1)
+		die &= 0x00ffffff;
+
+		if (die < read_pct) {
+			random_read_async(tdata, cdata, coord, stage, adata);
+		}
+		else if (die < write_pct) {
+			random_write_async(tdata, cdata, coord, stage, adata);
+		}
+		else {
+			random_delete_async(tdata, cdata, coord, stage, adata);
+		}
+
+		uint64_t pause_for =
+			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
+		timespec_add_us(&wake_time, pause_for);
+		thr_coordinator_sleep(coord, &wake_time);
+	}
+}
+
 
 /******************************************************************************
  * Main worker thread loop
@@ -1217,17 +1352,20 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
 {
 	switch (stage->workload.type) {
-		case WORKLOAD_TYPE_LINEAR:
+		case WORKLOAD_TYPE_I:
 			linear_writes(tdata, cdata, coord, stage);
 			break;
-		case WORKLOAD_TYPE_RANDOM:
+		case WORKLOAD_TYPE_RU:
 			random_read_write(tdata, cdata, coord, stage);
 			break;
-		case WORKLOAD_TYPE_RANDOM_UDF:
+		case WORKLOAD_TYPE_RUF:
 			random_read_write_udf(tdata, cdata, coord, stage);
 			break;
-		case WORKLOAD_TYPE_DELETE:
+		case WORKLOAD_TYPE_D:
 			linear_deletes(tdata, cdata, coord, stage);
+			break;
+		case WORKLOAD_TYPE_RUD:
+			random_read_write_delete(tdata, cdata, coord, stage);
 			break;
 	}
 }
@@ -1265,17 +1403,20 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	switch (stage->workload.type) {
-		case WORKLOAD_TYPE_LINEAR:
+		case WORKLOAD_TYPE_I:
 			linear_writes_async(tdata, cdata, coord, stage, &adata_q);
 			break;
-		case WORKLOAD_TYPE_RANDOM:
-			rand_read_write_async(tdata, cdata, coord, stage, &adata_q);
+		case WORKLOAD_TYPE_RU:
+			random_read_write_async(tdata, cdata, coord, stage, &adata_q);
 			break;
-		case WORKLOAD_TYPE_RANDOM_UDF:
-			rand_read_write_udf_async(tdata, cdata, coord, stage, &adata_q);
+		case WORKLOAD_TYPE_RUF:
+			random_read_write_udf_async(tdata, cdata, coord, stage, &adata_q);
 			break;
-		case WORKLOAD_TYPE_DELETE:
+		case WORKLOAD_TYPE_D:
 			linear_deletes_async(tdata, cdata, coord, stage, &adata_q);
+			break;
+		case WORKLOAD_TYPE_RUD:
+			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
 			break;
 	}
 
@@ -1312,7 +1453,7 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 			stage->n_write_bins;
 		as_record_init(&tdata->fixed_value, n_bins);
 
-		if (stage->workload.type == WORKLOAD_TYPE_DELETE) {
+		if (stage->workload.type == WORKLOAD_TYPE_D) {
 			if (stage->write_bins == NULL) {
 				for (uint32_t i = 0; i < n_bins; i++) {
 					as_bin_name bin_name;
