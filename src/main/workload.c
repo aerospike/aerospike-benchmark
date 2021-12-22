@@ -115,9 +115,12 @@ static const cyaml_config_t config = {
 /*
  * parses workload percentage distributions for workload with 3 stages (two
  * percentages given)
+ *
+ * pct_vec is a float vector that will have the percentages parsed from the list
+ * given in pct_str appended to it.
  */
 LOCAL_HELPER int
-_parse_workload_distr2(const char* pct_str, float* pct1_ptr, float* pct2_ptr);
+_parse_workload_distr(const char* pct_str, as_vector* pct_vec);
 
 /*
  * reads and parses bins_str, a comma-separated list of bin numbers
@@ -146,8 +149,6 @@ LOCAL_HELPER void _free_bins_selection(char** bins);
 int
 parse_workload_type(workload_t* workload, const char* workload_str)
 {
-	char* endptr;
-
 	if (strcmp(workload_str, "I") == 0) {
 		workload->type = WORKLOAD_TYPE_I;
 	}
@@ -158,7 +159,27 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 			write_pct = WORKLOAD_RUF_DEFAULT_WRITE_PCT;
 		}
 		else if (workload_str[3] == ',') {
-			if (_parse_workload_distr2(workload_str + 4, &read_pct, &write_pct) < 0) {
+			as_vector pct_vec;
+			as_vector_init(&pct_vec, sizeof(float), 2);
+			if (_parse_workload_distr(workload_str + 4, &pct_vec) < 0) {
+				as_vector_destroy(&pct_vec);
+				return -1;
+			}
+			if (pct_vec.size != 2) {
+				fprintf(stderr, "Expected 2 percentages to follow RUF, but found %d\n",
+						pct_vec.size);
+				as_vector_destroy(&pct_vec);
+				return -1;
+			}
+
+			read_pct = *(float*) as_vector_get(&pct_vec, 0);
+			write_pct = *(float*) as_vector_get(&pct_vec, 1);
+			as_vector_destroy(&pct_vec);
+
+			if (read_pct + write_pct >= 100) {
+				fprintf(stderr, "read percent and write percent together total "
+						">= 100%% (%g + %g = %g)\n",
+						read_pct, write_pct, read_pct + write_pct);
 				return -1;
 			}
 		}
@@ -178,7 +199,27 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 			write_pct = WORKLOAD_RUD_DEFAULT_WRITE_PCT;
 		}
 		else if (workload_str[3] == ',') {
-			if (_parse_workload_distr2(workload_str + 4, &read_pct, &write_pct) < 0) {
+			as_vector pct_vec;
+			as_vector_init(&pct_vec, sizeof(float), 2);
+			if (_parse_workload_distr(workload_str + 4, &pct_vec) < 0) {
+				as_vector_destroy(&pct_vec);
+				return -1;
+			}
+			if (pct_vec.size != 2) {
+				fprintf(stderr, "Expected 2 percentages to follow RUD, but found %d\n",
+						pct_vec.size);
+				as_vector_destroy(&pct_vec);
+				return -1;
+			}
+
+			read_pct = *(float*) as_vector_get(&pct_vec, 0);
+			write_pct = *(float*) as_vector_get(&pct_vec, 1);
+			as_vector_destroy(&pct_vec);
+
+			if (read_pct + write_pct >= 100) {
+				fprintf(stderr, "read percent and write percent together total "
+						">= 100%% (%g + %g = %g)\n",
+						read_pct, write_pct, read_pct + write_pct);
 				return -1;
 			}
 		}
@@ -197,16 +238,20 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 			pct = WORKLOAD_RU_DEFAULT_PCT;
 		}
 		else if (workload_str[2] == ',') {
-			pct = strtod(workload_str + 3, &endptr);
-			if (workload_str[3] == '\0' || *endptr != '\0') {
-				fprintf(stderr, "\"%s\" not a floating point number\n",
-						workload_str + 3);
+			as_vector pct_vec;
+			as_vector_init(&pct_vec, sizeof(float), 2);
+			if (_parse_workload_distr(workload_str + 3, &pct_vec) < 0) {
+				as_vector_destroy(&pct_vec);
 				return -1;
 			}
-			if (pct < 0 || pct > 100) {
-				fprintf(stderr, "%f not a valid percentage value\n", pct);
+			if (pct_vec.size != 1) {
+				fprintf(stderr, "Expected 1 percentage to follow RU, but found %d\n",
+						pct_vec.size);
+				as_vector_destroy(&pct_vec);
 				return -1;
 			}
+
+			pct = *(float*) as_vector_get(&pct_vec, 0);
 		}
 		else {
 			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
@@ -621,49 +666,35 @@ void stages_print(const stages_t* stages)
 //
 
 LOCAL_HELPER int
-_parse_workload_distr2(const char* pct_str, float* pct1_ptr, float* pct2_ptr)
+_parse_workload_distr(const char* pct_str, as_vector* pct_vec)
 {
-	char* endptr;
-	char* endptr2;
-	float pct1, pct2;
+	const char* str = pct_str;
 
-	if (pct_str[0] == '\0') {
-		fprintf(stderr, "Expect a floating point number after "
-				"\"<workload_type>,\"\n");
-		return -1;
-	}
+	while (*str != '\0') {
 
-	pct1 = strtod(pct_str, &endptr);
-	if (*endptr != ',') {
-		fprintf(stderr, "must supply both read percent and update "
-				"percent on RUF/RUD workload\n");
-		return -1;
-	}
+		char* endptr;
+		float pct = strtod(str, &endptr);
+		if (endptr == str) {
+			fprintf(stderr, "Expected floating point number in percentage list "
+					"\"%s\"\n",
+					pct_str);
+			return -1;
+		}
 
-	pct2 = strtod(endptr + 1, &endptr2);
-	if (*endptr == '\0' || *endptr2 != '\0') {
-		fprintf(stderr, "\"%s\" not a floating point number\n",
-				endptr + 1);
-		return -1;
-	}
+		if (pct < 0 || pct > 100) {
+			fprintf(stderr, "Percentage value \"%f\" must be between 0 and 100\n",
+					pct);
+			return -1;
+		}
+		as_vector_append(pct_vec, &pct);
 
-	if (pct1 < 0 || pct1 > 100) {
-		fprintf(stderr, "%f not a valid percentage value\n", pct1);
-		return -1;
-	}
-	if (pct2 < 0 || pct2 > 100) {
-		fprintf(stderr, "%f not a valid percentage value\n", pct2);
-		return -1;
-	}
-	if (pct1 + pct2 >= 100) {
-		fprintf(stderr, "read percent and write percent together total "
-				">= 100%% (%g + %g = %g)\n",
-				pct1, pct2, pct1 + pct2);
-		return -1;
+		if (*str != ',' && *str != '\0') {
+			fprintf(stderr, "Expected ',' in percentage list \"%s\"\n",
+					pct_str);
+			return -1;
+		}
 	}
 
-	*pct1_ptr = pct1;
-	*pct2_ptr = pct2;
 	return 0;
 }
 
