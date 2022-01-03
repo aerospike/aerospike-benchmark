@@ -153,7 +153,11 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->type = WORKLOAD_TYPE_I;
 	}
 	else if (strncmp(workload_str, "RUF", 3) == 0) {
-		float read_pct, write_pct;
+		float read_pct;
+		float write_pct;
+		float read_all_pct = WORKLOAD_RUF_DEFAULT_READ_ALL_PCT;
+		float write_all_pct = WORKLOAD_RUF_DEFAULT_WRITE_ALL_PCT;
+
 		if (workload_str[3] == '\0') {
 			read_pct = WORKLOAD_RUF_DEFAULT_READ_PCT;
 			write_pct = WORKLOAD_RUF_DEFAULT_WRITE_PCT;
@@ -165,15 +169,21 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 				as_vector_destroy(&pct_vec);
 				return -1;
 			}
-			if (pct_vec.size != 2) {
-				fprintf(stderr, "Expected 2 percentages to follow RUF, but found %d\n",
-						pct_vec.size);
+			if (pct_vec.size < 2 || pct_vec.size > 4) {
+				fprintf(stderr, "Expected 2-4 percentages to follow RUF, but "
+						"found %d\n", pct_vec.size);
 				as_vector_destroy(&pct_vec);
 				return -1;
 			}
 
 			read_pct = *(float*) as_vector_get(&pct_vec, 0);
 			write_pct = *(float*) as_vector_get(&pct_vec, 1);
+			if (pct_vec.size >= 3) {
+				read_all_pct = *(float*) as_vector_get(&pct_vec, 2);
+			}
+			if (pct_vec.size >= 4) {
+				write_all_pct = *(float*) as_vector_get(&pct_vec, 3);
+			}
 			as_vector_destroy(&pct_vec);
 
 			if (read_pct + write_pct >= 100) {
@@ -191,9 +201,15 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->type = WORKLOAD_TYPE_RUF;
 		workload->read_pct = read_pct;
 		workload->write_pct = write_pct;
+		workload->read_all_pct = read_all_pct;
+		workload->write_all_pct = write_all_pct;
 	}
 	else if (strncmp(workload_str, "RUD", 3) == 0) {
-		float read_pct, write_pct;
+		float read_pct;
+		float write_pct;
+		float read_all_pct = WORKLOAD_RUD_DEFAULT_READ_ALL_PCT;
+		float write_all_pct = WORKLOAD_RUD_DEFAULT_WRITE_ALL_PCT;
+
 		if (workload_str[3] == '\0') {
 			read_pct = WORKLOAD_RUD_DEFAULT_READ_PCT;
 			write_pct = WORKLOAD_RUD_DEFAULT_WRITE_PCT;
@@ -205,15 +221,21 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 				as_vector_destroy(&pct_vec);
 				return -1;
 			}
-			if (pct_vec.size != 2) {
-				fprintf(stderr, "Expected 2 percentages to follow RUD, but found %d\n",
-						pct_vec.size);
+			if (pct_vec.size < 2 || pct_vec.size > 4) {
+				fprintf(stderr, "Expected 2-4 percentages to follow RUD, but "
+						"found %d\n", pct_vec.size);
 				as_vector_destroy(&pct_vec);
 				return -1;
 			}
 
 			read_pct = *(float*) as_vector_get(&pct_vec, 0);
 			write_pct = *(float*) as_vector_get(&pct_vec, 1);
+			if (pct_vec.size >= 3) {
+				read_all_pct = *(float*) as_vector_get(&pct_vec, 2);
+			}
+			if (pct_vec.size >= 4) {
+				write_all_pct = *(float*) as_vector_get(&pct_vec, 3);
+			}
 			as_vector_destroy(&pct_vec);
 
 			if (read_pct + write_pct >= 100) {
@@ -231,10 +253,15 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->type = WORKLOAD_TYPE_RUD;
 		workload->read_pct = read_pct;
 		workload->write_pct = write_pct;
+		workload->read_all_pct = read_all_pct;
+		workload->write_all_pct = write_all_pct;
 	}
 	else if (strncmp(workload_str, "RU", 2) == 0 ||
 			strncmp(workload_str, "RR", 2) == 0) {
 		float pct;
+		float read_all_pct = WORKLOAD_RU_DEFAULT_READ_ALL_PCT;
+		float write_all_pct = WORKLOAD_RU_DEFAULT_WRITE_ALL_PCT;
+
 		if (workload_str[2] == '\0') {
 			pct = WORKLOAD_RU_DEFAULT_PCT;
 		}
@@ -245,14 +272,21 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 				as_vector_destroy(&pct_vec);
 				return -1;
 			}
-			if (pct_vec.size != 1) {
-				fprintf(stderr, "Expected 1 percentage to follow RU, but found %d\n",
-						pct_vec.size);
+			if (pct_vec.size < 1 || pct_vec.size > 3) {
+				fprintf(stderr, "Expected 1-3 percentage to follow RU, but "
+						"found %d\n", pct_vec.size);
 				as_vector_destroy(&pct_vec);
 				return -1;
 			}
 
 			pct = *(float*) as_vector_get(&pct_vec, 0);
+			if (pct_vec.size >= 2) {
+				read_all_pct = *(float*) as_vector_get(&pct_vec, 1);
+			}
+			if (pct_vec.size >= 3) {
+				write_all_pct = *(float*) as_vector_get(&pct_vec, 2);
+			}
+			as_vector_destroy(&pct_vec);
 		}
 		else {
 			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
@@ -266,6 +300,8 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 			workload->type = WORKLOAD_TYPE_RR;
 		}
 		workload->read_pct = pct;
+		workload->read_all_pct = read_all_pct;
+		workload->write_all_pct = write_all_pct;
 	}
 	else if (strcmp(workload_str, "DB") == 0) {
 		workload->type = WORKLOAD_TYPE_D;
@@ -607,11 +643,14 @@ void stages_print(const stages_t* stages)
 				workloads[stage->workload.type]);
 		if (stage->workload.type == WORKLOAD_TYPE_RU ||
 				stage->workload.type == WORKLOAD_TYPE_RR) {
-			printf(",%g%%\n", stage->workload.read_pct);
+			printf(",%g%%,%g%%,%g%%\n", stage->workload.read_pct,
+					stage->workload.read_all_pct, stage->workload.write_all_pct);
 		}
 		else if (stage->workload.type == WORKLOAD_TYPE_RUF ||
 				stage->workload.type == WORKLOAD_TYPE_RUD) {
-			printf(",%g%%,%g%%\n", stage->workload.read_pct, stage->workload.write_pct);
+			printf(",%g%%,%g%%,%g%%,%g%%\n", stage->workload.read_pct,
+					stage->workload.write_pct, stage->workload.read_all_pct,
+					stage->workload.write_all_pct);
 		}
 		else {
 			printf("\n");
@@ -697,7 +736,11 @@ _parse_workload_distr(const char* pct_str, as_vector* pct_vec)
 		}
 		as_vector_append(pct_vec, &pct);
 
-		if (*str != ',' && *str != '\0') {
+		str = endptr;
+		if (*str == ',') {
+			str++;
+		}
+		else if (*str != '\0') {
 			fprintf(stderr, "Expected ',' in percentage list \"%s\"\n",
 					pct_str);
 			return -1;

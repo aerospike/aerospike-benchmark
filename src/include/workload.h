@@ -43,12 +43,18 @@ typedef enum {
 } workload_type_t;
 
 #define WORKLOAD_RU_DEFAULT_PCT 50.f
+#define WORKLOAD_RU_DEFAULT_READ_ALL_PCT 100.f
+#define WORKLOAD_RU_DEFAULT_WRITE_ALL_PCT 100.f
 
 #define WORKLOAD_RUF_DEFAULT_READ_PCT 40.f
 #define WORKLOAD_RUF_DEFAULT_WRITE_PCT 40.f
+#define WORKLOAD_RUF_DEFAULT_READ_ALL_PCT 100.f
+#define WORKLOAD_RUF_DEFAULT_WRITE_ALL_PCT 100.f
 
 #define WORKLOAD_RUD_DEFAULT_READ_PCT 40.f
 #define WORKLOAD_RUD_DEFAULT_WRITE_PCT 40.f
+#define WORKLOAD_RUD_DEFAULT_READ_ALL_PCT 100.f
+#define WORKLOAD_RUD_DEFAULT_WRITE_ALL_PCT 100.f
 
 // the default number of seconds an infinite workload will run if not specified
 #define DEFAULT_RANDOM_DURATION 10
@@ -68,6 +74,14 @@ typedef struct workload_s {
 	 */
 	float read_pct;
 	float write_pct;
+
+	/*
+	 * these are the percent read all bins/percent all write bins values. The
+	 * remaining reads/writes will only read/write the first bin of the record
+	 * (or the bins specified with read-bins/write-bins, if those are given)
+	 */
+	float read_all_pct;
+	float write_all_pct;
 } workload_t;
 
 
