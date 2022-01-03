@@ -71,11 +71,11 @@ LOCAL_HELPER int _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* co
 
 // Read/Write singular/batch asynchronous operations
 LOCAL_HELPER int _write_record_async(as_key* key, as_record* rec,
-		struct async_data_s* adata, cdata_t* cdata);
+		struct async_data_s* adata, tdata_t* tdata, cdata_t* cdata);
 LOCAL_HELPER int _read_record_async(as_key* key, struct async_data_s* adata,
-		cdata_t* cdata, const stage_t* stage);
+		tdata_t* tdata, cdata_t* cdata, const stage_t* stage);
 LOCAL_HELPER int _batch_read_record_async(as_batch_read_records* keys,
-		struct async_data_s* adata, cdata_t* cdata);
+		struct async_data_s* adata, tdata_t* tdata, cdata_t* cdata);
 LOCAL_HELPER int _apply_udf_async(as_key* key, struct async_data_s* adata,
 		tdata_t* tdata, cdata_t* cdata, const stage_t* stage);
 
@@ -247,7 +247,7 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	as_error err;
 
 	uint64_t start = cf_getus();
-	status = aerospike_key_put(&cdata->client, &err, NULL, key, rec);
+	status = aerospike_key_put(&cdata->client, &err, &tdata->write_policy, key, rec);
 	uint64_t end = cf_getus();
 
 	if (status == AEROSPIKE_OK) {
@@ -285,13 +285,14 @@ _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	uint64_t start, end;
 	if (stage->read_bins) {
 		start = cf_getus();
-		status = aerospike_key_select(&cdata->client, &err, NULL, key,
-				(const char**) stage->read_bins, &rec);
+		status = aerospike_key_select(&cdata->client, &err, &tdata->read_policy,
+				key, (const char**) stage->read_bins, &rec);
 		end = cf_getus();
 	}
 	else {
 		start = cf_getus();
-		status = aerospike_key_get(&cdata->client, &err, NULL, key, &rec);
+		status = aerospike_key_get(&cdata->client, &err, &tdata->read_policy,
+				key, &rec);
 		end = cf_getus();
 	}
 
@@ -333,7 +334,8 @@ _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 	as_error err;
 
 	uint64_t start = cf_getus();
-	status = aerospike_batch_read(&cdata->client, &err, NULL, records);
+	status = aerospike_batch_read(&cdata->client, &err, &tdata->batch_policy,
+			records);
 	uint64_t end = cf_getus();
 
 	if (status == AEROSPIKE_OK) {
@@ -381,7 +383,7 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	start = cf_getus();
-	status = aerospike_key_apply(&cdata->client, &err, NULL, key,
+	status = aerospike_key_apply(&cdata->client, &err, &tdata->apply_policy, key,
 			stage->udf_package_name, stage->udf_fn_name, args, &val);
 	end = cf_getus();
 
@@ -425,14 +427,14 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER int
 _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
-		cdata_t* cdata)
+		tdata_t* tdata, cdata_t* cdata)
 {
 	as_status status;
 	as_error err;
 
 	adata->start_time = cf_getus();
-	status = aerospike_key_put_async(&cdata->client, &err, NULL, key, rec,
-			_async_write_listener, adata, adata->ev_loop, NULL);
+	status = aerospike_key_put_async(&cdata->client, &err, &tdata->write_policy,
+			key, rec, _async_write_listener, adata, adata->ev_loop, NULL);
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
@@ -443,22 +445,23 @@ _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
 }
 
 LOCAL_HELPER int
-_read_record_async(as_key* key, struct async_data_s* adata, cdata_t* cdata,
-		const stage_t* stage)
+_read_record_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
+		cdata_t* cdata, const stage_t* stage)
 {
 	as_status status;
 	as_error err;
 
 	if (stage->read_bins) {
 		adata->start_time = cf_getus();
-		status = aerospike_key_select_async(&cdata->client, &err, 0, key,
-				(const char**) stage->read_bins, _async_read_listener, adata,
-				adata->ev_loop, NULL);
+		status = aerospike_key_select_async(&cdata->client, &err,
+				&tdata->read_policy, key, (const char**) stage->read_bins,
+				_async_read_listener, adata, adata->ev_loop, NULL);
 	}
 	else {
 		adata->start_time = cf_getus();
-		status = aerospike_key_get_async(&cdata->client, &err, 0, key,
-				_async_read_listener, adata, adata->ev_loop, NULL);
+		status = aerospike_key_get_async(&cdata->client, &err,
+				&tdata->read_policy, key, _async_read_listener, adata,
+				adata->ev_loop, NULL);
 	}
 
 	if (status != AEROSPIKE_OK) {
@@ -471,14 +474,15 @@ _read_record_async(as_key* key, struct async_data_s* adata, cdata_t* cdata,
 
 LOCAL_HELPER int
 _batch_read_record_async(as_batch_read_records* keys, struct async_data_s* adata,
-		cdata_t* cdata)
+		tdata_t* tdata, cdata_t* cdata)
 {
 	as_status status;
 	as_error err;
 
 	adata->start_time = cf_getus();
-	status = aerospike_batch_read_async(&cdata->client, &err, 0, keys,
-			_async_batch_read_listener, adata, adata->ev_loop);
+	status = aerospike_batch_read_async(&cdata->client, &err,
+			&tdata->batch_policy, keys, _async_batch_read_listener, adata,
+			adata->ev_loop);
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
@@ -506,8 +510,8 @@ _apply_udf_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
 	}
 
 	adata->start_time = cf_getus();
-	status = aerospike_key_apply_async(&cdata->client, &err, 0, key,
-			stage->udf_package_name, stage->udf_fn_name, args,
+	status = aerospike_key_apply_async(&cdata->client, &err, &tdata->apply_policy,
+			key, stage->udf_package_name, stage->udf_fn_name, args,
 			_async_val_listener, adata, adata->ev_loop, NULL);
 
 	if (stage->random) {
@@ -907,7 +911,7 @@ random_read_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
 
 		_gen_key(key_val, &adata->key, cdata);
-		_read_record_async(&adata->key, adata, cdata, stage);
+		_read_record_async(&adata->key, adata, tdata, cdata, stage);
 	}
 	else {
 		// generate a batch of random keys
@@ -927,7 +931,7 @@ random_read_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			}
 		}
 
-		_batch_read_record_async(keys, adata, cdata);
+		_batch_read_record_async(keys, adata, tdata, cdata);
 	}
 }
 
@@ -944,7 +948,7 @@ random_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	rec = _gen_record(tdata->random, cdata, tdata, stage);
 	adata->op = write;
 
-	_write_record_async(&adata->key, rec, adata, cdata);
+	_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 	_destroy_record(rec, stage);
 }
@@ -974,7 +978,7 @@ random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	rec = _gen_nil_record(tdata);
 	adata->op = write;
 
-	_write_record_async(&adata->key, rec, adata, cdata);
+	_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 	_destroy_record(rec, stage);
 }
@@ -1130,7 +1134,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		rec = _gen_record(tdata->random, cdata, tdata, stage);
 		adata->op = write;
 
-		_write_record_async(&adata->key, rec, adata, cdata);
+		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 		_destroy_record(rec, stage);
 
@@ -1272,7 +1276,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		rec = _gen_nil_record(tdata);
 		adata->op = delete;
 
-		_write_record_async(&adata->key, rec, adata, cdata);
+		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 		_destroy_record(rec, stage);
 
@@ -1356,6 +1360,7 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			linear_writes(tdata, cdata, coord, stage);
 			break;
 		case WORKLOAD_TYPE_RU:
+		case WORKLOAD_TYPE_RR:
 			random_read_write(tdata, cdata, coord, stage);
 			break;
 		case WORKLOAD_TYPE_RUF:
@@ -1407,6 +1412,7 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			linear_writes_async(tdata, cdata, coord, stage, &adata_q);
 			break;
 		case WORKLOAD_TYPE_RU:
+		case WORKLOAD_TYPE_RR:
 			random_read_write_async(tdata, cdata, coord, stage, &adata_q);
 			break;
 		case WORKLOAD_TYPE_RUF:
@@ -1433,6 +1439,15 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 LOCAL_HELPER void
 init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 {
+	as_policy_read_init(&tdata->read_policy);
+	as_policy_write_init(&tdata->write_policy);
+	as_policy_apply_init(&tdata->apply_policy);
+	as_policy_batch_init(&tdata->batch_policy);
+
+	if (stage->workload.type == WORKLOAD_TYPE_RR) {
+		tdata->write_policy.exists = AS_POLICY_EXISTS_REPLACE;
+	}
+
 	if (stage->tps == 0) {
 		// tps = 0 means no throttling
 		dyn_throttle_init(&tdata->dyn_throttle, 0);

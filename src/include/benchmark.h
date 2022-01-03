@@ -24,6 +24,7 @@
 #include <aerospike/aerospike.h>
 #include <aerospike/as_event.h>
 #include <aerospike/as_password.h>
+#include <aerospike/as_policy.h>
 #include <aerospike/as_random.h>
 #include <aerospike/as_record.h>
 #include <aerospike/as_udf.h>
@@ -164,8 +165,14 @@ typedef struct threaddata_s {
 	// must also be set to false for this to work)
 	bool finished;
 
+	// the following arguments are initialized for each stage
 	as_record fixed_value;
 	as_list* fixed_udf_fn_args;
+
+	as_policy_read read_policy;
+	as_policy_write write_policy;
+	as_policy_apply apply_policy;
+	as_policy_batch batch_policy;
 } tdata_t;
 
 

@@ -232,7 +232,8 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->read_pct = read_pct;
 		workload->write_pct = write_pct;
 	}
-	else if (strncmp(workload_str, "RU", 2) == 0) {
+	else if (strncmp(workload_str, "RU", 2) == 0 ||
+			strncmp(workload_str, "RR", 2) == 0) {
 		float pct;
 		if (workload_str[2] == '\0') {
 			pct = WORKLOAD_RU_DEFAULT_PCT;
@@ -258,7 +259,12 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 			return -1;
 		}
 
-		workload->type = WORKLOAD_TYPE_RU;
+		if (workload_str[1] == 'U') {
+			workload->type = WORKLOAD_TYPE_RU;
+		}
+		else {
+			workload->type = WORKLOAD_TYPE_RR;
+		}
 		workload->read_pct = pct;
 	}
 	else if (strcmp(workload_str, "DB") == 0) {
@@ -571,8 +577,10 @@ void stages_print(const stages_t* stages)
 	const static char* workloads[] = {
 		"I",
 		"RU",
+		"RR",
 		"DB",
-		"UDF"
+		"RUF",
+		"RUD"
 	};
 
 	char obj_spec_buf[512];
@@ -597,7 +605,8 @@ void stages_print(const stages_t* stages)
 
 		printf( "  workload: %s",
 				workloads[stage->workload.type]);
-		if (stage->workload.type == WORKLOAD_TYPE_RU) {
+		if (stage->workload.type == WORKLOAD_TYPE_RU ||
+				stage->workload.type == WORKLOAD_TYPE_RR) {
 			printf(",%g%%\n", stage->workload.read_pct);
 		}
 		else if (stage->workload.type == WORKLOAD_TYPE_RUF ||

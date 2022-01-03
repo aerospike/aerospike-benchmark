@@ -32,6 +32,8 @@ typedef enum {
 	WORKLOAD_TYPE_I,
 	// random read/update workload
 	WORKLOAD_TYPE_RU,
+	// random read/replace workload
+	WORKLOAD_TYPE_RR,
 	// linear deletion workload
 	WORKLOAD_TYPE_D,
 	// random read/update/function (udf) workload
@@ -182,6 +184,7 @@ typedef struct stages_s {
 static inline bool workload_is_random(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RU ||
+		workload->type == WORKLOAD_TYPE_RR ||
 		workload->type == WORKLOAD_TYPE_RUF ||
 		workload->type == WORKLOAD_TYPE_RUD;
 }
@@ -189,6 +192,7 @@ static inline bool workload_is_random(const workload_t* workload)
 static inline bool workload_contains_reads(const workload_t* workload)
 {
 	return (workload->type == WORKLOAD_TYPE_RU && workload->read_pct != 0) ||
+		(workload->type == WORKLOAD_TYPE_RR && workload->read_pct != 0) ||
 		(workload->type == WORKLOAD_TYPE_RUF && workload->read_pct != 0) ||
 		(workload->type == WORKLOAD_TYPE_RUD && workload->read_pct != 0);
 }
@@ -196,6 +200,7 @@ static inline bool workload_contains_reads(const workload_t* workload)
 static inline bool workload_contains_writes(const workload_t* workload)
 {
 	return (workload->type != WORKLOAD_TYPE_RU || workload->read_pct != 100) &&
+		(workload->type != WORKLOAD_TYPE_RR || workload->read_pct != 100) &&
 		(workload->type != WORKLOAD_TYPE_RUF || workload->write_pct != 0) &&
 		(workload->type != WORKLOAD_TYPE_RUD || workload->write_pct != 0);
 }
@@ -231,7 +236,10 @@ static inline bool stages_contain_random(const stages_t* stages)
  */
 static inline bool workload_is_infinite(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RU || workload->type == WORKLOAD_TYPE_RUF;
+	return workload->type == WORKLOAD_TYPE_RU ||
+		workload->type == WORKLOAD_TYPE_RR ||
+		workload->type == WORKLOAD_TYPE_RUF ||
+		workload->type == WORKLOAD_TYPE_RUD;
 }
 
 static inline void fprint_stage(FILE* out_file, const stages_t* stages,
