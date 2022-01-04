@@ -166,7 +166,8 @@ typedef struct threaddata_s {
 	bool finished;
 
 	// the following arguments are initialized for each stage
-	as_record fixed_value;
+	as_record fixed_full_record;
+	as_record fixed_partial_record;
 	as_list* fixed_udf_fn_args;
 
 	as_policy_read read_policy;

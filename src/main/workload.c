@@ -19,6 +19,8 @@
 // Typedefs & constants.
 //
 
+#define WORKLOAD_UNSET_PCT -1.f
+
 static const cyaml_schema_field_t udf_spec_mapping_schema[] = {
 	CYAML_FIELD_STRING_PTR("module", CYAML_FLAG_POINTER_NULL_STR,
 			udf_spec_t, udf_package_name, 0, sizeof(as_udf_module_name)),
@@ -155,8 +157,8 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 	else if (strncmp(workload_str, "RUF", 3) == 0) {
 		float read_pct;
 		float write_pct;
-		float read_all_pct = WORKLOAD_RUF_DEFAULT_READ_ALL_PCT;
-		float write_all_pct = WORKLOAD_RUF_DEFAULT_WRITE_ALL_PCT;
+		float read_all_pct = WORKLOAD_UNSET_PCT;
+		float write_all_pct = WORKLOAD_UNSET_PCT;
 
 		if (workload_str[3] == '\0') {
 			read_pct = WORKLOAD_RUF_DEFAULT_READ_PCT;
@@ -207,8 +209,8 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 	else if (strncmp(workload_str, "RUD", 3) == 0) {
 		float read_pct;
 		float write_pct;
-		float read_all_pct = WORKLOAD_RUD_DEFAULT_READ_ALL_PCT;
-		float write_all_pct = WORKLOAD_RUD_DEFAULT_WRITE_ALL_PCT;
+		float read_all_pct = WORKLOAD_UNSET_PCT;
+		float write_all_pct = WORKLOAD_UNSET_PCT;
 
 		if (workload_str[3] == '\0') {
 			read_pct = WORKLOAD_RUD_DEFAULT_READ_PCT;
@@ -259,8 +261,8 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 	else if (strncmp(workload_str, "RU", 2) == 0 ||
 			strncmp(workload_str, "RR", 2) == 0) {
 		float pct;
-		float read_all_pct = WORKLOAD_RU_DEFAULT_READ_ALL_PCT;
-		float write_all_pct = WORKLOAD_RU_DEFAULT_WRITE_ALL_PCT;
+		float read_all_pct = WORKLOAD_UNSET_PCT;
+		float write_all_pct = WORKLOAD_UNSET_PCT;
 
 		if (workload_str[2] == '\0') {
 			pct = WORKLOAD_RU_DEFAULT_PCT;
@@ -388,6 +390,26 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			ret = -1;
 		}
 
+		if (workload_contains_reads(&stage->workload) &&
+				stage->workload.read_all_pct == WORKLOAD_UNSET_PCT) {
+			if (stage_def->read_bins_str == NULL) {
+				stage->workload.read_all_pct = WORKLOAD_DEFAULT_READ_ALL_PCT;
+			}
+			else {
+				stage->workload.read_all_pct = 0;
+			}
+		}
+
+		if (workload_contains_writes(&stage->workload) &&
+				stage->workload.write_all_pct == WORKLOAD_UNSET_PCT) {
+			if (stage_def->write_bins_str == NULL) {
+				stage->workload.write_all_pct = WORKLOAD_DEFAULT_WRITE_ALL_PCT;
+			}
+			else {
+				stage->workload.write_all_pct = 0;
+			}
+		}
+
 		if (stage_def->duration == -1LU) {
 			if (workload_is_infinite(&stage->workload)) {
 				stage->duration = DEFAULT_RANDOM_DURATION;
@@ -420,7 +442,14 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			}
 		}
 
-		char* bins_str = stage_def->read_bins_str;
+		char* bins_str;
+		if (stage_def->read_bins_str != NULL) {
+			bins_str = stage_def->read_bins_str;
+		}
+		else if (workload_contains_reads(&stage->workload)) {
+			bins_str = "1";
+		}
+
 		if (bins_str != NULL && !workload_contains_reads(&stage->workload)) {
 			fprintf(stderr, "Stage %d: cannot specify read-bins on workload "
 					"without reads\n",
@@ -440,7 +469,13 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		}
 
 		// now parse write bins
-		bins_str = stage_def->write_bins_str;
+		if (stage_def->write_bins_str != NULL) {
+			bins_str = stage_def->write_bins_str;
+		}
+		else if (workload_contains_writes(&stage->workload)) {
+			bins_str = "1";
+		}
+
 		if (bins_str != NULL && !workload_contains_writes(&stage->workload)) {
 			fprintf(stderr, "Stage %d: cannot specify write-bins on workload "
 					"without writes\n",

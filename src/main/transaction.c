@@ -54,6 +54,10 @@ struct async_data_s {
 // Forward Declarations.
 //
 
+// Random number helper methods
+LOCAL_HELPER uint32_t _pct_to_fp(float pct);
+LOCAL_HELPER uint32_t _random_fp(as_random*);
+
 // Latency recrding helpers
 LOCAL_HELPER void _record_read(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_write(cdata_t* cdata, uint64_t dt_us);
@@ -193,6 +197,27 @@ transaction_worker(void* udata)
 //==========================================================
 // Local helpers.
 //
+
+/******************************************************************************
+ * Random number helper methods
+ *****************************************************************************/
+
+LOCAL_HELPER uint32_t
+_pct_to_fp(float pct)
+{
+	// multiply pct by 2**24 before dividing by 100 and casting to an int,
+	// since floats have 24 bits of precision including the leading 1,
+	// so that read_pct is pct% between 0 and 2**24
+	return (uint32_t) ((0x01000000 * pct) / 100);
+}
+
+LOCAL_HELPER uint32_t
+_random_fp(as_random* random)
+{
+	uint32_t die = as_random_next_uint32(random);
+	// floats have 24 bits of precision (including implicit leading 1)
+	return die & 0x00ffffff;
+}
 
 /******************************************************************************
  * Latency recording helpers
@@ -558,18 +583,34 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 		const stage_t* stage)
 {
 	as_record* rec;
+	uint32_t write_all_pct = _pct_to_fp(stage->workload.write_all_pct);
+	uint32_t die = _random_fp(tdata->random);
 
-	if (stage->random) {
-		uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
-		rec = as_record_new(n_objs);
+	if (die < write_all_pct) {
+		if (stage->random) {
+			uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
+			rec = as_record_new(n_objs);
 
-		obj_spec_populate_bins(&stage->obj_spec, rec, random,
-				cdata->bin_name, stage->write_bins, stage->n_write_bins,
-				cdata->compression_ratio);
-		rec->ttl = stage->ttl;
+			obj_spec_populate_bins(&stage->obj_spec, rec, random,
+					cdata->bin_name, NULL, 0, cdata->compression_ratio);
+			rec->ttl = stage->ttl;
+		}
+		else {
+			rec = &tdata->fixed_full_record;
+		}
 	}
 	else {
-		rec = &tdata->fixed_value;
+		if (stage->random) {
+			rec = as_record_new(stage->n_write_bins);
+
+			obj_spec_populate_bins(&stage->obj_spec, rec, random,
+					cdata->bin_name, stage->write_bins, stage->n_write_bins,
+					cdata->compression_ratio);
+			rec->ttl = stage->ttl;
+		}
+		else {
+			rec = &tdata->fixed_partial_record;
+		}
 	}
 	return rec;
 }
@@ -580,16 +621,16 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 LOCAL_HELPER as_record*
 _gen_nil_record(tdata_t* tdata)
 {
-	return &tdata->fixed_value;
+	return &tdata->fixed_full_record;
 }
 
 LOCAL_HELPER void
 _destroy_record(as_record* rec, const stage_t* stage)
 {
+	// don't destroy the records if the workload isn't randomized
 	if (stage->random) {
 		as_record_destroy(rec);
 	}
-	// don't destroy the records if the workload isn't randomized
 }
 
 /*
@@ -760,10 +801,7 @@ LOCAL_HELPER void
 random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage)
 {
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 
 	// since there is no specific target number of transactions required before
 	// the stage is finished, only a timeout, tell the coordinator we are ready
@@ -772,9 +810,7 @@ random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
 			random_read(tdata, cdata, coord, stage);
@@ -789,11 +825,8 @@ LOCAL_HELPER void
 random_read_write_udf(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage)
 {
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
-	uint32_t write_pct = (uint32_t) ((0x01000000 * stage->workload.write_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
@@ -805,9 +838,7 @@ random_read_write_udf(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
 			random_read(tdata, cdata, coord, stage);
@@ -862,11 +893,8 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage)
 {
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
-	uint32_t write_pct = (uint32_t) ((0x01000000 * stage->workload.write_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
@@ -878,9 +906,7 @@ LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
 			random_read(tdata, cdata, coord, stage);
@@ -1160,10 +1186,7 @@ random_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	struct timespec wake_time;
 	uint64_t start_time;
 
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 
 	// since this workload has no target number of transactions to be made, we
 	// are always ready to be reaped, and so we notify the coordinator that we
@@ -1179,9 +1202,7 @@ random_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		adata->start_time = start_time;
 
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
 			random_read_async(tdata, cdata, coord, stage, adata);
@@ -1206,11 +1227,8 @@ random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	struct timespec wake_time;
 	uint64_t start_time;
 
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
-	uint32_t write_pct = (uint32_t) ((0x01000000 * stage->workload.write_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
@@ -1229,9 +1247,7 @@ random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		adata->start_time = start_time;
 
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
 			random_read_async(tdata, cdata, coord, stage, adata);
@@ -1302,11 +1318,8 @@ random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coor
 	struct timespec wake_time;
 	uint64_t start_time;
 
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
-	uint32_t write_pct = (uint32_t) ((0x01000000 * stage->workload.write_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
@@ -1325,9 +1338,7 @@ random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coor
 		adata->start_time = start_time;
 
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
 			random_read_async(tdata, cdata, coord, stage, adata);
@@ -1463,36 +1474,54 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	}
 
 	if (!stage->random) {
-		uint32_t n_bins =
-			stage->write_bins == NULL ? obj_spec_n_bins(&stage->obj_spec) :
-			stage->n_write_bins;
-		as_record_init(&tdata->fixed_value, n_bins);
 
-		if (stage->workload.type == WORKLOAD_TYPE_D) {
-			if (stage->write_bins == NULL) {
+		if (stage->workload.type != WORKLOAD_TYPE_D) {
+			if (stage->workload.write_all_pct != 0) {
+				uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+				as_record_init(&tdata->fixed_full_record, n_bins);
+				obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_full_record,
+						tdata->random, cdata->bin_name, NULL, 0,
+						cdata->compression_ratio);
+
+				tdata->fixed_full_record.ttl = stage->ttl;
+			}
+			if (stage->workload.write_all_pct != 100) {
+				uint32_t n_bins = stage->n_write_bins;
+
+				as_record_init(&tdata->fixed_partial_record, n_bins);
+				obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_partial_record,
+						tdata->random, cdata->bin_name, stage->write_bins, n_bins,
+						cdata->compression_ratio);
+
+				tdata->fixed_partial_record.ttl = stage->ttl;
+			}
+		}
+		else {
+			if (stage->workload.write_all_pct != 0) {
+				uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+				as_record_init(&tdata->fixed_full_record, n_bins);
+
 				for (uint32_t i = 0; i < n_bins; i++) {
 					as_bin_name bin_name;
 					gen_bin_name(bin_name, cdata->bin_name, i);
-					as_record_set_nil(&tdata->fixed_value, bin_name);
+					as_record_set_nil(&tdata->fixed_full_record, bin_name);
 				}
 			}
-			else {
+			if (stage->workload.write_all_pct != 100) {
+				// write_bins must be set if write_all_pct != 100 in DB workload
+				assert(stage->write_bins != NULL);
+				as_record_init(&tdata->fixed_full_record, stage->n_write_bins);
 
 				FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
 						&stage->obj_spec, iter, idx, __bin_spec) {
 
 					as_bin_name bin_name;
 					gen_bin_name(bin_name, cdata->bin_name, idx);
-					as_record_set_nil(&tdata->fixed_value, bin_name);
+					as_record_set_nil(&tdata->fixed_full_record, bin_name);
 				}
 				END_FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
 						iter, idx);
 			}
-		}
-		else {
-			obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_value,
-					tdata->random, cdata->bin_name, stage->write_bins,
-					stage->n_write_bins, cdata->compression_ratio);
 		}
 
 		if (workload_contains_udfs(&stage->workload)) {
@@ -1500,7 +1529,6 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 					tdata->random, NULL, 0);
 			tdata->fixed_udf_fn_args = as_list_fromval(val);
 		}
-		tdata->fixed_value.ttl = stage->ttl;
 	}
 }
 
@@ -1510,7 +1538,12 @@ terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	dyn_throttle_free(&tdata->dyn_throttle);
 
 	if (!stage->random) {
-		as_record_destroy(&tdata->fixed_value);
+		if (stage->workload.write_all_pct != 0) {
+			as_record_destroy(&tdata->fixed_full_record);
+		}
+		if (stage->workload.write_all_pct != 100) {
+			as_record_destroy(&tdata->fixed_partial_record);
+		}
 
 		if (workload_contains_udfs(&stage->workload)) {
 			as_val_destroy((as_val*) tdata->fixed_udf_fn_args);
