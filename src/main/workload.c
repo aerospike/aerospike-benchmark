@@ -153,6 +153,7 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 {
 	if (strcmp(workload_str, "I") == 0) {
 		workload->type = WORKLOAD_TYPE_I;
+		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
 	else if (strncmp(workload_str, "RUF", 3) == 0) {
 		float read_pct;
@@ -307,6 +308,7 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 	}
 	else if (strcmp(workload_str, "DB") == 0) {
 		workload->type = WORKLOAD_TYPE_D;
+		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
 	else {
 		fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
