@@ -446,8 +446,12 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		if (stage_def->read_bins_str != NULL) {
 			bins_str = stage_def->read_bins_str;
 		}
-		else if (workload_contains_reads(&stage->workload)) {
+		else if (workload_contains_reads(&stage->workload) &&
+				stage->workload.read_all_pct < 100) {
 			bins_str = "1";
+		}
+		else {
+			bins_str = NULL;
 		}
 
 		if (bins_str != NULL && !workload_contains_reads(&stage->workload)) {
@@ -472,8 +476,12 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		if (stage_def->write_bins_str != NULL) {
 			bins_str = stage_def->write_bins_str;
 		}
-		else if (workload_contains_writes(&stage->workload)) {
+		else if (workload_contains_writes(&stage->workload) &&
+				stage->workload.write_all_pct < 100) {
 			bins_str = "1";
+		}
+		else {
+			bins_str = NULL;
 		}
 
 		if (bins_str != NULL && !workload_contains_writes(&stage->workload)) {
