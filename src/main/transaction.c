@@ -621,7 +621,7 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 LOCAL_HELPER as_record*
 _gen_nil_record(tdata_t* tdata)
 {
-	return &tdata->fixed_full_record;
+	return &tdata->fixed_delete_record;
 }
 
 LOCAL_HELPER void
@@ -746,7 +746,7 @@ random_delete(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// write this record to the database
 	_write_record_sync(tdata, cdata, coord, &key, rec);
 
-	_destroy_record(rec, stage);
+	// don't destroy delete records
 	as_key_destroy(&key);
 }
 
@@ -1475,7 +1475,7 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 
 	if (!stage->random) {
 
-		if (stage->workload.type != WORKLOAD_TYPE_D) {
+		if (workload_contains_writes(&stage->workload)) {
 			if (stage->workload.write_all_pct != 0) {
 				uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
 				as_record_init(&tdata->fixed_full_record, n_bins);
@@ -1496,38 +1496,41 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 				tdata->fixed_partial_record.ttl = stage->ttl;
 			}
 		}
-		else {
-			if (stage->workload.write_all_pct != 0) {
-				uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
-				as_record_init(&tdata->fixed_full_record, n_bins);
-
-				for (uint32_t i = 0; i < n_bins; i++) {
-					as_bin_name bin_name;
-					gen_bin_name(bin_name, cdata->bin_name, i);
-					as_record_set_nil(&tdata->fixed_full_record, bin_name);
-				}
-			}
-			if (stage->workload.write_all_pct != 100) {
-				// write_bins must be set if write_all_pct != 100 in DB workload
-				assert(stage->write_bins != NULL);
-				as_record_init(&tdata->fixed_full_record, stage->n_write_bins);
-
-				FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
-						&stage->obj_spec, iter, idx, __bin_spec) {
-
-					as_bin_name bin_name;
-					gen_bin_name(bin_name, cdata->bin_name, idx);
-					as_record_set_nil(&tdata->fixed_full_record, bin_name);
-				}
-				END_FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
-						iter, idx);
-			}
-		}
 
 		if (workload_contains_udfs(&stage->workload)) {
 			as_val* val = obj_spec_gen_value(&stage->udf_fn_args,
 					tdata->random, NULL, 0);
 			tdata->fixed_udf_fn_args = as_list_fromval(val);
+		}
+	}
+
+	if (workload_contains_deletes(&stage->workload)) {
+		if (stage->workload.type != WORKLOAD_TYPE_D ||
+				stage->workload.write_all_pct != 0) {
+			uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+			as_record_init(&tdata->fixed_delete_record, n_bins);
+
+			for (uint32_t i = 0; i < n_bins; i++) {
+				as_bin_name bin_name;
+				gen_bin_name(bin_name, cdata->bin_name, i);
+				as_record_set_nil(&tdata->fixed_delete_record, bin_name);
+			}
+		}
+		if (stage->workload.type == WORKLOAD_TYPE_D &&
+				stage->workload.write_all_pct != 100) {
+			// write_bins must be set if write_all_pct != 100 in DB workload
+			assert(stage->write_bins != NULL);
+			as_record_init(&tdata->fixed_delete_record, stage->n_write_bins);
+
+			FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
+					&stage->obj_spec, iter, idx, __bin_spec) {
+
+				as_bin_name bin_name;
+				gen_bin_name(bin_name, cdata->bin_name, idx);
+				as_record_set_nil(&tdata->fixed_delete_record, bin_name);
+			}
+			END_FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
+					iter, idx);
 		}
 	}
 }
@@ -1548,6 +1551,10 @@ terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 		if (workload_contains_udfs(&stage->workload)) {
 			as_val_destroy((as_val*) tdata->fixed_udf_fn_args);
 		}
+	}
+
+	if (workload_contains_deletes(&stage->workload)) {
+		as_record_destroy(&tdata->fixed_delete_record);
 	}
 }
 

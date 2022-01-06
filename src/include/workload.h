@@ -216,6 +216,11 @@ static inline bool workload_contains_writes(const workload_t* workload)
 		(workload->type != WORKLOAD_TYPE_RUD || workload->write_pct != 0);
 }
 
+static inline bool workload_contains_deletes(const workload_t* workload)
+{
+	return workload->type == WORKLOAD_TYPE_D || workload->type == WORKLOAD_TYPE_RUD;
+}
+
 static inline bool workload_contains_udfs(const workload_t* workload)
 {
 	return workload->type == WORKLOAD_TYPE_RUF;
