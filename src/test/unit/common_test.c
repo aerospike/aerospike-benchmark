@@ -16,6 +16,7 @@ START_TEST(ddl_0)
 {
 	ck_assert_int_eq(dec_display_len(0), 1);
 }
+END_TEST
 
 START_TEST(ddl_1_digit)
 {
