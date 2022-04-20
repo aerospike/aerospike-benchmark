@@ -20,7 +20,8 @@ jobs:
           sudo apt-get install -y libevent-dev libev-dev libuv1-dev
         elif [ "$RUNNER_OS" == "macOS" ]; then
           brew update
-          brew install libuv libev libevent
+          brew install libuv libev libevent automake
+          autoreconf -i
         else
           echo "$RUNNER_OS not supported"
           exit 1
