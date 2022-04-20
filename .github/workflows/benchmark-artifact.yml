@@ -1,10 +1,15 @@
 name: Build:Main
 on:
   push:
-    branches: [ main ]
+    branches: [ main, mac_build ]
 jobs:
   build-libraries:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
     env:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     strategy:
@@ -60,7 +65,7 @@ jobs:
         set -e
         NAME=-${{ matrix.ev-lib}}
         if [ "${NAME}" = "-" ]; then NAME="" ; fi
-        echo "::set-output name=name::benchmark$NAME"
+        echo "::set-output name=name::benchmark$NAME-$RUNNER_OS"
       id: get_name
     - name: Upload artifact
       uses: actions/upload-artifact@v2
