@@ -15,7 +15,16 @@ jobs:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
     steps:
     - name: Install event libs
-      run: sudo apt-get install -y libevent-dev libev-dev libuv1-dev
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get install -y libevent-dev libev-dev libuv1-dev
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          brew update
+          brew install libuv libev libevent
+        else
+          echo "$RUNNER_OS not supported"
+          exit 1
+        fi
     - name: Download libyaml
       uses: dsaltares/fetch-gh-release-asset@0.0.5
       with:
