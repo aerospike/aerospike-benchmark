@@ -26,11 +26,12 @@ jobs:
           exit 1
         fi
     - name: Download libyaml
-      uses: dsaltares/fetch-gh-release-asset@0.0.5
+      uses: actions/checkout@v2
       with:
-        repo: "yaml/libyaml"
-        version: "tags/0.2.5"
-        file: yaml-0.2.5.tar.gz
+        repository: yaml/libyaml
+        submodules: recursive
+        ref: 0.2.5
+        path: yaml-0.2.5
     - name: Cache libyaml
       id: cache-libyaml
       uses: actions/cache@v2
@@ -38,12 +39,12 @@ jobs:
         cache-name: libyaml
       with:
         path: yaml-0.2.5
-        key: yaml-0.2.5-${{ runner.os }}
+        key: yaml-0.2.5-v2-${{ runner.os }}
     - name: Build libyaml
       id: build-libyaml
       if: steps.cache-libyaml.outputs.cache-hit != 'true'
       run: |
-        tar xvfz yaml-0.2.5.tar.gz && cd yaml-0.2.5
+        cd yaml-0.2.5
         ./configure
         make
     - name: install libyaml
