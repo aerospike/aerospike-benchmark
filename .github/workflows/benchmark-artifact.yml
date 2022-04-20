@@ -21,7 +21,6 @@ jobs:
         elif [ "$RUNNER_OS" == "macOS" ]; then
           brew update
           brew install libuv libev libevent automake
-          autoreconf -i
         else
           echo "$RUNNER_OS not supported"
           exit 1
@@ -46,6 +45,7 @@ jobs:
       if: steps.cache-libyaml.outputs.cache-hit != 'true'
       run: |
         cd yaml-0.2.5
+        autoreconf -i
         ./bootstrap
         ./configure
         make
