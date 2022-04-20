@@ -75,7 +75,7 @@ jobs:
         set -e
         NAME=-${{ matrix.ev-lib}}
         if [ "${NAME}" = "-" ]; then NAME="" ; fi
-        echo "::set-output name=name::benchmark$NAME-$RUNNER_OS"
+        echo "::set-output name=name::benchmark-$RUNNER_OS$NAME"
       id: get_name
     - name: Upload artifact
       uses: actions/upload-artifact@v2
