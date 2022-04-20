@@ -77,10 +77,7 @@ jobs:
     needs: build-libraries
     runs-on: ubuntu-latest
     
-    steps: 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3.1
-    
+    steps:
       - name: Checkout benchmark
         uses: actions/checkout@v2
         with: 
