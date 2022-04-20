@@ -429,7 +429,7 @@ def obj_spec_is_const_S(val, cnst):
 	assert(val == cnst)
 
 def obj_spec_is_B(val, size):
-	assert(type(val) is bytearray)
+	assert(type(val) is bytes)
 	assert(len(val) == size)
 
 def check_recs_exist_in_range(key_start, key_end, obj_checker=None):
