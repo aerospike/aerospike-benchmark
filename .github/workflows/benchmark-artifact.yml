@@ -9,12 +9,10 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        ev-lib: ["", libev, libuv, libevent]
 
     env:
       CLIENTREPO: ${GITHUB_WORKSPACE}/client
-    strategy:
-      matrix: 
-        ev-lib: ["", libev, libuv, libevent]
     steps:
     - name: Install event libs
       run: sudo apt-get install -y libevent-dev libev-dev libuv1-dev
