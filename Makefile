@@ -2,11 +2,12 @@
 AS_HOST := 127.0.0.1
 AS_PORT := 3000
 
-ifndef CLIENTREPO
-$(error Please set the CLIENTREPO environment variable)
+# deprecated: support for explicit client repo
+ifdef CLIENTREPO
+$(warning Setting CLIENTREPO explicitly is deprecated, the c-client is now a submodule of asbackup)
+DIR_C_CLIENT := $(CLIENTREPO)
 endif
 
-CLIENT_PATH = $(CLIENTREPO)
 ARCH = $(shell uname -m)
 PLATFORM = $(OS)-$(ARCH)
 ROOT = $(CURDIR)
@@ -22,13 +23,16 @@ CFLAGS = -std=gnu99 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
+DIR_C_CLIENT ?= $(ROOT)/modules/c-client
+C_CLIENT_LIB := $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a
+
 DIR_INCLUDE =  $(ROOT)/src/include
 DIR_INCLUDE += $(ROOT)/modules
 DIR_INCLUDE += $(ROOT)/modules/libcyaml/include
-DIR_INCLUDE += $(CLIENT_PATH)/src/include
-DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
-DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
-DIR_INCLUDE += $(CLIENT_PATH)/modules/base/src/include
+DIR_INCLUDE += $(DIR_C_CLIENT)/src/include
+DIR_INCLUDE += $(DIR_C_CLIENT)/modules/common/src/include
+DIR_INCLUDE += $(DIR_C_CLIENT)/modules/mod-lua/src/include
+DIR_INCLUDE += $(DIR_C_CLIENT)/modules/base/src/include
 INCLUDES = $(DIR_INCLUDE:%=-I%) 
 
 DIR_ENV = $(ROOT)/env
@@ -160,7 +164,7 @@ info:
 	@echo "  NAME:       " $(NAME) 
 	@echo "  OS:         " $(OS)
 	@echo "  ARCH:       " $(ARCH)
-	@echo "  CLIENTREPO: " $(CLIENT_PATH)
+	@echo "  CLIENTREPO: " $(DIR_C_CLIENT)
 	@echo "  WD:         " $(shell pwd)	
 	@echo
 	@echo "  PATHS:"
@@ -193,6 +197,7 @@ target/libbench.a: $(OBJECTS)
 clean:
 	rm -rf target test_target $(DIR_ENV)
 	$(MAKE) clean -C modules/libcyaml
+	$(MAKE) -C $(DIR_C_CLIENT) clean
 
 target:
 	mkdir $@
@@ -218,8 +223,11 @@ target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogra
 target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | target/lib
 	cp $< $@
 
-target/benchmark: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
-	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(LDFLAGS)
+$(C_CLIENT_LIB):
+	$(MAKE) -C $(DIR_C_CLIENT)
+
+target/benchmark: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(C_CLIENT_LIB) | target
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(C_CLIENT_LIB) $(LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))
@@ -266,15 +274,15 @@ test_target/obj/%.o: src/main/%.c | test_target/obj
 test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
 	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
 
-test_target/test: $(TEST_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+test_target/test: $(TEST_OBJECTS) target/lib/libcyaml.a $(C_CLIENT_LIB) | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) $(C_CLIENT_LIB) $(TEST_LDFLAGS)
 
 # build the benchmark executable with code coverage
 test_target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | test_target/lib
 	cp $< $@
 
-test_target/benchmark: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+test_target/benchmark: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a $(C_CLIENT_LIB) | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) $(C_CLIENT_LIB) $(TEST_LDFLAGS)
 
 -include $(wildcard $(TEST_DEPENDENCIES))
 
