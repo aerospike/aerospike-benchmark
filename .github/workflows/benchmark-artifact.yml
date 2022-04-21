@@ -5,21 +5,18 @@ on:
 jobs:
   build-libraries:
     runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-20.04, macos-10.15]
         ev-lib: ["", libev, libuv, libevent]
-
     env:
-      CLIENTREPO: ${GITHUB_WORKSPACE}/client
+      LIBYAML_VERSION: 0.2.5
     steps:
     - name: Install event libs
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
           sudo apt-get install -y libevent-dev libev-dev libuv1-dev
         elif [ "$RUNNER_OS" == "macOS" ]; then
-          brew update
           brew install libuv libev libevent automake
         else
           echo "$RUNNER_OS not supported"
@@ -30,43 +27,34 @@ jobs:
       with:
         repository: yaml/libyaml
         submodules: recursive
-        ref: 0.2.5
-        path: yaml-0.2.5
+        ref: ${{ env.LIBYAML_VERSION }}
+        path: yaml-${{ env.LIBYAML_VERSION }}
     - name: Cache libyaml
       id: cache-libyaml
       uses: actions/cache@v2
       env:
         cache-name: libyaml
       with:
-        path: yaml-0.2.5
-        key: yaml-0.2.5-v2-${{ runner.os }}
+        path: yaml-${{ env.LIBYAML_VERSION }}
+        key: yaml-${{ env.LIBYAML_VERSION }}-v2-${{ runner.os }}
     - name: Build libyaml
       id: build-libyaml
       if: steps.cache-libyaml.outputs.cache-hit != 'true'
       run: |
-        cd yaml-0.2.5
+        cd yaml-${{ env.LIBYAML_VERSION }}
         autoreconf -i
         ./bootstrap
         ./configure
         make
     - name: install libyaml
       run: |
-        cd yaml-0.2.5
+        cd yaml-${{ env.LIBYAML_VERSION }}
         sudo make install
-    - name: Checkout c client
-      uses: actions/checkout@v2
-      with:
-        repository: aerospike/aerospike-client-c
-        submodules: recursive
-        path: client
     - name: Checkout benchmark
       uses: actions/checkout@v2
       with: 
         path: main
         submodules: recursive
-    - name: Build client lib
-      run: make EVENT_LIB=${{ matrix.ev-lib }}
-      working-directory: client
     - name: Build benchmark
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
