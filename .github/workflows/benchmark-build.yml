@@ -80,6 +80,8 @@ jobs:
       if: steps.cache-libcheck.outputs.cache-hit != 'true'
       run: |
         cd check-${{ env.LIBCHECK_VERSION }}
+        autoreconf -i
+        ./bootstrap
         ./configure
         make
         make check
