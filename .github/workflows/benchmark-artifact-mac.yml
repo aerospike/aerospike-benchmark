@@ -1,7 +1,7 @@
 name: Build:Main
 on:
   push:
-    branches: [ main, mac_build ]
+    branches: [ main ]
 jobs:
   build-libraries:
     runs-on: macos-10.15
