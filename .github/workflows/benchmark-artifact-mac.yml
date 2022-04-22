@@ -57,6 +57,10 @@ jobs:
     - name: Build benchmark
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
+    - name: Sanity test asbench artifact
+      run: |
+        ./asbench | grep "ERROR Failed to connect"
+      working-directory: main/target
     - name: Get artifact name
       run: |
         set -e
