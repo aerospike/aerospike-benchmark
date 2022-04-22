@@ -59,7 +59,7 @@ jobs:
       working-directory: main
     - name: Sanity test asbench artifact
       run: |
-        ./asbench | grep "ERROR Failed to connect"
+        ./benchmark | grep "ERROR Failed to connect"
       working-directory: main/target
     - name: Get artifact name
       run: |
