@@ -13,14 +13,7 @@ jobs:
     steps:
     - name: Install event libs
       run: |
-        if [ "$RUNNER_OS" == "Linux" ]; then
-          sudo apt-get install -y libevent-dev libev-dev libuv1-dev
-        elif [ "$RUNNER_OS" == "macOS" ]; then
-          brew install libuv libev libevent automake
-        else
-          echo "$RUNNER_OS not supported"
-          exit 1
-        fi
+        sudo apt-get install -y libevent-dev libev-dev libuv1-dev
     - name: Download libyaml
       uses: actions/checkout@v2
       with:
