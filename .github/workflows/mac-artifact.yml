@@ -19,6 +19,8 @@ jobs:
     env:
       LIBYAML_VERSION: 0.2.5
     steps:
+    - uses: kenchan0130/actions-system-info@master
+      id: system-info
     - name: Install event libs
       run: |
         brew install libuv libev libevent automake
@@ -76,7 +78,7 @@ jobs:
       run: |
         cd ${{ inputs.submodule || '.' }}
         mkdir -p target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
-        mv main/target/* target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
+        mv main/target/benchmark target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
