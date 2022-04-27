@@ -70,7 +70,7 @@ jobs:
         set -e
         NAME=-${{ matrix.ev-lib}}
         if [ "${NAME}" = "-" ]; then NAME="" ; fi
-        echo "::set-output name=name::benchmark-$RUNNER_OS$NAME"
+        echo "::set-output name=name::benchmark-$NAME"
       id: get_name
     
     - name: Upload artifact
@@ -94,16 +94,16 @@ jobs:
         uses: actions/download-artifact@v2
         with: 
           path: target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
-      - name: Create tarball
-        run: tar -czf binaries.tgz target
+      # - name: Create tarball
+      #   run: tar -czf binaries.tgz target
       - name: Get artifact name
         uses: haya14busa/action-cond@v1
         id: artifact-name
         with:
           cond: ${{ inputs.submodule != '' }}
-          if_true: ${{ inputs.submodule }}-binaries.tgz
-          if_false: binaries.tgz
+          if_true: ${{ inputs.submodule }}-binaries
+          if_false: binaries
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.artifact-name.outputs.value }}
-          path: binaries.tgz
+          path: ${{ inputs.submodule != '' }}/target
