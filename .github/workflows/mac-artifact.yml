@@ -39,7 +39,7 @@ jobs:
         cache-index: "1" # mechanism for clearing the cache
       with:
         path: ${{ inputs.submodule || '.' }}/yaml-${{ env.LIBYAML_VERSION }}
-        key: yaml-${{ env.LIBYAML_VERSION }}-${{env.cache-index}}-${{ runner.os }}
+        key: yaml-${{ env.LIBYAML_VERSION }}-${{env.cache-index}}-${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}
     - name: Build libyaml
       id: build-libyaml
       if: steps.cache-libyaml.outputs.cache-hit != 'true'
