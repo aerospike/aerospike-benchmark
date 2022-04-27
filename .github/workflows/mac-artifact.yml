@@ -1,16 +1,17 @@
 name: Mac Artifact
 on:
   push:
-    branches: [ main ]
+    branches: [actionsHub, main, test-ready, mac-build]
+  pull_request:
+    branches: [actionsHub]
   workflow_call:
     inputs:
       submodule:
         description: The directory of the submodule, if this workflow is being called on a submodule
         required: false
         type: string
-
 jobs:
-  build-libraries:
+  build:
     runs-on: macos-10.15
     strategy:
       matrix:
@@ -78,8 +79,8 @@ jobs:
         name: ${{steps.get_name.outputs.name}}
         path: main/target/benchmark
         if-no-files-found: error
-  pre-release:
-    needs: build-libraries
+  bundle-binaries:
+    needs: build
     runs-on: macos-10.15
     
     steps:
