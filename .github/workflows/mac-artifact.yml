@@ -57,16 +57,15 @@ jobs:
     - name: Checkout benchmark
       uses: actions/checkout@v2
       with: 
-        path: ${{ inputs.submodule || '.' }}/main
         submodules: recursive
     - name: Build benchmark
       run: |
         make EVENT_LIB=${{ matrix.ev-lib }}
-      working-directory: ${{ inputs.submodule || '.' }}/main
+      working-directory: ${{ inputs.submodule || '.' }}
     - name: Sanity test asbench artifact
       run: |
         ./benchmark | grep "ERROR Failed to connect"
-      working-directory: ${{ inputs.submodule || '.' }}/main/target
+      working-directory: ${{ inputs.submodule || '.' }}/target
     - name: Get artifact name
       run: |
         set -e
@@ -77,13 +76,13 @@ jobs:
     - name: Move artifacts to target dir HACK # This could be done in the makefile
       run: |
         cd ${{ inputs.submodule || '.' }}
-        mkdir -p target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
-        mv main/target/benchmark target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
+        mkdir -p tmp/target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
+        mv ${{ inputs.submodule || '.' }}/target/benchmark tmp/target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
         name: ${{steps.get_name.outputs.name}}
-        path: ${{ inputs.submodule || '.' }}/target
+        path: ${{ inputs.submodule || '.' }}/tmp/target
         if-no-files-found: error
   # bundle-binaries:
   #   needs: build
