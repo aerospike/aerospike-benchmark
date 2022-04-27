@@ -68,8 +68,9 @@ jobs:
     - name: Get artifact name
       run: |
         set -e
-        NAME=${{ matrix.ev-lib}}
-        echo "::set-output name=name::benchmark-$NAME"
+        NAME=-${{ matrix.ev-lib}}
+        if [ "${NAME}" = "-" ]; then NAME="" ; fi
+        echo "::set-output name=name::benchmark$NAME"
       id: get_name
     - name: Move artifacts to target dir HACK # This could be done in the makefile
       run: |
