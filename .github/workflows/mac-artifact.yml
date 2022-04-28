@@ -27,16 +27,15 @@ jobs:
     - name: Checkout benchmark
       uses: actions/checkout@v2
       with: 
-        path: benchmark
         submodules: recursive
     - name: Build benchmark
       run: |
         make EVENT_LIB=${{ matrix.ev-lib }}
-      working-directory: benchmark/${{ inputs.submodule || '.' }}
+      working-directory: ${{ inputs.submodule || '.' }}
     - name: Sanity test asbench artifact
       run: |
         ./benchmark | grep "ERROR Failed to connect"
-      working-directory: benchmark/${{ inputs.submodule || '.' }}/target
+      working-directory: ${{ inputs.submodule || '.' }}/target
     - name: Get artifact name
       run: |
         set -e
@@ -49,18 +48,11 @@ jobs:
     #     cd ${{ inputs.submodule || '.' }}
     #     mkdir -p tmp/target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
     #     mv target/benchmark tmp/target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
-    - name: Get path
-      uses: haya14busa/action-cond@v1
-      id: artifact-path
-      with:
-        cond: ${{ inputs.submodule != '' }}
-        if_true: benchmark/${{ inputs.submodule }}
-        if_false: benchmark
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
         name: ${{steps.get_name.outputs.name}}
-        path: ${{steps.artifact-path.outputs.value}}/target/benchmark
+        path: ${{ inputs.submodule || '.' }}/${{steps.artifact-path.outputs.value}}/target/benchmark
         if-no-files-found: error
   bundle-binaries:
     needs: build
