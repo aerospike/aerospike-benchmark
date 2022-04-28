@@ -233,7 +233,7 @@ $(C_CLIENT_LIB):
 	$(MAKE) -C $(DIR_C_CLIENT)
 
 target/benchmark: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libyaml.a target/lib/libcyaml.a $(C_CLIENT_LIB) | target
-	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libyaml.a target/lib/libcyaml.a $(C_CLIENT_LIB) $(LDFLAGS)
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(C_CLIENT_LIB) $(LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))
@@ -288,7 +288,7 @@ test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hd
 	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
 
 test_target/test: $(TEST_OBJECTS) test_target/lib/libyaml.a test_target/lib/libcyaml.a $(C_CLIENT_LIB) | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) test_target/lib/libyaml.a test_target/lib/libcyaml.a $(C_CLIENT_LIB) $(TEST_LDFLAGS)
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) $(TEST_LDFLAGS)
 
 # build the benchmark executable with code coverage
 test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
@@ -298,7 +298,7 @@ test_target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | test_target/lib
 	cp $< $@
 
 test_target/benchmark: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libyaml.a test_target/lib/libcyaml.a $(C_CLIENT_LIB) | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libyaml.a test_target/lib/libcyaml.a $(C_CLIENT_LIB) $(TEST_LDFLAGS)
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) $(TEST_LDFLAGS)
 
 -include $(wildcard $(TEST_DEPENDENCIES))
 
