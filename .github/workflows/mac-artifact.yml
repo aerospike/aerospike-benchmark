@@ -36,7 +36,7 @@ jobs:
       uses: actions/cache@v2
       env:
         cache-name: libyaml
-        cache-index: "1" # mechanism for clearing the cache
+        cache-index: "2" # mechanism for clearing the cache
       with:
         path: ${{ inputs.submodule || '.' }}/yaml-${{ env.LIBYAML_VERSION }}
         key: yaml-${{ env.LIBYAML_VERSION }}-${{env.cache-name}}-${{env.cache-index}}-${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}
