@@ -123,4 +123,5 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.artifact-name.outputs.value }}
-          path: ${{ inputs.submodule || '.' }}/target
+          path: target
+          if-no-files-found: error
