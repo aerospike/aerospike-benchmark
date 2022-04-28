@@ -69,7 +69,7 @@ jobs:
       - name: Get artifacts
         uses: actions/download-artifact@v2
         with: 
-          path: target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-asbench
+          path: target
       # - name: Create tarball
       #   run: tar -czf binaries.tgz target
       - name: Get artifact name
