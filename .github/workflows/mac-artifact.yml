@@ -42,7 +42,7 @@ jobs:
         set -e
         NAME=-${{ matrix.ev-lib}}
         if [ "${NAME}" = "-" ]; then NAME="" ; fi
-        echo "::set-output name=name::benchmark$NAME"
+        echo "::set-output name=name::asbench$NAME"
       id: get_name
     # - name: Move artifacts to target dir HACK # This could be done in the makefile
     #   run: |
@@ -52,7 +52,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
-        name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-asbench
+        name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.get_name.outputs.name }}
         path: ${{ inputs.submodule || '.' }}/benchmark/target/benchmark
         if-no-files-found: error
   bundle-binaries:
