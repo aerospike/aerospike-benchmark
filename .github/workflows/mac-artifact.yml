@@ -19,6 +19,13 @@ jobs:
     env:
       LIBYAML_VERSION: 0.2.5
     steps:
+    - name: Get asbench working directory
+      uses: haya14busa/action-cond@v1
+      id: asbench-wd
+      with:
+        cond: ${{ inputs.submodule != '' }}
+        if_true: ${{ inputs.submodule }}
+        if_false: asbench
     - uses: kenchan0130/actions-system-info@master
       id: system-info
     - name: Install event libs
@@ -26,17 +33,19 @@ jobs:
         brew install libev automake # libuv and libevent already installed
     - name: Checkout benchmark
       uses: actions/checkout@v2
-      with: 
-        path: benchmark
+      # only checkout benchmark if not a submodule, since it will have already been checked out by the parent module
+      if: "${{ inputs.submodule == '' }}"
+      with:
+        path: ${{ steps.asbench-wd.outputs.value }}
         submodules: recursive
     - name: Build benchmark
       run: |
         make EVENT_LIB=${{ matrix.ev-lib }}
-      working-directory: ${{ inputs.submodule || '.' }}/benchmark
+      working-directory: ${{ steps.asbench-wd.outputs.value }}
     - name: Sanity test asbench artifact
       run: |
         ./benchmark | grep "ERROR Failed to connect"
-      working-directory: ${{ inputs.submodule || '.' }}/benchmark/target
+      working-directory: ${{ steps.asbench-wd.outputs.value }}/target
     - name: Get artifact name
       run: |
         set -e
@@ -48,7 +57,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with: 
         name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.get-name.outputs.name }}
-        path: ${{ inputs.submodule || '.' }}/benchmark/target/benchmark
+        path: ${{ steps.asbench-wd.outputs.value }}/target/benchmark
         if-no-files-found: error
   bundle-binaries:
     needs: build
