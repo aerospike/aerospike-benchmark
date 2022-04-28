@@ -246,7 +246,7 @@ $(DIR_LIBYAML_BUILD)/libyaml.a: | $(DIR_LIBYAML_BUILD)
 	$(MAKE) -C $(DIR_LIBYAML_BUILD)
 
 $(DIR_LIBCYAML_BUILD)/libcyaml.a:
-	$(MAKE) -C $(DIR_LIBCYAML) CFLAGS="-I$(DIR_LIBYAML)/include"
+	$(MAKE) -C $(DIR_LIBCYAML) LIBYAML_CFLAGS="-I$(DIR_LIBYAML)/include"
 
 .PHONY: run
 run: build
