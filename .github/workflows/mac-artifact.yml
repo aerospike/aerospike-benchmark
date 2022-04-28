@@ -24,14 +24,14 @@ jobs:
       id: checkout-dir
       with:
         cond: ${{ inputs.submodule != '' }}
-        if_true: '.'
+        if_true: aerospike-tools
         if_false: asbench
     - name: Get asbench working directory
       uses: haya14busa/action-cond@v1
       id: asbench-wd
       with:
         cond: ${{ inputs.submodule != '' }}
-        if_true: ${{ inputs.submodule }}
+        if_true: aerospike-tools/${{ inputs.submodule }}
         if_false: asbench
     - uses: kenchan0130/actions-system-info@master
       id: system-info
