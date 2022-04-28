@@ -55,7 +55,7 @@ jobs:
         cd ${{ inputs.submodule || '.' }}
         cd yaml-${{ env.LIBYAML_VERSION }}
         ls
-        cat make
+        cat Makefile
         pwd
         sudo make install
     - name: Checkout benchmark
