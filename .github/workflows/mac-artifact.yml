@@ -61,15 +61,16 @@ jobs:
     - name: Checkout benchmark
       uses: actions/checkout@v2
       with: 
+        path: benchmark
         submodules: recursive
     - name: Build benchmark
       run: |
         make EVENT_LIB=${{ matrix.ev-lib }}
-      working-directory: ${{ inputs.submodule || '.' }}
+      working-directory: benchmark/${{ inputs.submodule || '.' }}
     - name: Sanity test asbench artifact
       run: |
         ./benchmark | grep "ERROR Failed to connect"
-      working-directory: ${{ inputs.submodule || '.' }}/target
+      working-directory: benchmark/${{ inputs.submodule || '.' }}/target
     - name: Get artifact name
       run: |
         set -e
@@ -86,7 +87,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with: 
         name: ${{steps.get_name.outputs.name}}
-        path: ${{ inputs.submodule || '.' }}/target/benchmark
+        path: benchmark/${{ inputs.submodule || '.' }}/target/benchmark
         if-no-files-found: error
   bundle-binaries:
     needs: build
