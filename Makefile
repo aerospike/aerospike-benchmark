@@ -26,7 +26,8 @@ CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 DIR_LIBYAML ?= $(ROOT)/modules/libyaml
 DIR_LIBYAML_BUILD := $(DIR_LIBYAML)/build
 DIR_LIBCYAML ?= $(ROOT)/modules/libcyaml
-DIR_LIBCYAML_BUILD ?= $(ROOT)/modules/libcyaml/build/debug
+DIR_LIBCYAML_BUILD_REL ?= build/release
+DIR_LIBCYAML_BUILD ?= $(ROOT)/modules/libcyaml/$(DIR_LIBCYAML_BUILD_REL)
 
 DIR_C_CLIENT ?= $(ROOT)/modules/c-client
 C_CLIENT_LIB := $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a
@@ -246,7 +247,7 @@ $(DIR_LIBYAML_BUILD)/libyaml.a: | $(DIR_LIBYAML_BUILD)
 	$(MAKE) -C $(DIR_LIBYAML_BUILD)
 
 $(DIR_LIBCYAML_BUILD)/libcyaml.a:
-	$(MAKE) -C $(DIR_LIBCYAML) LIBYAML_CFLAGS="-I$(DIR_LIBYAML)/include"
+	$(MAKE) -C $(DIR_LIBCYAML) $(DIR_LIBCYAML_BUILD_REL)/libcyaml.a LIBYAML_CFLAGS="-I$(DIR_LIBYAML)/include" VERSION_DEVEL=0
 
 .PHONY: run
 run: build
