@@ -43,16 +43,11 @@ jobs:
         NAME=-${{ matrix.ev-lib}}
         if [ "${NAME}" = "-" ]; then NAME="" ; fi
         echo "::set-output name=name::asbench$NAME"
-      id: get_name
-    # - name: Move artifacts to target dir HACK # This could be done in the makefile
-    #   run: |
-    #     cd ${{ inputs.submodule || '.' }}
-    #     mkdir -p tmp/target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
-    #     mv target/benchmark tmp/target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
+      id: get-name
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
-        name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.get_name.outputs.name }}
+        name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.get-name.outputs.name }}
         path: ${{ inputs.submodule || '.' }}/benchmark/target/benchmark
         if-no-files-found: error
   bundle-binaries:
@@ -60,18 +55,13 @@ jobs:
     runs-on: macos-10.15
     
     steps:
-      # - name: Checkout benchmark
-      #   uses: actions/checkout@v2
-      #   with: 
-      #     submodules: recursive
       - uses: kenchan0130/actions-system-info@master
         id: system-info
       - name: Get artifacts
         uses: actions/download-artifact@v2
-        with: 
+        with:
           path: target
-      # - name: Create tarball
-      #   run: tar -czf binaries.tgz target
+          name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-asbench*
       - name: Get artifact name
         uses: haya14busa/action-cond@v1
         id: artifact-name
