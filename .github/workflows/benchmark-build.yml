@@ -32,34 +32,6 @@ jobs:
         unzip master.zip
         cd lcov-master
         sudo make install
-    - name: Download libyaml
-      uses: actions/checkout@v2
-      with:
-        repository: yaml/libyaml
-        submodules: recursive
-        ref: ${{ env.LIBYAML_VERSION }}
-        path: yaml-${{ env.LIBYAML_VERSION }}
-    - name: Cache libyaml
-      id: cache-libyaml
-      uses: actions/cache@v2
-      env:
-        cache-name: libyaml
-      with:
-        path: yaml-${{ env.LIBYAML_VERSION }}
-        key: yaml-${{ env.LIBYAML_VERSION }}-${{ runner.os }}
-    - name: Build libyaml
-      id: build-libyaml
-      if: steps.cache-libyaml.outputs.cache-hit != 'true'
-      run: |
-        cd yaml-${{ env.LIBYAML_VERSION }}
-        autoreconf -i
-        ./bootstrap
-        ./configure
-        make
-    - name: install libyaml
-      run: |
-        cd yaml-${{ env.LIBYAML_VERSION }}
-        sudo make install
     - name: Download libcheck
       uses: actions/checkout@v2
       with:

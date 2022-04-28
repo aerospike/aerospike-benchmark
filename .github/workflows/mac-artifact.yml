@@ -24,40 +24,6 @@ jobs:
     - name: Install event libs
       run: |
         brew install libev automake # libuv and libevent already installed
-    - name: Download libyaml
-      uses: actions/checkout@v2
-      with:
-        repository: yaml/libyaml
-        submodules: recursive
-        ref: ${{ env.LIBYAML_VERSION }}
-        path: ${{ inputs.submodule || '.' }}/yaml-${{ env.LIBYAML_VERSION }}
-    - name: Cache libyaml
-      id: cache-libyaml
-      uses: actions/cache@v2
-      env:
-        cache-name: libyaml
-        cache-index: "2" # mechanism for clearing the cache
-      with:
-        path: ${{ inputs.submodule || '.' }}/yaml-${{ env.LIBYAML_VERSION }}
-        key: yaml-${{ env.LIBYAML_VERSION }}-${{env.cache-name}}-${{env.cache-index}}-${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}
-    - name: Build libyaml
-      id: build-libyaml
-      if: steps.cache-libyaml.outputs.cache-hit != 'true'
-      run: |
-        cd ${{ inputs.submodule || '.' }}
-        cd yaml-${{ env.LIBYAML_VERSION }}
-        autoreconf -i
-        ./bootstrap
-        ./configure
-        make
-    - name: install libyaml
-      run: |
-        cd ${{ inputs.submodule || '.' }}
-        cd yaml-${{ env.LIBYAML_VERSION }}
-        ls
-        cat Makefile
-        pwd
-        sudo make install
     - name: Checkout benchmark
       uses: actions/checkout@v2
       with: 
