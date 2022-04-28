@@ -4,3 +4,6 @@
 [submodule "modules/c-client"]
 	path = modules/c-client
 	url = https://github.com/aerospike/aerospike-client-c
+[submodule "modules/libyaml"]
+	path = modules/libyaml
+	url = https://github.com/yaml/libyaml
