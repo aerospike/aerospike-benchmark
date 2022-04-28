@@ -23,7 +23,7 @@ jobs:
       id: system-info
     - name: Install event libs
       run: |
-        brew install libuv libev libevent automake
+        brew install libev automake # libuv and libevent already installed
     - name: Download libyaml
       uses: actions/checkout@v2
       with:
@@ -83,11 +83,18 @@ jobs:
     #     cd ${{ inputs.submodule || '.' }}
     #     mkdir -p tmp/target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
     #     mv target/benchmark tmp/target/${{ steps.system-info.outputs.platform }}-${{ runner.arch }}/${{ runner.os }}-${{ steps.system-info.outputs.release }}
+    - name: Get path
+      uses: haya14busa/action-cond@v1
+      id: artifact-path
+      with:
+        cond: ${{ inputs.submodule != '' }}
+        if_true: benchmark/${{ inputs.submodule }}
+        if_false: benchmark
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
         name: ${{steps.get_name.outputs.name}}
-        path: benchmark/${{ inputs.submodule || '.' }}/target/benchmark
+        path: ${{steps.artifact-path.outputs.value}}/target/benchmark
         if-no-files-found: error
   bundle-binaries:
     needs: build
