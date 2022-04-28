@@ -24,7 +24,7 @@ jobs:
       id: checkout-dir
       with:
         cond: ${{ inputs.submodule != '' }}
-        if_true: ${{ inputs.submodule }}/..
+        if_true: '.'
         if_false: asbench
     - name: Get asbench working directory
       uses: haya14busa/action-cond@v1
