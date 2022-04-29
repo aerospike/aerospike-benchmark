@@ -24,14 +24,14 @@ jobs:
       id: checkout-dir
       with:
         cond: ${{ inputs.submodule != '' }}
-        if_true: aerospike-tools
+        if_true: aerospike-tools  # In this case we are expecting to checkout the tools package.
         if_false: asbench
     - name: Get asbench working directory
       uses: haya14busa/action-cond@v1
       id: asbench-wd
       with:
         cond: ${{ inputs.submodule != '' }}
-        if_true: aerospike-tools/${{ inputs.submodule }}
+        if_true: aerospike-tools/${{ inputs.submodule }}  # In this case we are expecting to checkout the tools package.
         if_false: asbench
     - uses: kenchan0130/actions-system-info@master
       id: system-info
@@ -78,15 +78,8 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           path: target
-      - name: Get artifact name
-        uses: haya14busa/action-cond@v1
-        id: artifact-name
-        with:
-          cond: ${{ inputs.submodule != '' }}
-          if_true: ${{ inputs.submodule }}-binaries
-          if_false: binaries
       - uses: actions/upload-artifact@v3
         with:
-          name: ${{ steps.artifact-name.outputs.value }}
+          name: binaries
           path: target
           if-no-files-found: error
