@@ -43,8 +43,13 @@ jobs:
       # just cd into the correct directory calculated from asbench-wd
       uses: actions/checkout@v2
       with:
-        path: ${{ steps.checkout-dir.outputs.value }}
         submodules: recursive
+        path: ${{ steps.checkout-dir.outputs.value }}
+        fetch-depth: 0
+    - name: Print version
+      working-directory: ${{ steps.checkout-dir.outputs.value }}
+      run: |
+        git describe --tags --always
     - name: Build benchmark
       run: |
         make EVENT_LIB=${{ matrix.ev-lib }}
