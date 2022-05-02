@@ -47,7 +47,7 @@ jobs:
         path: ${{ steps.checkout-dir.outputs.value }}
         fetch-depth: 0
     - name: Print version
-      working-directory: ${{ steps.checkout-dir.outputs.value }}
+      working-directory: ${{ steps.asbench-wd.outputs.value }}
       run: |
         git describe --tags --always
     - name: Build benchmark
