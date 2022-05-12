@@ -28,7 +28,7 @@ jobs:
         if_false: asbench
     - name: Get asbench working directory
       uses: haya14busa/action-cond@v1
-      id: asbench-wd
+      id: working-dir
       with:
         cond: ${{ inputs.submodule != '' }}
         if_true: aerospike-tools/${{ inputs.submodule }}  # In this case we are expecting to checkout the tools package.
@@ -39,7 +39,7 @@ jobs:
       run: |
         brew install libev automake # libuv and libevent already installed
       # this will checkout the whole tools repo when run from aerospike-tools, but we will
-      # just cd into the correct directory calculated from asbench-wd
+      # just cd into the correct directory calculated from working-dir
     - uses: actions/checkout@v2
       with:
         path: ${{ steps.checkout-dir.outputs.value }}
@@ -50,17 +50,17 @@ jobs:
         git config --global url."https://github.com/".insteadOf "git@github.com:"
         git submodule update --init --recursive -- ${{ inputs.submodule || '.' }}
     - name: Print version
-      working-directory: ${{ steps.asbench-wd.outputs.value }}
+      working-directory: ${{ steps.working-dir.outputs.value }}
       run: |
         git describe --tags --always
     - name: Build benchmark
       run: |
         make EVENT_LIB=${{ matrix.ev-lib }}
-      working-directory: ${{ steps.asbench-wd.outputs.value }}
+      working-directory: ${{ steps.working-dir.outputs.value }}
     - name: Sanity test asbench artifact
       run: |
         ./benchmark | grep "ERROR Failed to connect"
-      working-directory: ${{ steps.asbench-wd.outputs.value }}/target
+      working-directory: ${{ steps.working-dir.outputs.value }}/target
     - name: Get artifact name
       run: |
         set -e
@@ -72,7 +72,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with: 
         name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.get-name.outputs.name }}
-        path: ${{ steps.asbench-wd.outputs.value }}/target/benchmark
+        path: ${{ steps.working-dir.outputs.value }}/target/benchmark
         if-no-files-found: error
   bundle-binaries:
     needs: build
