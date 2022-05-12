@@ -38,14 +38,17 @@ jobs:
     - name: Install event libs
       run: |
         brew install libev automake # libuv and libevent already installed
-    - name: Checkout benchmark
       # this will checkout the whole tools repo when run from aerospike-tools, but we will
       # just cd into the correct directory calculated from asbench-wd
-      uses: actions/checkout@v2
+    - uses: actions/checkout@v2
       with:
-        submodules: recursive
         path: ${{ steps.checkout-dir.outputs.value }}
         fetch-depth: 0
+    - name: Checkout ${{ steps.working-dir.outputs.value }}
+      working-directory: ${{ steps.checkout-dir.outputs.value }}
+      run: | 
+        git config --global url."https://github.com/".insteadOf "git@github.com:"
+        git submodule update --init --recursive -- ${{ inputs.submodule || '.' }}
     - name: Print version
       working-directory: ${{ steps.asbench-wd.outputs.value }}
       run: |
