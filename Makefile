@@ -19,6 +19,19 @@ else
 	ARCH = $(shell uname -m)
 endif
 
+CMAKE3_CHECK := $(shell cmake3 --help > /dev/null 2>&1 || (echo "cmake3 not found"))
+CMAKE_CHECK := $(shell cmake --help > /dev/null 2>&1 || (echo "cmake not found"))
+
+ifeq ($(CMAKE3_CHECK),)
+	CMAKE := cmake3
+else
+ifeq ($(CMAKE_CHECK),)
+	CMAKE := cmake
+else
+	$(error "no cmake binary found")
+endif
+endif
+
 CFLAGS = -std=gnu99 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
@@ -243,7 +256,7 @@ $(DIR_LIBYAML_BUILD):
 	mkdir $@
 
 $(DIR_LIBYAML_BUILD)/libyaml.a: | $(DIR_LIBYAML_BUILD)
-	cmake -B $(DIR_LIBYAML_BUILD) -S $(DIR_LIBYAML) -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF
+	cd $(DIR_LIBYAML_BUILD) && $(CMAKE) $(DIR_LIBYAML) -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF
 	$(MAKE) -C $(DIR_LIBYAML_BUILD)
 
 $(DIR_LIBCYAML_BUILD)/libcyaml.a:
