@@ -67,6 +67,7 @@ typedef struct args_s {
 	int read_total_timeout;
 	int write_total_timeout;
 	int max_retries;
+	int sleep_between_retries;
 	bool debug;
 	bool latency;
 	as_vector latency_percentiles;

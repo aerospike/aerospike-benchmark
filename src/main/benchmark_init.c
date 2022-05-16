@@ -89,7 +89,7 @@ typedef enum {
 	BENCH_OPT_READ_SOCKET_TOTAL_TIMEOUT,
 	BENCH_OPT_WRITE_SOCKET_TOTAL_TIMEOUT,
 	BENCH_OPT_MAX_RETRIES,
-	BENCH_OPT_RETRY_DELAY,
+	BENCH_OPT_SLEEP_BETWEEN_RETRIES,
 	BENCH_OPT_PERCENTILES,
 	BENCH_OPT_OUTPUT_FILE,
 	BENCH_OPT_OUTPUT_PERIOD,
@@ -137,7 +137,7 @@ static struct option long_options[] = {
 	{"read-timeout",          required_argument, 0, BENCH_OPT_READ_SOCKET_TOTAL_TIMEOUT},
 	{"write-timeout",         required_argument, 0, BENCH_OPT_WRITE_SOCKET_TOTAL_TIMEOUT},
 	{"max-retries",           required_argument, 0, BENCH_OPT_MAX_RETRIES},
-	{"sleep-between-retries", required_argument, 0, BENCH_OPT_RETRY_DELAY},
+	{"sleep-between-retries", required_argument, 0, BENCH_OPT_SLEEP_BETWEEN_RETRIES},
 	{"debug",                 no_argument,       0, 'd'},
 	{"latency",               no_argument,       0, 'L'},
 	{"percentiles",           required_argument, 0, BENCH_OPT_PERCENTILES},
@@ -510,6 +510,11 @@ print_usage(const char* program)
 	printf("   Maximum number of retries before aborting the current transaction.\n");
 	printf("\n");
 
+	printf("   --sleep-between-retries <ms> # Default: 0\n");
+	printf("   Amount of time to sleep between retrying synchronous transactions\n");
+	printf("   in milliseconds.\n");
+	printf("\n");
+
 	printf("-d --debug           # Default: debug mode is false.\n");
 	printf("   Run benchmarks in debug mode.\n");
 	printf("\n");
@@ -547,6 +552,7 @@ print_usage(const char* program)
 	printf("   --send-key  # Default: false\n");
 	printf("   Enables the key policy AS_POLICY_KEY_SEND, which sends the key value in\n");
 	printf("   addition to the key digest.\n");
+	printf("\n");
 
 	printf("-C --replica {master,any,sequence,prefer-rack} # Default: master\n");
 	printf("   Which replica to use for reads.\n");
@@ -694,6 +700,7 @@ print_args(args_t* args)
 	printf("read total timeout:     %d ms\n", args->read_total_timeout);
 	printf("write total timeout:    %d ms\n", args->write_total_timeout);
 	printf("max retries:            %d\n", args->max_retries);
+	printf("sleep between retries:  %d ms\n", args->sleep_between_retries);
 	printf("debug:                  %s\n", boolstring(args->debug));
 
 	if (args->latency) {
@@ -1248,6 +1255,9 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->max_retries = atoi(optarg);
 				break;
 
+			case BENCH_OPT_SLEEP_BETWEEN_RETRIES:
+				args->sleep_between_retries = atoi(optarg);
+
 			case 'd':
 				args->debug = true;
 				break;
@@ -1528,6 +1538,7 @@ _load_defaults(args_t* args)
 	args->read_total_timeout = AS_POLICY_TOTAL_TIMEOUT_DEFAULT;
 	args->write_total_timeout = AS_POLICY_TOTAL_TIMEOUT_DEFAULT;
 	args->max_retries = 1;
+	args->sleep_between_retries = 0;
 	args->debug = false;
 	args->latency = false;
 	as_vector_init(&args->latency_percentiles, sizeof(double), 5);

@@ -216,6 +216,7 @@ connect_to_server(args_t* args, aerospike* client)
 	p->read.base.socket_timeout = args->read_socket_timeout;
 	p->read.base.total_timeout = args->read_total_timeout;
 	p->read.base.max_retries = args->max_retries;
+	p->read.base.sleep_between_retries = args->sleep_between_retries;
 	p->read.base.compress = args->enable_compression;
 	p->read.key = args->key;
 	p->read.replica = args->replica;
@@ -225,6 +226,7 @@ connect_to_server(args_t* args, aerospike* client)
 	p->write.base.socket_timeout = args->write_socket_timeout;
 	p->write.base.total_timeout = args->write_total_timeout;
 	p->write.base.max_retries = args->max_retries;
+	p->write.base.sleep_between_retries = args->sleep_between_retries;
 	p->write.base.compress = args->enable_compression;
 	p->write.key = args->key;
 	p->write.replica = args->replica;
@@ -234,6 +236,7 @@ connect_to_server(args_t* args, aerospike* client)
 	p->operate.base.socket_timeout = args->write_socket_timeout;
 	p->operate.base.total_timeout = args->write_total_timeout;
 	p->operate.base.max_retries = args->max_retries;
+	p->operate.base.sleep_between_retries = args->sleep_between_retries;
 	p->operate.base.compress = args->enable_compression;
 	p->operate.key = args->key;
 	p->operate.replica = args->replica;
@@ -245,6 +248,7 @@ connect_to_server(args_t* args, aerospike* client)
 	p->remove.base.socket_timeout = args->write_socket_timeout;
 	p->remove.base.total_timeout = args->write_total_timeout;
 	p->remove.base.max_retries = args->max_retries;
+	p->remove.base.sleep_between_retries = args->sleep_between_retries;
 	p->remove.base.compress = args->enable_compression;
 	p->remove.key = args->key;
 	p->remove.replica = args->replica;
@@ -254,6 +258,7 @@ connect_to_server(args_t* args, aerospike* client)
 	p->batch.base.socket_timeout = args->read_socket_timeout;
 	p->batch.base.total_timeout = args->read_total_timeout;
 	p->batch.base.max_retries = args->max_retries;
+	p->batch.base.sleep_between_retries = args->sleep_between_retries;
 	p->batch.base.compress = args->enable_compression;
 	p->batch.replica = args->replica;
 	p->batch.read_mode_ap = args->read_mode_ap;
