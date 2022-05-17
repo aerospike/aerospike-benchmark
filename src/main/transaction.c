@@ -1458,6 +1458,7 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 		tdata->policies.write.exists = AS_POLICY_EXISTS_IGNORE;
 		tdata->policies.operate.exists = AS_POLICY_EXISTS_IGNORE;
 	}
+	tdata->policies.apply.ttl = stage->ttl;
 
 	if (stage->tps == 0) {
 		// tps = 0 means no throttling

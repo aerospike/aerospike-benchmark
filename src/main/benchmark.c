@@ -326,6 +326,16 @@ init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 	p->write.commit_level = args->write_commit_level;
 	p->write.durable_delete = args->durable_deletes;
 
+	p->apply.base.socket_timeout = args->write_socket_timeout;
+	p->apply.base.total_timeout = args->write_total_timeout;
+	p->apply.base.max_retries = args->max_retries;
+	p->apply.base.sleep_between_retries = args->sleep_between_retries;
+	p->apply.base.compress = args->enable_compression;
+	p->apply.key = args->key;
+	p->apply.replica = args->replica;
+	p->apply.commit_level = args->write_commit_level;
+	p->apply.durable_delete = args->durable_deletes;
+
 	p->operate.base.socket_timeout = args->write_socket_timeout;
 	p->operate.base.total_timeout = args->write_total_timeout;
 	p->operate.base.max_retries = args->max_retries;
