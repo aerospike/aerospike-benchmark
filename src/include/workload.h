@@ -43,6 +43,7 @@ typedef enum {
 } workload_type_t;
 
 #define WORKLOAD_RU_DEFAULT_PCT 50.f
+#define WORKLOAD_RR_DEFAULT_PCT 50.f
 
 #define WORKLOAD_RUF_DEFAULT_READ_PCT 40.f
 #define WORKLOAD_RUF_DEFAULT_WRITE_PCT 40.f

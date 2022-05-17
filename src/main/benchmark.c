@@ -305,6 +305,7 @@ init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 	tdata->finished = false;
 
 	as_policies* p = &tdata->policies;
+	as_policies_init(p);
 
 	p->read.base.socket_timeout = args->read_socket_timeout;
 	p->read.base.total_timeout = args->read_total_timeout;

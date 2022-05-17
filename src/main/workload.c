@@ -266,7 +266,12 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		float write_all_pct = WORKLOAD_UNSET_PCT;
 
 		if (workload_str[2] == '\0') {
-			pct = WORKLOAD_RU_DEFAULT_PCT;
+			if (workload_str[1] == 'U') {
+				pct = WORKLOAD_RU_DEFAULT_PCT;
+			}
+			else /* workload_str[1] == 'R' */ {
+				pct = WORKLOAD_RR_DEFAULT_PCT;
+			}
 		}
 		else if (workload_str[2] == ',') {
 			as_vector pct_vec;
