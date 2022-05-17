@@ -272,7 +272,7 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	as_error err;
 
 	uint64_t start = cf_getus();
-	status = aerospike_key_put(&cdata->client, &err, &tdata->write_policy, key, rec);
+	status = aerospike_key_put(&cdata->client, &err, &tdata->policies.write, key, rec);
 	uint64_t end = cf_getus();
 
 	if (status == AEROSPIKE_OK) {
@@ -310,13 +310,13 @@ _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	uint64_t start, end;
 	if (stage->read_bins) {
 		start = cf_getus();
-		status = aerospike_key_select(&cdata->client, &err, &tdata->read_policy,
+		status = aerospike_key_select(&cdata->client, &err, &tdata->policies.read,
 				key, (const char**) stage->read_bins, &rec);
 		end = cf_getus();
 	}
 	else {
 		start = cf_getus();
-		status = aerospike_key_get(&cdata->client, &err, &tdata->read_policy,
+		status = aerospike_key_get(&cdata->client, &err, &tdata->policies.read,
 				key, &rec);
 		end = cf_getus();
 	}
@@ -359,7 +359,7 @@ _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 	as_error err;
 
 	uint64_t start = cf_getus();
-	status = aerospike_batch_read(&cdata->client, &err, &tdata->batch_policy,
+	status = aerospike_batch_read(&cdata->client, &err, &tdata->policies.batch,
 			records);
 	uint64_t end = cf_getus();
 
@@ -408,7 +408,7 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	start = cf_getus();
-	status = aerospike_key_apply(&cdata->client, &err, &tdata->apply_policy, key,
+	status = aerospike_key_apply(&cdata->client, &err, &tdata->policies.apply, key,
 			stage->udf_package_name, stage->udf_fn_name, args, &val);
 	end = cf_getus();
 
@@ -458,7 +458,7 @@ _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
 	as_error err;
 
 	adata->start_time = cf_getus();
-	status = aerospike_key_put_async(&cdata->client, &err, &tdata->write_policy,
+	status = aerospike_key_put_async(&cdata->client, &err, &tdata->policies.write,
 			key, rec, _async_write_listener, adata, adata->ev_loop, NULL);
 
 	if (status != AEROSPIKE_OK) {
@@ -479,13 +479,13 @@ _read_record_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
 	if (stage->read_bins) {
 		adata->start_time = cf_getus();
 		status = aerospike_key_select_async(&cdata->client, &err,
-				&tdata->read_policy, key, (const char**) stage->read_bins,
+				&tdata->policies.read, key, (const char**) stage->read_bins,
 				_async_read_listener, adata, adata->ev_loop, NULL);
 	}
 	else {
 		adata->start_time = cf_getus();
 		status = aerospike_key_get_async(&cdata->client, &err,
-				&tdata->read_policy, key, _async_read_listener, adata,
+				&tdata->policies.read, key, _async_read_listener, adata,
 				adata->ev_loop, NULL);
 	}
 
@@ -506,7 +506,7 @@ _batch_read_record_async(as_batch_read_records* keys, struct async_data_s* adata
 
 	adata->start_time = cf_getus();
 	status = aerospike_batch_read_async(&cdata->client, &err,
-			&tdata->batch_policy, keys, _async_batch_read_listener, adata,
+			&tdata->policies.batch, keys, _async_batch_read_listener, adata,
 			adata->ev_loop);
 
 	if (status != AEROSPIKE_OK) {
@@ -535,7 +535,7 @@ _apply_udf_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
 	}
 
 	adata->start_time = cf_getus();
-	status = aerospike_key_apply_async(&cdata->client, &err, &tdata->apply_policy,
+	status = aerospike_key_apply_async(&cdata->client, &err, &tdata->policies.apply,
 			key, stage->udf_package_name, stage->udf_fn_name, args,
 			_async_val_listener, adata, adata->ev_loop, NULL);
 
@@ -1450,13 +1450,13 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 LOCAL_HELPER void
 init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 {
-	as_policy_read_init(&tdata->read_policy);
-	as_policy_write_init(&tdata->write_policy);
-	as_policy_apply_init(&tdata->apply_policy);
-	as_policy_batch_init(&tdata->batch_policy);
-
 	if (stage->workload.type == WORKLOAD_TYPE_RR) {
-		tdata->write_policy.exists = AS_POLICY_EXISTS_REPLACE;
+		tdata->policies.write.exists = AS_POLICY_EXISTS_REPLACE;
+		tdata->policies.operate.exists = AS_POLICY_EXISTS_REPLACE;
+	}
+	else {
+		tdata->policies.write.exists = AS_POLICY_EXISTS_IGNORE;
+		tdata->policies.operate.exists = AS_POLICY_EXISTS_IGNORE;
 	}
 
 	if (stage->tps == 0) {

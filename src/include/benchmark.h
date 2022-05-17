@@ -172,10 +172,7 @@ typedef struct threaddata_s {
 	as_record fixed_delete_record;
 	as_list* fixed_udf_fn_args;
 
-	as_policy_read read_policy;
-	as_policy_write write_policy;
-	as_policy_apply apply_policy;
-	as_policy_batch batch_policy;
+	as_policies policies;
 } tdata_t;
 
 
