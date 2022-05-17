@@ -31,6 +31,7 @@ static void assert_workloads_eq(const stages_t* parsed,
 		ck_assert_uint_eq(a->duration, b->duration);
 		ck_assert_str_eq(a->desc, b->desc);
 		ck_assert_uint_eq(a->tps, b->tps);
+		ck_assert_uint_eq(a->ttl, b->ttl);
 		ck_assert_uint_eq(a->key_start, b->key_start);
 		ck_assert_uint_eq(a->key_end, b->key_end);
 		ck_assert_uint_eq(a->pause, b->pause);
@@ -149,6 +150,7 @@ DEFINE_TEST(test_simple,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -180,6 +182,39 @@ DEFINE_TEST(test_tps,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 321,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_I,
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		});
+
+
+DEFINE_TEST(test_expiration_time,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  expiration-time: 456",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 456,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -211,6 +246,7 @@ DEFINE_TEST(test_key_start,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 543,
 				.key_end = 100543,
 				.pause = 0,
@@ -242,6 +278,7 @@ DEFINE_TEST(test_key_end,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 1321,
 				.pause = 0,
@@ -273,6 +310,7 @@ DEFINE_TEST(test_pause,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 231,
@@ -304,6 +342,7 @@ DEFINE_TEST(test_batch_size,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -335,6 +374,7 @@ DEFINE_TEST(test_async,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -366,6 +406,7 @@ DEFINE_TEST(test_random,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -396,6 +437,7 @@ DEFINE_TEST(test_workload_ru_default,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -404,7 +446,7 @@ DEFINE_TEST(test_workload_ru_default,
 				.random = false,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_RU,
-					.read_pct = 50
+					.read_pct = WORKLOAD_RU_DEFAULT_PCT
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -427,6 +469,7 @@ DEFINE_TEST(test_workload_ru_pct,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -436,6 +479,70 @@ DEFINE_TEST(test_workload_ru_pct,
 				.workload = (workload_t) {
 					.type = WORKLOAD_TYPE_RU,
 					.read_pct = 75.2
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		});
+
+
+DEFINE_TEST(test_workload_rr_default,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RR\n",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RR,
+					.read_pct = WORKLOAD_RR_DEFAULT_PCT
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		});
+
+
+DEFINE_TEST(test_workload_rr_pct,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RR,99.01\n",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RR,
+					.read_pct = 99.01
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -461,6 +568,7 @@ DEFINE_UDF_TEST(test_workload_ruf_default,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -502,6 +610,7 @@ DEFINE_UDF_TEST(test_workload_ruf_pct,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -539,6 +648,7 @@ DEFINE_TEST(test_workload_db,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -569,6 +679,7 @@ DEFINE_UDF_TEST(test_workload_rud_default,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -604,6 +715,7 @@ DEFINE_UDF_TEST(test_workload_rud_pct,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -641,6 +753,7 @@ DEFINE_TEST(test_obj_spec,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -673,6 +786,7 @@ DEFINE_TEST(test_read_bins,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -712,6 +826,7 @@ DEFINE_TEST(test_write_bins,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -749,6 +864,7 @@ yaml_parse_suite(void)
 	tc_simple = tcase_create("Simple");
 	tcase_add_test(tc_simple, test_simple);
 	tcase_add_test(tc_simple, test_tps);
+	tcase_add_test(tc_simple, test_expiration_time);
 	tcase_add_test(tc_simple, test_key_start);
 	tcase_add_test(tc_simple, test_key_end);
 	tcase_add_test(tc_simple, test_pause);
@@ -757,6 +873,8 @@ yaml_parse_suite(void)
 	tcase_add_test(tc_simple, test_random);
 	tcase_add_test(tc_simple, test_workload_ru_default);
 	tcase_add_test(tc_simple, test_workload_ru_pct);
+	tcase_add_test(tc_simple, test_workload_rr_default);
+	tcase_add_test(tc_simple, test_workload_rr_pct);
 	tcase_add_test(tc_simple, test_workload_ruf_default);
 	tcase_add_test(tc_simple, test_workload_ruf_pct);
 	tcase_add_test(tc_simple, test_workload_rud_default);
