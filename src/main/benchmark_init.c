@@ -765,6 +765,9 @@ print_args(args_t* args)
 	}
 
 	printf("read replica:           %s\n", str);
+	if (args->replica == AS_POLICY_REPLICA_PREFER_RACK) {
+		printf("rack id:                %d\n", args->rack_id);
+	}
 	printf("read mode AP:           %s\n",
 			(AS_POLICY_READ_MODE_AP_ONE == args->read_mode_ap ? "one" : "all"));
 
