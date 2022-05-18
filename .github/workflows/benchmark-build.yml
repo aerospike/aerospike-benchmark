@@ -2,9 +2,9 @@ name: Build and Test All
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, test-ready ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, test-ready ]
 jobs:
   build:
     runs-on: ubuntu-latest
