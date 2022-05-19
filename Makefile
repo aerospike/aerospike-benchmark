@@ -102,14 +102,15 @@ else ifeq ($(OS),FreeBSD)
 endif
 
 LDFLAGS += -lm -lz -lcyaml
-TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
-BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
 
 ifeq ($(LIBYAML_STATIC_PATH),)
-  BUILD_LDFLAGS += -lyaml
+  LDFLAGS += -lyaml
 else
-  BUILD_LDFLAGS += $(LIBYAML_STATIC_PATH)/libyaml.a
+  LDFLAGS += $(LIBYAML_STATIC_PATH)/libyaml.a
 endif
+
+TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
+BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
 
 CC = cc
 AR = ar
@@ -257,15 +258,15 @@ test_target/lib: | test_target
 	mkdir $@
 
 test_target/obj/unit/%.o: src/test/unit/%.c | test_target/obj/unit
-	$(CC) $(TEST_CFLAGS) -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -o $@ -c $< $(INCLUDES)
 
 test_target/obj/%.o: src/main/%.c | test_target/obj
-	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
 test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
-	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
-test_target/test: $(TEST_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
 	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
 # build the benchmark executable with code coverage
