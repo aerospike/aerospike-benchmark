@@ -42,10 +42,10 @@ struct async_data_s {
 
 	// what type of operation is being performed
 	enum {
-		read,
-		write,
-		delete,
-		udf
+		read_op,
+		write_op,
+		delete_op,
+		udf_op
 	} op;
 };
 
@@ -930,7 +930,7 @@ random_read_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 {
 	uint32_t batch_size = stage->batch_size;
 
-	adata->op = read;
+	adata->op = read_op;
 
 	if (batch_size <= 1) {
 		// generate a random key
@@ -972,7 +972,7 @@ random_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	_gen_key(key_val, &adata->key, cdata);
 	rec = _gen_record(tdata->random, cdata, tdata, stage);
-	adata->op = write;
+	adata->op = write_op;
 
 	_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
@@ -986,7 +986,7 @@ random_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// generate a random key
 	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
 	_gen_key(key_val, &adata->key, cdata);
-	adata->op = udf;
+	adata->op = udf_op;
 
 	_apply_udf_async(&adata->key, adata, tdata, cdata, stage);
 }
@@ -1002,7 +1002,7 @@ random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	_gen_key(key_val, &adata->key, cdata);
 	rec = _gen_nil_record(tdata);
-	adata->op = write;
+	adata->op = write_op;
 
 	_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
@@ -1023,10 +1023,10 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 
 	if (!err) {
 		uint64_t end = cf_getus();
-		if (adata->op == read) {
+		if (adata->op == read_op) {
 			_record_read(cdata, end - adata->start_time);
 		}
-		else if (adata->op == udf) {
+		else if (adata->op == udf_op) {
 			_record_udf(cdata, end - adata->start_time);
 		}
 		else {
@@ -1039,10 +1039,10 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	}
 	else {
 		if (err->code == AEROSPIKE_ERR_TIMEOUT) {
-			if (adata->op == read) {
+			if (adata->op == read_op) {
 				as_incr_uint64(&cdata->read_timeout_count);
 			}
-			else if (adata->op == udf) {
+			else if (adata->op == udf_op) {
 				as_incr_uint64(&cdata->udf_timeout_count);
 			}
 			else {
@@ -1050,10 +1050,10 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			}
 		}
 		else {
-			if (adata->op == read) {
+			if (adata->op == read_op) {
 				as_incr_uint64(&cdata->read_error_count);
 			}
-			else if (adata->op == udf) {
+			else if (adata->op == udf_op) {
 				as_incr_uint64(&cdata->udf_error_count);
 			}
 			else {
@@ -1158,7 +1158,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		as_record* rec;
 		_gen_key(key_val, &adata->key, cdata);
 		rec = _gen_record(tdata->random, cdata, tdata, stage);
-		adata->op = write;
+		adata->op = write_op;
 
 		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
@@ -1290,7 +1290,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		as_record* rec;
 		_gen_key(key_val, &adata->key, cdata);
 		rec = _gen_nil_record(tdata);
-		adata->op = delete;
+		adata->op = delete_op;
 
 		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
