@@ -29,6 +29,7 @@ DIR_INCLUDE += $(CLIENT_PATH)/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
 DIR_INCLUDE += $(CLIENT_PATH)/modules/base/src/include
+DIR_INCLUDE += /usr/local/include
 INCLUDES = $(DIR_INCLUDE:%=-I%) 
 
 DIR_ENV = $(ROOT)/env
@@ -42,8 +43,6 @@ ifeq ($(OS),Darwin)
 else ifeq ($(OS),Linux)
   CFLAGS += -rdynamic
 endif
-
-CFLAGS += $(INCLUDES) -I/usr/local/include
 
 ifeq ($(EVENT_LIB),libev)
   CFLAGS += -DAS_USE_LIBEV
@@ -104,18 +103,18 @@ endif
 
 LDFLAGS += -lm -lz -lcyaml
 TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
-LDFLAGS += -Ltarget/lib -flto
+BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
 
 ifeq ($(LIBYAML_STATIC_PATH),)
-  LDFLAGS += -lyaml
+  BUILD_LDFLAGS += -lyaml
 else
-  LDFLAGS += $(LIBYAML_STATIC_PATH)/libyaml.a
+  BUILD_LDFLAGS += $(LIBYAML_STATIC_PATH)/libyaml.a
 endif
 
 CC = cc
 AR = ar
 
-BUILD_CFLAGS = $(CFLAGS) -flto
+BUILD_CFLAGS = $(CFLAGS)
 TEST_CFLAGS = $(CFLAGS) -g -D_TEST
 
 ###############################################################################
@@ -175,7 +174,7 @@ info:
 	@echo
 	@echo "  LINKER:"
 	@echo "      command:    " $(LD)
-	@echo "      flags:      " $(LDFLAGS)
+	@echo "      flags:      " $(BUILD_LDFLAGS)
 	@echo
 
 
@@ -219,7 +218,7 @@ target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | target/lib
 	cp $< $@
 
 target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
-	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(LDFLAGS)
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(BUILD_LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))

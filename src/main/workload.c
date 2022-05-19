@@ -527,10 +527,16 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 				const char* args_str = stage_def->udf_spec.udf_fn_args != NULL ?
 					stage_def->udf_spec.udf_fn_args : "";
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+
 				strncpy(stage->udf_package_name, stage_def->udf_spec.udf_package_name,
 						sizeof(as_udf_module_name));
 				strncpy(stage->udf_fn_name, stage_def->udf_spec.udf_fn_name,
 						sizeof(as_udf_function_name));
+
+#pragma GCC diagnostic pop
+
 				ret = obj_spec_parse(&stage->udf_fn_args, args_str);
 			}
 		}
