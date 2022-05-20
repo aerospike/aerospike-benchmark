@@ -27,16 +27,16 @@ jobs:
         ./benchmark | grep "ERROR Failed to connect"
       working-directory: main/target
     - name: Get artifact name
-      run: |
-        set -e
-        NAME=-${{ matrix.ev-lib}}
-        if [ "${NAME}" = "-" ]; then NAME="" ; fi
-        echo "::set-output name=name::benchmark-$RUNNER_OS$NAME"
-      id: get_name
+      uses: haya14busa/action-cond@v1
+      id: artifact-name
+      with:
+        cond: ${{ matrix.ev-lib == '' }}
+        if_true: asbench-${{ runner.os }}
+        if_false: asbench-${{ runner.os }}-${{ matrix.ev-lib }}
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
-        name: ${{steps.get_name.outputs.name}}
+        name: ${{ steps.artifact-name.outputs.value }}
         path: main/target/benchmark
         if-no-files-found: error
   pre-release:
