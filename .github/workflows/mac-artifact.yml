@@ -62,16 +62,16 @@ jobs:
         ./benchmark | grep "ERROR Failed to connect"
       working-directory: ${{ steps.working-dir.outputs.value }}/target
     - name: Get artifact name
-      run: |
-        set -e
-        NAME=-${{ matrix.ev-lib}}
-        if [ "${NAME}" = "-" ]; then NAME="" ; fi
-        echo "::set-output name=name::asbench$NAME"
-      id: get-name
+      uses: haya14busa/action-cond@v1
+      id: artifact-name
+      with:
+        cond: ${{ matrix.ev-lib != '' }}
+        if_true: asbench
+        if_false: asbench-${{ matrix.ev-lib }}
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with: 
-        name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.get-name.outputs.name }}
+        name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.artifact-name.outputs.value }}
         path: ${{ steps.working-dir.outputs.value }}/target/benchmark
         if-no-files-found: error
   bundle-binaries:
