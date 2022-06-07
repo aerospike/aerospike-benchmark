@@ -43,7 +43,7 @@
 // Typedefs & constants.
 //
 
-static const char* short_options = "h:p:U:P:n:s:b:K:k:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
+static const char* short_options = "h:p:U:P:n:s:b:K:k:o:Rt:w:z:g:T:E:dL:SC:N:B:M:Y:Dac:W:";
 
 #define WARN_MSG 0x40000000
 
@@ -104,6 +104,7 @@ static struct option long_options[] = {
 	{"read-timeout",          required_argument, 0, 'X'},
 	{"write-timeout",         required_argument, 0, 'V'},
 	{"max-retries",           required_argument, 0, 'r'},
+	{"max-error-rate",        required_argument, 0, 'E'},
 	{"debug",                 no_argument,       0, 'd'},
 	{"latency",               no_argument,       0, 'L'},
 	{"percentiles",           required_argument, 0, '8'},
@@ -457,6 +458,18 @@ print_usage(const char* program)
 	printf("   Maximum number of retries before aborting the current transaction.\n");
 	printf("\n");
 
+	printf("   --max-error-rate <number> # Default: 0\n");
+	printf("   Maximum number of errors allowed per node per error_rate_window before\n");
+	printf("   backoff algorithm returns AEROSPIKE_MAX_ERROR_RATE for database\n");
+	printf("   commands to that node. If max_error_rate is zero, there is no\n");
+	printf("   error limit.\n");
+	printf("   The counted error types are any error that causes the connection to close\n");
+	printf("   (socket errors and client timeouts), server device overload and server\n");
+	printf("   timeouts.\n");
+	printf("   The application should backoff or reduce the transaction load until\n");
+	printf("   AEROSPIKE_MAX_ERROR_RATE stops being returned.\n");
+	printf("\n");
+
 	printf("-d --debug           # Default: debug mode is false.\n");
 	printf("   Run benchmarks in debug mode.\n");
 	printf("\n");
@@ -598,6 +611,13 @@ print_usage(const char* program)
 	printf("\n");
 }
 
+// TODO:
+// uint32_t as_config::error_rate_window
+// The number of cluster tend iterations that defines the window for max_error_rate. One tend iteration is defined as tender_interval plus the time to tend all nodes. At the end of the window, the error count is reset to zero and backoff state is removed on all nodes.
+// 
+// Default: 1
+
+
 LOCAL_HELPER void
 print_args(args_t* args)
 {
@@ -625,6 +645,7 @@ print_args(args_t* args)
 	printf("read total timeout:     %d ms\n", args->read_total_timeout);
 	printf("write total timeout:    %d ms\n", args->write_total_timeout);
 	printf("max retries:            %d\n", args->max_retries);
+	printf("max error rate:         %d\n", args->max_error_rate);
 	printf("debug:                  %s\n", boolstring(args->debug));
 
 	if (args->latency) {
@@ -800,6 +821,12 @@ validate_args(args_t* args)
 	if (args->write_total_timeout < 0) {
 		printf("Invalid write total timeout: %d  Valid values: [>= 0]\n",
 				args->write_total_timeout);
+		return 1;
+	}
+
+	if (args->max_error_rate < 0) {
+		printf("Invalid max error rate: %d  Valid values: [>= 0]\n",
+				args->max_error_rate);
 		return 1;
 	}
 
@@ -1157,6 +1184,10 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->max_retries = atoi(optarg);
 				break;
 
+			case 'E':
+				args->max_error_rate = atoi(optarg);
+				break;
+
 			case 'd':
 				args->debug = true;
 				break;
@@ -1426,6 +1457,7 @@ _load_defaults(args_t* args)
 	args->read_total_timeout = AS_POLICY_TOTAL_TIMEOUT_DEFAULT;
 	args->write_total_timeout = AS_POLICY_TOTAL_TIMEOUT_DEFAULT;
 	args->max_retries = 1;
+	args->max_error_rate = 0;
 	args->debug = false;
 	args->latency = false;
 	args->latency_columns = 4;

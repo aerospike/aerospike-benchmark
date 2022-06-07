@@ -152,7 +152,7 @@ cleanup1:
 }
 
 
-//==========================================================
+//=========================================================e
 // Local helpers.
 //
 
@@ -200,6 +200,8 @@ connect_to_server(args_t* args, aerospike* client)
 	cfg.conn_timeout_ms = 10000;
 	cfg.login_timeout_ms = 10000;
 	cfg.use_services_alternate = args->use_services_alternate;
+
+	cfg.max_error_rate = args->max_error_rate;
 
 	// Disable batch/scan/query thread pool because these commands are not used in benchmarks.
 	cfg.thread_pool_size = 0;

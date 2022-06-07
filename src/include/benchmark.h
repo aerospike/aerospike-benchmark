@@ -66,6 +66,7 @@ typedef struct args_s {
 	int read_total_timeout;
 	int write_total_timeout;
 	int max_retries;
+	int max_error_rate;
 	bool debug;
 	bool latency;
 	int latency_columns;
