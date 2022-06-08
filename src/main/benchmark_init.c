@@ -43,7 +43,7 @@
 // Typedefs & constants.
 //
 
-static const char* short_options = "h:p:U:P:n:s:b:K:k:o:Rt:w:z:g:T:E:dL:SC:N:B:M:Y:Dac:W:";
+static const char* short_options = "h:p:U:P:n:s:b:K:k:o:Rt:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
 
 #define WARN_MSG 0x40000000
 
