@@ -197,18 +197,27 @@ connect_to_server(args_t* args, aerospike* client)
 
 	as_config_set_user(&cfg, args->user, args->password);
 	cfg.use_shm = args->use_shm;
-	cfg.conn_timeout_ms = 10000;
+	cfg.conn_timeout_ms = args->conn_timeout_ms;
 	cfg.login_timeout_ms = 10000;
 	cfg.use_services_alternate = args->use_services_alternate;
 
 	cfg.max_error_rate = args->max_error_rate;
+	cfg.tender_interval = args->tender_interval;
+	cfg.error_rate_window = args->error_rate_window;
+	cfg.max_socket_idle = args->max_socket_idle;
+
+	cfg.min_conns_per_node = args->min_conns_per_node;
+	cfg.max_conns_per_node = args->max_conns_per_node;
 
 	// Disable batch/scan/query thread pool because these commands are not used in benchmarks.
 	cfg.thread_pool_size = 0;
 	cfg.conn_pools_per_node = args->conn_pools_per_node;
 
+	cfg.async_min_conns_per_node = args->async_min_conns_per_node;
 	if (cfg.async_max_conns_per_node < (uint32_t)args->async_max_commands) {
 		cfg.async_max_conns_per_node = args->async_max_commands;
+	} else {
+		cfg.async_max_conns_per_node = args->async_max_conns_per_node;
 	}
 
 	as_policies* p = &cfg.policies;
