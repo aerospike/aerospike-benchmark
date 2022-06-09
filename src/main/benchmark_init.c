@@ -706,13 +706,6 @@ print_usage(const char* program)
 	printf("\n");
 }
 
-// TODO:
-// uint32_t as_config::error_rate_window
-// The number of cluster tend iterations that defines the window for max_error_rate. One tend iteration is defined as tender_interval plus the time to tend all nodes. At the end of the window, the error count is reset to zero and backoff state is removed on all nodes.
-// 
-// Default: 1
-
-
 LOCAL_HELPER void
 print_args(args_t* args)
 {
