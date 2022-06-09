@@ -1337,7 +1337,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->max_retries = atoi(optarg);
 				break;
 
-			case 'E':
+			case MAX_ERROR_RATE:
 				args->max_error_rate = atoi(optarg);
 				break;
 			
