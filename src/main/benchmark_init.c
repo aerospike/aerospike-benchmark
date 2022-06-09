@@ -81,7 +81,7 @@ typedef enum {
        MAX_CONNS_PER_NODE,
        ASYNC_MIN_CONNS_PER_NODE,
        ASYNC_MAX_CONNS_PER_NODE,
-} client_ops;
+} client_opt;
 
 static struct option long_options[] = {
 	{"help",                  no_argument,       0, '9'},
