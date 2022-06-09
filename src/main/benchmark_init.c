@@ -123,7 +123,7 @@ static struct option long_options[] = {
 	{"max-retries",           required_argument, 0, 'r'},
 	{"max-error-rate",        required_argument, 0, MAX_ERROR_RATE},
 	{"tender-interval",       required_argument, 0, TENDER_INTERVAL},
-	{"error_rate_window",     required_argument, 0, ERROR_RATE_WINDOW},
+	{"error-rate-window",     required_argument, 0, ERROR_RATE_WINDOW},
 	{"max-socket-idle",       required_argument, 0, MAX_SOCKET_IDLE},
 	{"debug",                 no_argument,       0, 'd'},
 	{"latency",               no_argument,       0, 'L'},
