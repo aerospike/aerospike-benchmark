@@ -1024,7 +1024,7 @@ validate_args(args_t* args)
 	}
 
 	if (args->async_max_conns_per_node < (uint32_t)args->async_max_commands) {
-		fprintf(stderr, "Warning: async_max_conns_per_node < async_max_commands, async_max_conns_per_node will be set to %d",
+		fprintf(stderr, "Warning: async_max_conns_per_node < async_max_commands, async_max_conns_per_node will be set to %d\n",
 				args->async_max_commands);
 	}
 

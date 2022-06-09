@@ -214,7 +214,7 @@ connect_to_server(args_t* args, aerospike* client)
 	cfg.conn_pools_per_node = args->conn_pools_per_node;
 
 	cfg.async_min_conns_per_node = args->async_min_conns_per_node;
-	if (cfg.async_max_conns_per_node < (uint32_t)args->async_max_commands) {
+	if (args->async_max_conns_per_node < (uint32_t)args->async_max_commands) {
 		cfg.async_max_conns_per_node = args->async_max_commands;
 	} else {
 		cfg.async_max_conns_per_node = args->async_max_conns_per_node;
