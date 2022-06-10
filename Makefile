@@ -247,6 +247,9 @@ target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | target/lib
 target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | target/lib
 	cp $< $@
 
+$(C_CLIENT_LIB):
+	$(MAKE) -C $(DIR_C_CLIENT)
+
 target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
 	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(BUILD_LDFLAGS)
 
