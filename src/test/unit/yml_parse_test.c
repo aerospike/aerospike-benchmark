@@ -31,6 +31,7 @@ static void assert_workloads_eq(const stages_t* parsed,
 		ck_assert_uint_eq(a->duration, b->duration);
 		ck_assert_str_eq(a->desc, b->desc);
 		ck_assert_uint_eq(a->tps, b->tps);
+		ck_assert_uint_eq(a->ttl, b->ttl);
 		ck_assert_uint_eq(a->key_start, b->key_start);
 		ck_assert_uint_eq(a->key_end, b->key_end);
 		ck_assert_uint_eq(a->pause, b->pause);
@@ -39,10 +40,10 @@ static void assert_workloads_eq(const stages_t* parsed,
 		ck_assert(a->random == b->random);
 
 		ck_assert_uint_eq(a->workload.type, b->workload.type);
-		if (a->workload.type == WORKLOAD_TYPE_RANDOM) {
+		if (a->workload.type == WORKLOAD_TYPE_RU) {
 			ck_assert_float_eq(a->workload.read_pct, b->workload.read_pct);
 		}
-		if (a->workload.type == WORKLOAD_TYPE_RANDOM_UDF) {
+		if (a->workload.type == WORKLOAD_TYPE_RUF) {
 			ck_assert_float_eq(a->workload.read_pct, b->workload.read_pct);
 			ck_assert_float_eq(a->workload.write_pct, b->workload.write_pct);
 		}
@@ -79,7 +80,7 @@ static void assert_workloads_eq(const stages_t* parsed,
 			}
 		}
 
-		if (a->workload.type == WORKLOAD_TYPE_RANDOM_UDF) {
+		if (a->workload.type == WORKLOAD_TYPE_RUF) {
 			ck_assert_str_eq(a->udf_package_name, b->udf_package_name);
 			ck_assert_str_eq(a->udf_fn_name, b->udf_fn_name);
 
@@ -149,6 +150,7 @@ DEFINE_TEST(test_simple,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -156,7 +158,7 @@ DEFINE_TEST(test_simple,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_LINEAR,
+					.type = WORKLOAD_TYPE_I,
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -180,6 +182,7 @@ DEFINE_TEST(test_tps,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 321,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -187,7 +190,39 @@ DEFINE_TEST(test_tps,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_LINEAR,
+					.type = WORKLOAD_TYPE_I,
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		});
+
+
+DEFINE_TEST(test_expiration_time,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  expiration-time: 456",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 456,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_I,
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -211,6 +246,7 @@ DEFINE_TEST(test_key_start,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 543,
 				.key_end = 100543,
 				.pause = 0,
@@ -218,7 +254,7 @@ DEFINE_TEST(test_key_start,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_LINEAR,
+					.type = WORKLOAD_TYPE_I,
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -242,6 +278,7 @@ DEFINE_TEST(test_key_end,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 1321,
 				.pause = 0,
@@ -249,7 +286,7 @@ DEFINE_TEST(test_key_end,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_LINEAR,
+					.type = WORKLOAD_TYPE_I,
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -273,6 +310,7 @@ DEFINE_TEST(test_pause,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 231,
@@ -280,7 +318,7 @@ DEFINE_TEST(test_pause,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_LINEAR,
+					.type = WORKLOAD_TYPE_I,
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -304,6 +342,7 @@ DEFINE_TEST(test_batch_size,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -311,7 +350,7 @@ DEFINE_TEST(test_batch_size,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_LINEAR,
+					.type = WORKLOAD_TYPE_I,
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -335,6 +374,7 @@ DEFINE_TEST(test_async,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -342,7 +382,7 @@ DEFINE_TEST(test_async,
 				.async = true,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_LINEAR,
+					.type = WORKLOAD_TYPE_I,
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -366,6 +406,7 @@ DEFINE_TEST(test_random,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -373,7 +414,7 @@ DEFINE_TEST(test_random,
 				.async = false,
 				.random = true,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_LINEAR,
+					.type = WORKLOAD_TYPE_I,
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -396,6 +437,7 @@ DEFINE_TEST(test_workload_ru_default,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -403,8 +445,8 @@ DEFINE_TEST(test_workload_ru_default,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_RANDOM,
-					.read_pct = 50
+					.type = WORKLOAD_TYPE_RU,
+					.read_pct = WORKLOAD_RU_DEFAULT_PCT
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -427,6 +469,7 @@ DEFINE_TEST(test_workload_ru_pct,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -434,8 +477,72 @@ DEFINE_TEST(test_workload_ru_pct,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_RANDOM,
+					.type = WORKLOAD_TYPE_RU,
 					.read_pct = 75.2
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		});
+
+
+DEFINE_TEST(test_workload_rr_default,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RR\n",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RR,
+					.read_pct = WORKLOAD_RR_DEFAULT_PCT
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		});
+
+
+DEFINE_TEST(test_workload_rr_pct,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RR,99.01\n",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RR,
+					.read_pct = 99.01
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -461,6 +568,7 @@ DEFINE_UDF_TEST(test_workload_ruf_default,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -468,9 +576,9 @@ DEFINE_UDF_TEST(test_workload_ruf_default,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_RANDOM_UDF,
-					.read_pct = 40,
-					.write_pct = 40
+					.type = WORKLOAD_TYPE_RUF,
+					.read_pct = WORKLOAD_RUF_DEFAULT_READ_PCT,
+					.write_pct = WORKLOAD_RUF_DEFAULT_WRITE_PCT
 				},
 				.read_bins = NULL,
 				.write_bins = NULL,
@@ -502,6 +610,7 @@ DEFINE_UDF_TEST(test_workload_ruf_pct,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -509,7 +618,7 @@ DEFINE_UDF_TEST(test_workload_ruf_pct,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_RANDOM_UDF,
+					.type = WORKLOAD_TYPE_RUF,
 					.read_pct = 75.2,
 					.write_pct = 20
 				},
@@ -539,6 +648,7 @@ DEFINE_TEST(test_workload_db,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -546,7 +656,7 @@ DEFINE_TEST(test_workload_db,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_DELETE
+					.type = WORKLOAD_TYPE_D
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -556,6 +666,78 @@ DEFINE_TEST(test_workload_db,
 		}),
 		(char*[]) {
 			"I4"
+		});
+
+
+DEFINE_UDF_TEST(test_workload_rud_default,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RUD\n",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RUD,
+					.read_pct = WORKLOAD_RUD_DEFAULT_READ_PCT,
+					.write_pct = WORKLOAD_RUD_DEFAULT_WRITE_PCT
+				},
+				.read_bins = NULL,
+				.write_bins = NULL,
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		},
+		(char*[]) {
+			""
+		});
+
+
+DEFINE_UDF_TEST(test_workload_rud_pct,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RUD,75.2,20\n",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RUD,
+					.read_pct = 75.2,
+					.write_pct = 20
+				},
+				.read_bins = NULL,
+				.write_bins = NULL,
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		},
+		(char*[]) {
+			"I4,D"
 		});
 
 
@@ -571,6 +753,7 @@ DEFINE_TEST(test_obj_spec,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -578,7 +761,7 @@ DEFINE_TEST(test_obj_spec,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_LINEAR,
+					.type = WORKLOAD_TYPE_I,
 				},
 				.read_bins = NULL,
 				.write_bins = NULL
@@ -603,6 +786,7 @@ DEFINE_TEST(test_read_bins,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -610,7 +794,7 @@ DEFINE_TEST(test_read_bins,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_RANDOM,
+					.type = WORKLOAD_TYPE_RU,
 					.read_pct = 50
 				},
 				.read_bins = (char*[]) {
@@ -642,6 +826,7 @@ DEFINE_TEST(test_write_bins,
 				.duration = 20,
 				.desc = "test stage",
 				.tps = 0,
+				.ttl = 0,
 				.key_start = 1,
 				.key_end = 100001,
 				.pause = 0,
@@ -649,7 +834,7 @@ DEFINE_TEST(test_write_bins,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
-					.type = WORKLOAD_TYPE_RANDOM,
+					.type = WORKLOAD_TYPE_RU,
 					.read_pct = 50
 				},
 				.read_bins = NULL,
@@ -679,6 +864,7 @@ yaml_parse_suite(void)
 	tc_simple = tcase_create("Simple");
 	tcase_add_test(tc_simple, test_simple);
 	tcase_add_test(tc_simple, test_tps);
+	tcase_add_test(tc_simple, test_expiration_time);
 	tcase_add_test(tc_simple, test_key_start);
 	tcase_add_test(tc_simple, test_key_end);
 	tcase_add_test(tc_simple, test_pause);
@@ -687,8 +873,12 @@ yaml_parse_suite(void)
 	tcase_add_test(tc_simple, test_random);
 	tcase_add_test(tc_simple, test_workload_ru_default);
 	tcase_add_test(tc_simple, test_workload_ru_pct);
+	tcase_add_test(tc_simple, test_workload_rr_default);
+	tcase_add_test(tc_simple, test_workload_rr_pct);
 	tcase_add_test(tc_simple, test_workload_ruf_default);
 	tcase_add_test(tc_simple, test_workload_ruf_pct);
+	tcase_add_test(tc_simple, test_workload_rud_default);
+	tcase_add_test(tc_simple, test_workload_rud_pct);
 	tcase_add_test(tc_simple, test_workload_db);
 	tcase_add_test(tc_simple, test_obj_spec);
 	tcase_add_test(tc_simple, test_read_bins);

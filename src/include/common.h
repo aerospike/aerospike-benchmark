@@ -66,8 +66,13 @@ typedef uint64_t ptr_int_t;
 	} while(0)
 
 
+#ifndef MIN
 #define MIN(a, b) ((a) > (b) ? (b) : (a))
+#endif
+
+#ifndef MAX
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
+#endif
 
 #define LIKELY(expr) __builtin_expect((expr), 1)
 #define UNLIKELY(expr) __builtin_expect((expr), 0)

@@ -1,7 +1,7 @@
 name: Mac Artifact
 on:
   push:
-    branches: [actionsHub, main, test-ready, mac_build]
+    branches: [actionsHub, main, test-ready ]
   pull_request:
     branches: [actionsHub]
   workflow_call:

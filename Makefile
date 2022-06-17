@@ -67,8 +67,6 @@ else ifeq ($(OS),Linux)
   CFLAGS += -rdynamic
 endif
 
-CFLAGS += $(INCLUDES) -I/usr/local/include
-
 ifeq ($(EVENT_LIB),libev)
   CFLAGS += -DAS_USE_LIBEV
 endif
@@ -126,14 +124,21 @@ else ifeq ($(OS),FreeBSD)
   LDFLAGS += -lrt
 endif
 
-LDFLAGS += -lm -lz
+LDFLAGS += -lm -lz -lcyaml
+
+ifeq ($(LIBYAML_STATIC_PATH),)
+  LDFLAGS += -lyaml
+else
+  LDFLAGS += $(LIBYAML_STATIC_PATH)/libyaml.a
+endif
+
 TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
-LDFLAGS += -Ltarget/lib -flto
+BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
 
 CC = cc
 AR = ar
 
-BUILD_CFLAGS = $(CFLAGS) -flto
+BUILD_CFLAGS = $(CFLAGS)
 TEST_CFLAGS = $(CFLAGS) -g -D_TEST
 
 ###############################################################################
@@ -193,12 +198,12 @@ info:
 	@echo
 	@echo "  LINKER:"
 	@echo "      command:    " $(LD)
-	@echo "      flags:      " $(LDFLAGS)
+	@echo "      flags:      " $(BUILD_LDFLAGS)
 	@echo
 
 
 .PHONY: build
-build: target/benchmark
+build: target/asbench
 
 .PHONY: archive
 archive: $(OBJECTS) target/libbench.a
@@ -245,8 +250,8 @@ target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | target/lib
 $(C_CLIENT_LIB):
 	$(MAKE) -C $(DIR_C_CLIENT)
 
-target/benchmark: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libyaml.a target/lib/libcyaml.a $(C_CLIENT_LIB) | target
-	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(C_CLIENT_LIB) $(LDFLAGS)
+target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | target
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(BUILD_LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))
@@ -264,7 +269,7 @@ $(DIR_LIBCYAML_BUILD)/libcyaml.a:
 
 .PHONY: run
 run: build
-	./target/benchmark -h $(AS_HOST) -p $(AS_PORT)
+	./target/asbench -h $(AS_HOST) -p $(AS_PORT)
 
 .PHONY: test
 test: unit integration
@@ -292,16 +297,16 @@ test_target/lib: | test_target
 	mkdir $@
 
 test_target/obj/unit/%.o: src/test/unit/%.c | test_target/obj/unit
-	$(CC) $(TEST_CFLAGS) -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -o $@ -c $< $(INCLUDES)
 
 test_target/obj/%.o: src/main/%.c | test_target/obj
-	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
 test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
-	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
-test_target/test: $(TEST_OBJECTS) test_target/lib/libyaml.a test_target/lib/libcyaml.a $(C_CLIENT_LIB) | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) $(TEST_LDFLAGS)
+test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
 # build the benchmark executable with code coverage
 test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
@@ -310,14 +315,14 @@ test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
 test_target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | test_target/lib
 	cp $< $@
 
-test_target/benchmark: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libyaml.a test_target/lib/libcyaml.a $(C_CLIENT_LIB) | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) $(TEST_LDFLAGS)
+test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
 -include $(wildcard $(TEST_DEPENDENCIES))
 
 # integration testing
 .PHONY: integration
-integration: test_target/benchmark
+integration: test_target/asbench
 	@./integration_tests.sh $(DIR_ENV)
 
 # Summary requires the lcov tool to be installed

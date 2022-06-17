@@ -2,9 +2,9 @@ name: Build and Test All
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, test-ready ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, test-ready ]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,7 +18,7 @@ jobs:
     - name: Install event libs
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
-          sudo apt-get install -y libevent-dev libev-dev libuv1-dev
+          sudo apt-get install -y libevent-dev libev-dev libuv1-dev libyaml-dev
         elif [ "$RUNNER_OS" == "macOS" ]; then
           brew update
           brew install libuv libev libevent automake

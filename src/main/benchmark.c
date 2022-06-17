@@ -51,10 +51,10 @@ LOCAL_HELPER bool as_client_log_cb(as_log_level level, const char* func,
 LOCAL_HELPER int connect_to_server(args_t* args, aerospike* client);
 LOCAL_HELPER bool is_single_bin(aerospike* client, const char* namespace);
 LOCAL_HELPER void add_default_tls_host(as_config *as_conf, const char* tls_name);
-LOCAL_HELPER tdata_t* init_tdata(cdata_t* cdata, thr_coord_t* coord,
-		uint32_t t_idx);
+LOCAL_HELPER tdata_t* init_tdata(const args_t* args, cdata_t* cdata,
+		thr_coord_t* coord, uint32_t t_idx);
 LOCAL_HELPER void destroy_tdata(tdata_t* tdata);
-LOCAL_HELPER int _run(cdata_t* cdata);
+LOCAL_HELPER int _run(const args_t* args, cdata_t* cdata);
 
 
 //==========================================================
@@ -122,7 +122,7 @@ run_benchmark(args_t* args)
 		}
 	}
 
-	ret = _run(&data);
+	ret = _run(args, &data);
 
 #ifdef __linux__
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
@@ -196,6 +196,8 @@ connect_to_server(args_t* args, aerospike* client)
 	}
 
 	as_config_set_user(&cfg, args->user, args->password);
+	cfg.rack_aware = (args->replica == AS_POLICY_REPLICA_PREFER_RACK);
+	cfg.rack_id = cfg.rack_aware ? args->rack_id : 0;
 	cfg.use_shm = args->use_shm;
 	cfg.conn_timeout_ms = 10000;
 	cfg.login_timeout_ms = 10000;
@@ -210,49 +212,6 @@ connect_to_server(args_t* args, aerospike* client)
 	}
 
 	as_policies* p = &cfg.policies;
-
-	p->read.base.socket_timeout = args->read_socket_timeout;
-	p->read.base.total_timeout = args->read_total_timeout;
-	p->read.base.max_retries = args->max_retries;
-	p->read.base.compress = args->enable_compression;
-	p->read.replica = args->replica;
-	p->read.read_mode_ap = args->read_mode_ap;
-	p->read.read_mode_sc = args->read_mode_sc;
-
-	p->write.base.socket_timeout = args->write_socket_timeout;
-	p->write.base.total_timeout = args->write_total_timeout;
-	p->write.base.max_retries = args->max_retries;
-	p->write.base.compress = args->enable_compression;
-	p->write.replica = args->replica;
-	p->write.commit_level = args->write_commit_level;
-	p->write.durable_delete = args->durable_deletes;
-
-	p->operate.base.socket_timeout = args->write_socket_timeout;
-	p->operate.base.total_timeout = args->write_total_timeout;
-	p->operate.base.max_retries = args->max_retries;
-	p->operate.base.compress = args->enable_compression;
-	p->operate.replica = args->replica;
-	p->operate.commit_level = args->write_commit_level;
-	p->operate.durable_delete = args->durable_deletes;
-	p->operate.read_mode_ap = args->read_mode_ap;
-	p->operate.read_mode_sc = args->read_mode_sc;
-
-	p->remove.base.socket_timeout = args->write_socket_timeout;
-	p->remove.base.total_timeout = args->write_total_timeout;
-	p->remove.base.max_retries = args->max_retries;
-	p->remove.base.compress = args->enable_compression;
-	p->remove.replica = args->replica;
-	p->remove.commit_level = args->write_commit_level;
-	p->remove.durable_delete = args->durable_deletes;
-
-	p->batch.base.socket_timeout = args->read_socket_timeout;
-	p->batch.base.total_timeout = args->read_total_timeout;
-	p->batch.base.max_retries = args->max_retries;
-	p->batch.base.compress = args->enable_compression;
-	p->batch.replica = args->replica;
-	p->batch.read_mode_ap = args->read_mode_ap;
-	p->batch.read_mode_sc = args->read_mode_sc;
-
 	p->info.timeout = 10000;
 
 	// Transfer ownership of all heap allocated TLS fields via shallow copy.
@@ -330,7 +289,7 @@ add_default_tls_host(as_config *as_conf, const char* tls_name)
  * allocates and initializes a new threaddata struct, returning a pointer to it
  */
 LOCAL_HELPER tdata_t*
-init_tdata(cdata_t* cdata, thr_coord_t* coord,
+init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 		uint32_t t_idx)
 {
 	tdata_t* tdata = (tdata_t*) cf_malloc(sizeof(tdata_t));
@@ -345,6 +304,72 @@ init_tdata(cdata_t* cdata, thr_coord_t* coord,
 	tdata->do_work = true;
 	tdata->finished = false;
 
+	as_policies* p = &tdata->policies;
+	as_policies_init(p);
+
+	p->read.base.socket_timeout = args->read_socket_timeout;
+	p->read.base.total_timeout = args->read_total_timeout;
+	p->read.base.max_retries = args->max_retries;
+	p->read.base.sleep_between_retries = args->sleep_between_retries;
+	p->read.base.compress = args->enable_compression;
+	p->read.key = args->key;
+	p->read.replica = args->replica;
+	p->read.read_mode_ap = args->read_mode_ap;
+	p->read.read_mode_sc = args->read_mode_sc;
+
+	p->write.base.socket_timeout = args->write_socket_timeout;
+	p->write.base.total_timeout = args->write_total_timeout;
+	p->write.base.max_retries = args->max_retries;
+	p->write.base.sleep_between_retries = args->sleep_between_retries;
+	p->write.base.compress = args->enable_compression;
+	p->write.key = args->key;
+	p->write.replica = args->replica;
+	p->write.commit_level = args->write_commit_level;
+	p->write.durable_delete = args->durable_deletes;
+
+	p->apply.base.socket_timeout = args->write_socket_timeout;
+	p->apply.base.total_timeout = args->write_total_timeout;
+	p->apply.base.max_retries = args->max_retries;
+	p->apply.base.sleep_between_retries = args->sleep_between_retries;
+	p->apply.base.compress = args->enable_compression;
+	p->apply.key = args->key;
+	p->apply.replica = args->replica;
+	p->apply.commit_level = args->write_commit_level;
+	p->apply.durable_delete = args->durable_deletes;
+
+	p->operate.base.socket_timeout = args->write_socket_timeout;
+	p->operate.base.total_timeout = args->write_total_timeout;
+	p->operate.base.max_retries = args->max_retries;
+	p->operate.base.sleep_between_retries = args->sleep_between_retries;
+	p->operate.base.compress = args->enable_compression;
+	p->operate.key = args->key;
+	p->operate.replica = args->replica;
+	p->operate.commit_level = args->write_commit_level;
+	p->operate.durable_delete = args->durable_deletes;
+	p->operate.read_mode_ap = args->read_mode_ap;
+	p->operate.read_mode_sc = args->read_mode_sc;
+
+	p->remove.base.socket_timeout = args->write_socket_timeout;
+	p->remove.base.total_timeout = args->write_total_timeout;
+	p->remove.base.max_retries = args->max_retries;
+	p->remove.base.sleep_between_retries = args->sleep_between_retries;
+	p->remove.base.compress = args->enable_compression;
+	p->remove.key = args->key;
+	p->remove.replica = args->replica;
+	p->remove.commit_level = args->write_commit_level;
+	p->remove.durable_delete = args->durable_deletes;
+
+	p->batch.base.socket_timeout = args->read_socket_timeout;
+	p->batch.base.total_timeout = args->read_total_timeout;
+	p->batch.base.max_retries = args->max_retries;
+	p->batch.base.sleep_between_retries = args->sleep_between_retries;
+	p->batch.base.compress = args->enable_compression;
+	p->batch.replica = args->replica;
+	p->batch.read_mode_ap = args->read_mode_ap;
+	p->batch.read_mode_sc = args->read_mode_sc;
+
+	p->info.timeout = 10000;
+
 	return tdata;
 }
 
@@ -354,7 +379,7 @@ destroy_tdata(tdata_t* tdata)
 }
 
 LOCAL_HELPER int
-_run(cdata_t* cdata)
+_run(const args_t* args, cdata_t* cdata)
 {
 	int ret = 0;
 	thr_coord_t coord;
@@ -371,7 +396,7 @@ _run(cdata_t* cdata)
 	tdata_t** tdatas = (tdata_t**) cf_malloc(n_threads * sizeof(tdata_t*));
 
 	for (uint32_t i = 0; i < n_threads; i++) {
-		tdatas[i] = init_tdata(cdata, &coord, i);
+		tdatas[i] = init_tdata(args, cdata, &coord, i);
 	}
 
 	// pause before the first workload stage (using the logger thread's

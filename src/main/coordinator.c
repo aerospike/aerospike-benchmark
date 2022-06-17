@@ -301,9 +301,13 @@ clear_cdata_counts(cdata_t* cdata)
 	cdata->write_count = 0;
 	cdata->write_timeout_count = 0;
 	cdata->write_error_count = 0;
-	cdata->read_count = 0;
+	cdata->read_hit_count = 0;
+	cdata->read_miss_count = 0;
 	cdata->read_timeout_count = 0;
 	cdata->read_error_count = 0;
+	cdata->udf_count = 0;
+	cdata->udf_timeout_count = 0;
+	cdata->udf_error_count = 0;
 
 	as_fence_memory();
 }
