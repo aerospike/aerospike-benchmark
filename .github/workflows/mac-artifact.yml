@@ -1,0 +1,93 @@
+name: Mac Artifact
+on:
+  push:
+    branches: [actionsHub, main, test-ready ]
+  pull_request:
+    branches: [actionsHub]
+  workflow_call:
+    inputs:
+      submodule:
+        description: The directory of the submodule, if this workflow is being called on a submodule
+        required: false
+        type: string
+jobs:
+  build:
+    runs-on: macos-10.15
+    strategy:
+      matrix:
+        ev-lib: ["", libev, libuv, libevent]
+    env:
+      LIBYAML_VERSION: 0.2.5
+    steps:
+    - name: Get checkout directory
+      uses: haya14busa/action-cond@v1
+      id: checkout-dir
+      with:
+        cond: ${{ inputs.submodule != '' }}
+        if_true: aerospike-tools  # In this case we are expecting to checkout the tools package.
+        if_false: asbench
+    - name: Get asbench working directory
+      uses: haya14busa/action-cond@v1
+      id: working-dir
+      with:
+        cond: ${{ inputs.submodule != '' }}
+        if_true: aerospike-tools/${{ inputs.submodule }}  # In this case we are expecting to checkout the tools package.
+        if_false: asbench
+    - uses: kenchan0130/actions-system-info@master
+      id: system-info
+    - name: Install event libs
+      run: |
+        brew install libev automake # libuv and libevent already installed
+      # this will checkout the whole tools repo when run from aerospike-tools, but we will
+      # just cd into the correct directory calculated from working-dir
+    - uses: actions/checkout@v2
+      with:
+        path: ${{ steps.checkout-dir.outputs.value }}
+        fetch-depth: 0
+    - name: Checkout ${{ steps.working-dir.outputs.value }}
+      working-directory: ${{ steps.checkout-dir.outputs.value }}
+      run: | 
+        git config --global url."https://github.com/".insteadOf "git@github.com:"
+        git submodule update --init --recursive -- ${{ inputs.submodule || '.' }}
+    - name: Print version
+      working-directory: ${{ steps.working-dir.outputs.value }}
+      run: |
+        git describe --tags --always
+    - name: Build benchmark
+      run: |
+        make EVENT_LIB=${{ matrix.ev-lib }}
+      working-directory: ${{ steps.working-dir.outputs.value }}
+    - name: Sanity test asbench artifact
+      run: |
+        ./benchmark | grep "ERROR Failed to connect"
+      working-directory: ${{ steps.working-dir.outputs.value }}/target
+    - name: Get artifact name
+      uses: haya14busa/action-cond@v1
+      id: artifact-name
+      with:
+        cond: ${{ matrix.ev-lib == '' }}
+        if_true: asbench
+        if_false: asbench-${{ matrix.ev-lib }}
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with: 
+        name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.artifact-name.outputs.value }}
+        path: ${{ steps.working-dir.outputs.value }}/target/benchmark
+        if-no-files-found: error
+  bundle-binaries:
+    needs: build
+    runs-on: macos-10.15
+    if: "${{ inputs.submodule == '' }}"
+
+    steps:
+      - uses: kenchan0130/actions-system-info@master
+        id: system-info
+      - name: Get artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: target
+      - uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: target
+          if-no-files-found: error

@@ -19,6 +19,8 @@
 // Typedefs & constants.
 //
 
+#define WORKLOAD_UNSET_PCT -1.f
+
 static const cyaml_schema_field_t udf_spec_mapping_schema[] = {
 	CYAML_FIELD_STRING_PTR("module", CYAML_FLAG_POINTER_NULL_STR,
 			udf_spec_t, udf_package_name, 0, sizeof(as_udf_module_name)),
@@ -68,6 +70,8 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			stage_def_t, async),
 	CYAML_FIELD_BOOL("random", CYAML_FLAG_OPTIONAL,
 			stage_def_t, random),
+	CYAML_FIELD_UINT("expiration-time", CYAML_FLAG_OPTIONAL,
+			stage_def_t, ttl),
 	CYAML_FIELD_MAPPING("udf", CYAML_FLAG_DEFAULT | CYAML_FLAG_OPTIONAL,
 			stage_def_t, udf_spec, udf_spec_mapping_schema),
 	CYAML_FIELD_END
@@ -111,6 +115,16 @@ static const cyaml_config_t config = {
 #define PARSE_BINS_INT 0x1
 
 /*
+ * parses workload percentage distributions for workload with 3 stages (two
+ * percentages given)
+ *
+ * pct_vec is a float vector that will have the percentages parsed from the list
+ * given in pct_str appended to it.
+ */
+LOCAL_HELPER int
+_parse_workload_distr(const char* pct_str, as_vector* pct_vec);
+
+/*
  * reads and parses bins_str, a comma-separated list of bin numbers
  * (1-based indexed) and populates the read_bins field of stage
  *
@@ -137,48 +151,44 @@ LOCAL_HELPER void _free_bins_selection(char** bins);
 int
 parse_workload_type(workload_t* workload, const char* workload_str)
 {
-	char* endptr;
-
 	if (strcmp(workload_str, "I") == 0) {
-		workload->type = WORKLOAD_TYPE_LINEAR;
+		workload->type = WORKLOAD_TYPE_I;
+		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
 	else if (strncmp(workload_str, "RUF", 3) == 0) {
-		float read_pct, write_pct;
+		float read_pct;
+		float write_pct;
+		float read_all_pct = WORKLOAD_UNSET_PCT;
+		float write_all_pct = WORKLOAD_UNSET_PCT;
+
 		if (workload_str[3] == '\0') {
-			read_pct = WORKLOAD_RANDOM_UDF_DEFAULT_READ_PCT;
-			write_pct = WORKLOAD_RANDOM_UDF_DEFAULT_WRITE_PCT;
+			read_pct = WORKLOAD_RUF_DEFAULT_READ_PCT;
+			write_pct = WORKLOAD_RUF_DEFAULT_WRITE_PCT;
 		}
 		else if (workload_str[3] == ',') {
-			read_pct = strtod(workload_str + 4, &endptr);
-			if (workload_str[4] == '\0') {
-				fprintf(stderr, "\"%s\" not a floating point number\n",
-						workload_str + 4);
+			as_vector pct_vec;
+			as_vector_init(&pct_vec, sizeof(float), 2);
+			if (_parse_workload_distr(workload_str + 4, &pct_vec) < 0) {
+				as_vector_destroy(&pct_vec);
 				return -1;
 			}
-			if (*endptr != ',') {
-				fprintf(stderr, "must supply both read percent and update "
-						"percent on RUF workload\n");
-				return -1;
-			}
-
-			char* endptr2;
-			write_pct = strtod(endptr + 1, &endptr2);
-			if (*endptr == '\0' || *endptr2 != '\0') {
-				fprintf(stderr, "\"%s\" not a floating point number\n",
-						endptr + 1);
+			if (pct_vec.size < 2 || pct_vec.size > 4) {
+				fprintf(stderr, "Expected 2-4 percentages to follow RUF, but "
+						"found %d\n", pct_vec.size);
+				as_vector_destroy(&pct_vec);
 				return -1;
 			}
 
-			if (read_pct < 0 || read_pct > 100) {
-				fprintf(stderr, "%f not a valid percentage value\n",
-						read_pct);
-				return -1;
+			read_pct = *(float*) as_vector_get(&pct_vec, 0);
+			write_pct = *(float*) as_vector_get(&pct_vec, 1);
+			if (pct_vec.size >= 3) {
+				read_all_pct = *(float*) as_vector_get(&pct_vec, 2);
 			}
-			if (write_pct < 0 || write_pct > 100) {
-				fprintf(stderr, "%f not a valid percentage value\n",
-						write_pct);
-				return -1;
+			if (pct_vec.size >= 4) {
+				write_all_pct = *(float*) as_vector_get(&pct_vec, 3);
 			}
+			as_vector_destroy(&pct_vec);
+
 			if (read_pct + write_pct >= 100) {
 				fprintf(stderr, "read percent and write percent together total "
 						">= 100%% (%g + %g = %g)\n",
@@ -191,24 +201,50 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 			return -1;
 		}
 
-		workload->type = WORKLOAD_TYPE_RANDOM_UDF;
+		workload->type = WORKLOAD_TYPE_RUF;
 		workload->read_pct = read_pct;
 		workload->write_pct = write_pct;
+		workload->read_all_pct = read_all_pct;
+		workload->write_all_pct = write_all_pct;
 	}
-	else if (strncmp(workload_str, "RU", 2) == 0) {
-		float pct;
-		if (workload_str[2] == '\0') {
-			pct = WORKLOAD_RANDOM_DEFAULT_PCT;
+	else if (strncmp(workload_str, "RUD", 3) == 0) {
+		float read_pct;
+		float write_pct;
+		float read_all_pct = WORKLOAD_UNSET_PCT;
+		float write_all_pct = WORKLOAD_UNSET_PCT;
+
+		if (workload_str[3] == '\0') {
+			read_pct = WORKLOAD_RUD_DEFAULT_READ_PCT;
+			write_pct = WORKLOAD_RUD_DEFAULT_WRITE_PCT;
 		}
-		else if (workload_str[2] == ',') {
-			pct = strtod(workload_str + 3, &endptr);
-			if (workload_str[3] == '\0' || *endptr != '\0') {
-				fprintf(stderr, "\"%s\" not a floating point number\n",
-						workload_str + 3);
+		else if (workload_str[3] == ',') {
+			as_vector pct_vec;
+			as_vector_init(&pct_vec, sizeof(float), 2);
+			if (_parse_workload_distr(workload_str + 4, &pct_vec) < 0) {
+				as_vector_destroy(&pct_vec);
 				return -1;
 			}
-			if (pct < 0 || pct > 100) {
-				fprintf(stderr, "%f not a valid percentage value\n", pct);
+			if (pct_vec.size < 2 || pct_vec.size > 4) {
+				fprintf(stderr, "Expected 2-4 percentages to follow RUD, but "
+						"found %d\n", pct_vec.size);
+				as_vector_destroy(&pct_vec);
+				return -1;
+			}
+
+			read_pct = *(float*) as_vector_get(&pct_vec, 0);
+			write_pct = *(float*) as_vector_get(&pct_vec, 1);
+			if (pct_vec.size >= 3) {
+				read_all_pct = *(float*) as_vector_get(&pct_vec, 2);
+			}
+			if (pct_vec.size >= 4) {
+				write_all_pct = *(float*) as_vector_get(&pct_vec, 3);
+			}
+			as_vector_destroy(&pct_vec);
+
+			if (read_pct + write_pct >= 100) {
+				fprintf(stderr, "read percent and write percent together total "
+						">= 100%% (%g + %g = %g)\n",
+						read_pct, write_pct, read_pct + write_pct);
 				return -1;
 			}
 		}
@@ -217,11 +253,67 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 			return -1;
 		}
 
-		workload->type = WORKLOAD_TYPE_RANDOM;
+		workload->type = WORKLOAD_TYPE_RUD;
+		workload->read_pct = read_pct;
+		workload->write_pct = write_pct;
+		workload->read_all_pct = read_all_pct;
+		workload->write_all_pct = write_all_pct;
+	}
+	else if (strncmp(workload_str, "RU", 2) == 0 ||
+			strncmp(workload_str, "RR", 2) == 0) {
+		float pct;
+		float read_all_pct = WORKLOAD_UNSET_PCT;
+		float write_all_pct = WORKLOAD_UNSET_PCT;
+
+		if (workload_str[2] == '\0') {
+			if (workload_str[1] == 'U') {
+				pct = WORKLOAD_RU_DEFAULT_PCT;
+			}
+			else /* workload_str[1] == 'R' */ {
+				pct = WORKLOAD_RR_DEFAULT_PCT;
+			}
+		}
+		else if (workload_str[2] == ',') {
+			as_vector pct_vec;
+			as_vector_init(&pct_vec, sizeof(float), 2);
+			if (_parse_workload_distr(workload_str + 3, &pct_vec) < 0) {
+				as_vector_destroy(&pct_vec);
+				return -1;
+			}
+			if (pct_vec.size < 1 || pct_vec.size > 3) {
+				fprintf(stderr, "Expected 1-3 percentage to follow RU, but "
+						"found %d\n", pct_vec.size);
+				as_vector_destroy(&pct_vec);
+				return -1;
+			}
+
+			pct = *(float*) as_vector_get(&pct_vec, 0);
+			if (pct_vec.size >= 2) {
+				read_all_pct = *(float*) as_vector_get(&pct_vec, 1);
+			}
+			if (pct_vec.size >= 3) {
+				write_all_pct = *(float*) as_vector_get(&pct_vec, 2);
+			}
+			as_vector_destroy(&pct_vec);
+		}
+		else {
+			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+			return -1;
+		}
+
+		if (workload_str[1] == 'U') {
+			workload->type = WORKLOAD_TYPE_RU;
+		}
+		else {
+			workload->type = WORKLOAD_TYPE_RR;
+		}
 		workload->read_pct = pct;
+		workload->read_all_pct = read_all_pct;
+		workload->write_all_pct = write_all_pct;
 	}
 	else if (strcmp(workload_str, "DB") == 0) {
-		workload->type = WORKLOAD_TYPE_DELETE;
+		workload->type = WORKLOAD_TYPE_D;
+		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
 	else {
 		fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
@@ -256,6 +348,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		stage->pause = stage_def->pause;
 		stage->async = stage_def->async;
 		stage->random = stage_def->random;
+		stage->ttl = stage_def->ttl;
 
 		if (stage_def->key_start == -1LU) {
 			// if key_start wasn't specified, then inherit from the global context
@@ -296,12 +389,32 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			ret = -1;
 		}
 
-		if (stage->workload.type == WORKLOAD_TYPE_DELETE && stage->random) {
+		if (stage->workload.type == WORKLOAD_TYPE_D && stage->random) {
 			fprintf(stderr,
 					"Stage %d is a delete workload, so you cannot have random "
 					"records (set random to false)\n",
 					i + 1);
 			ret = -1;
+		}
+
+		if (workload_contains_reads(&stage->workload) &&
+				stage->workload.read_all_pct == WORKLOAD_UNSET_PCT) {
+			if (stage_def->read_bins_str == NULL) {
+				stage->workload.read_all_pct = WORKLOAD_DEFAULT_READ_ALL_PCT;
+			}
+			else {
+				stage->workload.read_all_pct = 0;
+			}
+		}
+
+		if (workload_contains_writes(&stage->workload) &&
+				stage->workload.write_all_pct == WORKLOAD_UNSET_PCT) {
+			if (stage_def->write_bins_str == NULL) {
+				stage->workload.write_all_pct = WORKLOAD_DEFAULT_WRITE_ALL_PCT;
+			}
+			else {
+				stage->workload.write_all_pct = 0;
+			}
 		}
 
 		if (stage_def->duration == -1LU) {
@@ -336,7 +449,18 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			}
 		}
 
-		char* bins_str = stage_def->read_bins_str;
+		char* bins_str;
+		if (stage_def->read_bins_str != NULL) {
+			bins_str = stage_def->read_bins_str;
+		}
+		else if (workload_contains_reads(&stage->workload) &&
+				stage->workload.read_all_pct < 100) {
+			bins_str = "1";
+		}
+		else {
+			bins_str = NULL;
+		}
+
 		if (bins_str != NULL && !workload_contains_reads(&stage->workload)) {
 			fprintf(stderr, "Stage %d: cannot specify read-bins on workload "
 					"without reads\n",
@@ -356,7 +480,17 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		}
 
 		// now parse write bins
-		bins_str = stage_def->write_bins_str;
+		if (stage_def->write_bins_str != NULL) {
+			bins_str = stage_def->write_bins_str;
+		}
+		else if (workload_contains_writes(&stage->workload) &&
+				stage->workload.write_all_pct < 100) {
+			bins_str = "1";
+		}
+		else {
+			bins_str = NULL;
+		}
+
 		if (bins_str != NULL && !workload_contains_writes(&stage->workload)) {
 			fprintf(stderr, "Stage %d: cannot specify write-bins on workload "
 					"without writes\n",
@@ -393,10 +527,16 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 				const char* args_str = stage_def->udf_spec.udf_fn_args != NULL ?
 					stage_def->udf_spec.udf_fn_args : "";
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+
 				strncpy(stage->udf_package_name, stage_def->udf_spec.udf_package_name,
 						sizeof(as_udf_module_name));
 				strncpy(stage->udf_fn_name, stage_def->udf_spec.udf_fn_name,
 						sizeof(as_udf_function_name));
+
+#pragma GCC diagnostic pop
+
 				ret = obj_spec_parse(&stage->udf_fn_args, args_str);
 			}
 		}
@@ -529,8 +669,10 @@ void stages_print(const stages_t* stages)
 	const static char* workloads[] = {
 		"I",
 		"RU",
+		"RR",
 		"DB",
-		"UDF"
+		"RUF",
+		"RUD"
 	};
 
 	char obj_spec_buf[512];
@@ -546,18 +688,25 @@ void stages_print(const stages_t* stages)
 				"  pause: %" PRIu64 "\n"
 				"  batch-size: %" PRIu32 "\n"
 				"  async: %s\n"
-				"  random: %s\n",
+				"  random: %s\n"
+				"  ttl: %" PRId64 "\n",
 				stage->duration, stage->desc, stage->tps, stage->key_start,
 				stage->key_end, stage->pause, stage->batch_size,
-				boolstring(stage->async), boolstring(stage->random));
+				boolstring(stage->async), boolstring(stage->random),
+				stage->ttl);
 
 		printf( "  workload: %s",
 				workloads[stage->workload.type]);
-		if (stage->workload.type == WORKLOAD_TYPE_RANDOM) {
-			printf(",%g%%\n", stage->workload.read_pct);
+		if (stage->workload.type == WORKLOAD_TYPE_RU ||
+				stage->workload.type == WORKLOAD_TYPE_RR) {
+			printf(",%g%%,%g%%,%g%%\n", stage->workload.read_pct,
+					stage->workload.read_all_pct, stage->workload.write_all_pct);
 		}
-		else if (stage->workload.type == WORKLOAD_TYPE_RANDOM_UDF) {
-			printf(",%g%%,%g%%\n", stage->workload.read_pct, stage->workload.write_pct);
+		else if (stage->workload.type == WORKLOAD_TYPE_RUF ||
+				stage->workload.type == WORKLOAD_TYPE_RUD) {
+			printf(",%g%%,%g%%,%g%%,%g%%\n", stage->workload.read_pct,
+					stage->workload.write_pct, stage->workload.read_all_pct,
+					stage->workload.write_all_pct);
 		}
 		else {
 			printf("\n");
@@ -619,6 +768,43 @@ void stages_print(const stages_t* stages)
 //==========================================================
 // Local helpers.
 //
+
+LOCAL_HELPER int
+_parse_workload_distr(const char* pct_str, as_vector* pct_vec)
+{
+	const char* str = pct_str;
+
+	while (*str != '\0') {
+
+		char* endptr;
+		float pct = strtod(str, &endptr);
+		if (endptr == str) {
+			fprintf(stderr, "Expected floating point number in percentage list "
+					"\"%s\"\n",
+					pct_str);
+			return -1;
+		}
+
+		if (pct < 0 || pct > 100) {
+			fprintf(stderr, "Percentage value \"%f\" must be between 0 and 100\n",
+					pct);
+			return -1;
+		}
+		as_vector_append(pct_vec, &pct);
+
+		str = endptr;
+		if (*str == ',') {
+			str++;
+		}
+		else if (*str != '\0') {
+			fprintf(stderr, "Expected ',' in percentage list \"%s\"\n",
+					pct_str);
+			return -1;
+		}
+	}
+
+	return 0;
+}
 
 LOCAL_HELPER void*
 _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,

@@ -2,84 +2,65 @@ name: Build and Test All
 
 on:
   push:
-    branches: [ main, doty/asrl-mods ]
+    branches: [ main, test-ready ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, test-ready ]
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      CLIENTREPO: ${GITHUB_WORKSPACE}/client
     strategy:
       matrix: 
         ev-lib: [libev, libuv, libevent]
+    env:
+      LIBYAML_VERSION: 0.2.5
+      LIBCHECK_VERSION: 0.15.2
     steps:
     - name: Install event libs
-      run: sudo apt-get install -y libevent-dev libev-dev libuv1-dev
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get install -y libevent-dev libev-dev libuv1-dev libyaml-dev
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          brew update
+          brew install libuv libev libevent automake
+        else
+          echo "$RUNNER_OS not supported"
+          exit 1
+        fi
     - name: install lcov
       run: |
         wget "https://github.com/linux-test-project/lcov/archive/master.zip"
         unzip master.zip
         cd lcov-master
         sudo make install
-    - name: Download libyaml
-      uses: dsaltares/fetch-gh-release-asset@0.0.5
-      with:
-        repo: "yaml/libyaml"
-        version: "tags/0.2.5"
-        file: yaml-0.2.5.tar.gz
-    - name: Cache libyaml
-      id: cache-libyaml
-      uses: actions/cache@v2
-      env:
-        cache-name: libyaml
-      with:
-        path: yaml-0.2.5
-        key: yaml-0.2.5-${{ runner.os }}
-    - name: Build libyaml
-      id: build-libyaml
-      if: steps.cache-libyaml.outputs.cache-hit != 'true'
-      run: |
-        tar xvfz yaml-0.2.5.tar.gz && cd yaml-0.2.5
-        ./configure
-        make
-    - name: install libyaml
-      run: |
-        cd yaml-0.2.5
-        sudo make install
     - name: Download libcheck
-      uses: dsaltares/fetch-gh-release-asset@0.0.5
+      uses: actions/checkout@v2
       with:
-        repo: "libcheck/check"
-        version: "tags/0.15.2"
-        file: check-0.15.2.tar.gz
+        repository: libcheck/check
+        submodules: recursive
+        ref: ${{ env.LIBCHECK_VERSION }}
+        path: check-${{ env.LIBCHECK_VERSION }}
     - name: Cache libcheck
       id: cache-libcheck
       uses: actions/cache@v2
       env:
         cache-name: libcheck
       with:
-        path: check-0.15.2
-        key: check-0.15.2-${{ runner.os }}
+        path: check-${{ env.LIBCHECK_VERSION }}
+        key: check-${{ env.LIBCHECK_VERSION }}-v2-${{ runner.os }}
     - name: Build libcheck
       id: build-libcheck
       if: steps.cache-libcheck.outputs.cache-hit != 'true'
       run: |
-        tar xvfz check-0.15.2.tar.gz && cd check-0.15.2
+        cd check-${{ env.LIBCHECK_VERSION }}
+        autoreconf -i
         ./configure
         make
         make check
     - name: install libcheck
       run: |
-        cd check-0.15.2
+        cd check-${{ env.LIBCHECK_VERSION }}
         sudo make install
         sudo ldconfig
-    - name: Checkout c client
-      uses: actions/checkout@v2
-      with:
-        repository: aerospike/aerospike-client-c
-        submodules: recursive
-        path: client
     - name: Checkout benchmark 
       uses: actions/checkout@v2
       with: 
@@ -88,9 +69,6 @@ jobs:
     - name: Info
       run: make info
       working-directory: main
-    - name: Build client lib
-      run: make EVENT_LIB=${{ matrix.ev-lib }}
-      working-directory: client
     - name: Build benchmark
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main

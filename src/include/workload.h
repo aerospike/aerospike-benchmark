@@ -27,15 +27,32 @@
 #include <object_spec.h>
 
 
-#define WORKLOAD_TYPE_LINEAR 0x0
-#define WORKLOAD_TYPE_RANDOM 0x1
-#define WORKLOAD_TYPE_DELETE 0x2
-#define WORKLOAD_TYPE_RANDOM_UDF 0x3
+typedef enum {
+	// linear insertion workload
+	WORKLOAD_TYPE_I,
+	// random read/update workload
+	WORKLOAD_TYPE_RU,
+	// random read/replace workload
+	WORKLOAD_TYPE_RR,
+	// linear deletion workload
+	WORKLOAD_TYPE_D,
+	// random read/update/function (udf) workload
+	WORKLOAD_TYPE_RUF,
+	// random read/update/delete workload
+	WORKLOAD_TYPE_RUD
+} workload_type_t;
 
-#define WORKLOAD_RANDOM_DEFAULT_PCT 50.f
+#define WORKLOAD_RU_DEFAULT_PCT 50.f
+#define WORKLOAD_RR_DEFAULT_PCT 50.f
 
-#define WORKLOAD_RANDOM_UDF_DEFAULT_READ_PCT 40.f
-#define WORKLOAD_RANDOM_UDF_DEFAULT_WRITE_PCT 40.f
+#define WORKLOAD_RUF_DEFAULT_READ_PCT 40.f
+#define WORKLOAD_RUF_DEFAULT_WRITE_PCT 40.f
+
+#define WORKLOAD_RUD_DEFAULT_READ_PCT 40.f
+#define WORKLOAD_RUD_DEFAULT_WRITE_PCT 40.f
+
+#define WORKLOAD_DEFAULT_READ_ALL_PCT 100.f
+#define WORKLOAD_DEFAULT_WRITE_ALL_PCT 100.f
 
 // the default number of seconds an infinite workload will run if not specified
 #define DEFAULT_RANDOM_DURATION 10
@@ -46,23 +63,23 @@ struct args_s;
 
 
 typedef struct workload_s {
-	/*
-	 * one of:
-	 *  WORKLOAD_TYPE_LINEAR: linear insert workload, initializing pct% of the
-	 *  		keys (default 100%)
-	 *  WORKLOAD_TYPE_RANDOM: random reads/writes, with pct% of the operations
-	 *  		being reads, the rest being writes
-	 *  WORKLOAD_TYPE_DELETE: bin delete workload, which just deletes all the
-	 *  		bins that were created by prior stages
-	 */
-	uint8_t type;
+	workload_type_t type;
 
 	/*
-	 * read_pct = percent of reads (rest are writes), for RANDOM
-	 * 100 - read_pct - write_pct = percent of UDF ops, for RANDOM_UDF
+	 * read_pct = percent of reads (rest are writes), for RU
+	 * 100 - read_pct - write_pct = percent of UDF ops, for RUF
+	 * 100 - read_pct - write_pct = percent of delete ops, for RUD
 	 */
 	float read_pct;
 	float write_pct;
+
+	/*
+	 * these are the percent read all bins/percent all write bins values. The
+	 * remaining reads/writes will only read/write the first bin of the record
+	 * (or the bins specified with read-bins/write-bins, if those are given)
+	 */
+	float read_all_pct;
+	float write_all_pct;
 } workload_t;
 
 
@@ -81,6 +98,8 @@ typedef struct stage_def_s {
 
 	// max transactions per second
 	uint64_t tps;
+	// record TTL used in write transactions
+	uint64_t ttl;
 
 	uint64_t key_start;
 	uint64_t key_end;
@@ -126,6 +145,8 @@ typedef struct stage_s {
 
 	// max transactions per second
 	uint64_t tps;
+	// record TTL used in write transactions
+	uint64_t ttl;
 
 	uint64_t key_start;
 	uint64_t key_end;
@@ -174,25 +195,36 @@ typedef struct stages_s {
 
 static inline bool workload_is_random(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM ||
-		workload->type == WORKLOAD_TYPE_RANDOM_UDF;
+	return workload->type == WORKLOAD_TYPE_RU ||
+		workload->type == WORKLOAD_TYPE_RR ||
+		workload->type == WORKLOAD_TYPE_RUF ||
+		workload->type == WORKLOAD_TYPE_RUD;
 }
 
 static inline bool workload_contains_reads(const workload_t* workload)
 {
-	return (workload->type == WORKLOAD_TYPE_RANDOM && workload->read_pct != 0) ||
-		(workload->type == WORKLOAD_TYPE_RANDOM_UDF && workload->read_pct != 0);
+	return (workload->type == WORKLOAD_TYPE_RU && workload->read_pct != 0) ||
+		(workload->type == WORKLOAD_TYPE_RR && workload->read_pct != 0) ||
+		(workload->type == WORKLOAD_TYPE_RUF && workload->read_pct != 0) ||
+		(workload->type == WORKLOAD_TYPE_RUD && workload->read_pct != 0);
 }
 
 static inline bool workload_contains_writes(const workload_t* workload)
 {
-	return (workload->type != WORKLOAD_TYPE_RANDOM || workload->read_pct != 100) &&
-		(workload->type != WORKLOAD_TYPE_RANDOM_UDF || workload->write_pct != 0);
+	return (workload->type != WORKLOAD_TYPE_RU || workload->read_pct != 100) &&
+		(workload->type != WORKLOAD_TYPE_RR || workload->read_pct != 100) &&
+		(workload->type != WORKLOAD_TYPE_RUF || workload->write_pct != 0) &&
+		(workload->type != WORKLOAD_TYPE_RUD || workload->write_pct != 0);
+}
+
+static inline bool workload_contains_deletes(const workload_t* workload)
+{
+	return workload->type == WORKLOAD_TYPE_D || workload->type == WORKLOAD_TYPE_RUD;
 }
 
 static inline bool workload_contains_udfs(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM_UDF;
+	return workload->type == WORKLOAD_TYPE_RUF;
 }
 
 static inline bool stages_contain_async(const stages_t* stages)
@@ -221,7 +253,10 @@ static inline bool stages_contain_random(const stages_t* stages)
  */
 static inline bool workload_is_infinite(const workload_t* workload)
 {
-	return workload->type == WORKLOAD_TYPE_RANDOM || workload->type == WORKLOAD_TYPE_RANDOM_UDF;
+	return workload->type == WORKLOAD_TYPE_RU ||
+		workload->type == WORKLOAD_TYPE_RR ||
+		workload->type == WORKLOAD_TYPE_RUF ||
+		workload->type == WORKLOAD_TYPE_RUD;
 }
 
 static inline void fprint_stage(FILE* out_file, const stages_t* stages,
