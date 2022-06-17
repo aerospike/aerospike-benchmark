@@ -117,9 +117,9 @@ static struct option long_options[] = {
 	{"connect-timeout",       required_argument, 0, BENCH_OPT_CONNECT_TIMEOUT}, // flag matches Java Benchmark, but controls conn_timeout_ms
 	{"services-alternate",    no_argument,       0, BENCH_OPT_SERVICES_ALTERNATE},
 	{"max-error-rate",        required_argument, 0, BENCH_OPT_MAX_ERROR_RATE},
-	{"tender-interval",       required_argument, 0, TENDER_INTERVAL},
-	{"error-rate-window",     required_argument, 0, ERROR_RATE_WINDOW},
-	{"max-socket-idle",       required_argument, 0, MAX_SOCKET_IDLE},
+	{"tender-interval",       required_argument, 0, BENCH_OPT_TENDER_INTERVAL},
+	{"error-rate-window",     required_argument, 0, BENCH_OPT_ERROR_RATE_WINDOW},
+	{"max-socket-idle",       required_argument, 0, BENCH_OPT_MAX_SOCKET_IDLE},
 	{"namespace",             required_argument, 0, 'n'},
 	{"set",                   required_argument, 0, 's'},
 	{"bin",                   required_argument, 0, 'b'},
@@ -164,11 +164,11 @@ static struct option long_options[] = {
 	{"read-mode-ap",          required_argument, 0, 'N'},
 	{"read-mode-sc",          required_argument, 0, 'B'},
 	{"commit-level",          required_argument, 0, 'M'},
-	{"min-conns-per-node",    required_argument, 0, MIN_CONNS_PER_NODE},
-	{"max-conns-per-node",    required_argument, 0, MAX_CONNS_PER_NODE},
+	{"min-conns-per-node",    required_argument, 0, BENCH_OPT_MIN_CONNS_PER_NODE},
+	{"max-conns-per-node",    required_argument, 0, BENCH_OPT_MAX_CONNS_PER_NODE},
 	{"conn-pools-per-node",   required_argument, 0, 'Y'},
-	{"async-min-conns-per-node",    required_argument, 0, ASYNC_MIN_CONNS_PER_NODE},
-	{"async-max-conns-per-node",    required_argument, 0, ASYNC_MAX_CONNS_PER_NODE},
+	{"async-min-conns-per-node",    required_argument, 0, BENCH_OPT_ASYNC_MIN_CONNS_PER_NODE},
+	{"async-max-conns-per-node",    required_argument, 0, BENCH_OPT_ASYNC_MAX_CONNS_PER_NODE},
 	{"durable-delete",        no_argument,       0, 'D'},
 	{"async",                 no_argument,       0, 'a'},
 	{"async-max-commands",    required_argument, 0, 'c'},
@@ -1204,15 +1204,15 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->max_error_rate = atoi(optarg);
 				break;
 
-			case TENDER_INTERVAL:
+			case BENCH_OPT_TENDER_INTERVAL:
 				args->tender_interval = atoi(optarg);
 				break;
 
-			case ERROR_RATE_WINDOW:
+			case BENCH_OPT_ERROR_RATE_WINDOW:
 				args->error_rate_window = atoi(optarg);
 				break;
 
-			case MAX_SOCKET_IDLE:
+			case BENCH_OPT_MAX_SOCKET_IDLE:
 				args->max_socket_idle = atoi(optarg);
 				break;
 
@@ -1575,11 +1575,11 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				break;
 
-			case MIN_CONNS_PER_NODE:
+			case BENCH_OPT_MIN_CONNS_PER_NODE:
 				args->min_conns_per_node = atoi(optarg);
 				break;
 
-			case MAX_CONNS_PER_NODE:
+			case BENCH_OPT_MAX_CONNS_PER_NODE:
 				args->max_conns_per_node = atoi(optarg);
 				break;
 
@@ -1587,11 +1587,11 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->conn_pools_per_node = atoi(optarg);
 				break;
 			
-			case ASYNC_MIN_CONNS_PER_NODE:
+			case BENCH_OPT_ASYNC_MIN_CONNS_PER_NODE:
 				args->async_min_conns_per_node = atoi(optarg);
 				break;
 
-			case ASYNC_MAX_CONNS_PER_NODE:
+			case BENCH_OPT_ASYNC_MAX_CONNS_PER_NODE:
 				args->async_max_conns_per_node = atoi(optarg);
 				break;
 
