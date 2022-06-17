@@ -42,6 +42,10 @@ typedef struct args_s {
 	char* hosts;
 	int port;
 	bool use_services_alternate;
+	int max_error_rate;
+	int tender_interval;
+	int error_rate_window;
+	int max_socket_idle;
 	const char* user;
 	char password[AS_PASSWORD_SIZE];
 	const char* namespace;
@@ -62,6 +66,7 @@ typedef struct args_s {
 	bool enable_compression;
 	float compression_ratio;
 
+	int conn_timeout_ms;
 	int read_socket_timeout;
 	int write_socket_timeout;
 	int read_total_timeout;
@@ -82,7 +87,11 @@ typedef struct args_s {
 	as_policy_read_mode_ap read_mode_ap;
 	as_policy_read_mode_sc read_mode_sc;
 	as_policy_commit_level write_commit_level;
+	int min_conns_per_node;
+	int max_conns_per_node;
 	int conn_pools_per_node;
+	int async_min_conns_per_node;
+	int async_max_conns_per_node;
 	bool durable_deletes;
 	int async_max_commands;
 	int event_loop_capacity;

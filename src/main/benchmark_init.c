@@ -73,7 +73,16 @@ typedef enum {
  */
 typedef enum {
 	BENCH_OPT_HELP = 2000,
+	BENCH_OPT_CONNECT_TIMEOUT,
 	BENCH_OPT_SERVICES_ALTERNATE,
+	BENCH_OPT_MAX_ERROR_RATE,
+	BENCH_OPT_TENDER_INTERVAL,
+	BENCH_OPT_ERROR_RATE_WINDOW,
+	BENCH_OPT_MAX_SOCKET_IDLE,
+	BENCH_OPT_MIN_CONNS_PER_NODE,
+	BENCH_OPT_MAX_CONNS_PER_NODE,
+	BENCH_OPT_ASYNC_MIN_CONNS_PER_NODE,
+	BENCH_OPT_ASYNC_MAX_CONNS_PER_NODE,
 	BENCH_OPT_UDF_PACKAGE_NAME,
 	BENCH_OPT_UDF_FUNCTION_NAME,
 	BENCH_OPT_UDF_FUNCTION_VALUES,
@@ -105,7 +114,12 @@ static struct option long_options[] = {
 	{"port",                  required_argument, 0, 'p'},
 	{"user",                  required_argument, 0, 'U'},
 	{"password",              optional_argument, 0, 'P'},
+	{"connect-timeout",       required_argument, 0, BENCH_OPT_CONNECT_TIMEOUT}, // flag matches Java Benchmark, but controls conn_timeout_ms
 	{"services-alternate",    no_argument,       0, BENCH_OPT_SERVICES_ALTERNATE},
+	{"max-error-rate",        required_argument, 0, BENCH_OPT_MAX_ERROR_RATE},
+	{"tender-interval",       required_argument, 0, BENCH_OPT_TENDER_INTERVAL},
+	{"error-rate-window",     required_argument, 0, BENCH_OPT_ERROR_RATE_WINDOW},
+	{"max-socket-idle",       required_argument, 0, BENCH_OPT_MAX_SOCKET_IDLE},
 	{"namespace",             required_argument, 0, 'n'},
 	{"set",                   required_argument, 0, 's'},
 	{"bin",                   required_argument, 0, 'b'},
@@ -150,7 +164,11 @@ static struct option long_options[] = {
 	{"read-mode-ap",          required_argument, 0, 'N'},
 	{"read-mode-sc",          required_argument, 0, 'B'},
 	{"commit-level",          required_argument, 0, 'M'},
+	{"min-conns-per-node",    required_argument, 0, BENCH_OPT_MIN_CONNS_PER_NODE},
+	{"max-conns-per-node",    required_argument, 0, BENCH_OPT_MAX_CONNS_PER_NODE},
 	{"conn-pools-per-node",   required_argument, 0, 'Y'},
+	{"async-min-conns-per-node",    required_argument, 0, BENCH_OPT_ASYNC_MIN_CONNS_PER_NODE},
+	{"async-max-conns-per-node",    required_argument, 0, BENCH_OPT_ASYNC_MAX_CONNS_PER_NODE},
 	{"durable-delete",        no_argument,       0, 'D'},
 	{"async",                 no_argument,       0, 'a'},
 	{"async-max-commands",    required_argument, 0, 'c'},
@@ -314,6 +332,46 @@ print_usage(const char* program)
 
 	printf("   --services-alternate\n");
 	printf("   Enables \"services-alternate\" instead of \"services\" when connecting to the server\n");
+	printf("\n");
+
+	printf("   --max-error-rate <number> # Default: 0\n");
+	printf("   Maximum number of errors allowed per node per error_rate_window before\n");
+	printf("   backoff algorithm returns AEROSPIKE_MAX_ERROR_RATE for database\n");
+	printf("   commands to that node. If max_error_rate is zero, there is no\n");
+	printf("   error limit.\n");
+	printf("   The counted error types are any error that causes the connection to close\n");
+	printf("   (socket errors and client timeouts), server device overload and server\n");
+	printf("   timeouts.\n");
+	printf("   The application should backoff or reduce the transaction load until\n");
+	printf("   AEROSPIKE_MAX_ERROR_RATE stops being returned.\n");
+	printf("\n");
+
+	printf("   --tender-interval <ms> # Default: 1000\n");
+	printf("   Polling interval in milliseconds for cluster tender\n");
+	printf("\n");
+
+	printf("   --error-rate-window <number> # Default: 1\n");
+	printf("   The number of cluster tend iterations that defines the window for max_error_rate.\n");
+	printf("   One tend iteration is defined as tender_interval plus the time to tend all nodes.\n");
+	printf("   At the end of the window, the error count is reset to zero and backoff state is removed on all nodes.\n");
+	printf("\n");
+
+	printf("   --max-socket-idle <seconds> # Default: 55\n");
+	printf("   Maximum socket idle in seconds. Connection pools will discard sockets that have been idle longer than the maximum.\n");
+	printf("\n");
+	printf("   Connection pools are now implemented by a LIFO stack.\n");
+	printf("   Connections at the tail of the stack will always be the least used.\n");
+	printf("   These connections are checked for max_socket_idle once every 30 tend iterations (usually 30 seconds).\n");
+	printf("\n");
+	printf("   If server's proto-fd-idle-ms is greater than zero,\n");
+	printf("   then max_socket_idle should be at least a few seconds less than the server's proto-fd-idle-ms,\n");
+	printf("   so the client does not attempt to use a socket that has already been reaped by the server.\n");
+	printf("\n");
+	printf("   If server's proto-fd-idle-ms is zero (no reap), then max_socket_idle should also be zero.\n");
+	printf("   Connections retrieved from a pool in transactions will not be checked for max_socket_idle\n");
+	printf("   when max_socket_idle is zero. Idle connections will still be trimmed down from peak connections\n");
+	printf("   to min connections (min_conns_per_node and async_min_conns_per_node) using a hard-coded 55 second\n");
+	printf("   limit in the cluster tend thread.\n");
 	printf("\n");
 
 	printf("-n --namespace <ns>   # Default: test\n");
@@ -482,6 +540,11 @@ print_usage(const char* program)
 	printf("   Causes the benchmark tool to generate data which will roughly compress by this proportion.\n");
 	printf("\n");
 
+	printf("   --connection-timeout <ms> # Default: 1000\n");
+	printf("   Initial host connection timeout in milliseconds.\n");
+	printf("   The timeout when opening a connection to the server host for the first time.\n");
+	printf("\n");
+
 	printf("   --socket-timeout <ms> # Default: 30000\n");
 	printf("   Read/Write socket timeout in milliseconds.\n");
 	printf("\n");
@@ -582,8 +645,46 @@ print_usage(const char* program)
 	printf("   Write commit guarantee level.\n");
 	printf("\n");
 
-	printf("-Y --conn-pools-per-node <num>  # Default: 1\n");
+	printf("   --min-conns-per-node <number>  # Default: 0\n");
+	printf("   Maximum number of synchronous connections allowed per server node. Synchronous transactions\n");
+	printf("   will go through retry logic and potentially fail with error code \"AEROSPIKE_ERR_NO_MORE_CONNECTIONS\"\n");
+	printf("   if the maximum number of connections would be exceeded.\n");
+	printf("\n");
+	printf("   The number of connections used per node depends on how many concurrent threads issue database commands\n");
+	printf("   plus sub-threads used for parallel multi-node commands (batch, scan, and query).\n");
+	printf("   One connection will be used for each thread.\n");
+	printf("\n");
+
+	printf("   --max-conns-per-node <number>  # Default: 300\n");
+	printf("   Maximum number of synchronous connections allowed per server node. Synchronous transactions\n");
+	printf("   will go through retry logic and potentially fail with error code \"AEROSPIKE_ERR_NO_MORE_CONNECTIONS\"\n");
+	printf("   if the maximum number of connections would be exceeded.\n");
+	printf("\n");
+	printf("   The number of connections used per node depends on how many concurrent threads issue database commands\n");
+	printf("   plus sub-threads used for parallel multi-node commands (batch, scan, and query).\n");
+	printf("   One connection will be used for each thread.\n");
+	printf("\n");
+
+	printf("-Y --conn-pools-per-node <number>  # Default: 1\n");
 	printf("   Number of connection pools per node.\n");
+	printf("\n");
+
+	printf("   --async-min-conns-per-node <number>  # Default: 0\n");
+	printf("   Minimum number of asynchronous connections allowed per server node.\n");
+	printf("   Preallocate min connections on client node creation. The client will\n");
+	printf("   periodically allocate new connections if count falls below min connections.\n");
+	printf("\n");
+	printf("   Server proto-fd-idle-ms and client max_socket_idle should be set to zero (no reap)\n");
+	printf("   if async_min_conns_per_node is greater than zero. Reaping connections can defeat the\n");
+	printf("   purpose of keeping connections in reserve for a future burst of activity.\n");
+	printf("\n");
+
+	printf("   --async-max-conns-per-node <number>  # Default: 300\n");
+	printf("   Maximum number of asynchronous (non-pipeline) connections allowed for each node.\n");
+	printf("   This limit will be enforced at the node/event loop level. If the value is 100 and 2 event\n");
+	printf("   loops are created, then each node/event loop asynchronous (non-pipeline) connection pool\n");
+	printf("   will have a limit of 50. Async transactions will be rejected if the limit would be exceeded.\n");
+	printf("   This variable is ignored if asynchronous event loops are not created.\n");
 	printf("\n");
 
 	printf("-D --durable-delete  # Default: durableDelete mode is false.\n");
@@ -680,6 +781,10 @@ print_args(args_t* args)
 	printf("port:                   %d\n", args->port);
 	printf("user:                   %s\n", args->user);
 	printf("services-alternate:     %s\n", boolstring(args->use_services_alternate));
+	printf("max error rate:         %d\n", args->max_error_rate);
+	printf("tender interval:        %d ms\n", args->tender_interval);
+	printf("error rate window:      %d\n", args->error_rate_window);
+	printf("max socket idle:        %d secs\n", args->max_socket_idle);
 	printf("namespace:              %s\n", args->namespace);
 	printf("set:                    %s\n", args->set);
 	printf("start-key:              %" PRIu64 "\n", args->start_key);
@@ -695,6 +800,7 @@ print_args(args_t* args)
 
 	printf("enable compression:     %s\n", boolstring(args->enable_compression));
 	printf("compression ratio:      %f\n", args->compression_ratio);
+	printf("connect timeout:        %d ms\n", args->conn_timeout_ms);
 	printf("read socket timeout:    %d ms\n", args->read_socket_timeout);
 	printf("write socket timeout:   %d ms\n", args->write_socket_timeout);
 	printf("read total timeout:     %d ms\n", args->read_total_timeout);
@@ -793,10 +899,14 @@ print_args(args_t* args)
 	printf("write commit level:     %s\n",
 			(AS_POLICY_COMMIT_LEVEL_ALL == args->write_commit_level ?
 			 "all" : "master"));
-	printf("conn pools per node:    %d\n", args->conn_pools_per_node);
-
-	printf("async max commands:     %d\n", args->async_max_commands);
-	printf("event loops:            %d\n", args->event_loop_capacity);
+	
+	printf("min conns per node:       %d\n", args->min_conns_per_node);
+	printf("max conns per node:       %d\n", args->max_conns_per_node);
+	printf("conn pools per node:      %d\n", args->conn_pools_per_node);
+	printf("async min conns per node: %d\n", args->async_min_conns_per_node);
+	printf("async max conns per node: %d\n", args->async_max_conns_per_node);
+	printf("async max commands:       %d\n", args->async_max_commands);
+	printf("event loops:              %d\n", args->event_loop_capacity);
 
 	if (args->tls.enable) {
 		printf("TLS:                    enabled\n");
@@ -838,6 +948,30 @@ print_args(args_t* args)
 LOCAL_HELPER int
 validate_args(args_t* args)
 {
+	if (args->max_error_rate < 0) {
+		printf("Invalid max error rate: %d  Valid values: [>= 0]\n",
+				args->max_error_rate);
+		return 1;
+	}
+
+	if (args->tender_interval < 0) {
+		printf("Invalid tender interval: %d  Valid values: [>= 0]\n",
+				args->tender_interval);
+		return 1;
+	}
+
+	if (args->error_rate_window < 0) {
+		printf("Invalid error rate window: %d  Valid values: [>= 0]\n",
+				args->error_rate_window);
+		return 1;
+	}
+
+	if (args->max_socket_idle < 0) {
+		printf("Invalid max socket idle: %d  Valid values: [>= 0]\n",
+				args->max_socket_idle);
+		return 1;
+	}
+
 	if (args->start_key == ULLONG_MAX) {
 		printf("Invalid start key: %" PRIu64 "\n", args->start_key);
 		return 1;
@@ -857,6 +991,12 @@ validate_args(args_t* args)
 
 	if (args->compression_ratio < 0.001 || args->compression_ratio > 1) {
 		printf("Compression ratio must be in the range [0.001, 1]\n\n");
+		return 1;
+	}
+
+	if (args->conn_timeout_ms < 0) {
+		printf("Invalid connect timeout: %d  Valid values: [>= 0]\n",
+				args->conn_timeout_ms);
 		return 1;
 	}
 
@@ -915,6 +1055,18 @@ validate_args(args_t* args)
 		return 1;
 	}
 
+	if (args->min_conns_per_node < 0) {
+		printf("Invalid min conns per node: %d  Valid values: [>= 0]\n",
+				args->min_conns_per_node);
+		return 1;
+	}
+
+	if (args->max_conns_per_node < 0) {
+		printf("Invalid max conns per node: %d  Valid values: [>= 0]\n",
+				args->max_conns_per_node);
+		return 1;
+	}
+
 	if (args->replica != AS_POLICY_REPLICA_PREFER_RACK && args->rack_id != -1) {
 		printf("Cannot specify rack-id unless replica policy is \"prefer-rack\"\n");
 		return 1;
@@ -929,6 +1081,23 @@ validate_args(args_t* args)
 		printf("Invalid conn-pools-per-node: %d  Valid values: [1-1000]\n",
 				args->conn_pools_per_node);
 		return 1;
+	}
+
+	if (args->async_min_conns_per_node < 0) {
+		printf("Invalid async min conns per node: %d  Valid values: [>= 0]\n",
+				args->async_min_conns_per_node);
+		return 1;
+	}
+
+	if (args->async_max_conns_per_node < 0) {
+		printf("Invalid async max conns per node: %d  Valid values: [>= 0]\n",
+				args->async_max_conns_per_node);
+		return 1;
+	}
+
+	if (args->async_max_conns_per_node < (uint32_t)args->async_max_commands) {
+		fprintf(stderr, "Warning: async_max_conns_per_node < async_max_commands, async_max_conns_per_node will be set to %d\n",
+				args->async_max_commands);
 	}
 
 	if (args->async_max_commands <= 0 || args->async_max_commands > 5000) {
@@ -1023,8 +1192,28 @@ set_args(int argc, char * const* argv, args_t* args)
 				as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
 				break;
 
+			case BENCH_OPT_CONNECT_TIMEOUT:
+				args->conn_timeout_ms = atoi(optarg);
+				break;
+
 			case BENCH_OPT_SERVICES_ALTERNATE:
 				args->use_services_alternate = true;
+				break;
+
+			case BENCH_OPT_MAX_ERROR_RATE:
+				args->max_error_rate = atoi(optarg);
+				break;
+
+			case BENCH_OPT_TENDER_INTERVAL:
+				args->tender_interval = atoi(optarg);
+				break;
+
+			case BENCH_OPT_ERROR_RATE_WINDOW:
+				args->error_rate_window = atoi(optarg);
+				break;
+
+			case BENCH_OPT_MAX_SOCKET_IDLE:
+				args->max_socket_idle = atoi(optarg);
 				break;
 
 			case 'n':
@@ -1386,8 +1575,24 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				break;
 
+			case BENCH_OPT_MIN_CONNS_PER_NODE:
+				args->min_conns_per_node = atoi(optarg);
+				break;
+
+			case BENCH_OPT_MAX_CONNS_PER_NODE:
+				args->max_conns_per_node = atoi(optarg);
+				break;
+
 			case 'Y':
 				args->conn_pools_per_node = atoi(optarg);
+				break;
+			
+			case BENCH_OPT_ASYNC_MIN_CONNS_PER_NODE:
+				args->async_min_conns_per_node = atoi(optarg);
+				break;
+
+			case BENCH_OPT_ASYNC_MAX_CONNS_PER_NODE:
+				args->async_max_conns_per_node = atoi(optarg);
 				break;
 
 			case 'D':
@@ -1525,6 +1730,10 @@ _load_defaults(args_t* args)
 	args->user = 0;
 	args->password[0] = 0;
 	args->use_services_alternate = false;
+	args->max_error_rate = 0;
+	args->tender_interval = 1000;
+	args->error_rate_window = 1;
+	args->max_socket_idle = 55;
 	args->namespace = "test";
 	args->set = "testset";
 	args->bin_name = strdup("testbin");
@@ -1536,6 +1745,7 @@ _load_defaults(args_t* args)
 	args->transaction_worker_threads = 16;
 	args->enable_compression = false;
 	args->compression_ratio = 1.f;
+	args->conn_timeout_ms = 1000;
 	args->read_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
 	args->write_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
 	args->read_total_timeout = AS_POLICY_TOTAL_TIMEOUT_DEFAULT;
@@ -1557,7 +1767,11 @@ _load_defaults(args_t* args)
 	args->read_mode_sc = AS_POLICY_READ_MODE_SC_SESSION;
 	args->write_commit_level = AS_POLICY_COMMIT_LEVEL_ALL;
 	args->durable_deletes = false;
+	args->min_conns_per_node = 0;
+	args->max_conns_per_node = 300;
 	args->conn_pools_per_node = 1;
+	args->async_min_conns_per_node = 0;
+	args->async_max_conns_per_node = 300;
 	args->async_max_commands = 50;
 	args->event_loop_capacity = 1;
 	memset(&args->tls, 0, sizeof(as_config_tls));
