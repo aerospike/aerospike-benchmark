@@ -53,13 +53,13 @@ jobs:
       working-directory: ${{ steps.working-dir.outputs.value }}
       run: |
         git describe --tags --always
-    - name: Build benchmark
+    - name: Build asbench
       run: |
         make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: ${{ steps.working-dir.outputs.value }}
     - name: Sanity test asbench artifact
       run: |
-        ./benchmark | grep "ERROR Failed to connect"
+        ./asbench | grep "ERROR Failed to connect"
       working-directory: ${{ steps.working-dir.outputs.value }}/target
     - name: Get artifact name
       uses: haya14busa/action-cond@v1
@@ -72,7 +72,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with: 
         name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.artifact-name.outputs.value }}
-        path: ${{ steps.working-dir.outputs.value }}/target/benchmark
+        path: ${{ steps.working-dir.outputs.value }}/target/asbench
         if-no-files-found: error
   bundle-binaries:
     needs: build

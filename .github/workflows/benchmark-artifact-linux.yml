@@ -14,17 +14,17 @@ jobs:
     - name: Install event libs
       run: |
         sudo apt-get install -y libevent-dev libev-dev libuv1-dev
-    - name: Checkout benchmark
+    - name: Checkout asbench
       uses: actions/checkout@v2
       with: 
         path: main
         submodules: recursive
-    - name: Build benchmark
+    - name: Build asbench
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
     - name: Sanity test asbench artifact
       run: |
-        ./benchmark | grep "ERROR Failed to connect"
+        ./asbench | grep "ERROR Failed to connect"
       working-directory: main/target
     - name: Get artifact name
       uses: haya14busa/action-cond@v1
@@ -37,14 +37,14 @@ jobs:
       uses: actions/upload-artifact@v2
       with: 
         name: ${{ steps.artifact-name.outputs.value }}
-        path: main/target/benchmark
+        path: main/target/asbench
         if-no-files-found: error
   pre-release:
     needs: build-libraries
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout benchmark
+      - name: Checkout asbench
         uses: actions/checkout@v2
         with: 
           submodules: recursive

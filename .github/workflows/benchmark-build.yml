@@ -61,7 +61,7 @@ jobs:
         cd check-${{ env.LIBCHECK_VERSION }}
         sudo make install
         sudo ldconfig
-    - name: Checkout benchmark 
+    - name: Checkout asbench
       uses: actions/checkout@v2
       with: 
         path: main
@@ -69,7 +69,7 @@ jobs:
     - name: Info
       run: make info
       working-directory: main
-    - name: Build benchmark
+    - name: Build asbench
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
     - name: Test
