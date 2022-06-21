@@ -124,13 +124,7 @@ else ifeq ($(OS),FreeBSD)
   LDFLAGS += -lrt
 endif
 
-LDFLAGS += -lm -lz -lcyaml
-
-ifeq ($(LIBYAML_STATIC_PATH),)
-  LDFLAGS += -lyaml
-else
-  LDFLAGS += $(LIBYAML_STATIC_PATH)/libyaml.a
-endif
+LDFLAGS += -lm -lz
 
 TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
 BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
@@ -250,8 +244,8 @@ target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | target/lib
 $(C_CLIENT_LIB):
 	$(MAKE) -C $(DIR_C_CLIENT)
 
-target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | target
-	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(BUILD_LDFLAGS)
+target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libyaml.a target/lib/libcyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | target
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libyaml.a target/lib/libcyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(BUILD_LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))
@@ -315,8 +309,8 @@ test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
 test_target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | test_target/lib
 	cp $< $@
 
-test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libyaml.a test_target/lib/libcyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) test_target/lib/libyaml.a test_target/lib/libcyaml.a $(TEST_HDR_OBJECTS) $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
 -include $(wildcard $(TEST_DEPENDENCIES))
 
