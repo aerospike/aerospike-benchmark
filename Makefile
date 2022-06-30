@@ -299,8 +299,8 @@ test_target/obj/%.o: src/main/%.c | test_target/obj
 test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
 	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
-test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
 # build the benchmark executable with code coverage
 test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
