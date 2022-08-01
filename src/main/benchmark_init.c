@@ -501,6 +501,7 @@ print_usage(const char* program)
 	printf("   Set the TTL of all records written in write transactions. Options are -1 (no TTL, never expire),\n");
 	printf("   -2 (no change TTL, i.e. the record TTL will not be modified by this write transaction),\n");
 	printf("   0 (adopt default TTL value from namespace) and >0 (the TTL of the record in seconds).\n");
+	printf("\n");
 
 	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RUF), 0 for finite (I, DB)\n");
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
@@ -1717,6 +1718,10 @@ set_args(int argc, char * const* argv, args_t* args)
 			return 1;
 		}
 		cf_free(old_pass);
+	}
+
+	if (args->user != NULL && args->password[0] == '\0') {
+		as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
 	}
 
 	return validate_args(args);
