@@ -503,14 +503,15 @@ print_usage(const char* program)
 	printf("   0 (adopt default TTL value from namespace) and >0 (the TTL of the record in seconds).\n");
 	printf("\n");
 
-	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RUF), 0 for finite (I, DB)\n");
+	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RR, RUF, RUD), 0 for finite (I, DB)\n");
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
 	printf("\n");
 
-	printf("-w --workload I | RU,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB  # Default: RU,50\n");
+	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB  # Default: RU,50\n");
 	printf("   Desired workload.\n");
 	printf("   -w I         : Linear 'insert' workload, initializing each key in the key range.\n");
 	printf("   -w RU,80     : Random read/update workload with 80%% reads and 20%% writes.\n");
+	printf("   -w RR,80     : Random read/replace workload with 80%% reads and 20%% writes.\n");
 	printf("   -w RUF,20,40 : Random read/update/udf workload with 20%% reads, 40%% writes, and 60%% UDF calls.\n");
 	printf("                  Note: -ufn and -upn are required in this mode.\n");
 	printf("   -w DB        : Bin delete workload.\n");
@@ -528,7 +529,7 @@ print_usage(const char* program)
 
 	printf("   --batch-size <size> # Default: 1\n");
 	printf("   Enable batch mode with number of records to process in each batch get call.\n");
-	printf("   Batch mode is valid only for RU and RUF workloads. Batch mode is disabled by default.\n");
+	printf("   Batch mode is valid only for RU, RR, RUF, and RUD workloads. Batch mode is disabled by default.\n");
 	printf("\n");
 
 	printf("   --compress\n");
