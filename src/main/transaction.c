@@ -42,10 +42,10 @@ struct async_data_s {
 
 	// what type of operation is being performed
 	enum {
-		read,
-		write,
-		delete,
-		udf
+		read_op,
+		write_op,
+		delete_op,
+		udf_op
 	} op;
 };
 
@@ -53,6 +53,10 @@ struct async_data_s {
 //==========================================================
 // Forward Declarations.
 //
+
+// Random number helper methods
+LOCAL_HELPER uint32_t _pct_to_fp(float pct);
+LOCAL_HELPER uint32_t _random_fp(as_random*);
 
 // Latency recrding helpers
 LOCAL_HELPER void _record_read(cdata_t* cdata, uint64_t dt_us);
@@ -71,11 +75,11 @@ LOCAL_HELPER int _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* co
 
 // Read/Write singular/batch asynchronous operations
 LOCAL_HELPER int _write_record_async(as_key* key, as_record* rec,
-		struct async_data_s* adata, cdata_t* cdata);
+		struct async_data_s* adata, tdata_t* tdata, cdata_t* cdata);
 LOCAL_HELPER int _read_record_async(as_key* key, struct async_data_s* adata,
-		cdata_t* cdata, const stage_t* stage);
+		tdata_t* tdata, cdata_t* cdata, const stage_t* stage);
 LOCAL_HELPER int _batch_read_record_async(as_batch_read_records* keys,
-		struct async_data_s* adata, cdata_t* cdata);
+		struct async_data_s* adata, tdata_t* tdata, cdata_t* cdata);
 LOCAL_HELPER int _apply_udf_async(as_key* key, struct async_data_s* adata,
 		tdata_t* tdata, cdata_t* cdata, const stage_t* stage);
 
@@ -89,6 +93,16 @@ LOCAL_HELPER as_record* _gen_nil_record(tdata_t* tdata);
 LOCAL_HELPER void _destroy_record(as_record* rec, const stage_t* stage);
 LOCAL_HELPER void throttle(tdata_t* tdata, thr_coord_t* coord);
 
+// Synchronous workload helper methods
+LOCAL_HELPER void random_read(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_write(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_udf(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_delete(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
+
 // Synchronous workload methods
 LOCAL_HELPER void linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage);
@@ -98,6 +112,18 @@ LOCAL_HELPER void random_read_write_udf(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage);
+LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
+
+// Asynchronous workload helper methods
+LOCAL_HELPER void random_read_async(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
+LOCAL_HELPER void random_write_async(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
+LOCAL_HELPER void random_udf_async(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
+LOCAL_HELPER void random_delete_async(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
 
 // Asynchronous workload methods
 LOCAL_HELPER void _async_listener(as_error* err, void* udata,
@@ -113,11 +139,13 @@ LOCAL_HELPER void _async_val_listener(as_error* err, as_val* val, void* udata,
 LOCAL_HELPER struct async_data_s* queue_pop_wait(queue_t* adata_q);
 LOCAL_HELPER void linear_writes_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
-LOCAL_HELPER void rand_read_write_async(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void random_read_write_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
-LOCAL_HELPER void rand_read_write_udf_async(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 LOCAL_HELPER void linear_deletes_async(tdata_t* tdata, cdata_t* cdata,
+	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
+LOCAL_HELPER void random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 
 // Main worker thread loop
@@ -171,6 +199,27 @@ transaction_worker(void* udata)
 //
 
 /******************************************************************************
+ * Random number helper methods
+ *****************************************************************************/
+
+LOCAL_HELPER uint32_t
+_pct_to_fp(float pct)
+{
+	// multiply pct by 2**24 before dividing by 100 and casting to an int,
+	// since floats have 24 bits of precision including the leading 1,
+	// so that read_pct is pct% between 0 and 2**24
+	return (uint32_t) ((0x01000000 * pct) / 100);
+}
+
+LOCAL_HELPER uint32_t
+_random_fp(as_random* random)
+{
+	uint32_t die = as_random_next_uint32(random);
+	// floats have 24 bits of precision (including implicit leading 1)
+	return die & 0x00ffffff;
+}
+
+/******************************************************************************
  * Latency recording helpers
  *****************************************************************************/
 
@@ -183,7 +232,7 @@ _record_read(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_read_output != NULL) {
 		histogram_add(&cdata->read_histogram, dt_us);
 	}
-	as_incr_uint32(&cdata->read_count);
+	as_incr_uint64(&cdata->read_hit_count);
 }
 
 LOCAL_HELPER void
@@ -195,7 +244,7 @@ _record_write(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_write_output != NULL) {
 		histogram_add(&cdata->write_histogram, dt_us);
 	}
-	as_incr_uint32(&cdata->write_count);
+	as_incr_uint64(&cdata->write_count);
 }
 
 LOCAL_HELPER void
@@ -207,7 +256,7 @@ _record_udf(cdata_t* cdata, uint64_t dt_us)
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_udf_output != NULL) {
 		histogram_add(&cdata->udf_histogram, dt_us);
 	}
-	as_incr_uint32(&cdata->udf_count);
+	as_incr_uint64(&cdata->udf_count);
 }
 
 
@@ -223,7 +272,7 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	as_error err;
 
 	uint64_t start = cf_getus();
-	status = aerospike_key_put(&cdata->client, &err, NULL, key, rec);
+	status = aerospike_key_put(&cdata->client, &err, &tdata->policies.write, key, rec);
 	uint64_t end = cf_getus();
 
 	if (status == AEROSPIKE_OK) {
@@ -234,10 +283,10 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint32(&cdata->write_timeout_count);
+		as_incr_uint64(&cdata->write_timeout_count);
 	}
 	else {
-		as_incr_uint32(&cdata->write_error_count);
+		as_incr_uint64(&cdata->write_error_count);
 
 		if (cdata->debug) {
 			blog_error("Write error: ns=%s set=%s key=%d bin=%s code=%d "
@@ -261,17 +310,18 @@ _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	uint64_t start, end;
 	if (stage->read_bins) {
 		start = cf_getus();
-		status = aerospike_key_select(&cdata->client, &err, NULL, key,
-				(const char**) stage->read_bins, &rec);
+		status = aerospike_key_select(&cdata->client, &err, &tdata->policies.read,
+				key, (const char**) stage->read_bins, &rec);
 		end = cf_getus();
 	}
 	else {
 		start = cf_getus();
-		status = aerospike_key_get(&cdata->client, &err, NULL, key, &rec);
+		status = aerospike_key_get(&cdata->client, &err, &tdata->policies.read,
+				key, &rec);
 		end = cf_getus();
 	}
 
-	if (status == AEROSPIKE_OK || status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+	if (status == AEROSPIKE_OK) {
 		_record_read(cdata, end - start);
 		as_record_destroy(rec);
 		throttle(tdata, coord);
@@ -279,11 +329,14 @@ _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	// Handle error conditions.
-	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint32(&cdata->read_timeout_count);
+	if (status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+		as_incr_uint64(&cdata->read_miss_count);
+	}
+	else if (status == AEROSPIKE_ERR_TIMEOUT) {
+		as_incr_uint64(&cdata->read_timeout_count);
 	}
 	else {
-		as_incr_uint32(&cdata->read_error_count);
+		as_incr_uint64(&cdata->read_error_count);
 
 		if (cdata->debug) {
 			blog_error("Read error: ns=%s set=%s key=%d bin=%s code=%d "
@@ -306,7 +359,8 @@ _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 	as_error err;
 
 	uint64_t start = cf_getus();
-	status = aerospike_batch_read(&cdata->client, &err, NULL, records);
+	status = aerospike_batch_read(&cdata->client, &err, &tdata->policies.batch,
+			records);
 	uint64_t end = cf_getus();
 
 	if (status == AEROSPIKE_OK) {
@@ -317,10 +371,10 @@ _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint32(&cdata->read_timeout_count);
+		as_incr_uint64(&cdata->read_timeout_count);
 	}
 	else {
-		as_incr_uint32(&cdata->read_error_count);
+		as_incr_uint64(&cdata->read_error_count);
 
 		if (cdata->debug) {
 			blog_error("Batch read error: ns=%s set=%s bin=%s code=%d "
@@ -354,7 +408,7 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	start = cf_getus();
-	status = aerospike_key_apply(&cdata->client, &err, NULL, key,
+	status = aerospike_key_apply(&cdata->client, &err, &tdata->policies.apply, key,
 			stage->udf_package_name, stage->udf_fn_name, args, &val);
 	end = cf_getus();
 
@@ -370,10 +424,10 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint32(&cdata->udf_timeout_count);
+		as_incr_uint64(&cdata->udf_timeout_count);
 	}
 	else {
-		as_incr_uint32(&cdata->udf_error_count);
+		as_incr_uint64(&cdata->udf_error_count);
 
 		if (cdata->debug) {
 			blog_error("UDF error: ns=%s set=%s key=%d bin=%s code=%d "
@@ -398,14 +452,14 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER int
 _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
-		cdata_t* cdata)
+		tdata_t* tdata, cdata_t* cdata)
 {
 	as_status status;
 	as_error err;
 
 	adata->start_time = cf_getus();
-	status = aerospike_key_put_async(&cdata->client, &err, NULL, key, rec,
-			_async_write_listener, adata, adata->ev_loop, NULL);
+	status = aerospike_key_put_async(&cdata->client, &err, &tdata->policies.write,
+			key, rec, _async_write_listener, adata, adata->ev_loop, NULL);
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
@@ -416,22 +470,23 @@ _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
 }
 
 LOCAL_HELPER int
-_read_record_async(as_key* key, struct async_data_s* adata, cdata_t* cdata,
-		const stage_t* stage)
+_read_record_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
+		cdata_t* cdata, const stage_t* stage)
 {
 	as_status status;
 	as_error err;
 
 	if (stage->read_bins) {
 		adata->start_time = cf_getus();
-		status = aerospike_key_select_async(&cdata->client, &err, 0, key,
-				(const char**) stage->read_bins, _async_read_listener, adata,
-				adata->ev_loop, NULL);
+		status = aerospike_key_select_async(&cdata->client, &err,
+				&tdata->policies.read, key, (const char**) stage->read_bins,
+				_async_read_listener, adata, adata->ev_loop, NULL);
 	}
 	else {
 		adata->start_time = cf_getus();
-		status = aerospike_key_get_async(&cdata->client, &err, 0, key,
-				_async_read_listener, adata, adata->ev_loop, NULL);
+		status = aerospike_key_get_async(&cdata->client, &err,
+				&tdata->policies.read, key, _async_read_listener, adata,
+				adata->ev_loop, NULL);
 	}
 
 	if (status != AEROSPIKE_OK) {
@@ -444,14 +499,15 @@ _read_record_async(as_key* key, struct async_data_s* adata, cdata_t* cdata,
 
 LOCAL_HELPER int
 _batch_read_record_async(as_batch_read_records* keys, struct async_data_s* adata,
-		cdata_t* cdata)
+		tdata_t* tdata, cdata_t* cdata)
 {
 	as_status status;
 	as_error err;
 
 	adata->start_time = cf_getus();
-	status = aerospike_batch_read_async(&cdata->client, &err, 0, keys,
-			_async_batch_read_listener, adata, adata->ev_loop);
+	status = aerospike_batch_read_async(&cdata->client, &err,
+			&tdata->policies.batch, keys, _async_batch_read_listener, adata,
+			adata->ev_loop);
 
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
@@ -479,8 +535,8 @@ _apply_udf_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
 	}
 
 	adata->start_time = cf_getus();
-	status = aerospike_key_apply_async(&cdata->client, &err, 0, key,
-			stage->udf_package_name, stage->udf_fn_name, args,
+	status = aerospike_key_apply_async(&cdata->client, &err, &tdata->policies.apply,
+			key, stage->udf_package_name, stage->udf_fn_name, args,
 			_async_val_listener, adata, adata->ev_loop, NULL);
 
 	if (stage->random) {
@@ -527,17 +583,34 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 		const stage_t* stage)
 {
 	as_record* rec;
+	uint32_t write_all_pct = _pct_to_fp(stage->workload.write_all_pct);
+	uint32_t die = _random_fp(tdata->random);
 
-	if (stage->random) {
-		uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
-		rec = as_record_new(n_objs);
+	if (die < write_all_pct) {
+		if (stage->random) {
+			uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
+			rec = as_record_new(n_objs);
 
-		obj_spec_populate_bins(&stage->obj_spec, rec, random,
-				cdata->bin_name, stage->write_bins, stage->n_write_bins,
-				cdata->compression_ratio);
+			obj_spec_populate_bins(&stage->obj_spec, rec, random,
+					cdata->bin_name, NULL, 0, cdata->compression_ratio);
+			rec->ttl = stage->ttl;
+		}
+		else {
+			rec = &tdata->fixed_full_record;
+		}
 	}
 	else {
-		rec = &tdata->fixed_value;
+		if (stage->random) {
+			rec = as_record_new(stage->n_write_bins);
+
+			obj_spec_populate_bins(&stage->obj_spec, rec, random,
+					cdata->bin_name, stage->write_bins, stage->n_write_bins,
+					cdata->compression_ratio);
+			rec->ttl = stage->ttl;
+		}
+		else {
+			rec = &tdata->fixed_partial_record;
+		}
 	}
 	return rec;
 }
@@ -548,16 +621,16 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 LOCAL_HELPER as_record*
 _gen_nil_record(tdata_t* tdata)
 {
-	return &tdata->fixed_value;
+	return &tdata->fixed_delete_record;
 }
 
 LOCAL_HELPER void
 _destroy_record(as_record* rec, const stage_t* stage)
 {
+	// don't destroy the records if the workload isn't randomized
 	if (stage->random) {
 		as_record_destroy(rec);
 	}
-	// don't destroy the records if the workload isn't randomized
 }
 
 /*
@@ -576,6 +649,105 @@ throttle(tdata_t* tdata, thr_coord_t* coord)
 		timespec_add_us(&wake_up, pause_for);
 		thr_coordinator_sleep(coord, &wake_up);
 	}
+}
+
+
+/******************************************************************************
+ * Synchronous workload helper methods
+ *****************************************************************************/
+
+LOCAL_HELPER void
+random_read(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	as_key key;
+	uint32_t batch_size = stage->batch_size;
+
+	if (batch_size <= 1) {
+		// generate a random key
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+		_gen_key(key_val, &key, cdata);
+
+		_read_record_sync(tdata, cdata, coord, stage, &key);
+		as_key_destroy(&key);
+	}
+	else {
+		// generate a batch of random keys
+		as_batch_read_records* keys = as_batch_read_create(batch_size);
+		for (uint32_t i = 0; i < batch_size; i++) {
+			uint64_t key_val =
+				stage_gen_random_key(stage, tdata->random);
+			as_batch_read_record* key = as_batch_read_reserve(keys);
+			_gen_key(key_val, &key->key, cdata);
+			if (stage->read_bins) {
+				key->read_all_bins = false;
+				key->bin_names = stage->read_bins;
+				key->n_bin_names = stage->n_read_bins;
+			}
+			else {
+				key->read_all_bins = true;
+			}
+		}
+
+		_batch_read_record_sync(tdata, cdata, coord, keys);
+		as_batch_read_destroy(keys);
+	}
+}
+
+LOCAL_HELPER void
+random_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	as_key key;
+	as_record* rec;
+
+	// generate a random key
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+	_gen_key(key_val, &key, cdata);
+
+	// create a record
+	rec = _gen_record(tdata->random, cdata, tdata, stage);
+
+	// write this record to the database
+	_write_record_sync(tdata, cdata, coord, &key, rec);
+
+	_destroy_record(rec, stage);
+	as_key_destroy(&key);
+}
+
+LOCAL_HELPER void
+random_udf(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	as_key key;
+
+	// generate a random key
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+	_gen_key(key_val, &key, cdata);
+
+	_apply_udf_sync(tdata, cdata, coord, stage, &key);
+	as_key_destroy(&key);
+}
+
+LOCAL_HELPER void
+random_delete(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	as_key key;
+	as_record* rec;
+
+	// generate a random key
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+	_gen_key(key_val, &key, cdata);
+
+	// create a record
+	rec = _gen_nil_record(tdata);
+
+	// write this record to the database
+	_write_record_sync(tdata, cdata, coord, &key, rec);
+
+	// don't destroy delete records
+	as_key_destroy(&key);
 }
 
 
@@ -629,72 +801,22 @@ LOCAL_HELPER void
 random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage)
 {
-	as_key key;
-	as_record* rec;
-	uint32_t batch_size;
-
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 
 	// since there is no specific target number of transactions required before
 	// the stage is finished, only a timeout, tell the coordinator we are ready
 	// to finish as soon as the timer runs out
 	thr_coordinator_complete(coord);
 
-	batch_size = stage->batch_size;
-
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
-			if (batch_size <= 1) {
-				// generate a random key
-				uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-				_gen_key(key_val, &key, cdata);
-
-				_read_record_sync(tdata, cdata, coord, stage, &key);
-				as_key_destroy(&key);
-			}
-			else {
-				// generate a batch of random keys
-				as_batch_read_records* keys = as_batch_read_create(batch_size);
-				for (uint32_t i = 0; i < batch_size; i++) {
-					uint64_t key_val =
-						stage_gen_random_key(stage, tdata->random);
-					as_batch_read_record* key = as_batch_read_reserve(keys);
-					_gen_key(key_val, &key->key, cdata);
-					if (stage->read_bins) {
-						key->read_all_bins = false;
-						key->bin_names = stage->read_bins;
-						key->n_bin_names = stage->n_read_bins;
-					}
-					else {
-						key->read_all_bins = true;
-					}
-				}
-
-				_batch_read_record_sync(tdata, cdata, coord, keys);
-				as_batch_read_destroy(keys);
-			}
+			random_read(tdata, cdata, coord, stage);
 		}
 		else {
-			// generate a random key
-			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-			_gen_key(key_val, &key, cdata);
-
-			// create a record
-			rec = _gen_record(tdata->random, cdata, tdata, stage);
-
-			// write this record to the database
-			_write_record_sync(tdata, cdata, coord, &key, rec);
-
-			_destroy_record(rec, stage);
-			as_key_destroy(&key);
+			random_write(tdata, cdata, coord, stage);
 		}
 	}
 }
@@ -703,15 +825,8 @@ LOCAL_HELPER void
 random_read_write_udf(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage)
 {
-	as_key key;
-	as_record* rec;
-	uint32_t batch_size;
-
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
-	uint32_t write_pct = (uint32_t) ((0x01000000 * stage->workload.write_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
@@ -721,66 +836,18 @@ random_read_write_udf(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// to finish as soon as the timer runs out
 	thr_coordinator_complete(coord);
 
-	batch_size = stage->batch_size;
-
 	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
-			if (batch_size <= 1) {
-				// generate a random key
-				uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-				_gen_key(key_val, &key, cdata);
-
-				_read_record_sync(tdata, cdata, coord, stage, &key);
-				as_key_destroy(&key);
-			}
-			else {
-				// generate a batch of random keys
-				as_batch_read_records* keys = as_batch_read_create(batch_size);
-				for (uint32_t i = 0; i < batch_size; i++) {
-					uint64_t key_val =
-						stage_gen_random_key(stage, tdata->random);
-					as_batch_read_record* key = as_batch_read_reserve(keys);
-					_gen_key(key_val, &key->key, cdata);
-					if (stage->read_bins) {
-						key->read_all_bins = false;
-						key->bin_names = stage->read_bins;
-						key->n_bin_names = stage->n_read_bins;
-					}
-					else {
-						key->read_all_bins = true;
-					}
-				}
-
-				_batch_read_record_sync(tdata, cdata, coord, keys);
-				as_batch_read_destroy(keys);
-			}
+			random_read(tdata, cdata, coord, stage);
 		}
 		else if (die < write_pct) {
-			// generate a random key
-			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-			_gen_key(key_val, &key, cdata);
-
-			// create a record
-			rec = _gen_record(tdata->random, cdata, tdata, stage);
-
-			// write this record to the database
-			_write_record_sync(tdata, cdata, coord, &key, rec);
-
-			_destroy_record(rec, stage);
-			as_key_destroy(&key);
+			random_write(tdata, cdata, coord, stage);
 		}
 		else {
-			// generate a random key
-			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-			_gen_key(key_val, &key, cdata);
-
-			_apply_udf_sync(tdata, cdata, coord, stage, &key);
-			as_key_destroy(&key);
+			random_udf(tdata, cdata, coord, stage);
 		}
 	}
 }
@@ -823,6 +890,125 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	thr_coordinator_complete(coord);
 }
 
+LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage)
+{
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
+
+	// store the cumulative probability in write_pct
+	write_pct = read_pct + write_pct;
+
+	// since there is no specific target number of transactions required before
+	// the stage is finished, only a timeout, tell the coordinator we are ready
+	// to finish as soon as the timer runs out
+	thr_coordinator_complete(coord);
+
+	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+		// roll the die
+		uint32_t die = _random_fp(tdata->random);
+
+		if (die < read_pct) {
+			random_read(tdata, cdata, coord, stage);
+		}
+		else if (die < write_pct) {
+			random_write(tdata, cdata, coord, stage);
+		}
+		else {
+			random_delete(tdata, cdata, coord, stage);
+		}
+	}
+}
+
+/******************************************************************************
+ * Asynchronous workload helper methods
+ *****************************************************************************/
+
+LOCAL_HELPER void
+random_read_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, struct async_data_s* adata)
+{
+	uint32_t batch_size = stage->batch_size;
+
+	adata->op = read_op;
+
+	if (batch_size <= 1) {
+		// generate a random key
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+
+		_gen_key(key_val, &adata->key, cdata);
+		_read_record_async(&adata->key, adata, tdata, cdata, stage);
+	}
+	else {
+		// generate a batch of random keys
+		as_batch_read_records* keys = as_batch_read_create(batch_size);
+		for (uint32_t i = 0; i < batch_size; i++) {
+			uint64_t key_val =
+				stage_gen_random_key(stage, tdata->random);
+			as_batch_read_record* key = as_batch_read_reserve(keys);
+			_gen_key(key_val, &key->key, cdata);
+			if (stage->read_bins) {
+				key->read_all_bins = false;
+				key->bin_names = stage->read_bins;
+				key->n_bin_names = stage->n_read_bins;
+			}
+			else {
+				key->read_all_bins = true;
+			}
+		}
+
+		_batch_read_record_async(keys, adata, tdata, cdata);
+	}
+}
+
+LOCAL_HELPER void
+random_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, struct async_data_s* adata)
+{
+	as_record* rec;
+
+	// generate a random key
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+
+	_gen_key(key_val, &adata->key, cdata);
+	rec = _gen_record(tdata->random, cdata, tdata, stage);
+	adata->op = write_op;
+
+	_write_record_async(&adata->key, rec, adata, tdata, cdata);
+
+	_destroy_record(rec, stage);
+}
+
+LOCAL_HELPER void
+random_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, struct async_data_s* adata)
+{
+	// generate a random key
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+	_gen_key(key_val, &adata->key, cdata);
+	adata->op = udf_op;
+
+	_apply_udf_async(&adata->key, adata, tdata, cdata, stage);
+}
+
+LOCAL_HELPER void
+random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, struct async_data_s* adata)
+{
+	as_record* rec;
+
+	// generate a random key
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+
+	_gen_key(key_val, &adata->key, cdata);
+	rec = _gen_nil_record(tdata);
+	adata->op = write_op;
+
+	_write_record_async(&adata->key, rec, adata, tdata, cdata);
+
+	_destroy_record(rec, stage);
+}
+
 
 /******************************************************************************
  * Asynchronous workload methods
@@ -837,10 +1023,10 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 
 	if (!err) {
 		uint64_t end = cf_getus();
-		if (adata->op == read) {
+		if (adata->op == read_op) {
 			_record_read(cdata, end - adata->start_time);
 		}
-		else if (adata->op == udf) {
+		else if (adata->op == udf_op) {
 			_record_udf(cdata, end - adata->start_time);
 		}
 		else {
@@ -853,25 +1039,25 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	}
 	else {
 		if (err->code == AEROSPIKE_ERR_TIMEOUT) {
-			if (adata->op == read) {
-				as_incr_uint32(&cdata->read_timeout_count);
+			if (adata->op == read_op) {
+				as_incr_uint64(&cdata->read_timeout_count);
 			}
-			else if (adata->op == udf) {
-				as_incr_uint32(&cdata->udf_timeout_count);
+			else if (adata->op == udf_op) {
+				as_incr_uint64(&cdata->udf_timeout_count);
 			}
 			else {
-				as_incr_uint32(&cdata->write_timeout_count);
+				as_incr_uint64(&cdata->write_timeout_count);
 			}
 		}
 		else {
-			if (adata->op == read) {
-				as_incr_uint32(&cdata->read_error_count);
+			if (adata->op == read_op) {
+				as_incr_uint64(&cdata->read_error_count);
 			}
-			else if (adata->op == udf) {
-				as_incr_uint32(&cdata->udf_error_count);
+			else if (adata->op == udf_op) {
+				as_incr_uint64(&cdata->udf_error_count);
 			}
 			else {
-				as_incr_uint32(&cdata->write_error_count);
+				as_incr_uint64(&cdata->write_error_count);
 			}
 
 			if (cdata->debug) {
@@ -972,9 +1158,9 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		as_record* rec;
 		_gen_key(key_val, &adata->key, cdata);
 		rec = _gen_record(tdata->random, cdata, tdata, stage);
-		adata->op = write;
+		adata->op = write_op;
 
-		_write_record_async(&adata->key, rec, adata, cdata);
+		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 		_destroy_record(rec, stage);
 
@@ -992,19 +1178,15 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 }
 
 LOCAL_HELPER void
-rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+random_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, queue_t* adata_q)
 {
 	struct async_data_s* adata;
 
 	struct timespec wake_time;
 	uint64_t start_time;
-	uint32_t batch_size = stage->batch_size;
 
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 
 	// since this workload has no target number of transactions to be made, we
 	// are always ready to be reaped, and so we notify the coordinator that we
@@ -1020,52 +1202,13 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		adata->start_time = start_time;
 
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
-			adata->op = read;
-			if (batch_size <= 1) {
-				// generate a random key
-				uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-
-				_gen_key(key_val, &adata->key, cdata);
-				_read_record_async(&adata->key, adata, cdata, stage);
-			}
-			else {
-				// generate a batch of random keys
-				as_batch_read_records* keys = as_batch_read_create(batch_size);
-				for (uint32_t i = 0; i < batch_size; i++) {
-					uint64_t key_val =
-						stage_gen_random_key(stage, tdata->random);
-					as_batch_read_record* key = as_batch_read_reserve(keys);
-					_gen_key(key_val, &key->key, cdata);
-					if (stage->read_bins) {
-						key->read_all_bins = false;
-						key->bin_names = stage->read_bins;
-						key->n_bin_names = stage->n_read_bins;
-					}
-					else {
-						key->read_all_bins = true;
-					}
-				}
-
-				_batch_read_record_async(keys, adata, cdata);
-			}
+			random_read_async(tdata, cdata, coord, stage, adata);
 		}
 		else {
-			as_record* rec;
-			// generate a random key
-			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-
-			_gen_key(key_val, &adata->key, cdata);
-			rec = _gen_record(tdata->random, cdata, tdata, stage);
-			adata->op = write;
-
-			_write_record_async(&adata->key, rec, adata, cdata);
-
-			_destroy_record(rec, stage);
+			random_write_async(tdata, cdata, coord, stage, adata);
 		}
 
 		uint64_t pause_for =
@@ -1076,20 +1219,16 @@ rand_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 }
 
 LOCAL_HELPER void
-rand_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, queue_t* adata_q)
 {
 	struct async_data_s* adata;
 
 	struct timespec wake_time;
 	uint64_t start_time;
-	uint32_t batch_size = stage->batch_size;
 
-	// multiply pct by 2**24 before dividing by 100 and casting to an int,
-	// since floats have 24 bits of precision including the leading 1,
-	// so that read_pct is pct% between 0 and 2**24
-	uint32_t read_pct = (uint32_t) ((0x01000000 * stage->workload.read_pct) / 100);
-	uint32_t write_pct = (uint32_t) ((0x01000000 * stage->workload.write_pct) / 100);
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
@@ -1108,60 +1247,16 @@ rand_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		adata->start_time = start_time;
 
 		// roll the die
-		uint32_t die = as_random_next_uint32(tdata->random);
-		// floats have 24 bits of precision (including implicit leading 1)
-		die &= 0x00ffffff;
+		uint32_t die = _random_fp(tdata->random);
 
 		if (die < read_pct) {
-			adata->op = read;
-			if (batch_size <= 1) {
-				// generate a random key
-				uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-
-				_gen_key(key_val, &adata->key, cdata);
-				_read_record_async(&adata->key, adata, cdata, stage);
-			}
-			else {
-				// generate a batch of random keys
-				as_batch_read_records* keys = as_batch_read_create(batch_size);
-				for (uint32_t i = 0; i < batch_size; i++) {
-					uint64_t key_val =
-						stage_gen_random_key(stage, tdata->random);
-					as_batch_read_record* key = as_batch_read_reserve(keys);
-					_gen_key(key_val, &key->key, cdata);
-					if (stage->read_bins) {
-						key->read_all_bins = false;
-						key->bin_names = stage->read_bins;
-						key->n_bin_names = stage->n_read_bins;
-					}
-					else {
-						key->read_all_bins = true;
-					}
-				}
-
-				_batch_read_record_async(keys, adata, cdata);
-			}
+			random_read_async(tdata, cdata, coord, stage, adata);
 		}
 		else if (die < write_pct) {
-			as_record* rec;
-			// generate a random key
-			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-
-			_gen_key(key_val, &adata->key, cdata);
-			rec = _gen_record(tdata->random, cdata, tdata, stage);
-			adata->op = write;
-
-			_write_record_async(&adata->key, rec, adata, cdata);
-
-			_destroy_record(rec, stage);
+			random_write_async(tdata, cdata, coord, stage, adata);
 		}
 		else {
-			// generate a random key
-			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-			_gen_key(key_val, &adata->key, cdata);
-			adata->op = udf;
-
-			_apply_udf_async(&adata->key, adata, tdata, cdata, stage);
+			random_udf_async(tdata, cdata, coord, stage, adata);
 		}
 
 		uint64_t pause_for =
@@ -1195,9 +1290,9 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		as_record* rec;
 		_gen_key(key_val, &adata->key, cdata);
 		rec = _gen_nil_record(tdata);
-		adata->op = delete;
+		adata->op = delete_op;
 
-		_write_record_async(&adata->key, rec, adata, cdata);
+		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 		_destroy_record(rec, stage);
 
@@ -1214,6 +1309,54 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	thr_coordinator_complete(coord);
 }
 
+LOCAL_HELPER void
+random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, queue_t* adata_q)
+{
+	struct async_data_s* adata;
+
+	struct timespec wake_time;
+	uint64_t start_time;
+
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
+
+	// store the cumulative probability in write_pct
+	write_pct = read_pct + write_pct;
+
+	// since this workload has no target number of transactions to be made, we
+	// are always ready to be reaped, and so we notify the coordinator that we
+	// are finished with our required tasks and can be stopped whenever
+	thr_coordinator_complete(coord);
+
+	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+
+		adata = queue_pop_wait(adata_q);
+
+		clock_gettime(COORD_CLOCK, &wake_time);
+		start_time = timespec_to_us(&wake_time);
+		adata->start_time = start_time;
+
+		// roll the die
+		uint32_t die = _random_fp(tdata->random);
+
+		if (die < read_pct) {
+			random_read_async(tdata, cdata, coord, stage, adata);
+		}
+		else if (die < write_pct) {
+			random_write_async(tdata, cdata, coord, stage, adata);
+		}
+		else {
+			random_delete_async(tdata, cdata, coord, stage, adata);
+		}
+
+		uint64_t pause_for =
+			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
+		timespec_add_us(&wake_time, pause_for);
+		thr_coordinator_sleep(coord, &wake_time);
+	}
+}
+
 
 /******************************************************************************
  * Main worker thread loop
@@ -1224,17 +1367,21 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
 {
 	switch (stage->workload.type) {
-		case WORKLOAD_TYPE_LINEAR:
+		case WORKLOAD_TYPE_I:
 			linear_writes(tdata, cdata, coord, stage);
 			break;
-		case WORKLOAD_TYPE_RANDOM:
+		case WORKLOAD_TYPE_RU:
+		case WORKLOAD_TYPE_RR:
 			random_read_write(tdata, cdata, coord, stage);
 			break;
-		case WORKLOAD_TYPE_RANDOM_UDF:
+		case WORKLOAD_TYPE_RUF:
 			random_read_write_udf(tdata, cdata, coord, stage);
 			break;
-		case WORKLOAD_TYPE_DELETE:
+		case WORKLOAD_TYPE_D:
 			linear_deletes(tdata, cdata, coord, stage);
+			break;
+		case WORKLOAD_TYPE_RUD:
+			random_read_write_delete(tdata, cdata, coord, stage);
 			break;
 	}
 }
@@ -1272,17 +1419,21 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 
 	switch (stage->workload.type) {
-		case WORKLOAD_TYPE_LINEAR:
+		case WORKLOAD_TYPE_I:
 			linear_writes_async(tdata, cdata, coord, stage, &adata_q);
 			break;
-		case WORKLOAD_TYPE_RANDOM:
-			rand_read_write_async(tdata, cdata, coord, stage, &adata_q);
+		case WORKLOAD_TYPE_RU:
+		case WORKLOAD_TYPE_RR:
+			random_read_write_async(tdata, cdata, coord, stage, &adata_q);
 			break;
-		case WORKLOAD_TYPE_RANDOM_UDF:
-			rand_read_write_udf_async(tdata, cdata, coord, stage, &adata_q);
+		case WORKLOAD_TYPE_RUF:
+			random_read_write_udf_async(tdata, cdata, coord, stage, &adata_q);
 			break;
-		case WORKLOAD_TYPE_DELETE:
+		case WORKLOAD_TYPE_D:
 			linear_deletes_async(tdata, cdata, coord, stage, &adata_q);
+			break;
+		case WORKLOAD_TYPE_RUD:
+			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
 			break;
 	}
 
@@ -1299,6 +1450,16 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 LOCAL_HELPER void
 init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 {
+	if (stage->workload.type == WORKLOAD_TYPE_RR) {
+		tdata->policies.write.exists = AS_POLICY_EXISTS_REPLACE;
+		tdata->policies.operate.exists = AS_POLICY_EXISTS_REPLACE;
+	}
+	else {
+		tdata->policies.write.exists = AS_POLICY_EXISTS_IGNORE;
+		tdata->policies.operate.exists = AS_POLICY_EXISTS_IGNORE;
+	}
+	tdata->policies.apply.ttl = stage->ttl;
+
 	if (stage->tps == 0) {
 		// tps = 0 means no throttling
 		dyn_throttle_init(&tdata->dyn_throttle, 0);
@@ -1314,42 +1475,63 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	}
 
 	if (!stage->random) {
-		uint32_t n_bins =
-			stage->write_bins == NULL ? obj_spec_n_bins(&stage->obj_spec) :
-			stage->n_write_bins;
-		as_record_init(&tdata->fixed_value, n_bins);
 
-		if (stage->workload.type == WORKLOAD_TYPE_DELETE) {
-			if (stage->write_bins == NULL) {
-				for (uint32_t i = 0; i < n_bins; i++) {
-					as_bin_name bin_name;
-					gen_bin_name(bin_name, cdata->bin_name, i);
-					as_record_set_nil(&tdata->fixed_value, bin_name);
-				}
+		if (workload_contains_writes(&stage->workload)) {
+			if (stage->workload.write_all_pct != 0) {
+				uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+				as_record_init(&tdata->fixed_full_record, n_bins);
+				obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_full_record,
+						tdata->random, cdata->bin_name, NULL, 0,
+						cdata->compression_ratio);
+
+				tdata->fixed_full_record.ttl = stage->ttl;
 			}
-			else {
+			if (stage->workload.write_all_pct != 100) {
+				uint32_t n_bins = stage->n_write_bins;
 
-				FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
-						&stage->obj_spec, iter, idx, __bin_spec) {
+				as_record_init(&tdata->fixed_partial_record, n_bins);
+				obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_partial_record,
+						tdata->random, cdata->bin_name, stage->write_bins, n_bins,
+						cdata->compression_ratio);
 
-					as_bin_name bin_name;
-					gen_bin_name(bin_name, cdata->bin_name, idx);
-					as_record_set_nil(&tdata->fixed_value, bin_name);
-				}
-				END_FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
-						iter, idx);
+				tdata->fixed_partial_record.ttl = stage->ttl;
 			}
-		}
-		else {
-			obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_value,
-					tdata->random, cdata->bin_name, stage->write_bins,
-					stage->n_write_bins, cdata->compression_ratio);
 		}
 
 		if (workload_contains_udfs(&stage->workload)) {
 			as_val* val = obj_spec_gen_value(&stage->udf_fn_args,
 					tdata->random, NULL, 0);
 			tdata->fixed_udf_fn_args = as_list_fromval(val);
+		}
+	}
+
+	if (workload_contains_deletes(&stage->workload)) {
+		if (stage->workload.type != WORKLOAD_TYPE_D ||
+				stage->workload.write_all_pct != 0) {
+			uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+			as_record_init(&tdata->fixed_delete_record, n_bins);
+
+			for (uint32_t i = 0; i < n_bins; i++) {
+				as_bin_name bin_name;
+				gen_bin_name(bin_name, cdata->bin_name, i);
+				as_record_set_nil(&tdata->fixed_delete_record, bin_name);
+			}
+		}
+		if (stage->workload.type == WORKLOAD_TYPE_D &&
+				stage->workload.write_all_pct != 100) {
+			// write_bins must be set if write_all_pct != 100 in DB workload
+			assert(stage->write_bins != NULL);
+			as_record_init(&tdata->fixed_delete_record, stage->n_write_bins);
+
+			FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
+					&stage->obj_spec, iter, idx, __bin_spec) {
+
+				as_bin_name bin_name;
+				gen_bin_name(bin_name, cdata->bin_name, idx);
+				as_record_set_nil(&tdata->fixed_delete_record, bin_name);
+			}
+			END_FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
+					iter, idx);
 		}
 	}
 }
@@ -1360,11 +1542,20 @@ terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	dyn_throttle_free(&tdata->dyn_throttle);
 
 	if (!stage->random) {
-		as_record_destroy(&tdata->fixed_value);
+		if (stage->workload.write_all_pct != 0) {
+			as_record_destroy(&tdata->fixed_full_record);
+		}
+		if (stage->workload.write_all_pct != 100) {
+			as_record_destroy(&tdata->fixed_partial_record);
+		}
 
 		if (workload_contains_udfs(&stage->workload)) {
 			as_val_destroy((as_val*) tdata->fixed_udf_fn_args);
 		}
+	}
+
+	if (workload_contains_deletes(&stage->workload)) {
+		as_record_destroy(&tdata->fixed_delete_record);
 	}
 }
 

@@ -24,6 +24,7 @@
 #include <aerospike/aerospike.h>
 #include <aerospike/as_event.h>
 #include <aerospike/as_password.h>
+#include <aerospike/as_policy.h>
 #include <aerospike/as_random.h>
 #include <aerospike/as_record.h>
 #include <aerospike/as_udf.h>
@@ -41,6 +42,10 @@ typedef struct args_s {
 	char* hosts;
 	int port;
 	bool use_services_alternate;
+	int max_error_rate;
+	int tender_interval;
+	int error_rate_window;
+	int max_socket_idle;
 	const char* user;
 	char password[AS_PASSWORD_SIZE];
 	const char* namespace;
@@ -61,26 +66,32 @@ typedef struct args_s {
 	bool enable_compression;
 	float compression_ratio;
 
+	int conn_timeout_ms;
 	int read_socket_timeout;
 	int write_socket_timeout;
 	int read_total_timeout;
 	int write_total_timeout;
 	int max_retries;
+	int sleep_between_retries;
 	bool debug;
 	bool latency;
-	int latency_columns;
-	int latency_shift;
 	as_vector latency_percentiles;
 	bool latency_histogram;
 	char* histogram_output;
 	int histogram_period;
 	char* hdr_output;
 	bool use_shm;
+	as_policy_key key;
 	as_policy_replica replica;
+	int rack_id;
 	as_policy_read_mode_ap read_mode_ap;
 	as_policy_read_mode_sc read_mode_sc;
 	as_policy_commit_level write_commit_level;
+	int min_conns_per_node;
+	int max_conns_per_node;
 	int conn_pools_per_node;
+	int async_min_conns_per_node;
+	int async_max_conns_per_node;
 	bool durable_deletes;
 	int async_max_commands;
 	int event_loop_capacity;
@@ -100,17 +111,18 @@ typedef struct clientdata_s {
 	aerospike client;
 
 	// TODO make all these counts thread-local to reduce contention
-	uint32_t read_count;
-	uint32_t read_timeout_count;
-	uint32_t read_error_count;
+	uint64_t read_hit_count;
+	uint64_t read_miss_count;
+	uint64_t read_timeout_count;
+	uint64_t read_error_count;
 
-	uint32_t write_count;
-	uint32_t write_timeout_count;
-	uint32_t write_error_count;
+	uint64_t write_count;
+	uint64_t write_timeout_count;
+	uint64_t write_error_count;
 
-	uint32_t udf_count;
-	uint32_t udf_timeout_count;
-	uint32_t udf_error_count;
+	uint64_t udf_count;
+	uint64_t udf_timeout_count;
+	uint64_t udf_error_count;
 
 	FILE* hdr_comp_read_output;
 	FILE* hdr_text_read_output;
@@ -163,8 +175,13 @@ typedef struct threaddata_s {
 	// must also be set to false for this to work)
 	bool finished;
 
-	as_record fixed_value;
+	// the following arguments are initialized for each stage
+	as_record fixed_full_record;
+	as_record fixed_partial_record;
+	as_record fixed_delete_record;
 	as_list* fixed_udf_fn_args;
+
+	as_policies policies;
 } tdata_t;
 
 

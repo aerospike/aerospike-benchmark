@@ -2,11 +2,12 @@
 AS_HOST := 127.0.0.1
 AS_PORT := 3000
 
-ifndef CLIENTREPO
-$(error Please set the CLIENTREPO environment variable)
+# deprecated: support for explicit client repo
+ifdef CLIENTREPO
+$(warning Setting CLIENTREPO explicitly is deprecated, the c-client is now a submodule of asbackup)
+DIR_C_CLIENT := $(CLIENTREPO)
 endif
 
-CLIENT_PATH = $(CLIENTREPO)
 ARCH = $(shell uname -m)
 PLATFORM = $(OS)-$(ARCH)
 ROOT = $(CURDIR)
@@ -18,17 +19,40 @@ else
 	ARCH = $(shell uname -m)
 endif
 
+CMAKE3_CHECK := $(shell cmake3 --help > /dev/null 2>&1 || (echo "cmake3 not found"))
+CMAKE_CHECK := $(shell cmake --help > /dev/null 2>&1 || (echo "cmake not found"))
+
+ifeq ($(CMAKE3_CHECK),)
+	CMAKE := cmake3
+else
+ifeq ($(CMAKE_CHECK),)
+	CMAKE := cmake
+else
+	$(error "no cmake binary found")
+endif
+endif
+
 CFLAGS = -std=gnu99 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 
+DIR_LIBYAML ?= $(ROOT)/modules/libyaml
+DIR_LIBYAML_BUILD := $(DIR_LIBYAML)/build
+DIR_LIBCYAML ?= $(ROOT)/modules/libcyaml
+DIR_LIBCYAML_BUILD_REL ?= build/release
+DIR_LIBCYAML_BUILD ?= $(ROOT)/modules/libcyaml/$(DIR_LIBCYAML_BUILD_REL)
+
+DIR_C_CLIENT ?= $(ROOT)/modules/c-client
+C_CLIENT_LIB := $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a
+
 DIR_INCLUDE =  $(ROOT)/src/include
 DIR_INCLUDE += $(ROOT)/modules
-DIR_INCLUDE += $(ROOT)/modules/libcyaml/include
-DIR_INCLUDE += $(CLIENT_PATH)/src/include
-DIR_INCLUDE += $(CLIENT_PATH)/modules/common/src/include
-DIR_INCLUDE += $(CLIENT_PATH)/modules/mod-lua/src/include
-DIR_INCLUDE += $(CLIENT_PATH)/modules/base/src/include
+DIR_INCLUDE += $(DIR_LIBYAML)/include
+DIR_INCLUDE += $(DIR_LIBCYAML)/include
+DIR_INCLUDE += $(DIR_C_CLIENT)/src/include
+DIR_INCLUDE += $(DIR_C_CLIENT)/modules/common/src/include
+DIR_INCLUDE += $(DIR_C_CLIENT)/modules/mod-lua/src/include
+DIR_INCLUDE += $(DIR_C_CLIENT)/modules/base/src/include
 INCLUDES = $(DIR_INCLUDE:%=-I%) 
 
 DIR_ENV = $(ROOT)/env
@@ -42,8 +66,6 @@ ifeq ($(OS),Darwin)
 else ifeq ($(OS),Linux)
   CFLAGS += -rdynamic
 endif
-
-CFLAGS += $(INCLUDES) -I/usr/local/include
 
 ifeq ($(EVENT_LIB),libev)
   CFLAGS += -DAS_USE_LIBEV
@@ -102,20 +124,15 @@ else ifeq ($(OS),FreeBSD)
   LDFLAGS += -lrt
 endif
 
-LDFLAGS += -lm -lz -lcyaml
-TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
-LDFLAGS += -Ltarget/lib -flto
+LDFLAGS += -lm -lz
 
-ifeq ($(LIBYAML_STATIC_PATH),)
-  LDFLAGS += -lyaml
-else
-  LDFLAGS += $(LIBYAML_STATIC_PATH)/libyaml.a
-endif
+TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
+BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
 
 CC = cc
 AR = ar
 
-BUILD_CFLAGS = $(CFLAGS) -flto
+BUILD_CFLAGS = $(CFLAGS)
 TEST_CFLAGS = $(CFLAGS) -g -D_TEST
 
 ###############################################################################
@@ -160,7 +177,7 @@ info:
 	@echo "  NAME:       " $(NAME) 
 	@echo "  OS:         " $(OS)
 	@echo "  ARCH:       " $(ARCH)
-	@echo "  CLIENTREPO: " $(CLIENT_PATH)
+	@echo "  CLIENTREPO: " $(DIR_C_CLIENT)
 	@echo "  WD:         " $(shell pwd)	
 	@echo
 	@echo "  PATHS:"
@@ -175,12 +192,12 @@ info:
 	@echo
 	@echo "  LINKER:"
 	@echo "      command:    " $(LD)
-	@echo "      flags:      " $(LDFLAGS)
+	@echo "      flags:      " $(BUILD_LDFLAGS)
 	@echo
 
 
 .PHONY: build
-build: target/benchmark
+build: target/asbench
 
 .PHONY: archive
 archive: $(OBJECTS) target/libbench.a
@@ -192,7 +209,10 @@ target/libbench.a: $(OBJECTS)
 .PHONY: clean
 clean:
 	rm -rf target test_target $(DIR_ENV)
-	$(MAKE) clean -C modules/libcyaml
+	$(MAKE) clean -C $(DIR_LIBCYAML)
+	if [ -d $(DIR_LIBYAML_BUILD) ]; then $(MAKE) clean -C $(DIR_LIBYAML_BUILD); fi
+	rm -rf $(DIR_LIBYAML_BUILD)
+	$(MAKE) -C $(DIR_C_CLIENT) clean
 
 target:
 	mkdir $@
@@ -215,22 +235,35 @@ target/obj/%.o: src/main/%.c | target/obj
 target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogram
 	$(CC) $(BUILD_CFLAGS) -o $@ -c $< $(INCLUDES)
 
-target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | target/lib
+target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | target/lib
 	cp $< $@
 
-target/benchmark: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | target
-	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(LDFLAGS)
+target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | target/lib
+	cp $< $@
+
+$(C_CLIENT_LIB):
+	$(MAKE) -C $(DIR_C_CLIENT)
+
+target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | target
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(BUILD_LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))
 -include $(wildcard $(HDR_DEPENDENCIES))
 
-modules/libcyaml/build/debug/libcyaml.a:
-	$(MAKE) -C modules/libcyaml
+$(DIR_LIBYAML_BUILD):
+	mkdir $@
+
+$(DIR_LIBYAML_BUILD)/libyaml.a: | $(DIR_LIBYAML_BUILD)
+	cd $(DIR_LIBYAML_BUILD) && $(CMAKE) $(DIR_LIBYAML) -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF
+	$(MAKE) -C $(DIR_LIBYAML_BUILD)
+
+$(DIR_LIBCYAML_BUILD)/libcyaml.a:
+	$(MAKE) -C $(DIR_LIBCYAML) $(DIR_LIBCYAML_BUILD_REL)/libcyaml.a LIBYAML_CFLAGS="-I$(DIR_LIBYAML)/include" VERSION_DEVEL=0
 
 .PHONY: run
 run: build
-	./target/benchmark -h $(AS_HOST) -p $(AS_PORT)
+	./target/asbench -h $(AS_HOST) -p $(AS_PORT)
 
 .PHONY: test
 test: unit integration
@@ -258,29 +291,32 @@ test_target/lib: | test_target
 	mkdir $@
 
 test_target/obj/unit/%.o: src/test/unit/%.c | test_target/obj/unit
-	$(CC) $(TEST_CFLAGS) -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -o $@ -c $< $(INCLUDES)
 
 test_target/obj/%.o: src/main/%.c | test_target/obj
-	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
 test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
-	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $<
+	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
-test_target/test: $(TEST_OBJECTS) target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
 # build the benchmark executable with code coverage
-test_target/lib/libcyaml.a: modules/libcyaml/build/debug/libcyaml.a | test_target/lib
+test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
 	cp $< $@
 
-test_target/benchmark: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) $(CLIENTREPO)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+test_target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | test_target/lib
+	cp $< $@
+
+test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(TEST_HDR_OBJECTS) $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
 
 -include $(wildcard $(TEST_DEPENDENCIES))
 
 # integration testing
 .PHONY: integration
-integration: test_target/benchmark
+integration: test_target/asbench
 	@./integration_tests.sh $(DIR_ENV)
 
 # Summary requires the lcov tool to be installed

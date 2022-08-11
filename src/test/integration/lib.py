@@ -2,6 +2,7 @@
 import codecs
 import os
 import string
+import subprocess
 import sys
 import aerospike
 import docker
@@ -333,22 +334,26 @@ def run_benchmark(args, ip=None, port=PORT, expect_success=True, do_reset=True):
 	global SERVER_IP
 
 	start(do_reset=do_reset)
+	directory = absolute_path("../../..")
 
 	if ip is None:
 		ip = SERVER_IP
 
 	if USE_VALGRIND:
-		cmd = "valgrind --tool=memcheck --leak-check=full --track-origins=yes "
+		cmd = ["valgrind", "--tool=memcheck", "--leak-check=full", "--track-origins=yes"]
 	else:
-		cmd = ""
-	cmd += "test_target/benchmark -h %s:%d -n %s -s %s %s" % \
-			(ip, port, NAMESPACE, SET, args)
+		cmd = []
+	cmd += ["test_target/asbench", "-h", f"{ip}:{port}", "-n", NAMESPACE, "-s", SET] + args
 
-	print("executing:", cmd)
+	print("executing:", ' '.join(cmd))
 	if expect_success:
-		assert(os.system(cmd) == 0)
+		subprocess.check_call(cmd, cwd=directory)
 	else:
-		assert(os.system(cmd) != 0)
+		try:
+			subprocess.check_call(cmd, cwd=directory)
+			assert(False, "Process returned 0 exit code")
+		except subprocess.CalledProcessError:
+			pass
 
 def scan_records():
 	recs = []
@@ -429,7 +434,7 @@ def obj_spec_is_const_S(val, cnst):
 	assert(val == cnst)
 
 def obj_spec_is_B(val, size):
-	assert(type(val) is bytearray)
+	assert(type(val) is bytes)
 	assert(len(val) == size)
 
 def check_recs_exist_in_range(key_start, key_end, obj_checker=None):
