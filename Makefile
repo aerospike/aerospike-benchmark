@@ -123,6 +123,7 @@ ifeq ($(OS),Darwin)
 	LDFLAGS += -lssh2
 	else
 	LDFLAGS += $(LIBSSH2_STATIC_PATH)/libssh2.a
+	endif
 endif
 
 LDFLAGS += -lpthread
