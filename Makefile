@@ -116,16 +116,6 @@ ifeq ($(EVENT_LIB),libevent)
   endif
 endif
 
-ifeq ($(OS),Darwin)
-	LDFLAGS += -framework SystemConfiguration
-
-	ifeq ($(LIBSSH2_STATIC_PATH),)
-	LDFLAGS += -lssh2
-	else
-	LDFLAGS += $(LIBSSH2_STATIC_PATH)/libssh2.a
-	endif
-endif
-
 LDFLAGS += -lpthread
 
 ifeq ($(OS),Linux)
