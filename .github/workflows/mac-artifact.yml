@@ -55,7 +55,7 @@ jobs:
         git describe --tags --always
     - name: Build asbench
       run: |
-        make EVENT_LIB=${{ matrix.ev-lib }} LIBUV_STATIC_PATH=/usr/local/lib
+        make EVENT_LIB=${{ matrix.ev-lib }} LIBUV_STATIC_PATH=/usr/local/lib LIBEVENT_STATIC_PATH=/usr/local/lib LIBEV_STATIC_PATH=/usr/local/lib
       working-directory: ${{ steps.working-dir.outputs.value }}
     - name: Sanity test asbench artifact
       run: |
