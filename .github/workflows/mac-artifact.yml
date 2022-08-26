@@ -1,7 +1,7 @@
 name: Mac Artifact
 on:
   push:
-    branches: [actionsHub, main, test-ready ]
+    branches: [actionsHub, main, test-ready, TOOLS-2131-remove-macos10-support ]
   pull_request:
     branches: [actionsHub]
   workflow_call:
