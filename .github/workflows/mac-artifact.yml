@@ -12,7 +12,7 @@ on:
         type: string
 jobs:
   build:
-    runs-on: macos-10.15
+    runs-on: macos-11
     strategy:
       matrix:
         ev-lib: ["", libev, libuv, libevent]
@@ -76,7 +76,7 @@ jobs:
         if-no-files-found: error
   bundle-binaries:
     needs: build
-    runs-on: macos-10.15
+    runs-on: macos-11
     if: "${{ inputs.submodule == '' }}"
 
     steps:
