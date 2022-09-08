@@ -47,6 +47,9 @@ static const char* short_options = "V:h:p:U:P::n:s:b:K:k:o:Re:t:w:z:g:T:dL:SC:N:
 
 #define WARN_MSG 0x40000000
 
+// The C client's version string
+extern char *aerospike_client_version;
+
 /*
  * Identifies the TLS client command line options.
  */
@@ -274,6 +277,13 @@ benchmark_init(int argc, char* argv[])
 	else if (ret != -1) {
 		printf("Run with --help for usage information and flag options.\n");
 	}
+	else {
+		// return code was set to -1 when
+		// parsing help or version cases
+		// reset to 0 here to prevent a 
+		// failure return code
+		ret = 0;
+	}
 	_free_args(&args);
 	return ret;
 }
@@ -286,7 +296,10 @@ benchmark_init(int argc, char* argv[])
 LOCAL_HELPER void
 print_version()
 {
-	printf("asbench version 1.4.0\n");
+	fprintf(stdout, "Aerospike Benchmark Utility\n");
+	fprintf(stdout, "Version %s\n", TOOL_VERSION);
+	fprintf(stdout, "C Client Version %s\n", aerospike_client_version);
+	fprintf(stdout, "Copyright 2015-2022 Aerospike. All rights reserved.\n");
 }
 
 LOCAL_HELPER void
