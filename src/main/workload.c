@@ -124,6 +124,9 @@ static const cyaml_config_t config = {
 LOCAL_HELPER int
 _parse_workload_distr(const char* pct_str, as_vector* pct_vec);
 
+LOCAL_HELPER int
+_parse_workload_ints(const char* pct_str, as_vector* pct_vec);
+
 /*
  * reads and parses bins_str, a comma-separated list of bin numbers
  * (1-based indexed) and populates the read_bins field of stage
@@ -314,6 +317,44 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 	else if (strcmp(workload_str, "DB") == 0) {
 		workload->type = WORKLOAD_TYPE_D;
 		workload->write_all_pct = WORKLOAD_UNSET_PCT;
+	}
+	else if (workload_str[0] == 'C') {
+		workload->type = WORKLOAD_TYPE_CDT;
+		workload->cdt_add = 10;
+		workload->cdt_max = 100;
+		workload->cdt_key_sz = 4;
+
+		if (workload_str[1] == '\0') {
+			return 0;
+		}
+		else if (workload_str[1] == ',') {
+			as_vector param_vec;
+			as_vector_init(&param_vec, sizeof(int), 3);
+
+			if (_parse_workload_distr(workload_str + 2, &param_vec) < 0) {
+				as_vector_destroy(&param_vec);
+				return -1;
+			}
+
+			if (param_vec.size > 3) {
+				fprintf(stderr, "Expected < 4 numbers to follow C, but "
+						"found %d\n", param_vec.size);
+				as_vector_destroy(&param_vec);
+				return -1;
+			}
+
+			if (param_vec.size > 0) {
+				workload->cdt_add = *(int*)as_vector_get(&param_vec, 0);
+			}
+
+			if (param_vec.size > 1) {
+				workload->cdt_max = *(int*)as_vector_get(&param_vec, 1);
+			}
+
+			if (param_vec.size > 2) {
+				workload->cdt_key_sz = *(int*)as_vector_get(&param_vec, 2);
+			}
+		}
 	}
 	else {
 		fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
@@ -799,6 +840,34 @@ _parse_workload_distr(const char* pct_str, as_vector* pct_vec)
 		else if (*str != '\0') {
 			fprintf(stderr, "Expected ',' in percentage list \"%s\"\n",
 					pct_str);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+LOCAL_HELPER int
+_parse_workload_ints(const char* pct_str, as_vector* pct_vec)
+{
+	const char* str = pct_str;
+
+	while (*str != '\0') {
+		char* endptr;
+		int pct = (int)strtol(str, &endptr, 10);
+		if (endptr == str) {
+			fprintf(stderr, "Invalid number in list \"%s\"\n", pct_str);
+			return -1;
+		}
+
+		as_vector_append(pct_vec, &pct);
+
+		str = endptr;
+		if (*str == ',') {
+			str++;
+		}
+		else if (*str != '\0') {
+			fprintf(stderr, "Expected ',' in list \"%s\"\n", pct_str);
 			return -1;
 		}
 	}

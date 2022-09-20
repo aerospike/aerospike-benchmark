@@ -11,6 +11,7 @@
 #include <aerospike/as_atomic.h>
 #include <aerospike/aerospike_batch.h>
 #include <aerospike/aerospike_key.h>
+#include <aerospike/as_map_operations.h>
 #include <citrusleaf/cf_clock.h>
 
 #include <benchmark.h>
@@ -114,6 +115,8 @@ LOCAL_HELPER void linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* co
 		const stage_t* stage);
 LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void cdt_add_and_cap(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage);
 
 // Asynchronous workload helper methods
 LOCAL_HELPER void random_read_async(tdata_t* tdata, cdata_t* cdata,
@@ -920,6 +923,95 @@ LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 	}
 }
 
+LOCAL_HELPER void
+cdt_add_and_cap(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	uint32_t t_idx = tdata->t_idx;
+	uint64_t start_key, end_key;
+	uint64_t key_val;
+
+	_calculate_subrange(stage->key_start, stage->key_end, t_idx,
+			cdata->transaction_worker_threads, &start_key, &end_key);
+
+	uint32_t key_sz = stage->workload.cdt_key_sz * stage->workload.cdt_add;
+	uint8_t* key_mem = cf_malloc((size_t)key_sz);
+
+	while (true) {
+		key_val = start_key;
+		while (as_load_uint8((uint8_t*) &tdata->do_work) && key_val < end_key) {
+			as_key key;
+			as_orderedmap m;
+			uint8_t* p = key_mem;
+
+			_gen_key(key_val, &key, cdata);
+			as_orderedmap_init(&m, stage->workload.cdt_add);
+			as_random_next_bytes(tdata->random, key_mem, key_sz);
+
+			for (int i = 0; i < stage->workload.cdt_add; i++) {
+				as_bytes* key =
+						as_bytes_new_wrap(p, stage->workload.cdt_key_sz, false);
+				int64_t ival;
+
+				as_random_next_bytes(tdata->random, (uint8_t*)&ival,
+						sizeof(int64_t));
+
+				as_integer* val = as_integer_new(ival);
+
+				as_orderedmap_set(&m, (as_val*)key, (as_val*)val);
+
+				p += stage->workload.cdt_key_sz;
+			}
+
+			as_operations ops;
+			as_error err;
+
+			as_operations_init(&ops, 2);
+			as_operations_add_map_put_items(&ops, cdata->bin_name, NULL,
+					(as_map*)&m);
+			as_operations_add_map_remove_by_rank_range(&ops, cdata->bin_name,
+					-stage->workload.cdt_max, stage->workload.cdt_max,
+					AS_MAP_RETURN_NONE | AS_MAP_RETURN_INVERTED);
+
+			as_record* rec = NULL;
+			uint64_t start = cf_getus();
+			as_status status = aerospike_key_operate(&cdata->client, &err,
+					&tdata->policies.operate, &key, &ops, &rec);
+			uint64_t end = cf_getus();
+
+			if (status == AEROSPIKE_OK) {
+				_record_write(cdata, end - start);
+				as_record_destroy(rec);
+			}
+			else {
+				// Handle error conditions.
+				if (status == AEROSPIKE_ERR_TIMEOUT) {
+					as_incr_uint64(&cdata->write_timeout_count);
+				}
+				else {
+					as_incr_uint64(&cdata->write_error_count);
+
+					if (cdata->debug) {
+						blog_error("Write error: ns=%s set=%s key=%d bin=%s code=%d message=%s",
+								cdata->namespace, cdata->set, key,
+								cdata->bin_name, status, err.message);
+					}
+				}
+			}
+
+			as_operations_destroy(&ops);
+			throttle(tdata, coord);
+
+			as_key_destroy(&key);
+			key_val++;
+		}
+	}
+
+	cf_free(key_mem);
+	thr_coordinator_complete(coord);
+}
+
+
 /******************************************************************************
  * Asynchronous workload helper methods
  *****************************************************************************/
@@ -1357,6 +1449,19 @@ random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coor
 	}
 }
 
+LOCAL_HELPER void
+cdt_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, queue_t* adata_q)
+{
+	thr_coordinator_complete(coord);
+
+	as_key key;
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+
+	_gen_key(key_val, &key, cdata);
+
+
+}
 
 /******************************************************************************
  * Main worker thread loop
@@ -1382,6 +1487,9 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			break;
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete(tdata, cdata, coord, stage);
+			break;
+		case WORKLOAD_TYPE_CDT:
+			cdt_add_and_cap(tdata, cdata, coord, stage);
 			break;
 	}
 }
@@ -1434,6 +1542,9 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			break;
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
+			break;
+		case WORKLOAD_TYPE_CDT:
+			cdt_write_async(tdata, cdata, coord, stage, &adata_q);
 			break;
 	}
 

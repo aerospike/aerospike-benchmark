@@ -507,7 +507,7 @@ print_usage(const char* program)
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
 	printf("\n");
 
-	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB  # Default: RU,50\n");
+	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB  # Default: RU,50 | C  # Default: C,10,100,4\n");
 	printf("   Desired workload.\n");
 	printf("   -w I         : Linear 'insert' workload, initializing each key in the key range.\n");
 	printf("   -w RU,80     : Random read/update workload with 80%% reads and 20%% writes.\n");
@@ -516,6 +516,7 @@ print_usage(const char* program)
 	printf("                  Note: -ufn and -upn are required in this mode.\n");
 	printf("   -w DB        : Bin delete workload.\n");
 	printf("   -w RUD,20,40 : Random read/update/delete workload with 20%% reads, 40%% writes, and 60%% deletes.\n");
+	printf("   -w C,20,40,4 : Random CDT map_add_items(20 items), capped to max 40 pairs, with key size 4 (string size).\n");
 	printf("\n");
 
 	printf("-z --threads <count> # Default: 16\n");

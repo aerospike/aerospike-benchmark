@@ -166,7 +166,7 @@ _as_val_copy(const as_val* val)
 		}
 		case AS_MAP: {
 			as_hashmap* map = (as_hashmap*) as_map_fromval(val);
-			as_hashmap* map_cpy = as_hashmap_new(map->table_capacity);
+			as_hashmap* map_cpy = as_hashmap_new(map->capacity);
 			as_hashmap_foreach(map, _as_hashmap_merge, map_cpy);
 			return (as_val*) map_cpy;
 		}
@@ -953,7 +953,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 							// val into map, since each key/value is embedded in
 							// a bin_spec and will be freed when the bin_spec is
 							as_hashmap map;
-							as_hashmap_init(&map, val->table_capacity);
+							as_hashmap_init(&map, val->capacity);
 							as_hashmap_foreach(val, _as_hashmap_merge_cpy, &map);
 							as_hashmap_destroy(val);
 

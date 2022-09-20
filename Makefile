@@ -28,7 +28,7 @@ else
 ifeq ($(CMAKE_CHECK),)
 	CMAKE := cmake
 else
-	$(error "no cmake binary found")
+$(error "no cmake binary found")
 endif
 endif
 

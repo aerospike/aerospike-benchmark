@@ -39,7 +39,9 @@ typedef enum {
 	// random read/update/function (udf) workload
 	WORKLOAD_TYPE_RUF,
 	// random read/update/delete workload
-	WORKLOAD_TYPE_RUD
+	WORKLOAD_TYPE_RUD,
+
+	WORKLOAD_TYPE_CDT
 } workload_type_t;
 
 #define WORKLOAD_RU_DEFAULT_PCT 50.f
@@ -80,6 +82,10 @@ typedef struct workload_s {
 	 */
 	float read_all_pct;
 	float write_all_pct;
+
+	int cdt_add;
+	int cdt_max;
+	int cdt_key_sz;
 } workload_t;
 
 
