@@ -43,7 +43,7 @@
 // Typedefs & constants.
 //
 
-static const char* short_options = "V:h:p:U:P::n:s:b:K:k:o:Re:t:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
+static const char* short_options = "vVh:p:U:P::n:s:b:K:k:o:Re:t:w:z:g:T:dL:SC:N:B:M:Y:Dac:W:";
 
 #define WARN_MSG 0x40000000
 
@@ -1182,6 +1182,12 @@ set_args(int argc, char * const* argv, args_t* args)
 		}
 
 		switch (c & ~WARN_MSG) {
+			case 'v':
+				fprintf(stderr, "Warning: -v is deprecated and will be "
+						"removed, use -V instead.\n");
+				print_version();
+				return -1;
+
 			case 'V':
 				print_version();
 				return -1;
