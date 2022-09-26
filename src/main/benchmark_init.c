@@ -299,7 +299,6 @@ print_version()
 	fprintf(stdout, "Aerospike Benchmark Utility\n");
 	fprintf(stdout, "Version %s\n", TOOL_VERSION);
 	fprintf(stdout, "C Client Version %s\n", aerospike_client_version);
-	fprintf(stdout, "Copyright 2015-2022 Aerospike. All rights reserved.\n");
 }
 
 LOCAL_HELPER void
