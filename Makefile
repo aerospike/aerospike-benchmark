@@ -57,7 +57,7 @@ INCLUDES = $(DIR_INCLUDE:%=-I%)
 
 DIR_ENV = $(ROOT)/env
 
-ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le))
+ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le aarch64))
   CFLAGS += -march=nocona
 endif
 
