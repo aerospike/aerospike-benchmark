@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include <aerospike/as_orderedmap_iterator.h>
+#include <aerospike/as_orderedmap.h>
 #include <aerospike/as_pair.h>
 #include <aerospike/as_string.h>
 #include <aerospike/as_vector.h>
