@@ -6,7 +6,9 @@
 #include <transaction.h>
 
 #include <assert.h>
+#ifndef __aarch64__
 #include <xmmintrin.h>
+#endif
 
 #include <aerospike/as_atomic.h>
 #include <aerospike/aerospike_batch.h>
@@ -1126,7 +1128,12 @@ queue_pop_wait(queue_t* adata_q)
 	while (1) {
 		adata = queue_pop(adata_q);
 		if (adata == NULL) {
+			#ifdef __aarch64__
+			#__asm__ __volatile__("yield");
+			#else
 			_mm_pause();
+			#endif
+
 			continue;
 		}
 		break;
