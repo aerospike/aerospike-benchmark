@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include <aerospike/as_hashmap_iterator.h>
+#include <aerospike/as_orderedmap_iterator.h>
 #include <aerospike/as_pair.h>
 #include <aerospike/as_string.h>
 #include <aerospike/as_vector.h>
@@ -125,12 +125,12 @@ LOCAL_HELPER bool _dbg_validate_map(const struct bin_spec_s* bin_spec,
 //
 
 LOCAL_HELPER bool
-_as_hashmap_merge(const as_val* key, const as_val* value, void* udata)
+_as_orderedmap_merge(const as_val* key, const as_val* value, void* udata)
 {
-	as_hashmap* map = (as_hashmap*) udata;
+	as_orderedmap* map = (as_orderedmap*) udata;
 	as_val_reserve(key);
 	as_val_reserve(value);
-	as_hashmap_set(map, key, value);
+	as_orderedmap_set(map, key, value);
 	return true;
 }
 
@@ -165,9 +165,9 @@ _as_val_copy(const as_val* val)
 			return (as_val*) list_cpy;
 		}
 		case AS_MAP: {
-			as_hashmap* map = (as_hashmap*) as_map_fromval(val);
-			as_hashmap* map_cpy = as_hashmap_new(map->table_capacity);
-			as_hashmap_foreach(map, _as_hashmap_merge, map_cpy);
+			as_orderedmap* map = (as_orderedmap*) as_map_fromval(val);
+			as_orderedmap* map_cpy = as_orderedmap(map->capacity);
+			as_orderedmap_foreach(map, _as_orderedmap_merge, map_cpy);
 			return (as_val*) map_cpy;
 		}
 		default:
@@ -177,12 +177,12 @@ _as_val_copy(const as_val* val)
 }
 
 LOCAL_HELPER bool
-_as_hashmap_merge_cpy(const as_val* key, const as_val* value, void* udata)
+_as_orderedmap_merge_cpy(const as_val* key, const as_val* value, void* udata)
 {
-	as_hashmap* map = (as_hashmap*) udata;
+	as_orderedmap* map = (as_orderedmap*) udata;
 	key = _as_val_copy(key);
 	value = _as_val_copy(value);
-	as_hashmap_set(map, key, value);
+	as_orderedmap_set(map, key, value);
 	return true;
 }
 
@@ -281,7 +281,7 @@ _bin_spec_is_const(const struct bin_spec_s* bin_spec)
 		return false; \
 	}
 
-struct as_hashmap_cmp_state {
+struct as_orderedmap_cmp_state {
 	// a pointer to the other hashmap being compared to (against the hashmap
 	// being iterated over)
 	const as_map* other;
@@ -293,7 +293,7 @@ struct as_hashmap_cmp_state {
 LOCAL_HELPER bool
 _dbg_as_map_cmp_fn(const as_val* key, const as_val* value, void* udata)
 {
-	struct as_hashmap_cmp_state* c = (struct as_hashmap_cmp_state*) udata;
+	struct as_orderedmap_cmp_state* c = (struct as_orderedmap_cmp_state*) udata;
 	const as_map* other = c->other;
 	bool do_assert = c->do_assert;
 
@@ -946,16 +946,16 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 
 						if (state->is_const) {
 							// turn this bin_spec into a hashmap
-							as_hashmap* val = (as_hashmap*)
+							as_orderedmap* val = (as_orderedmap*)
 								as_map_fromval(bin_spec_random_val(bin_spec, NULL, 1.f));
 
 							// make a shallow copy of all the key/value pairs in
 							// val into map, since each key/value is embedded in
 							// a bin_spec and will be freed when the bin_spec is
-							as_hashmap map;
-							as_hashmap_init(&map, val->table_capacity);
-							as_hashmap_foreach(val, _as_hashmap_merge_cpy, &map);
-							as_hashmap_destroy(val);
+							as_orderedmap map;
+							as_orderedmap_init(&map, val->capacity);
+							as_orderedmap_foreach(val, _as_orderedmap_merge_cpy, &map);
+							as_orderedmap_destroy(val);
 
 							// free the old bin_spec that was there
 							bin_spec_free(bin_spec);
@@ -1519,7 +1519,7 @@ bin_spec_free(struct bin_spec_s* bin_spec)
 			break;
 
 		case BIN_SPEC_TYPE_MAP | BIN_SPEC_TYPE_CONST:
-			as_hashmap_destroy(&bin_spec->const_map.val);
+			as_orderedmap_destroy(&bin_spec->const_map.val);
 			break;
 	}
 }
@@ -1720,14 +1720,14 @@ LOCAL_HELPER as_val*
 _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 		float compression_ratio)
 {
-	as_hashmap* map;
+	as_orderedmap* map;
 	uint32_t n_entries = bin_spec->map.n_entries;
 	uint32_t map_len = bin_spec->map.length;
 	const struct bin_spec_kv_pair_s* kv_pairs;
 
 	kv_pairs = bin_spec->map.kv_pairs;
 
-	map = as_hashmap_new(2 * map_len);
+	map = as_orderedmap_new(2 * map_len);
 
 	for (uint32_t entry_idx = 0; entry_idx < n_entries; entry_idx++) {
 		const struct bin_spec_kv_pair_s* kv_pair = &kv_pairs[entry_idx];
@@ -1740,7 +1740,7 @@ _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 				key = bin_spec_random_val(&kv_pair->key, random,
 						compression_ratio);
 
-				if (as_hashmap_get(map, key) == NULL) {
+				if (as_orderedmap_get(map, key) == NULL) {
 					break;
 				}
 				as_val_destroy(key);
@@ -1754,7 +1754,7 @@ _gen_random_map(const struct bin_spec_s* bin_spec, as_random* random,
 			as_val* val = bin_spec_random_val(&kv_pair->val, random,
 					compression_ratio);
 
-			as_hashmap_set(map, key, val);
+			as_orderedmap_set(map, key, val);
 		}
 	}
 
@@ -2022,7 +2022,7 @@ _dbg_as_map_cmp(const as_map* m1, const as_map* m2, bool do_assert)
 	do_ck_assert_msg(m2 != NULL, "Expected a map, got something else");
 	do_ck_assert_int_eq(as_map_size(m1), as_map_size(m2));
 
-	struct as_hashmap_cmp_state cmp_state = {
+	struct as_orderedmap_cmp_state cmp_state = {
 		.other = m2,
 		.same = true,
 		.do_assert = do_assert
@@ -2135,7 +2135,7 @@ _dbg_validate_list(const struct bin_spec_s* bin_spec, const as_list* as_val, boo
 LOCAL_HELPER bool
 _dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val, bool do_assert)
 {
-	as_hashmap_iterator iter;
+	as_orderedmap_iterator iter;
 
 	do_ck_assert_msg(val != NULL, "Expected a map, got something else");
 	uint32_t map_size = as_map_size(val);
@@ -2148,10 +2148,10 @@ _dbg_validate_map(const struct bin_spec_s* bin_spec, const as_map* val, bool do_
 		n_remaining[i] = bin_spec->map.kv_pairs[i].key.n_repeats;
 	}
 
-	for (as_hashmap_iterator_init(&iter, (as_hashmap*) val);
-			as_hashmap_iterator_has_next(&iter);) {
+	for (as_orderedmap_iterator_init(&iter, (as_orderedmap*) val);
+			as_orderedmap_iterator_has_next(&iter);) {
 
-		const as_val* kv_pair = as_hashmap_iterator_next(&iter);
+		const as_val* kv_pair = as_orderedmap_iterator_next(&iter);
 		const as_val* key = as_pair_1(as_pair_fromval(kv_pair));
 		const as_val* val = as_pair_2(as_pair_fromval(kv_pair));
 

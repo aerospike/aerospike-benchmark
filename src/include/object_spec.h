@@ -29,7 +29,7 @@
 #include <aerospike/as_boolean.h>
 #include <aerospike/as_bytes.h>
 #include <aerospike/as_double.h>
-#include <aerospike/as_hashmap.h>
+#include <aerospike/as_orderedmap.h>
 #include <aerospike/as_integer.h>
 #include <aerospike/as_list.h>
 #include <aerospike/as_record.h>
@@ -219,7 +219,7 @@ struct bin_spec_s {
 		} map;
 
 		struct {
-			as_hashmap val;
+			as_orderedmap val;
 		} const_map;
 
 	};
