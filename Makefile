@@ -10,31 +10,33 @@ endif
 
 ARCH = $(shell uname -m)
 PLATFORM = $(OS)-$(ARCH)
+VERSION := $(shell git describe 2>/dev/null; if [ $${?} != 0 ]; then echo 'unknown'; fi)
 ROOT = $(CURDIR)
 NAME = $(shell basename $(ROOT))
 OS = $(shell uname)
 ifeq ($(OS),Darwin)
-	ARCH = $(shell uname -m)
+  ARCH = $(shell uname -m)
 else
-	ARCH = $(shell uname -m)
+  ARCH = $(shell uname -m)
 endif
 
 CMAKE3_CHECK := $(shell cmake3 --help > /dev/null 2>&1 || (echo "cmake3 not found"))
 CMAKE_CHECK := $(shell cmake --help > /dev/null 2>&1 || (echo "cmake not found"))
 
 ifeq ($(CMAKE3_CHECK),)
-	CMAKE := cmake3
+  CMAKE := cmake3
 else
 ifeq ($(CMAKE_CHECK),)
-	CMAKE := cmake
+  CMAKE := cmake
 else
-	$(error "no cmake binary found")
+  $(error "no cmake binary found")
 endif
 endif
 
 CFLAGS = -std=gnu99 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
+CFLAGS += -DTOOL_VERSION=\"$(VERSION)\"
 
 DIR_LIBYAML ?= $(ROOT)/modules/libyaml
 DIR_LIBYAML_BUILD := $(DIR_LIBYAML)/build
