@@ -1129,7 +1129,7 @@ queue_pop_wait(queue_t* adata_q)
 		adata = queue_pop(adata_q);
 		if (adata == NULL) {
 			#ifdef __aarch64__
-			#__asm__ __volatile__("yield");
+			__asm__ __volatile__("yield");
 			#else
 			_mm_pause();
 			#endif

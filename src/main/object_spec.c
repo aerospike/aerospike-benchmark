@@ -166,7 +166,7 @@ _as_val_copy(const as_val* val)
 		}
 		case AS_MAP: {
 			as_orderedmap* map = (as_orderedmap*) as_map_fromval(val);
-			as_orderedmap* map_cpy = as_orderedmap(map->capacity);
+			as_orderedmap* map_cpy = as_orderedmap_new(map->capacity);
 			as_orderedmap_foreach(map, _as_orderedmap_merge, map_cpy);
 			return (as_val*) map_cpy;
 		}
