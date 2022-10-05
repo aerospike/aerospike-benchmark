@@ -1933,6 +1933,7 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 
 #ifdef _TEST
 
+// this should mirror the behavior of as_val_cmp from aeropsike common
 LOCAL_HELPER bool
 _dbg_as_val_cmp(const as_val* v1, const as_val* v2, bool do_assert)
 {

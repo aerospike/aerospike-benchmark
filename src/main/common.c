@@ -195,51 +195,6 @@ uint64_t gen_rand_range_64(as_random* random, uint64_t max)
 	return r % max;
 }
 
-int
-as_val_cmp(const as_val* v1, const as_val* v2)
-{
-	if (v1->type == AS_CMP_WILDCARD || v2->type == AS_CMP_WILDCARD) {
-		return 0;
-	}
-
-	if (v1->type != v2->type) {
-		return v1->type - v2->type;
-	}
-
-	switch (v1->type) {
-		case AS_BOOLEAN:
-			return ((as_boolean*)v1)->value - ((as_boolean*)v2)->value;
-
-		case AS_INTEGER: {
-			int64_t cmp = ((as_integer*)v1)->value - ((as_integer*)v2)->value;
-			return cmp < 0 ? -1 : cmp > 0 ? 1 : 0;
-		}
-
-		case AS_DOUBLE: {
-			double cmp = ((as_double*)v1)->value - ((as_double*)v2)->value;
-			return cmp < 0.0 ? -1 : cmp > 0.0 ? 1 : 0;
-		}
-
-		case AS_STRING:
-			return strcmp(((as_string*)v1)->value, ((as_string*)v2)->value);
-
-		case AS_GEOJSON:
-			return strcmp(((as_geojson*)v1)->value, ((as_geojson*)v2)->value);
-
-		case AS_BYTES:
-			return as_bytes_cmp((as_bytes*)v1, (as_bytes*)v2);
-
-		case AS_LIST:
-			return as_list_cmp((as_list*)v1, (as_list*)v2);
-
-		case AS_MAP:
-			return as_map_cmp((as_map*)v1, (as_map*)v2);
-
-		default:
-			return 0;
-	}
-}
-
 bool bin_name_too_large(size_t name_len, uint32_t n_bins)
 {
 	if (n_bins == 1) {
@@ -525,7 +480,7 @@ LOCAL_HELPER int
 as_list_cmp_max(const as_list* list1, const as_list* list2, uint32_t max, uint32_t fin)
 {
 	for (uint32_t i = 0; i < max; i++) {
-		int cmp = as_val_cmp(as_list_get(list1, i), as_list_get(list2, i));
+		msgpack_compare_t cmp = as_val_cmp(as_list_get(list1, i), as_list_get(list2, i));
 
 		if (cmp != 0) {
 			return cmp;
@@ -556,7 +511,7 @@ as_vector_cmp(as_vector* list1, as_vector* list2)
 {
 	// Size of vectors should already be the same.
 	for (uint32_t i = 0; i < list1->size; i++) {
-		int cmp = as_val_cmp(as_vector_get_ptr(list1, i), as_vector_get_ptr(list2, i));
+		msgpack_compare_t cmp = as_val_cmp(as_vector_get_ptr(list1, i), as_vector_get_ptr(list2, i));
 
 		if (cmp != 0) {
 			return cmp;
@@ -575,7 +530,7 @@ key_append(const as_val* key, const as_val* val, void* udata)
 LOCAL_HELPER int
 key_cmp(const void* v1, const void* v2)
 {
-	return as_val_cmp(*(as_val**)v1, *(as_val**)v2);
+	return (int) as_val_cmp(*(as_val**)v1, *(as_val**)v2);
 }
 
 LOCAL_HELPER bool
