@@ -28,6 +28,7 @@
 #include <time.h>
 
 #include <aerospike/as_boolean.h>
+#include <aerospike/as_msgpack.h>
 
 #include "common.h"
 
