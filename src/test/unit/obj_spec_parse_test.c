@@ -2,6 +2,7 @@
 #include <check.h>
 #include <stdio.h>
 
+#include <aerospike/as_msgpack.h>
 #include <cyaml/cyaml.h>
 
 #include <benchmark.h>
