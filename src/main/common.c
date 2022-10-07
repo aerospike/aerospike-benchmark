@@ -483,7 +483,7 @@ as_list_cmp_max(const as_list* list1, const as_list* list2, uint32_t max, uint32
 	for (uint32_t i = 0; i < max; i++) {
 		msgpack_compare_t cmp = as_val_cmp(as_list_get(list1, i), as_list_get(list2, i));
 
-		if (cmp != 0) {
+		if (cmp != MSGPACK_COMPARE_EQUAL) {
 			return cmp;
 		}
 	}
@@ -514,7 +514,7 @@ as_vector_cmp(as_vector* list1, as_vector* list2)
 	for (uint32_t i = 0; i < list1->size; i++) {
 		msgpack_compare_t cmp = as_val_cmp(as_vector_get_ptr(list1, i), as_vector_get_ptr(list2, i));
 
-		if (cmp != 0) {
+		if (cmp != MSGPACK_COMPARE_EQUAL) {
 			return cmp;
 		}
 	}
@@ -531,7 +531,22 @@ key_append(const as_val* key, const as_val* val, void* udata)
 LOCAL_HELPER int
 key_cmp(const void* v1, const void* v2)
 {
-	return (int) as_val_cmp(*(as_val**)v1, *(as_val**)v2);
+	// why offset by 1 here because as_val_cmp considers 0 as less than, 1 as equal, and 2 as greater.
+	// https://github.com/aerospike/aerospike-common/blob/master/src/include/aerospike/as_msgpack.h#L61
+	int cmp = (int) as_val_cmp(*(as_val**)v1, *(as_val**)v2);
+	switch (cmp)
+	{
+	case MSGPACK_COMPARE_LESS:
+		return -1;
+	case MSGPACK_COMPARE_EQUAL:
+		return 0;
+	case MSGPACK_COMPARE_GREATER:
+		return 1;
+	default:
+		// shouldn't happen but
+		// don't fail if it does
+		return 0;
+	}
 }
 
 LOCAL_HELPER bool

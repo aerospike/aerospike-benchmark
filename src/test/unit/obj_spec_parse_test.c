@@ -222,7 +222,7 @@ _test_valid(const char* obj_spec_str,
 		gen_bin_name(bin, "test",
 				(write_bins ? ((uint32_t*) write_bins)[i] : i));
 		ck_assert(as_val_cmp(as_list_get(list, i),
-					(as_val*) as_record_get(&rec, bin)) == 0);
+					(as_val*) as_record_get(&rec, bin)) == MSGPACK_COMPARE_EQUAL);
 	}
 	as_val_destroy(val);
 	as_record_destroy(&rec);
