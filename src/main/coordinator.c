@@ -92,8 +92,7 @@ thr_coordinator_complete(thr_coord_t* coord)
 	coord->unfinished_threads = rem_threads;
 	// commit this write before signaling the condition variable and releasing
 	// the lock, since it was not atomic
-	// TODO review atomics
-	// as_fence_memory();
+	as_fence_seq();
 
 	if (rem_threads == 0) {
 		pthread_cond_broadcast(&coord->complete);
@@ -272,8 +271,7 @@ _finish_req_duration(thr_coord_t* coord)
 	coord->unfinished_threads = rem_threads;
 	// commit this write before signaling the condition variable and releasing
 	// the lock, since it was not atomic
-	// TODO review atomics
-	// as_fence_memory();
+	as_fence_seq();
 
 	// if we're the last thread finishing, notify any threads waiting on the
 	// complete condition variable
@@ -311,7 +309,6 @@ clear_cdata_counts(cdata_t* cdata)
 	cdata->udf_timeout_count = 0;
 	cdata->udf_error_count = 0;
 
-	// TODO review atomics
-	// as_fence_memory();
+	as_fence_seq();
 }
 
