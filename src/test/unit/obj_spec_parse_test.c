@@ -512,8 +512,8 @@ DEFINE_TCASE(test_const_list, "[123, \"abc\", 3.14]");
 DEFINE_TCASE(test_const_map, "{\"test_key\":123}");
 DEFINE_TCASE(test_const_nested_list, "[123, \"abc\", [456, [\"string\", false], \"def\"], true]");
 DEFINE_TCASE(test_const_nested_map, "{1:{\"name\":\"clayton\", \"species\":\"human\"}, "
-		"2:{456:false, 123:true}}");
-DEFINE_TCASE(test_const_nested_mixed, "{1:{\"names\":[\"clayton\", \"clay\", 1234], "
+		"2:{123:true, 456:false}}");
+DEFINE_TCASE(test_const_nested_mixed, "{1:{\"names\":[\"clayton\", \"clay\", 1234]}, "
 		"\"species\":\"human\", "
 		"2:[456, false, 123, true]}, [{456:\"hi\"}, {\"hello\":789}]");
 
