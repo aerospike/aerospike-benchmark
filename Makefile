@@ -132,7 +132,7 @@ TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck
 BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
 
 CC ?= cc
-LD ?= $(CC)
+LD := $(CC)
 AR = ar
 
 BUILD_CFLAGS = $(CFLAGS)
