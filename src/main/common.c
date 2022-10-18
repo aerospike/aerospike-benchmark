@@ -531,7 +531,7 @@ key_append(const as_val* key, const as_val* val, void* udata)
 LOCAL_HELPER int
 key_cmp(const void* v1, const void* v2)
 {
-	// why offset by 1 here because as_val_cmp considers 0 as less than, 1 as equal, and 2 as greater.
+	// we offset by 1 here because as_val_cmp considers 0 as less than, 1 as equal, and 2 as greater.
 	// https://github.com/aerospike/aerospike-common/blob/master/src/include/aerospike/as_msgpack.h#L61
 	int cmp = (int) as_val_cmp(*(as_val**)v1, *(as_val**)v2);
 	switch (cmp)
