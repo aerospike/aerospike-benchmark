@@ -242,7 +242,8 @@ END_TEST \
 START_TEST(test_name ## _valid) \
 { \
 	_test_valid(obj_spec_str, expected_out_str, write_bins, n_write_bins); \
-}
+}\
+END_TEST
 
 #define DEFINE_TCASE_DIFF(test_name, obj_spec_str, expected_out_str) \
 	DEFINE_TCASE_DIFF_WRITE_BINS(test_name, obj_spec_str, expected_out_str, \

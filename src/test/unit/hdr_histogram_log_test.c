@@ -955,6 +955,7 @@ START_TEST(test_zz_encode_1_byte)
 		ck_assert_int_eq(val, dval);
 	}
 }
+END_TEST
 
 
 START_TEST(test_zz_encode_2_bytes)
@@ -974,6 +975,7 @@ START_TEST(test_zz_encode_2_bytes)
 		ck_assert_int_eq(val, dval);
 	}
 }
+END_TEST
 
 
 START_TEST(test_zz_encode_3_bytes)
@@ -993,6 +995,7 @@ START_TEST(test_zz_encode_3_bytes)
 		ck_assert_int_eq(val, dval);
 	}
 }
+END_TEST
 
 
 START_TEST(test_zz_encode_4_bytes)
@@ -1012,6 +1015,7 @@ START_TEST(test_zz_encode_4_bytes)
 		ck_assert_int_eq(val, dval);
 	}
 }
+END_TEST
 
 
 START_TEST(test_zz_encode_5_bytes)
@@ -1031,6 +1035,7 @@ START_TEST(test_zz_encode_5_bytes)
 		ck_assert_int_eq(val, dval);
 	}
 }
+END_TEST
 
 
 START_TEST(test_zz_encode_6_bytes)
@@ -1050,6 +1055,7 @@ START_TEST(test_zz_encode_6_bytes)
 		ck_assert_int_eq(val, dval);
 	}
 }
+END_TEST
 
 
 START_TEST(test_zz_encode_7_bytes)
@@ -1069,6 +1075,7 @@ START_TEST(test_zz_encode_7_bytes)
 		ck_assert_int_eq(val, dval);
 	}
 }
+END_TEST
 
 
 START_TEST(test_zz_encode_8_bytes)
@@ -1088,6 +1095,7 @@ START_TEST(test_zz_encode_8_bytes)
 		ck_assert_int_eq(val, dval);
 	}
 }
+END_TEST
 
 
 START_TEST(test_zz_encode_9_bytes)
@@ -1113,6 +1121,7 @@ START_TEST(test_zz_encode_9_bytes)
 		val = next_val;
 	}
 }
+END_TEST
 
 
 Suite*
