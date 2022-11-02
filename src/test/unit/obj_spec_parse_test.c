@@ -2,6 +2,7 @@
 #include <check.h>
 #include <stdio.h>
 
+#include <aerospike/as_msgpack.h>
 #include <cyaml/cyaml.h>
 
 #include <benchmark.h>
@@ -221,7 +222,7 @@ _test_valid(const char* obj_spec_str,
 		gen_bin_name(bin, "test",
 				(write_bins ? ((uint32_t*) write_bins)[i] : i));
 		ck_assert(as_val_cmp(as_list_get(list, i),
-					(as_val*) as_record_get(&rec, bin)) == 0);
+					(as_val*) as_record_get(&rec, bin)) == MSGPACK_COMPARE_EQUAL);
 	}
 	as_val_destroy(val);
 	as_record_destroy(&rec);
@@ -511,11 +512,11 @@ DEFINE_FAILING_TCASE(test_map_to_undeclared_list, "{I4:I1,I2}", "map value must 
 DEFINE_TCASE(test_const_list, "[123, \"abc\", 3.14]");
 DEFINE_TCASE(test_const_map, "{\"test_key\":123}");
 DEFINE_TCASE(test_const_nested_list, "[123, \"abc\", [456, [\"string\", false], \"def\"], true]");
-DEFINE_TCASE(test_const_nested_map, "{1:{\"species\":\"human\", \"name\":\"clayton\"}, "
-		"2:{456:false, 123:true}}");
-DEFINE_TCASE(test_const_nested_mixed, "{1:{\"species\":\"human\", "
-		"\"names\":[\"clayton\", \"clay\", 1234]}, "
-		"2:[456, false, 123, true]}, [{456:\"hi\"}, {\"hello\":789}]");
+DEFINE_TCASE(test_const_nested_map, "{1:{\"name\":\"clayton\", \"species\":\"human\"}, "
+		"2:{123:true, 456:false}}");
+DEFINE_TCASE(test_const_nested_mixed, "{1:{\"names\":[\"clayton\", \"clay\", 1234]}, "
+		"2:[456, false, 123, true], "
+		"\"species\":\"human\"}, [{456:\"hi\"}, {\"hello\":789}]");
 
 
 /*

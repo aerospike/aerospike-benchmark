@@ -59,7 +59,7 @@ INCLUDES = $(DIR_INCLUDE:%=-I%)
 
 DIR_ENV = $(ROOT)/env
 
-ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le))
+ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le aarch64))
   CFLAGS += -march=nocona
 endif
 
@@ -131,7 +131,8 @@ LDFLAGS += -lm -lz
 TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
 BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
 
-CC = cc
+CC ?= cc
+LD := $(CC)
 AR = ar
 
 BUILD_CFLAGS = $(CFLAGS)

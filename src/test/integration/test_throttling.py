@@ -9,7 +9,7 @@ def test_tps_simple():
 		"--start-key", "0", "--keys", "1000000000", "-o", "I",
 		"--throughput", f"{DEFAULT_TPS}", "-z", "1"])
 	n_records = len(lib.scan_records())
-	assert(5*DEFAULT_TPS * .95 <= n_records <= 5*DEFAULT_TPS * 1.05)
+	assert(5*DEFAULT_TPS * .90 <= n_records <= 5*DEFAULT_TPS * 1.10)
 
 def test_tps_simple_async():
 	# test throughput throttling with simple objects and one thread
@@ -17,7 +17,7 @@ def test_tps_simple_async():
 		"--start-key", "0", "--keys", "1000000000", "-o", "I",
 		"--throughput", f"{DEFAULT_TPS}", "-z", "1", "--async"])
 	n_records = len(lib.scan_records())
-	assert(5*DEFAULT_TPS * .95 <= n_records <= 5*DEFAULT_TPS * 1.05)
+	assert(5*DEFAULT_TPS * .90 <= n_records <= 5*DEFAULT_TPS * 1.10)
 
 def test_tps_multithreaded():
 	# test throughput throttling with simple objects and one thread
@@ -26,7 +26,7 @@ def test_tps_multithreaded():
 		"--throughput", f"{DEFAULT_TPS}", "-z", "16"])
 	n_records = len(lib.scan_records())
 	# there is much higher variance with multiple threads
-	assert(5*DEFAULT_TPS * .95 <= n_records <= 5*DEFAULT_TPS * 1.05)
+	assert(5*DEFAULT_TPS * .90 <= n_records <= 5*DEFAULT_TPS * 1.10)
 
 def test_tps_multithreaded_async():
 	# test throughput throttling with simple objects and one thread
@@ -35,7 +35,7 @@ def test_tps_multithreaded_async():
 		"--throughput", f"{DEFAULT_TPS}", "-z", "16", "--async"])
 	n_records = len(lib.scan_records())
 	# there is much higher variance with multiple threads
-	assert(5*DEFAULT_TPS * .95 <= n_records <= 5*DEFAULT_TPS * 1.05)
+	assert(5*DEFAULT_TPS * .90 <= n_records <= 5*DEFAULT_TPS * 1.10)
 
 def test_tps_read_write():
 	# test throughput throttling with simple objects and one thread
@@ -43,7 +43,7 @@ def test_tps_read_write():
 		"--start-key", "0", "--keys", "1000000000", "-o", "I",
 		"--throughput", f"{DEFAULT_TPS}", "-z", "1"])
 	n_records = len(lib.scan_records())
-	assert(5*DEFAULT_TPS/2 * .95 <= n_records <= 5*DEFAULT_TPS/2 * 1.05)
+	assert(5*DEFAULT_TPS/2 * .90 <= n_records <= 5*DEFAULT_TPS/2 * 1.10)
 
 def test_tps_read_write_async():
 	# test throughput throttling with simple objects and one thread
