@@ -47,6 +47,24 @@ DIR_LIBCYAML_BUILD ?= $(ROOT)/modules/libcyaml/$(DIR_LIBCYAML_BUILD_REL)
 DIR_C_CLIENT ?= $(ROOT)/modules/c-client
 C_CLIENT_LIB := $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a
 
+DIR_TSO := $(PWD)/tso
+TSO_LIB := $(DIR_TSO)/tso.so
+
+ifeq ($(ARCH),aarch64)
+  # Plugin configuration.
+  PLUGIN_ENABLE = yes
+  PLUGIN_FIX_ASM = yes
+  PLUGIN_FIX_BUILT_IN = yes
+  PLUGIN_PROFILING = no
+
+  TSO_FLAGS = -mcpu=neoverse-n1 -fplugin=$(TSO_LIB) -fplugin-arg-tso-enable=$(PLUGIN_ENABLE) \
+				-fplugin-arg-tso-exclude=$(DIR_TSO)/exclude_ce.txt -fplugin-arg-tso-exclude=$(DIR_TSO)/exclude_ce.txt \
+				-fplugin-arg-tso-track-deps=yes -fplugin-arg-tso-fix-asm=$(PLUGIN_FIX_ASM) \
+				-fplugin-arg-tso-fix-built-in=$(PLUGIN_FIX_BUILT_IN) -fplugin-arg-tso-profiling=$(PLUGIN_PROFILING)
+  
+  CFLAGS += $(TSO_FLAGS)
+endif
+
 DIR_INCLUDE =  $(ROOT)/src/include
 DIR_INCLUDE += $(ROOT)/modules
 DIR_INCLUDE += $(DIR_LIBYAML)/include
@@ -213,6 +231,7 @@ target/libbench.a: $(OBJECTS)
 clean:
 	rm -rf target test_target $(DIR_ENV)
 	$(MAKE) clean -C $(DIR_LIBCYAML)
+	$(MAKE) clean -C $(DIR_TSO)
 	if [ -d $(DIR_LIBYAML_BUILD) ]; then $(MAKE) clean -C $(DIR_LIBYAML_BUILD); fi
 	rm -rf $(DIR_LIBYAML_BUILD)
 	$(MAKE) -C $(DIR_C_CLIENT) clean
@@ -232,10 +251,15 @@ target/lib: | target
 target/obj/hdr_histogram: | target/obj
 	mkdir $@
 
-target/obj/%.o: src/main/%.c | target/obj
+$(TSO_LIB):
+	if [ $(ARCH) = "aarch64" ]; then \
+		$(MAKE) -C $(DIR_TSO); \
+	fi
+
+target/obj/%.o: src/main/%.c | $(TSO_LIB) target/obj
 	$(CC) $(BUILD_CFLAGS) -o $@ -c $< $(INCLUDES)
 
-target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogram
+target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | $(TSO_LIB) target/obj/hdr_histogram
 	$(CC) $(BUILD_CFLAGS) -o $@ -c $< $(INCLUDES)
 
 target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | target/lib
@@ -247,8 +271,8 @@ target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | target/lib
 $(C_CLIENT_LIB):
 	$(MAKE) -C $(DIR_C_CLIENT)
 
-target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | target
-	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(BUILD_LDFLAGS)
+target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(C_CLIENT_LIB) | target
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(C_CLIENT_LIB) $(BUILD_LDFLAGS) 
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))
@@ -273,7 +297,7 @@ test: unit integration
 
 # unit testing
 .PHONY: unit
-unit: | test_target/test
+unit: |  $(TSO_LIB) test_target/test
 	@echo
 	@#valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
 	@./test_target/test
@@ -293,17 +317,17 @@ test_target/obj/hdr_histogram: | test_target/obj
 test_target/lib: | test_target
 	mkdir $@
 
-test_target/obj/unit/%.o: src/test/unit/%.c | test_target/obj/unit
+test_target/obj/unit/%.o: src/test/unit/%.c | $(TSO_LIB) test_target/obj/unit
 	$(CC) $(TEST_CFLAGS) -o $@ -c $< $(INCLUDES)
 
-test_target/obj/%.o: src/main/%.c | test_target/obj
+test_target/obj/%.o: src/main/%.c | $(TSO_LIB) test_target/obj
 	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
-test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
+test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | $(TSO_LIB) test_target/obj/hdr_histogram
 	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
-test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) $(TEST_LDFLAGS)
 
 # build the benchmark executable with code coverage
 test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
@@ -312,8 +336,8 @@ test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
 test_target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | test_target/lib
 	cp $< $@
 
-test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(TEST_HDR_OBJECTS) $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a $(TEST_LDFLAGS)
+test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(TEST_HDR_OBJECTS) $(C_CLIENT_LIB) $(TEST_LDFLAGS)
 
 -include $(wildcard $(TEST_DEPENDENCIES))
 
