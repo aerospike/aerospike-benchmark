@@ -47,7 +47,7 @@ DIR_LIBCYAML_BUILD ?= $(ROOT)/modules/libcyaml/$(DIR_LIBCYAML_BUILD_REL)
 DIR_C_CLIENT ?= $(ROOT)/modules/c-client
 C_CLIENT_LIB := $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a
 
-DIR_TSO := $(PWD)/tso
+DIR_TSO := $(ROOT)/tso
 TSO_LIB := $(DIR_TSO)/tso.so
 
 ifeq ($(ARCH),aarch64)
