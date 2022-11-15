@@ -29,12 +29,12 @@
  * queue
  */
 typedef struct queue_s {
-	void** items;
+	_Atomic(void*)* items;
 	// length of items - 1 (length is always a power of 2)
 	uint32_t len_mask;
 
 	// the position of the next element to be inserted (modulo len)
-	uint32_t __attribute__((aligned(8))) pos;
+	_Atomic(uint32_t) __attribute__((aligned(8))) pos;
 	// the position of the head, i.e. the next element to be popped (modulo len)
 	uint32_t __attribute__((aligned(8))) head;
 

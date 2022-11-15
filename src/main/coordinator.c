@@ -7,8 +7,6 @@
 
 #include <errno.h>
 
-#include <aerospike/as_atomic.h>
-
 #include <common.h>
 #include <transaction.h>
 
@@ -59,7 +57,7 @@ thr_coordinator_init(thr_coord_t* coord, uint32_t n_threads)
 	pthread_barrier_init(&coord->barrier, NULL, n_threads + 1);
 	coord->n_threads = n_threads;
 	// unfinished threads includes this thread
-	coord->unfinished_threads = n_threads + 1;
+	atomic_init(&coord->unfinished_threads, n_threads + 1);
 
 	return 0;
 }
@@ -88,11 +86,7 @@ thr_coordinator_complete(thr_coord_t* coord)
 	// first acquire the complete lock
 	pthread_mutex_lock(&coord->c_lock);
 
-	uint32_t rem_threads = coord->unfinished_threads - 1;
-	coord->unfinished_threads = rem_threads;
-	// commit this write before signaling the condition variable and releasing
-	// the lock, since it was not atomic
-	as_fence_seq();
+	uint32_t rem_threads = atomic_fetch_sub(&coord->unfinished_threads, 1) - 1;
 
 	if (rem_threads == 0) {
 		pthread_cond_broadcast(&coord->complete);
@@ -107,11 +101,11 @@ thr_coordinator_sleep(thr_coord_t* coord,
 	uint32_t rem_threads;
 	pthread_mutex_lock(&coord->c_lock);
 
-	// since condition variable waits may supriously return, we have to check
+	// since condition variable waits may spuriously return, we have to check
 	// that the time hasn't expired each time. we also want to check that there
 	// are still unfinished threads left, since if this value is 0, we don't
 	// want to continue waiting any longer
-	while ((rem_threads = as_load_uint32(&coord->unfinished_threads)) != 0 &&
+	while ((rem_threads = atomic_load_explicit(&coord->unfinished_threads, __ATOMIC_ACQUIRE) != 0) &&
 			_has_not_happened(wakeup_time)) {
 		pthread_cond_timedwait(&coord->complete, &coord->c_lock,
 				wakeup_time);
@@ -168,7 +162,7 @@ coordinator_worker(void* udata)
 			stage_random_pause(&random, &cdata->stages.stages[stage_idx]);
 
 			// reset unfinished_threads count
-			as_store_uint32(&coord->unfinished_threads, n_threads + 1);
+			coord->unfinished_threads = n_threads + 1;
 
 			_release_threads(coord, tdatas, n_threads);
 		}
@@ -223,7 +217,7 @@ _halt_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads)
 {
 	for (uint32_t i = 0; i < n_threads; i++) {
-		as_store_uint8((uint8_t*) &tdatas[i]->do_work, false);
+		tdatas[i]->do_work = false;
 	}
 	pthread_barrier_wait(&coord->barrier);
 }
@@ -237,7 +231,7 @@ _terminate_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads)
 {
 	for (uint32_t i = 0; i < n_threads; i++) {
-		as_store_uint8((uint8_t*) &tdatas[i]->finished, true);
+		tdatas[i]->finished = true;
 	}
 	pthread_barrier_wait(&coord->barrier);
 }
@@ -251,7 +245,7 @@ _release_threads(thr_coord_t* coord,
 		tdata_t** tdatas, uint32_t n_threads)
 {
 	for (uint32_t i = 0; i < n_threads; i++) {
-		as_store_uint8((uint8_t*) &tdatas[i]->do_work, true);
+		tdatas[i]->do_work = true;
 	}
 	pthread_barrier_wait(&coord->barrier);
 }
@@ -267,11 +261,7 @@ _finish_req_duration(thr_coord_t* coord)
 {
 	pthread_mutex_lock(&coord->c_lock);
 
-	uint32_t rem_threads = coord->unfinished_threads - 1;
-	coord->unfinished_threads = rem_threads;
-	// commit this write before signaling the condition variable and releasing
-	// the lock, since it was not atomic
-	as_fence_seq();
+	uint32_t rem_threads = atomic_fetch_sub(&coord->unfinished_threads, 1) - 1;
 
 	// if we're the last thread finishing, notify any threads waiting on the
 	// complete condition variable
@@ -282,7 +272,12 @@ _finish_req_duration(thr_coord_t* coord)
 	// wait for the rest of the threads to complete
 	while (rem_threads != 0) {
 		pthread_cond_wait(&coord->complete, &coord->c_lock);
-		rem_threads = as_load_uint32(&coord->unfinished_threads);
+		// Atomic load likely not needed since the lock will be reacquired. 
+		// Man page states The waiting thread
+		// unblocks only after another thread calls pthread_cond_signal(3),
+		// or pthread_cond_broadcast(3) with the same condition variable,
+		// and the current thread reacquires the lock on mutex.
+		rem_threads = atomic_load_explicit(&coord->unfinished_threads, __ATOMIC_ACQUIRE);
 	}
 	pthread_mutex_unlock(&coord->c_lock);
 }
@@ -308,7 +303,5 @@ clear_cdata_counts(cdata_t* cdata)
 	cdata->udf_count = 0;
 	cdata->udf_timeout_count = 0;
 	cdata->udf_error_count = 0;
-
-	as_fence_seq();
 }
 

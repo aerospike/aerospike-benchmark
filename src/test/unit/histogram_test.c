@@ -134,7 +134,7 @@ END_TEST
 START_TEST(simple_insert_one)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 1);
+	histogram_incr(h, 1);
 }
 END_TEST
 
@@ -145,7 +145,7 @@ END_TEST
 START_TEST(simple_query_one)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 1);
+	histogram_incr(h, 1);
 	ck_assert_int_eq(histogram_get_count(h, 0), 1);
 }
 END_TEST
@@ -157,7 +157,7 @@ END_TEST
 START_TEST(simple_query_total)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 1);
+	histogram_incr(h, 1);
 	ck_assert_int_eq(histogram_calc_total(h), 1);
 }
 END_TEST
@@ -169,7 +169,7 @@ END_TEST
 START_TEST(simple_query_below_range)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 0);
+	histogram_incr(h, 0);
 	ck_assert_int_eq(h->underflow_cnt, 1);
 }
 END_TEST
@@ -181,7 +181,7 @@ END_TEST
 START_TEST(simple_query_above_range)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 10);
+	histogram_incr(h, 10);
 	ck_assert_int_eq(h->overflow_cnt, 1);
 }
 END_TEST
@@ -193,7 +193,7 @@ END_TEST
 START_TEST(simple_clear)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 2);
+	histogram_incr(h, 2);
 	ck_assert_int_eq(histogram_get_count(h, 1), 1);
 	histogram_clear(h);
 	ck_assert_int_eq(histogram_get_count(h, 1), 0);
@@ -239,7 +239,7 @@ END_TEST
 START_TEST(simple_print)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 3);
+	histogram_incr(h, 3);
 
 	FILE* out_file = tmpfile();
 
@@ -269,7 +269,7 @@ END_TEST
 START_TEST(simple_print_lowb)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 0);
+	histogram_incr(h, 0);
 
 	FILE* out_file = tmpfile();
 
@@ -299,7 +299,7 @@ END_TEST
 START_TEST(simple_print_upb)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 20);
+	histogram_incr(h, 20);
 
 	FILE* out_file = tmpfile();
 
@@ -329,7 +329,7 @@ END_TEST
 START_TEST(simple_print_clear)
 {
 	histogram_t* h = &hist;
-	histogram_add(h, 3);
+	histogram_incr(h, 3);
 
 	FILE* out_file = tmpfile();
 
@@ -709,7 +709,7 @@ default_setup(void)
 
 	// insert a bunch of elements
 	for (delay_t us = 1; us < 128500; us++) {
-		histogram_add(&hist, us);
+		histogram_incr(&hist, us);
 	}
 }
 

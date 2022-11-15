@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include <aerospike/as_atomic.h>
 #include <aerospike/as_string_builder.h>
 #include <citrusleaf/cf_clock.h>
 
@@ -397,7 +396,7 @@ periodic_output_worker(void* udata)
 
 	goto do_sleep;
 
-	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
+	while (!tdata->finished) {
 
 		clock_gettime(COORD_CLOCK, &wake_up);
 		time = timespec_to_us(&wake_up);
@@ -405,16 +404,16 @@ periodic_output_worker(void* udata)
 		int64_t elapsed = time - prev_time;
 		prev_time = time;
 
-		uint64_t write_current = as_fas_uint64(&cdata->write_count, 0);
-		uint64_t write_timeout_current = as_fas_uint64(&cdata->write_timeout_count, 0);
-		uint64_t write_error_current = as_fas_uint64(&cdata->write_error_count, 0);
-		uint64_t read_hit_current = as_fas_uint64(&cdata->read_hit_count, 0);
-		uint64_t read_miss_current = as_fas_uint64(&cdata->read_miss_count, 0);
-		uint64_t read_timeout_current = as_fas_uint64(&cdata->read_timeout_count, 0);
-		uint64_t read_error_current = as_fas_uint64(&cdata->read_error_count, 0);
-		uint64_t udf_current = as_fas_uint64(&cdata->udf_count, 0);
-		uint64_t udf_timeout_current = as_fas_uint64(&cdata->udf_timeout_count, 0);
-		uint64_t udf_error_current = as_fas_uint64(&cdata->udf_error_count, 0);
+		uint64_t write_current = atomic_exchange(&cdata->write_count, 0);
+		uint64_t write_timeout_current = atomic_exchange(&cdata->write_timeout_count, 0);
+		uint64_t write_error_current = atomic_exchange(&cdata->write_error_count, 0);
+		uint64_t read_hit_current = atomic_exchange(&cdata->read_hit_count, 0);
+		uint64_t read_miss_current = atomic_exchange(&cdata->read_miss_count, 0);
+		uint64_t read_timeout_current = atomic_exchange(&cdata->read_timeout_count, 0);
+		uint64_t read_error_current = atomic_exchange(&cdata->read_error_count, 0);
+		uint64_t udf_current = atomic_exchange(&cdata->udf_count, 0);
+		uint64_t udf_timeout_current = atomic_exchange(&cdata->udf_timeout_count, 0);
+		uint64_t udf_error_current = atomic_exchange(&cdata->udf_error_count, 0);
 
 		cdata->period_begin = time;
 
@@ -512,7 +511,7 @@ periodic_output_worker(void* udata)
 			thr_coordinator_wait(coord);
 
 			// check to make sure we're not finished before resetting everything
-			if (!as_load_uint8((uint8_t*) &tdata->finished)) {
+			if (!tdata->finished) {
 				// first indicate that this thread has no required work to do
 				thr_coordinator_complete(coord);
 				// so the logger doesn't immediately go back to waiting again

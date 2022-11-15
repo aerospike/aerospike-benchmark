@@ -27,7 +27,7 @@
 #include <stdio.h>
 
 #include <citrusleaf/alloc.h>
-#include <aerospike/as_atomic.h>
+#include <stdatomic.h>
 
 #include "histogram.h"
 #include "common.h"
@@ -68,10 +68,10 @@ LOCAL_HELPER void _print_header(const histogram_t* h, uint64_t period_duration_u
 STATIC_ASSERT(offsetof(histogram_t, underflow_cnt) + sizeof(uint32_t) ==
 		offsetof(histogram_t, overflow_cnt));
 
-inline uint32_t*
+inline _Atomic(uint32_t)*
 __attribute__((always_inline))
 __histogram_get_bucket(histogram_t* h, int64_t idx) {
-	return (idx < 0) ? (((uint32_t*) (((ptr_int_t) h) + offsetof(histogram_t, underflow_cnt)
+	return (idx < 0) ? (((_Atomic(uint32_t)*) (((ptr_int_t) h) + offsetof(histogram_t, underflow_cnt)
 				+ 2 * sizeof(uint32_t))) + idx) : &h->buckets[idx];
 }
 
@@ -112,13 +112,18 @@ histogram_init(histogram_t* h, size_t n_ranges, delay_t lowb, rangespec_t* range
 		range_start = range_end;
 	}
 
-	h->buckets = (uint32_t*) cf_calloc(total_buckets, sizeof(uint32_t));
+	h->buckets = (_Atomic(uint32_t)*) cf_calloc(total_buckets, sizeof(_Atomic(uint32_t)));
+
+	for (uint32_t i = 0; i < total_buckets; i++) {
+		atomic_init(&h->buckets[i], 0);
+	}
+
 	h->bounds = b;
 	h->name = NULL;
 	h->range_min = lowb;
 	h->range_max = range_start;
-	h->underflow_cnt = 0;
-	h->overflow_cnt  = 0;
+	atomic_init(&h->underflow_cnt, 0);
+	atomic_init(&h->overflow_cnt, 0);
 	h->n_bounds = n_ranges;
 	h->n_buckets = total_buckets;
 	return 0;
@@ -137,7 +142,10 @@ histogram_free(histogram_t* h)
 void
 histogram_clear(histogram_t* h)
 {
-	memset(h->buckets, 0, h->n_buckets * sizeof(uint32_t));
+	for (uint32_t i = 0; i < h->n_buckets; i++) {
+		h->buckets[i] = 0;
+	}
+
 	h->underflow_cnt = 0;
 	h->overflow_cnt  = 0;
 }
@@ -153,20 +161,20 @@ histogram_set_name(histogram_t* h, const char* name)
 }
 
 void
-histogram_add(histogram_t* h, delay_t elapsed_us)
+histogram_incr(histogram_t* h, delay_t elapsed_us)
 {
 	int32_t bucket_idx = _histogram_get_index(h, elapsed_us);
-	uint32_t* bucket = __histogram_get_bucket(h, bucket_idx);
+	_Atomic(uint32_t)* bucket = __histogram_get_bucket(h, bucket_idx);
 
-	as_incr_uint32(bucket);
+	(*bucket)++;
 }
 
 delay_t
 histogram_get_count(histogram_t* h, uint64_t bucket_idx)
 {
-	uint32_t* bucket = __histogram_get_bucket(h, bucket_idx);
+	_Atomic(uint32_t)* bucket = __histogram_get_bucket(h, bucket_idx);
 
-	return as_load_uint32(bucket);
+	return *bucket;
 }
 
 uint64_t
@@ -229,16 +237,16 @@ histogram_print_clear(histogram_t* h, uint64_t period_duration_us, FILE* out_fil
 	 * counts that were read in and storing the bucket values in an array
 	 * of counts (to be read later when the individual buckets are printed)
 	 */
-	uint32_t underflow_cnt = as_fas_uint32(&h->underflow_cnt, 0);
+	uint32_t underflow_cnt = atomic_exchange(&h->underflow_cnt, 0);
 	total_cnt += underflow_cnt;
 
 	for (uint32_t idx = 0; idx < h->n_buckets; idx++) {
 		// atomic swap 0 in for the bucket value
-		uint32_t cnt = as_fas_uint32(&h->buckets[idx], 0);
+		uint32_t cnt = atomic_exchange(&h->buckets[idx], 0);
 		cnts[idx] = cnt;
 		total_cnt += cnt;
 	}
-	uint32_t overflow_cnt = as_fas_uint32(&h->overflow_cnt, 0);
+	uint32_t overflow_cnt = atomic_exchange(&h->overflow_cnt, 0);
 	total_cnt += overflow_cnt;
 
 	_print_header(h, period_duration_us, total_cnt, out_file);

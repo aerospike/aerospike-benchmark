@@ -76,6 +76,17 @@ run_benchmark(args_t* args)
 	data.latency = args->latency;
 	data.debug = args->debug;
 	data.async_max_commands = args->async_max_commands;
+	
+	atomic_init(&data.read_hit_count, 0);
+	atomic_init(&data.read_miss_count, 0);
+	atomic_init(&data.read_timeout_count, 0);
+	atomic_init(&data.read_error_count, 0);
+	atomic_init(&data.write_count, 0);
+	atomic_init(&data.write_timeout_count, 0);
+	atomic_init(&data.write_error_count, 0);
+	atomic_init(&data.udf_count, 0);
+	atomic_init(&data.udf_timeout_count, 0);
+	atomic_init(&data.udf_error_count, 0);
 
 	time_t start_time;
 	hdr_timespec start_timespec;
@@ -310,10 +321,10 @@ init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 	tdata->random = as_random_instance();
 	tdata->t_idx = t_idx;
 	// always start on the first stage
-	tdata->stage_idx = 0;
+	atomic_init(&tdata->stage_idx, 0);
 
-	tdata->do_work = true;
-	tdata->finished = false;
+	atomic_init(&tdata->do_work, true);
+	atomic_init(&tdata->finished, false);
 
 	as_policies* p = &tdata->policies;
 	as_policies_init(p);
@@ -475,8 +486,8 @@ _run(const args_t* args, cdata_t* cdata)
 			// make thread exit
 			// note that we must update finished before do_work, since we don't
 			// want any of the threads to enter the pthread barrier 
-			as_store_uint8((uint8_t*) &tdatas[i]->finished, true);
-			as_store_uint8((uint8_t*) &tdatas[i]->do_work, false);
+			tdatas[i]->finished = true;
+			tdatas[i]->do_work = false;
 		}
 		pthread_join(threads[i], NULL);
 		destroy_tdata(tdatas[i]);

@@ -36,7 +36,7 @@ typedef struct rangespec_s {
 
 
 typedef struct histogram_s {
-	uint32_t* buckets;
+	_Atomic(uint32_t)* buckets;
 	struct bucket_range_desc_s* bounds;
 
 	// name to be printed before each output line of this histogram
@@ -48,9 +48,9 @@ typedef struct histogram_s {
 	delay_t range_max;
 
 	// a count of the number of data points below the minimum bucket
-	uint32_t underflow_cnt;
+	_Atomic(uint32_t) underflow_cnt;
 	// a count of the number of data points above the maximum bucket
-	uint32_t overflow_cnt;
+	_Atomic(uint32_t) overflow_cnt;
 
 	// the number of elements in the bounds array
 	uint32_t n_bounds;
@@ -102,7 +102,7 @@ uint64_t histogram_calc_total(const histogram_t* h);
 /*
  * insert the delay into the histogram in a thread-safe manner
  */
-void histogram_add(histogram_t* h, delay_t elapsed_us);
+void histogram_incr(histogram_t* h, delay_t elapsed_us);
 
 /*
  * returns the count in the bucket of the given index

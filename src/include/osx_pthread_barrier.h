@@ -42,10 +42,10 @@ typedef struct pthread_barrier {
 	// the number of threads that must meet at the barrier
 	uint32_t count;
 	// the count of threads that have met the barrier
-	uint32_t in;
+	_Atomic(uint32_t) in;
 	// the round number (starts at 0, incremented each time all threads reach
 	// the barrier)
-	uint32_t current_round;
+	_Atomic(uint32_t) current_round;
 } pthread_barrier_t;
 
 int32_t pthread_barrier_init(pthread_barrier_t*, void* attr,

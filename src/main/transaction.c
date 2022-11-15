@@ -10,7 +10,6 @@
 #include <xmmintrin.h>
 #endif
 
-#include <aerospike/as_atomic.h>
 #include <aerospike/aerospike_batch.h>
 #include <aerospike/aerospike_key.h>
 #include <citrusleaf/cf_clock.h>
@@ -172,8 +171,8 @@ transaction_worker(void* udata)
 	cdata_t* cdata = tdata->cdata;
 	thr_coord_t* coord = tdata->coord;
 
-	while (!as_load_uint8((uint8_t*) &tdata->finished)) {
-		uint32_t stage_idx = as_load_uint32(&tdata->stage_idx);
+	while (!tdata->finished) {
+		uint32_t stage_idx = tdata->stage_idx;
 		stage_t* stage = &cdata->stages.stages[stage_idx];
 
 		init_stage(cdata, tdata, stage);
@@ -185,7 +184,7 @@ transaction_worker(void* udata)
 			do_sync_workload(tdata, cdata, coord, stage);
 		}
 		// check tdata->finished before locking
-		if (as_load_uint8((uint8_t*) &tdata->finished)) {
+		if (tdata->finished) {
 			break;
 		}
 		terminate_stage(cdata, tdata, stage);
@@ -232,9 +231,9 @@ _record_read(cdata_t* cdata, uint64_t dt_us)
 		hdr_record_value_atomic(cdata->read_hdr, dt_us);
 	}
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_read_output != NULL) {
-		histogram_add(&cdata->read_histogram, dt_us);
+		histogram_incr(&cdata->read_histogram, dt_us);
 	}
-	as_incr_uint64(&cdata->read_hit_count);
+	cdata->read_hit_count++;
 }
 
 LOCAL_HELPER void
@@ -244,9 +243,9 @@ _record_write(cdata_t* cdata, uint64_t dt_us)
 		hdr_record_value_atomic(cdata->write_hdr, dt_us);
 	}
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_write_output != NULL) {
-		histogram_add(&cdata->write_histogram, dt_us);
+		histogram_incr(&cdata->write_histogram, dt_us);
 	}
-	as_incr_uint64(&cdata->write_count);
+	cdata->write_count++;
 }
 
 LOCAL_HELPER void
@@ -256,9 +255,9 @@ _record_udf(cdata_t* cdata, uint64_t dt_us)
 		hdr_record_value_atomic(cdata->udf_hdr, dt_us);
 	}
 	if (cdata->histogram_output != NULL || cdata->hdr_comp_udf_output != NULL) {
-		histogram_add(&cdata->udf_histogram, dt_us);
+		histogram_incr(&cdata->udf_histogram, dt_us);
 	}
-	as_incr_uint64(&cdata->udf_count);
+	cdata->udf_count++;
 }
 
 
@@ -285,10 +284,10 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint64(&cdata->write_timeout_count);
+		cdata->write_timeout_count++;
 	}
 	else {
-		as_incr_uint64(&cdata->write_error_count);
+		cdata->write_error_count++;
 
 		if (cdata->debug) {
 			blog_error("Write error: ns=%s set=%s key=%d bin=%s code=%d "
@@ -332,13 +331,13 @@ _read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
-		as_incr_uint64(&cdata->read_miss_count);
+		cdata->read_miss_count++;
 	}
 	else if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint64(&cdata->read_timeout_count);
+		cdata->read_timeout_count++;
 	}
 	else {
-		as_incr_uint64(&cdata->read_error_count);
+		cdata->read_error_count++;
 
 		if (cdata->debug) {
 			blog_error("Read error: ns=%s set=%s key=%d bin=%s code=%d "
@@ -373,10 +372,10 @@ _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint64(&cdata->read_timeout_count);
+		cdata->read_timeout_count++;
 	}
 	else {
-		as_incr_uint64(&cdata->read_error_count);
+		cdata->read_error_count++;
 
 		if (cdata->debug) {
 			blog_error("Batch read error: ns=%s set=%s bin=%s code=%d "
@@ -426,10 +425,10 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// Handle error conditions.
 	if (status == AEROSPIKE_ERR_TIMEOUT) {
-		as_incr_uint64(&cdata->udf_timeout_count);
+		cdata->udf_timeout_count++;
 	}
 	else {
-		as_incr_uint64(&cdata->udf_error_count);
+		cdata->udf_error_count++;
 
 		if (cdata->debug) {
 			blog_error("UDF error: ns=%s set=%s key=%d bin=%s code=%d "
@@ -778,7 +777,7 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			cdata->transaction_worker_threads, &start_key, &end_key);
 
 	key_val = start_key;
-	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
+	while (tdata->do_work &&
 			key_val < end_key) {
 
 		// create a record with given key
@@ -810,7 +809,7 @@ random_read_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// to finish as soon as the timer runs out
 	thr_coordinator_complete(coord);
 
-	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+	while (tdata->do_work) {
 		// roll the die
 		uint32_t die = _random_fp(tdata->random);
 
@@ -838,7 +837,7 @@ random_read_write_udf(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// to finish as soon as the timer runs out
 	thr_coordinator_complete(coord);
 
-	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+	while (tdata->do_work) {
 		// roll the die
 		uint32_t die = _random_fp(tdata->random);
 
@@ -871,7 +870,7 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			cdata->transaction_worker_threads, &start_key, &end_key);
 
 	key_val = start_key;
-	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
+	while (tdata->do_work &&
 			key_val < end_key) {
 
 		// create a record with given key
@@ -906,7 +905,7 @@ LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 	// to finish as soon as the timer runs out
 	thr_coordinator_complete(coord);
 
-	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+	while (tdata->do_work) {
 		// roll the die
 		uint32_t die = _random_fp(tdata->random);
 
@@ -1042,24 +1041,24 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 	else {
 		if (err->code == AEROSPIKE_ERR_TIMEOUT) {
 			if (adata->op == read_op) {
-				as_incr_uint64(&cdata->read_timeout_count);
+				cdata->read_timeout_count++;
 			}
 			else if (adata->op == udf_op) {
-				as_incr_uint64(&cdata->udf_timeout_count);
+				cdata->udf_timeout_count++;
 			}
 			else {
-				as_incr_uint64(&cdata->write_timeout_count);
+				cdata->write_timeout_count++;
 			}
 		}
 		else {
 			if (adata->op == read_op) {
-				as_incr_uint64(&cdata->read_error_count);
+				cdata->read_error_count++;
 			}
 			else if (adata->op == udf_op) {
-				as_incr_uint64(&cdata->udf_error_count);
+				cdata->udf_error_count++;
 			}
 			else {
-				as_incr_uint64(&cdata->write_error_count);
+				cdata->write_error_count++;
 			}
 
 			if (cdata->debug) {
@@ -1153,7 +1152,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	key_val = stage->key_start;
 	end_key = stage->key_end;
-	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
+	while (tdata->do_work &&
 			key_val < end_key) {
 
 		adata = queue_pop_wait(adata_q);
@@ -1200,7 +1199,7 @@ random_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// are finished with our required tasks and can be stopped whenever
 	thr_coordinator_complete(coord);
 
-	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+	while (tdata->do_work) {
 
 		adata = queue_pop_wait(adata_q);
 
@@ -1245,7 +1244,7 @@ random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// are finished with our required tasks and can be stopped whenever
 	thr_coordinator_complete(coord);
 
-	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+	while (tdata->do_work) {
 
 		adata = queue_pop_wait(adata_q);
 
@@ -1285,7 +1284,7 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	key_val = stage->key_start;
 	end_key = stage->key_end;
-	while (as_load_uint8((uint8_t*) &tdata->do_work) &&
+	while (tdata->do_work &&
 			key_val < end_key) {
 
 		adata = queue_pop_wait(adata_q);
@@ -1336,7 +1335,7 @@ random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coor
 	// are finished with our required tasks and can be stopped whenever
 	thr_coordinator_complete(coord);
 
-	while (as_load_uint8((uint8_t*) &tdata->do_work)) {
+	while (tdata->do_work) {
 
 		adata = queue_pop_wait(adata_q);
 
