@@ -33,7 +33,7 @@ else
 endif
 endif
 
-CFLAGS = -std=gnu11 -Wall -fPIC -O3 -MMD -MP -g
+CFLAGS = -std=gnu11 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 CFLAGS += -DTOOL_VERSION=\"$(VERSION)\"
