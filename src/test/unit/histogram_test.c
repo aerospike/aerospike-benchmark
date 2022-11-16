@@ -733,6 +733,7 @@ START_TEST(default_underflow_cnt)
 	histogram_t* h = &hist;
 	ck_assert_int_eq(h->underflow_cnt, 99);
 }
+END_TEST
 
 /*
  * verifies the overflow count in the default histgoram setup
@@ -742,6 +743,7 @@ START_TEST(default_overflow_cnt)
 	histogram_t* h = &hist;
 	ck_assert_int_eq(h->overflow_cnt, 500);
 }
+END_TEST
 
 /*
  * verifies bin counts in the first range of bins
@@ -753,6 +755,7 @@ START_TEST(default_range_1_cnt)
 		ck_assert_int_eq(histogram_get_count(h, i), 100);
 	}
 }
+END_TEST
 
 /*
  * verifies bin counts in the second range of bins
@@ -764,6 +767,7 @@ START_TEST(default_range_2_cnt)
 		ck_assert_int_eq(histogram_get_count(h, i), 1000);
 	}
 }
+END_TEST
 
 /*
  * verifies bin counts in the third range of bins
@@ -775,6 +779,7 @@ START_TEST(default_range_3_cnt)
 		ck_assert_int_eq(histogram_get_count(h, i), 4000);
 	}
 }
+END_TEST
 
 /*
  * verifies clearing the histogram
@@ -789,6 +794,7 @@ START_TEST(default_clear)
 	ck_assert_int_eq(h->underflow_cnt, 0);
 	ck_assert_int_eq(h->overflow_cnt, 0);
 }
+END_TEST
 
 /*
  * verifies that print_clear actually clears
@@ -806,6 +812,7 @@ START_TEST(default_print_clear_clears)
 	ck_assert_int_eq(h->underflow_cnt, 0);
 	ck_assert_int_eq(h->overflow_cnt, 0);
 }
+END_TEST
 
 /*
  * verifies calc_total
@@ -816,6 +823,7 @@ START_TEST(default_calc_total)
 
 	ck_assert_int_eq(histogram_calc_total(h), 128499);
 }
+END_TEST
 
 
 /**

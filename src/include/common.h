@@ -147,12 +147,6 @@ uint32_t gen_rand_range(as_random*, uint32_t max);
 uint64_t gen_rand_range_64(as_random*, uint64_t max);
 
 /*
- * compares two as_val's, returning true if they are the same
- */
-int as_val_cmp(const as_val* v1, const as_val* v2);
-
-
-/*
  * given the length of the bin base name in characters and the number of bins,
  * determines whether any key will be too large to fit in an as_bin_name buffer
  */
