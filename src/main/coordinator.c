@@ -105,7 +105,7 @@ thr_coordinator_sleep(thr_coord_t* coord,
 	// that the time hasn't expired each time. we also want to check that there
 	// are still unfinished threads left, since if this value is 0, we don't
 	// want to continue waiting any longer
-	while ((rem_threads = atomic_load_explicit(&coord->unfinished_threads, __ATOMIC_ACQUIRE) != 0) &&
+	while ((rem_threads = coord->unfinished_threads) != 0 &&
 			_has_not_happened(wakeup_time)) {
 		pthread_cond_timedwait(&coord->complete, &coord->c_lock,
 				wakeup_time);
@@ -272,12 +272,7 @@ _finish_req_duration(thr_coord_t* coord)
 	// wait for the rest of the threads to complete
 	while (rem_threads != 0) {
 		pthread_cond_wait(&coord->complete, &coord->c_lock);
-		// Atomic load likely not needed since the lock will be reacquired. 
-		// Man page states The waiting thread
-		// unblocks only after another thread calls pthread_cond_signal(3),
-		// or pthread_cond_broadcast(3) with the same condition variable,
-		// and the current thread reacquires the lock on mutex.
-		rem_threads = atomic_load_explicit(&coord->unfinished_threads, __ATOMIC_ACQUIRE);
+		rem_threads = coord->unfinished_threads;
 	}
 	pthread_mutex_unlock(&coord->c_lock);
 }

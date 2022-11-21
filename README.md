@@ -30,7 +30,7 @@ To build the benchmark tool, run:
 ```sh
 make [EVENT_LIB=libev|libuv|libevent]
 ```
- If an event library is defined, it must be installed separately. Event libraries usually install into `/usr/local/lib`. Most operating systems do not search `/usr/local/lib` by default. Therefore, the following `LD_LIBRARY_PATH` setting may be necessary:
+with `EVENT_LIB` matching the event library used when the C client was compiled, if one was used (it is necessary to build with an event library to use async commands). If an event library is defined, it must be installed separately. Event libraries usually install into `/usr/local/lib`. Most operating systems do not search `/usr/local/lib` by default. Therefore, the following `LD_LIBRARY_PATH` setting may be necessary:
 ```sh
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 ```
