@@ -230,7 +230,7 @@ def start(do_reset=True):
 						index)
 				cmd = '/usr/bin/asd --foreground --config-file %s --instance %s' % (CONTAINER_DIR + '/' + get_file(conf_file, base=mount_dir), str(index - 1))
 				print('running in docker: %s' % cmd)
-				container = DOCKER_CLIENT.containers.run("aerospike/aerospike-server",
+				container = DOCKER_CLIENT.containers.run("aerospike/aerospike-server:6.0.0.8",
 						command=cmd,
 						ports={
 							str(base) + '/tcp': str(base),
