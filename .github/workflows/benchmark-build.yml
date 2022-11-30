@@ -29,7 +29,7 @@ jobs:
     - name: install lcov
       run: |
         wget "https://github.com/linux-test-project/lcov/archive/refs/tags/v1.16.zip"
-        unzip master.zip
+        unzip v1.16.zip
         cd lcov-master
         sudo make install
     - name: Download libcheck
