@@ -2,9 +2,9 @@ name: Build and Test All
 
 on:
   push:
-    branches: [ main, test-ready ]
+    branches: [ main, test-ready, "*-bugfix" ]
   pull_request:
-    branches: [ main, test-ready ]
+    branches: [ main, test-ready, "*-bugfix" ]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,7 +28,7 @@ jobs:
         fi
     - name: install lcov
       run: |
-        wget "https://github.com/linux-test-project/lcov/archive/master.zip"
+        wget "https://github.com/linux-test-project/lcov/archive/refs/tags/v1.16.zip"
         unzip master.zip
         cd lcov-master
         sudo make install
