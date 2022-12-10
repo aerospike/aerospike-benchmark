@@ -26,6 +26,9 @@ jobs:
           echo "$RUNNER_OS not supported"
           exit 1
         fi
+    - name: install lcov dependencies
+      run: |
+        sudo apt-get install -y libcapture-tiny-perl
     - name: install lcov
       run: |
         wget "https://github.com/linux-test-project/lcov/archive/master.zip"
