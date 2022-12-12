@@ -14,10 +14,20 @@ VERSION := $(shell git describe 2>/dev/null; if [ $${?} != 0 ]; then echo 'unkno
 ROOT = $(CURDIR)
 NAME = $(shell basename $(ROOT))
 OS = $(shell uname)
+ARCH = $(shell uname -m)
+
+M1_HOME_BREW =
 ifeq ($(OS),Darwin)
-  ARCH = $(shell uname -m)
-else
-  ARCH = $(shell uname -m)
+  ifneq ($(wildcard /opt/homebrew),)
+    M1_HOME_BREW = true
+  endif
+endif
+
+# M1 macs brew install openssl under /opt/homebrew/opt/openssl
+# set OPENSSL_PREFIX to the prefix for your openssl if it is installed elsewhere
+OPENSSL_PREFIX ?= /usr/local/opt/openssl
+ifdef M1_HOME_BREW
+  OPENSSL_PREFIX = /opt/homebrew/opt/openssl
 endif
 
 CMAKE3_CHECK := $(shell cmake3 --help > /dev/null 2>&1 || (echo "cmake3 not found"))
@@ -59,7 +69,7 @@ INCLUDES = $(DIR_INCLUDE:%=-I%)
 
 DIR_ENV = $(ROOT)/env
 
-ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le aarch64))
+ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le aarch64 arm64))
   CFLAGS += -march=nocona
 endif
 
@@ -85,7 +95,7 @@ LDFLAGS = -L/usr/local/lib
 
 ifeq ($(OPENSSL_STATIC_PATH),)
   ifeq ($(OS),Darwin)
-    LDFLAGS += -L/usr/local/opt/openssl/lib
+    LDFLAGS += -L$(OPENSSL_PREFIX)/lib
   endif
   LDFLAGS += -lssl
   LDFLAGS += -lcrypto
@@ -127,6 +137,15 @@ else ifeq ($(OS),FreeBSD)
 endif
 
 LDFLAGS += -lm -lz
+
+# if this is an m1 mac using homebrew
+# add the new homebrew lib and include path
+# incase dependencies are installed there
+# NOTE: /usr/local/include will be checked first
+ifdef M1_HOME_BREW
+  LDFLAGS += -L/opt/homebrew/lib
+  INCLUDES += -I/opt/homebrew/include
+endif
 
 TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
 BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
