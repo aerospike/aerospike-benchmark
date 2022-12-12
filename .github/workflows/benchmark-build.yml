@@ -26,14 +26,11 @@ jobs:
           echo "$RUNNER_OS not supported"
           exit 1
         fi
-    - name: install lcov dependencies
-      run: |
-        sudo apt-get install -y libcapture-tiny-perl
     - name: install lcov
       run: |
-        wget "https://github.com/linux-test-project/lcov/archive/master.zip"
-        unzip master.zip
-        cd lcov-master
+        wget "https://github.com/linux-test-project/lcov/archive/refs/tags/v1.16.zip"
+        unzip v1.16.zip
+        cd lcov-1.16
         sudo make install
     - name: Download libcheck
       uses: actions/checkout@v2
