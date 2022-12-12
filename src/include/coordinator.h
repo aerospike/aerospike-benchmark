@@ -60,7 +60,7 @@ typedef struct thr_coordinator_s {
 	// stage, plus this thread (which decrements this variable after returning
 	// from the as_sleep call, i.e. once the minimum required duration of the
 	// stage has elapsed)
-	uint32_t unfinished_threads;
+	_Atomic(uint32_t) unfinished_threads;
 } thr_coord_t;
 
 struct coordinator_worker_args_s {

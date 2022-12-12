@@ -18,6 +18,7 @@ Additional external dependencies:
  * OpenSSL (libssl and libcrypto)
  * libyaml-devel
  * libev, libuv, or libevent, if an event library is used
+  * If on macOS install via `brew`
 
 This project uses git submodules, so you will need to initialize and update submodules before building this project.
 

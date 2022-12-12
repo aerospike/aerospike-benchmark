@@ -4,8 +4,10 @@
 //
 
 #include <stdio.h>
+#include <stdatomic.h>
 
-#include <aerospike/as_atomic.h>
+#include <pthread.h>
+
 #include <citrusleaf/alloc.h>
 
 #include <common.h>
@@ -33,10 +35,15 @@ queue_init(queue_t* q, uint32_t q_len)
 
 	// len is the next power of 2 strictly greater than q_len
 	uint32_t len = next_pow2(q_len);
-	q->items = (void**) cf_calloc(len, sizeof(void*));
+	q->items = (_Atomic(void*)*) cf_calloc(len, sizeof(_Atomic(void*)));
+
+	for(uint32_t i = 0; i < len; i++) {
+		atomic_init(&q->items[i], NULL);
+	}
+
 	q->len_mask = len - 1;
-	q->pos = 0;
 	q->head = 0;
+	atomic_init(&q->pos, 0);
 	return 0;
 }
 
@@ -50,8 +57,9 @@ queue_free(queue_t* q)
 void
 queue_push(queue_t* q, void* item)
 {
-	uint32_t pos = as_faa_uint32(&q->pos, 1);
-	as_store_ptr(&q->items[pos & q->len_mask], item);
+	uint32_t pos = atomic_fetch_add(&q->pos, 1);
+	// no race condition because 'head' is only incremented in pop if item is not null
+	q->items[pos & q->len_mask] = item;
 }
 
 
@@ -60,12 +68,10 @@ queue_pop(queue_t* q)
 {
 	void* item;
 	uint32_t head = q->head;
-	uint32_t pos = as_load_uint32(&q->pos);
 
 	// Since uint32_t can overflow with only ~4B transactions, use !=, not <
-	if (head != pos) {
-		item = (void*) as_fas_uint64((uint64_t*) &q->items[head & q->len_mask],
-				(uint64_t) NULL);
+	if (head != q->pos) {
+		item = atomic_exchange(&q->items[head & q->len_mask], NULL);
 		// can be non-atomic since this thread is the only modifier of head
 		q->head += (item != NULL);
 		return item;
