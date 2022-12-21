@@ -14,10 +14,20 @@ VERSION := $(shell git describe 2>/dev/null; if [ $${?} != 0 ]; then echo 'unkno
 ROOT = $(CURDIR)
 NAME = $(shell basename $(ROOT))
 OS = $(shell uname)
+ARCH = $(shell uname -m)
+
+M1_HOME_BREW =
 ifeq ($(OS),Darwin)
-  ARCH = $(shell uname -m)
-else
-  ARCH = $(shell uname -m)
+  ifneq ($(wildcard /opt/homebrew),)
+    M1_HOME_BREW = true
+  endif
+endif
+
+# M1 macs brew install openssl under /opt/homebrew/opt/openssl
+# set OPENSSL_PREFIX to the prefix for your openssl if it is installed elsewhere
+OPENSSL_PREFIX ?= /usr/local/opt/openssl
+ifdef M1_HOME_BREW
+  OPENSSL_PREFIX = /opt/homebrew/opt/openssl
 endif
 
 CMAKE3_CHECK := $(shell cmake3 --help > /dev/null 2>&1 || (echo "cmake3 not found"))
@@ -33,7 +43,7 @@ else
 endif
 endif
 
-CFLAGS = -std=gnu99 -Wall -fPIC -O3 -MMD -MP
+CFLAGS = -std=gnu11 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
 CFLAGS += -DTOOL_VERSION=\"$(VERSION)\"
@@ -47,24 +57,6 @@ DIR_LIBCYAML_BUILD ?= $(ROOT)/modules/libcyaml/$(DIR_LIBCYAML_BUILD_REL)
 DIR_C_CLIENT ?= $(ROOT)/modules/c-client
 C_CLIENT_LIB := $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a
 
-DIR_TSO := $(ROOT)/tso
-TSO_LIB := $(DIR_TSO)/tso.so
-
-ifeq ($(ARCH),aarch64)
-  # Plugin configuration.
-  PLUGIN_ENABLE = yes
-  PLUGIN_FIX_ASM = yes
-  PLUGIN_FIX_BUILT_IN = yes
-  PLUGIN_PROFILING = no
-
-  TSO_FLAGS = -fplugin=$(TSO_LIB) -fplugin-arg-tso-enable=$(PLUGIN_ENABLE) \
-				-fplugin-arg-tso-exclude=$(DIR_TSO)/exclude_ce.txt -fplugin-arg-tso-exclude=$(DIR_TSO)/exclude_ce.txt \
-				-fplugin-arg-tso-track-deps=yes -fplugin-arg-tso-fix-asm=$(PLUGIN_FIX_ASM) \
-				-fplugin-arg-tso-fix-built-in=$(PLUGIN_FIX_BUILT_IN) -fplugin-arg-tso-profiling=$(PLUGIN_PROFILING)
-  
-  CFLAGS += $(TSO_FLAGS)
-endif
-
 DIR_INCLUDE =  $(ROOT)/src/include
 DIR_INCLUDE += $(ROOT)/modules
 DIR_INCLUDE += $(DIR_LIBYAML)/include
@@ -77,7 +69,7 @@ INCLUDES = $(DIR_INCLUDE:%=-I%)
 
 DIR_ENV = $(ROOT)/env
 
-ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le aarch64))
+ifneq ($(ARCH),$(filter $(ARCH),ppc64 ppc64le aarch64 arm64))
   CFLAGS += -march=nocona
 endif
 
@@ -103,7 +95,7 @@ LDFLAGS = -L/usr/local/lib
 
 ifeq ($(OPENSSL_STATIC_PATH),)
   ifeq ($(OS),Darwin)
-    LDFLAGS += -L/usr/local/opt/openssl/lib
+    LDFLAGS += -L$(OPENSSL_PREFIX)/lib
   endif
   LDFLAGS += -lssl
   LDFLAGS += -lcrypto
@@ -145,6 +137,15 @@ else ifeq ($(OS),FreeBSD)
 endif
 
 LDFLAGS += -lm -lz
+
+# if this is an m1 mac using homebrew
+# add the new homebrew lib and include path
+# incase dependencies are installed there
+# NOTE: /usr/local/include will be checked first
+ifdef M1_HOME_BREW
+  LDFLAGS += -L/opt/homebrew/lib
+  INCLUDES += -I/opt/homebrew/include
+endif
 
 TEST_LDFLAGS = $(LDFLAGS) -Ltest_target/lib -lcheck 
 BUILD_LDFLAGS = $(LDFLAGS) -Ltarget/lib
@@ -231,7 +232,6 @@ target/libbench.a: $(OBJECTS)
 clean:
 	rm -rf target test_target $(DIR_ENV)
 	$(MAKE) clean -C $(DIR_LIBCYAML)
-	$(MAKE) clean -C $(DIR_TSO)
 	if [ -d $(DIR_LIBYAML_BUILD) ]; then $(MAKE) clean -C $(DIR_LIBYAML_BUILD); fi
 	rm -rf $(DIR_LIBYAML_BUILD)
 	$(MAKE) -C $(DIR_C_CLIENT) clean
@@ -251,15 +251,10 @@ target/lib: | target
 target/obj/hdr_histogram: | target/obj
 	mkdir $@
 
-$(TSO_LIB):
-	if [ $(ARCH) = "aarch64" ]; then \
-		$(MAKE) -C $(DIR_TSO); \
-	fi
-
-target/obj/%.o: src/main/%.c | $(TSO_LIB) target/obj
+target/obj/%.o: src/main/%.c | target/obj
 	$(CC) $(BUILD_CFLAGS) -o $@ -c $< $(INCLUDES)
 
-target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | $(TSO_LIB) target/obj/hdr_histogram
+target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | target/obj/hdr_histogram
 	$(CC) $(BUILD_CFLAGS) -o $@ -c $< $(INCLUDES)
 
 target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | target/lib
@@ -297,7 +292,7 @@ test: unit integration
 
 # unit testing
 .PHONY: unit
-unit: |  $(TSO_LIB) test_target/test
+unit: |  test_target/test
 	@echo
 	@#valgrind --tool=memcheck --leak-check=full --track-origins=yes ./test_target/test
 	@./test_target/test
@@ -317,13 +312,13 @@ test_target/obj/hdr_histogram: | test_target/obj
 test_target/lib: | test_target
 	mkdir $@
 
-test_target/obj/unit/%.o: src/test/unit/%.c | $(TSO_LIB) test_target/obj/unit
+test_target/obj/unit/%.o: src/test/unit/%.c | test_target/obj/unit
 	$(CC) $(TEST_CFLAGS) -o $@ -c $< $(INCLUDES)
 
-test_target/obj/%.o: src/main/%.c | $(TSO_LIB) test_target/obj
+test_target/obj/%.o: src/main/%.c | test_target/obj
 	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
-test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | $(TSO_LIB) test_target/obj/hdr_histogram
+test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
 	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
 test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) | test_target

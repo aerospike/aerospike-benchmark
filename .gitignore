@@ -13,6 +13,7 @@ Version.java
 modules/.*
 target/
 client_test-valgrind
+.vscode
 
 # Compiled source #
 ###################

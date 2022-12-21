@@ -12,16 +12,18 @@ For more information on how to use the benchmark tool and configure it to your n
 
 ### Dependencies
 
-Before building, you need to have a local copy of the [Aerospike C Client](https://github.com/aerospike/aerospike-client-c) and to have built it. After this, set the environment variable `CLIENTREPO` to point to the directory containing the built C client.
+Asbackup builds the [Aerospike C Client](https://github.com/aerospike/aerospike-client-c) as a submodule.
+Make sure all the C clients build dependencies are installed before starting the asbackup build.
 
 Additional external dependencies:
  * OpenSSL (libssl and libcrypto)
  * libyaml-devel
  * libev, libuv, or libevent, if an event library is used
+  * If on macOS install via `brew`
 
 This project uses git submodules, so you will need to initialize and update submodules before building this project.
 
-	$ git submodule update --init
+	$ git submodule update --init --recursive
 
 ### Build
 

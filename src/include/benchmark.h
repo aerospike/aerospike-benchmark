@@ -21,6 +21,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <stdatomic.h>
+
 #include <aerospike/aerospike.h>
 #include <aerospike/as_event.h>
 #include <aerospike/as_password.h>
@@ -111,18 +113,18 @@ typedef struct clientdata_s {
 	aerospike client;
 
 	// TODO make all these counts thread-local to reduce contention
-	uint64_t read_hit_count;
-	uint64_t read_miss_count;
-	uint64_t read_timeout_count;
-	uint64_t read_error_count;
+	_Atomic(uint64_t) read_hit_count;
+	_Atomic(uint64_t) read_miss_count;
+	_Atomic(uint64_t) read_timeout_count;
+	_Atomic(uint64_t) read_error_count;
 
-	uint64_t write_count;
-	uint64_t write_timeout_count;
-	uint64_t write_error_count;
+	_Atomic(uint64_t) write_count;
+	_Atomic(uint64_t) write_timeout_count;
+	_Atomic(uint64_t) write_error_count;
 
-	uint64_t udf_count;
-	uint64_t udf_timeout_count;
-	uint64_t udf_error_count;
+	_Atomic(uint64_t) udf_count;
+	_Atomic(uint64_t) udf_timeout_count;
+	_Atomic(uint64_t) udf_error_count;
 
 	FILE* hdr_comp_read_output;
 	FILE* hdr_text_read_output;
@@ -162,7 +164,7 @@ typedef struct threaddata_s {
 	// thread index: [0, n_threads)
 	uint32_t t_idx;
 	// which workload stage we're currrently on
-	uint32_t stage_idx;
+	_Atomic(uint32_t) stage_idx;
 
 	/*
 	 * note: to stop threads, tdata->finished must be set before tdata->do_work
@@ -170,10 +172,10 @@ typedef struct threaddata_s {
 	 */
 	// when true, things continue as normal, when set to false, worker
 	// threads will stop doing what they're doing and await orders
-	bool do_work;
+	atomic_bool do_work;
 	// when true, all threads will stop doing work and close (note that do_work
 	// must also be set to false for this to work)
-	bool finished;
+	atomic_bool finished;
 
 	// the following arguments are initialized for each stage
 	as_record fixed_full_record;
