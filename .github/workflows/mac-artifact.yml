@@ -35,9 +35,9 @@ jobs:
         if_false: asbench
     - uses: kenchan0130/actions-system-info@master
       id: system-info
-    - name: Install event libs
+    - name: Install dependencies from brew
       run: |
-        brew install libev automake # libuv and libevent already installed
+        brew install libev openssl@3 automake # libuv and libevent already installed
       # this will checkout the whole tools repo when run from aerospike-tools, but we will
       # just cd into the correct directory calculated from working-dir
     - uses: actions/checkout@v2
