@@ -62,6 +62,7 @@ typedef enum {
 	TLS_OPT_CIPHER_SUITE,
 	TLS_OPT_CRL_CHECK,
 	TLS_OPT_CRL_CHECK_ALL,
+	// TLS_OPT_CERT_BLACK_LIST is deprecated
 	TLS_OPT_CERT_BLACK_LIST,
 	TLS_OPT_LOG_SESSION_INFO,
 	TLS_OPT_KEY_FILE,
@@ -185,6 +186,7 @@ static struct option long_options[] = {
 	{"tls-cipher-suite",      required_argument, 0, TLS_OPT_CIPHER_SUITE},
 	{"tls-crl-check",         no_argument,       0, TLS_OPT_CRL_CHECK},
 	{"tls-crl-check-all",     no_argument,       0, TLS_OPT_CRL_CHECK_ALL},
+	// tls-cert-blacklist is deprecated
 	{"tls-cert-blacklist",    required_argument, 0, TLS_OPT_CERT_BLACK_LIST},
 	{"tls-log-session-info",  no_argument,       0, TLS_OPT_LOG_SESSION_INFO},
 	{"tls-keyfile",           required_argument, 0, TLS_OPT_KEY_FILE},
@@ -227,6 +229,7 @@ static struct option long_options[] = {
 	{"tlsCipherSuite",        required_argument, 0, WARN_MSG | TLS_OPT_CIPHER_SUITE},
 	{"tlsCrlCheck",           no_argument,       0, WARN_MSG | TLS_OPT_CRL_CHECK},
 	{"tlsCrlCheckAll",        no_argument,       0, WARN_MSG | TLS_OPT_CRL_CHECK_ALL},
+	// tlsCertBlackList is deprecated
 	{"tlsCertBlackList",      required_argument, 0, WARN_MSG | TLS_OPT_CERT_BLACK_LIST},
 	{"tlsLogSessionInfo",     no_argument,       0, WARN_MSG | TLS_OPT_LOG_SESSION_INFO},
 	{"tlsKeyFile",            required_argument, 0, WARN_MSG | TLS_OPT_KEY_FILE},
@@ -752,7 +755,7 @@ print_usage(const char* program)
 	printf("   Enable CRL checking for all certs.\n");
 	printf("\n");
 
-	printf("   --tls-cert-blacklist <path>\n");
+	printf("   --tls-cert-blacklist <path> (DEPRECATED)\n");
 	printf("   Path to a certificate blacklist file.\n");
 	printf("\n");
 
@@ -1676,6 +1679,8 @@ set_args(int argc, char * const* argv, args_t* args)
 
 			case TLS_OPT_CERT_BLACK_LIST:
 				args->tls.cert_blacklist = strdup(optarg);
+				fprintf(stderr, "Warning: --tls-cert-blacklist is deprecated "
+						"and will be removed in the next release. Use a crl instead\n");
 				break;
 
 			case TLS_OPT_LOG_SESSION_INFO:
