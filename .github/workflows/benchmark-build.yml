@@ -7,7 +7,7 @@ on:
     branches: [ main, test-ready, "*-bugfix" ]
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix: 
         ev-lib: [libev, libuv, libevent]
