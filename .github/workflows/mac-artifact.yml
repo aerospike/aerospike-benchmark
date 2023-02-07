@@ -33,7 +33,7 @@ jobs:
         cond: ${{ inputs.submodule != '' }}
         if_true: aerospike-tools/${{ inputs.submodule }}  # In this case we are expecting to checkout the tools package.
         if_false: asbench
-    - uses: kenchan0130/actions-system-info@master
+    - uses: kenchan0130/actions-system-info@v1.1.0
       id: system-info
     - name: Install dependencies from brew
       run: |
@@ -80,7 +80,7 @@ jobs:
     if: "${{ inputs.submodule == '' }}"
 
     steps:
-      - uses: kenchan0130/actions-system-info@master
+      - uses: kenchan0130/actions-system-info@v1.1.0
         id: system-info
       - name: Get artifacts
         uses: actions/download-artifact@v3
