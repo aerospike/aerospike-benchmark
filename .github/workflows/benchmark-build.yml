@@ -80,7 +80,7 @@ jobs:
         rm -rf client
         rm -rf main/target
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1.0.15
+      uses: codecov/codecov-action@v3
       with:
         verbose: false
         directory: main/test_target
