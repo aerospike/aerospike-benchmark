@@ -15,7 +15,7 @@ jobs:
       run: |
         sudo apt-get install -y libevent-dev libev-dev libuv1-dev
     - name: Checkout asbench
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with: 
         path: main
         submodules: recursive
@@ -34,7 +34,7 @@ jobs:
         if_true: asbench-${{ runner.os }}
         if_false: asbench-${{ runner.os }}-${{ matrix.ev-lib }}
     - name: Upload artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with: 
         name: ${{ steps.artifact-name.outputs.value }}
         path: main/target/asbench
@@ -45,11 +45,11 @@ jobs:
     
     steps:
       - name: Checkout asbench
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with: 
           submodules: recursive
       - name: Get artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with: 
           path: binaries/
       - name: Create tarball
