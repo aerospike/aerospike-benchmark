@@ -33,14 +33,14 @@ jobs:
         cond: ${{ inputs.submodule != '' }}
         if_true: aerospike-tools/${{ inputs.submodule }}  # In this case we are expecting to checkout the tools package.
         if_false: asbench
-    - uses: kenchan0130/actions-system-info@master
+    - uses: kenchan0130/actions-system-info@v1.1.0
       id: system-info
     - name: Install dependencies from brew
       run: |
         brew install libev openssl@3 automake # libuv and libevent already installed
       # this will checkout the whole tools repo when run from aerospike-tools, but we will
       # just cd into the correct directory calculated from working-dir
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         path: ${{ steps.checkout-dir.outputs.value }}
         fetch-depth: 0
@@ -69,7 +69,7 @@ jobs:
         if_true: asbench
         if_false: asbench-${{ matrix.ev-lib }}
     - name: Upload artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with: 
         name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.artifact-name.outputs.value }}
         path: ${{ steps.working-dir.outputs.value }}/target/asbench
@@ -80,10 +80,10 @@ jobs:
     if: "${{ inputs.submodule == '' }}"
 
     steps:
-      - uses: kenchan0130/actions-system-info@master
+      - uses: kenchan0130/actions-system-info@v1.1.0
         id: system-info
       - name: Get artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           path: target
       - uses: actions/upload-artifact@v3
