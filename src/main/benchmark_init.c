@@ -1212,9 +1212,17 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 
 			case 'P':
-				as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
+				if (optarg == NULL &&
+							optind < argc &&
+							argv[optind] != NULL &&
+							argv[optind][0] != '\0' &&
+							argv[optind][0] != '-' ) {
+					// space separated argument value
+					as_strncpy(args->password, argv[optind], AS_PASSWORD_SIZE);
+				} else {
+					as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
+				}
 				break;
-
 			case BENCH_OPT_CONNECT_TIMEOUT:
 				args->conn_timeout_ms = atoi(optarg);
 				break;
