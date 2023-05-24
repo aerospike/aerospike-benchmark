@@ -6,6 +6,8 @@
 #include <transaction.h>
 
 #include <assert.h>
+#include <pthread.h>
+#include <stdatomic.h>
 #ifndef __aarch64__
 #include <xmmintrin.h>
 #endif
@@ -17,7 +19,6 @@
 #include <benchmark.h>
 #include <common.h>
 #include <coordinator.h>
-#include <queue.h>
 #include <workload.h>
 
 
@@ -25,15 +26,19 @@
 // Typedefs & constants.
 //
 
+struct async_data_s;
+
 struct async_data_s {
+	tdata_t* tdata;
 	cdata_t* cdata;
-	stage_t* stage;
-	// queue to place this item back on once the callback has finished
-	queue_t* adata_q;
+        thr_coord_t* coord;
+        stage_t* stage;
 
 	// keep each async_data in the same event loop to prevent the possibility
 	// of overflowing an event loop due to bad scheduling
 	as_event_loop* ev_loop;
+
+	void (*workload_cb)(struct async_data_s* adata);
 
 	// the time at which the async call was made
 	uint64_t start_time;
@@ -48,6 +53,8 @@ struct async_data_s {
 		delete_op,
 		udf_op
 	} op;
+
+	pthread_mutex_t done_lock;
 };
 
 
@@ -137,17 +144,11 @@ LOCAL_HELPER void _async_batch_read_listener(as_error* err,
 		as_batch_read_records* records, void* udata, as_event_loop* event_loop);
 LOCAL_HELPER void _async_val_listener(as_error* err, as_val* val, void* udata,
 		as_event_loop* event_loop);
-LOCAL_HELPER struct async_data_s* queue_pop_wait(queue_t* adata_q);
-LOCAL_HELPER void linear_writes_async(tdata_t* tdata, cdata_t* cdata,
-	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
-LOCAL_HELPER void random_read_write_async(tdata_t* tdata, cdata_t* cdata,
-	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
-LOCAL_HELPER void random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata,
-	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
-LOCAL_HELPER void linear_deletes_async(tdata_t* tdata, cdata_t* cdata,
-	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
-LOCAL_HELPER void random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata,
-	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
+LOCAL_HELPER void linear_writes_async(struct async_data_s* adata);
+LOCAL_HELPER void random_read_write_async(struct async_data_s* adata);
+LOCAL_HELPER void random_read_write_udf_async(struct async_data_s* adata);
+LOCAL_HELPER void linear_deletes_async(struct async_data_s* adata);
+LOCAL_HELPER void random_read_write_delete_async(struct async_data_s* adata);
 
 // Main worker thread loop
 LOCAL_HELPER void do_sync_workload(tdata_t* tdata, cdata_t* cdata,
@@ -891,7 +892,8 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	thr_coordinator_complete(coord);
 }
 
-LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
+LOCAL_HELPER void
+random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage)
 {
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
@@ -1075,15 +1077,9 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 						   err->code, err->message);
 			}
 		}
-
-		if (err->code == AEROSPIKE_ERR_NO_MORE_CONNECTIONS) {
-			// this event loop is full, try another
-			adata->ev_loop = NULL;
-		}
 	}
 
-	// put this adata object back on the queue
-	queue_push(adata->adata_q, adata);
+	adata->workload_cb(adata);
 }
 
 LOCAL_HELPER void
@@ -1119,44 +1115,22 @@ _async_val_listener(as_error* err, as_val* val, void* udata,
 	}
 }
 
-LOCAL_HELPER struct async_data_s*
-queue_pop_wait(queue_t* adata_q)
-{
-	struct async_data_s* adata;
-
-	while (1) {
-		adata = queue_pop(adata_q);
-		if (adata == NULL) {
-			#ifdef __aarch64__
-			__asm__ __volatile__("yield");
-			#else
-			_mm_pause();
-			#endif
-
-			continue;
-		}
-		break;
-	}
-	return adata;
-}
-
 LOCAL_HELPER void
-linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		const stage_t* stage, queue_t* adata_q)
+linear_writes_async(struct async_data_s* adata)
 {
-	uint64_t key_val, end_key;
-	struct async_data_s* adata;
+	tdata_t* tdata = adata->tdata;
+	cdata_t* cdata = adata->cdata;
+	thr_coord_t* coord = adata->coord;
+	const stage_t* stage = adata->stage;
 
+	uint64_t key_val, end_key;
 	struct timespec wake_time;
 	uint64_t start_time;
 
-	key_val = stage->key_start;
+	key_val = atomic_fetch_add(&tdata->current_key, 1);
 	end_key = stage->key_end;
-	while (tdata->do_work &&
-			key_val < end_key) {
 
-		adata = queue_pop_wait(adata_q);
-
+	if (tdata->do_work && key_val < end_key) {
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
 		adata->start_time = start_time;
@@ -1177,32 +1151,29 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		key_val++;
 	}
+	else {
+		int rv;
 
-	// once we've written everything, there's nothing left to do, so tell
-	// coord we're done and exit
-	thr_coordinator_complete(coord);
+		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+			blog_error("failed to unlock mutex - %d\n", rv);
+			exit(-1);
+		}
+	}
 }
 
 LOCAL_HELPER void
-random_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		const stage_t* stage, queue_t* adata_q)
+random_read_write_async(struct async_data_s* adata)
 {
-	struct async_data_s* adata;
+	tdata_t* tdata = adata->tdata;
+	cdata_t* cdata = adata->cdata;
+	thr_coord_t* coord = adata->coord;
+	const stage_t* stage = adata->stage;
 
-	struct timespec wake_time;
+        struct timespec wake_time;
 	uint64_t start_time;
-
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 
-	// since this workload has no target number of transactions to be made, we
-	// are always ready to be reaped, and so we notify the coordinator that we
-	// are finished with our required tasks and can be stopped whenever
-	thr_coordinator_complete(coord);
-
-	while (tdata->do_work) {
-
-		adata = queue_pop_wait(adata_q);
-
+	if (tdata->do_work) {
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
 		adata->start_time = start_time;
@@ -1222,32 +1193,33 @@ random_read_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		timespec_add_us(&wake_time, pause_for);
 		thr_coordinator_sleep(coord, &wake_time);
 	}
+	else {
+		int rv;
+
+		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+			blog_error("failed to unlock mutex - %d\n", rv);
+			exit(-1);
+		}
+	}
 }
 
 LOCAL_HELPER void
-random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		const stage_t* stage, queue_t* adata_q)
+random_read_write_udf_async(struct async_data_s* adata)
 {
-	struct async_data_s* adata;
+	tdata_t* tdata = adata->tdata;
+	cdata_t* cdata = adata->cdata;
+	thr_coord_t* coord = adata->coord;
+	const stage_t* stage = adata->stage;
 
-	struct timespec wake_time;
+        struct timespec wake_time;
 	uint64_t start_time;
-
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
 
-	// since this workload has no target number of transactions to be made, we
-	// are always ready to be reaped, and so we notify the coordinator that we
-	// are finished with our required tasks and can be stopped whenever
-	thr_coordinator_complete(coord);
-
-	while (tdata->do_work) {
-
-		adata = queue_pop_wait(adata_q);
-
+	if (tdata->do_work) {
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
 		adata->start_time = start_time;
@@ -1270,25 +1242,32 @@ random_read_write_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		timespec_add_us(&wake_time, pause_for);
 		thr_coordinator_sleep(coord, &wake_time);
 	}
+	else {
+		int rv;
+
+		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+			blog_error("failed to unlock mutex - %d\n", rv);
+			exit(-1);
+		}
+	}
 }
 
 LOCAL_HELPER void
-linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		const stage_t* stage, queue_t* adata_q)
+linear_deletes_async(struct async_data_s* adata)
 {
-	uint64_t key_val, end_key;
-	struct async_data_s* adata;
+	tdata_t* tdata = adata->tdata;
+	cdata_t* cdata = adata->cdata;
+	thr_coord_t* coord = adata->coord;
+	const stage_t* stage = adata->stage;
 
+        uint64_t key_val, end_key;
 	struct timespec wake_time;
 	uint64_t start_time;
 
-	key_val = stage->key_start;
+	key_val = atomic_fetch_add(&tdata->current_key, 1);
 	end_key = stage->key_end;
-	while (tdata->do_work &&
-			key_val < end_key) {
 
-		adata = queue_pop_wait(adata_q);
-
+	if (tdata->do_work && key_val < end_key) {
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
 		adata->start_time = start_time;
@@ -1309,36 +1288,33 @@ linear_deletes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		key_val++;
 	}
+	else {
+		int rv;
 
-	// once we've written everything, there's nothing left to do, so tell
-	// coord we're done and exit
-	thr_coordinator_complete(coord);
+		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+			blog_error("failed to unlock mutex - %d\n", rv);
+			exit(-1);
+		}
+	}
 }
 
 LOCAL_HELPER void
-random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		const stage_t* stage, queue_t* adata_q)
+random_read_write_delete_async(struct async_data_s* adata)
 {
-	struct async_data_s* adata;
+	tdata_t* tdata = adata->tdata;
+	cdata_t* cdata = adata->cdata;
+	thr_coord_t* coord = adata->coord;
+	const stage_t* stage = adata->stage;
 
 	struct timespec wake_time;
 	uint64_t start_time;
-
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
 
-	// since this workload has no target number of transactions to be made, we
-	// are always ready to be reaped, and so we notify the coordinator that we
-	// are finished with our required tasks and can be stopped whenever
-	thr_coordinator_complete(coord);
-
-	while (tdata->do_work) {
-
-		adata = queue_pop_wait(adata_q);
-
+	if (tdata->do_work) {
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
 		adata->start_time = start_time;
@@ -1360,6 +1336,14 @@ random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coor
 			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
 		timespec_add_us(&wake_time, pause_for);
 		thr_coordinator_sleep(coord, &wake_time);
+	}
+	else {
+		int rv;
+
+		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+			blog_error("failed to unlock mutex - %d\n", rv);
+			exit(-1);
+		}
 	}
 }
 
@@ -1396,10 +1380,7 @@ LOCAL_HELPER void
 do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
 {
-	struct async_data_s* adatas;
 	uint32_t t_idx = tdata->t_idx;
-	uint64_t n_adatas;
-	queue_t adata_q;
 
 	// thread 0 is designated to handle async calls, the rest can immediately
 	// terminate
@@ -1408,46 +1389,97 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		return;
 	}
 
-	n_adatas = cdata->async_max_commands;
-	adatas =
-		(struct async_data_s*) cf_malloc(n_adatas * sizeof(struct async_data_s));
+	int rv;
+	uint64_t n_adatas = cdata->async_max_commands;
+	struct async_data_s* adatas =
+		(struct async_data_s*) cf_calloc(sizeof(struct async_data_s), n_adatas);
 
-	queue_init(&adata_q, n_adatas);
+	switch (stage->workload.type) {
+	case WORKLOAD_TYPE_RU:
+	case WORKLOAD_TYPE_RR:
+	case WORKLOAD_TYPE_RUF:
+	case WORKLOAD_TYPE_RUD:
+		// No target num txns - tell coord this is reapable.
+		thr_coordinator_complete(coord);
+		break;
+	default:
+		break;
+	}
+
 	for (uint32_t i = 0; i < n_adatas; i++) {
 		struct async_data_s* adata = &adatas[i];
 
+		adata->tdata = tdata;
 		adata->cdata = cdata;
+		adata->coord = coord;
 		adata->stage = stage;
-		adata->adata_q = &adata_q;
 		adata->ev_loop = NULL;
 
-		queue_push(&adata_q, adata);
-	}
+		if ((rv = pthread_mutex_init(&adata->done_lock, NULL)) != 0) {
+			blog_error("failed to initialize mutex - %d\n", rv);
+			exit(-1);
+		}
 
-	switch (stage->workload.type) {
+		if ((rv = pthread_mutex_lock(&adata->done_lock)) != 0) {
+			blog_error("failed to lock mutex - %d\n", rv);
+			exit(-1);
+		}
+
+		switch (stage->workload.type) {
 		case WORKLOAD_TYPE_I:
-			linear_writes_async(tdata, cdata, coord, stage, &adata_q);
+			adata->workload_cb = linear_writes_async;
+			linear_writes_async(adata);
 			break;
 		case WORKLOAD_TYPE_RU:
 		case WORKLOAD_TYPE_RR:
-			random_read_write_async(tdata, cdata, coord, stage, &adata_q);
+			adata->workload_cb = random_read_write_async;
+			random_read_write_async(adata);
 			break;
 		case WORKLOAD_TYPE_RUF:
-			random_read_write_udf_async(tdata, cdata, coord, stage, &adata_q);
+			adata->workload_cb = random_read_write_udf_async;
+			random_read_write_udf_async(adata);
 			break;
 		case WORKLOAD_TYPE_D:
-			linear_deletes_async(tdata, cdata, coord, stage, &adata_q);
+			adata->workload_cb = linear_deletes_async;
+			linear_deletes_async(adata);
 			break;
 		case WORKLOAD_TYPE_RUD:
-			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
+			adata->workload_cb = random_read_write_delete_async;
+			random_read_write_delete_async(adata);
 			break;
+		}
 	}
 
 	// wait for all the async calls to finish
 	for (uint32_t i = 0; i < n_adatas; i++) {
-		queue_pop_wait(&adata_q);
+		struct async_data_s* adata = &adatas[i];
+
+		if ((rv = pthread_mutex_lock(&adata->done_lock)) != 0) {
+			blog_error("failed to lock mutex - %d\n", rv);
+			exit(-1);
+		}
+
+		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+			blog_error("failed to unlock mutex - %d\n", rv);
+			exit(-1);
+		}
+
+		if ((rv = pthread_mutex_destroy(&adata->done_lock)) != 0) {
+			blog_error("failed to destroy mutex - %d\n", rv);
+			exit(-1);
+		}
 	}
-	queue_free(&adata_q);
+
+	switch (stage->workload.type) {
+	case WORKLOAD_TYPE_I:
+	case WORKLOAD_TYPE_D:
+		// once we've written everything, there's nothing left to do, so tell
+		// coord we're done and exit
+		thr_coordinator_complete(coord);
+		break;
+	default:
+		break;
+	}
 
 	// free the async_data structs
 	cf_free(adatas);
