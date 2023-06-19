@@ -46,7 +46,7 @@ UDFS = []
 SERVER_IP = None
 
 # used for testing, disable to connect to a locally running aerospike server
-USE_DOCKER_SERVERS=True
+USE_DOCKER_SERVERS=False
 
 # set when the cluser is up and running
 RUNNING = False
@@ -280,6 +280,9 @@ def stop():
 	Disconnects the client and stops the running asd process.
 	"""
 	if RUNNING:
+		print("resetting asd")
+		reset()
+
 		print("Disconnecting client")
 
 		if CLIENT is None:

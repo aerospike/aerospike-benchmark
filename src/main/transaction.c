@@ -97,7 +97,13 @@ LOCAL_HELPER as_record* _gen_record(as_random* random, const cdata_t* cdata,
 LOCAL_HELPER as_record* _gen_nil_record(tdata_t* tdata);
 LOCAL_HELPER void _destroy_record(as_record* rec, const stage_t* stage);
 LOCAL_HELPER as_batch_records* _gen_batch_writes(const cdata_t* cdata,
-		tdata_t* tdata, const stage_t* stage, bool randomKeys);
+		tdata_t* tdata, const stage_t* stage, bool randomKeys, uint64_t key_start);
+LOCAL_HELPER as_batch_records*
+_gen_batch_writes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage, uint64_t start_key);
+LOCAL_HELPER as_batch_records*
+_gen_batch_writes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage);
 LOCAL_HELPER void throttle(tdata_t* tdata, thr_coord_t* coord);
 
 // Synchronous workload helper methods
@@ -682,16 +688,40 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 }
 
 /*
- * generates operations to write a batch of random records following the obj_spec in cdata
- * if randomKeys == false the keys used in the batch writes will be sequential from stage->key_start
- * otherwise keys are generated randomly between stage->key_start ad stage->key_end
+ * generates operations to write a batch of records following the obj_spec in cdata
+ * keys are generated randomly between stage->key_start ad stage->key_end
+ */
+LOCAL_HELPER inline as_batch_records*
+_gen_batch_writes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage)
+{
+	return _gen_batch_writes(cdata, tdata, stage, true, 0);
+}
+
+/*
+ * generates operations to write a batch of records following the obj_spec in cdata
+ * keys used in the batch writes will be sequential from key_start
+ */
+LOCAL_HELPER inline as_batch_records*
+_gen_batch_writes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage, uint64_t start_key)
+{
+	return _gen_batch_writes(cdata, tdata, stage, false, start_key);
+}
+
+/*
+ * generates operations to write a batch of records following the obj_spec in cdata
+ * if randomKeys == false the keys used in the batch writes will be sequential from key_start
+ * otherwise keys are generated randomly between stage->key_start and stage->key_end
+ * this function should only be called through its wrappers _gen_batch_writes_random_keys
+ * and _gen_batch_writes_sequential_keys
  */
 LOCAL_HELPER as_batch_records*
 _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,	
-		const stage_t* stage, bool randomKeys)
+		const stage_t* stage, bool randomKeys, uint64_t start_key)
 {
-	uint32_t batch_size = stage->batch_size;
-	uint64_t key_val = stage->key_start;
+	uint32_t batch_size = stage->batch_write_size;
+	uint64_t key_val = start_key;
 
 	as_batch_records* batch = as_batch_records_create(batch_size);
 
@@ -777,7 +807,7 @@ random_read(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage)
 {
 	as_key key;
-	uint32_t batch_size = stage->batch_size;
+	uint32_t batch_size = stage->batch_read_size;
 
 	if (batch_size <= 1) {
 		// generate a random key
@@ -814,9 +844,7 @@ LOCAL_HELPER void
 random_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage)
 {
-	uint32_t batch_size = stage->batch_size;
-
-	if (batch_size <= 1) {
+	if (stage->batch_write_size <= 1) {
 		as_key key;
 		as_record* rec;
 
@@ -836,7 +864,7 @@ random_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	else {
 		as_batch_records* batch;
 
-		batch = _gen_batch_writes(cdata, tdata, stage, true);
+		batch = _gen_batch_writes_random_keys(cdata, tdata, stage);
 		_batch_write_record_sync(tdata, cdata, coord, batch);
 
 		for (uint32_t i = 0; i < batch->list.size; i++) {
@@ -902,8 +930,6 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	as_key key;
 	as_record* rec;
 
-	uint32_t batch_size = stage->batch_size;
-
 	// each worker thread takes a subrange of the total set of keys being
 	// inserted, all approximately equal in size
 	_calculate_subrange(stage->key_start, stage->key_end, t_idx,
@@ -913,7 +939,7 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	while (tdata->do_work &&
 			key_val < end_key) {
 
-		if (stage->batch_size <= 1) {
+		if (stage->batch_write_size <= 1) {
 			// create a record with given key
 			_gen_key(key_val, &key, cdata);
 			rec = _gen_record(tdata->random, cdata, tdata, stage);
@@ -929,9 +955,9 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		else {
 			as_batch_records* batch;
 
-			batch = _gen_batch_writes(cdata, tdata, stage, false);
+			batch = _gen_batch_writes_sequential_keys(cdata, tdata, stage, key_val);
 			_batch_write_record_sync(tdata, cdata, coord, batch);
-			key_val += batch_size;
+			key_val += stage->batch_write_size;
 		}
 	}
 
@@ -1071,7 +1097,7 @@ LOCAL_HELPER void
 random_read_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, struct async_data_s* adata)
 {
-	uint32_t batch_size = stage->batch_size;
+	uint32_t batch_size = stage->batch_read_size;
 
 	adata->op = read_op;
 
@@ -1108,11 +1134,9 @@ LOCAL_HELPER void
 random_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, struct async_data_s* adata)
 {
-	uint32_t batch_size = stage->batch_size;
-
 	adata->op = write_op;
 
-	if (batch_size <= 1) {
+	if (stage->batch_write_size <= 1) {
 		as_record* rec;
 
 		// generate a random key
@@ -1128,7 +1152,7 @@ random_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	else {
 		as_batch_records* batch;
 
-		batch = _gen_batch_writes(cdata, tdata, stage, true);
+		batch = _gen_batch_writes_random_keys(cdata, tdata, stage);
 		_batch_write_record_async(batch, adata, tdata, cdata);
 	}
 }
@@ -1318,8 +1342,6 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	struct timespec wake_time;
 	uint64_t start_time;
 
-	uint32_t batch_size = stage->batch_size;
-
 	key_val = stage->key_start;
 	end_key = stage->key_end;
 	while (tdata->do_work &&
@@ -1333,7 +1355,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		adata->op = write_op;
 
-		if (batch_size <= 1) {
+		if (stage->batch_write_size <= 1) {
 			as_record* rec;
 			_gen_key(key_val, &adata->key, cdata);
 			rec = _gen_record(tdata->random, cdata, tdata, stage);
@@ -1346,9 +1368,9 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		else {
 			as_batch_records* batch;
 
-			batch = _gen_batch_writes(cdata, tdata, stage, false);
+			batch = _gen_batch_writes_sequential_keys(cdata, tdata, stage, key_val);
 			_batch_write_record_async(batch, adata, tdata, cdata);
-			key_val += batch_size;
+			key_val += stage->batch_write_size;
 		}
 
 		uint64_t pause_for =
