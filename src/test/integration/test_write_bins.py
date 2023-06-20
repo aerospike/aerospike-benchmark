@@ -101,7 +101,7 @@ def test_write_batch_simple():
 		lib.obj_spec_is_I3(b["testbin_3"])
 
 	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100",
-		"-o", "I1,I2,I3,I4", "--random", "--write-bins", "1,3", "--batch-write-size", "50",
+		"-o", "I1,I2,I3,I4", "--write-bins", "1,3", "--batch-write-size", "50",
 		"--threads", "2"])
 	lib.check_for_range(0, 100, lambda meta, key, bins: check_bins(bins))
 

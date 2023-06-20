@@ -695,7 +695,7 @@ LOCAL_HELPER inline as_batch_records*
 _gen_batch_writes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
 		const stage_t* stage)
 {
-	return _gen_batch_writes(cdata, tdata, stage, true, 0);
+	return _gen_batch_writes(cdata, tdata, stage, true, stage->key_start);
 }
 
 /*
@@ -755,7 +755,7 @@ _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,
 
 		batch_write->ops = op;
 
-		as_record_destroy(rec);
+		_destroy_record(rec, stage);
 	}
 
 	return batch;
@@ -958,6 +958,12 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			batch = _gen_batch_writes_sequential_keys(cdata, tdata, stage, key_val);
 			_batch_write_record_sync(tdata, cdata, coord, batch);
 			key_val += stage->batch_write_size;
+
+			for (uint32_t i = 0; i < batch->list.size; i++) {
+				as_batch_write_record* r = as_vector_get(&batch->list, i);
+				as_operations_destroy(r->ops);
+			}
+			as_batch_records_destroy(batch);
 		}
 	}
 

@@ -385,10 +385,6 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		stage->batch_read_size = stage_def->batch_read_size ? stage_def->batch_read_size : stage->batch_size;
 		stage->batch_write_size = stage_def->batch_write_size ? stage_def->batch_write_size : stage->batch_size;
 
-		printf("batch_size: %d\n", stage->batch_size);
-		printf("batch_read_size: %d\n", stage->batch_read_size);
-		printf("batch_write_size: %d\n", stage->batch_write_size);
-
 		if (stage_def->stage_idx != i + 1) {
 			fprintf(stderr,
 					"Stage %d is marked with index %d\n",
