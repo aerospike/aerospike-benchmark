@@ -96,6 +96,7 @@ typedef enum {
 	BENCH_OPT_BATCH_SIZE,
 	BENCH_OPT_BATCH_READ_SIZE,
 	BENCH_OPT_BATCH_WRITE_SIZE,
+	BENCH_OPT_BATCH_DELETE_SIZE,
 	BENCH_OPT_COMPRESS,
 	BENCH_OPT_COMPRESSION_RATIO,
 	BENCH_OPT_SOCKET_TIMEOUT,
@@ -150,6 +151,7 @@ static struct option long_options[] = {
 	{"batch-size",            required_argument, 0, BENCH_OPT_BATCH_SIZE},
 	{"batch-read-size",       required_argument, 0, BENCH_OPT_BATCH_READ_SIZE},
 	{"batch-write-size",      required_argument, 0, BENCH_OPT_BATCH_WRITE_SIZE},
+	{"batch-delete-size",     required_argument, 0, BENCH_OPT_BATCH_DELETE_SIZE},
 	{"compress",              no_argument,       0, BENCH_OPT_COMPRESS},
 	{"compression-ratio",     required_argument, 0, BENCH_OPT_COMPRESSION_RATIO},
 	{"socket-timeout",        required_argument, 0, BENCH_OPT_SOCKET_TIMEOUT},
@@ -427,6 +429,7 @@ print_usage(const char* program)
 	printf("     batch-size: specifies the batch size for all batch transactions for this stage. Default is 1\n");
 	printf("     batch-read-size: specifies the batch size of reads for this stage. Takes precedence over batch-size. Default is 1\n");
 	printf("     batch-write-size: specifies the batch size of writes for this stage. Takes precedence over batch-size. Default is 1\n");
+	printf("     batch-delete-size: specifies the batch size of deletes for this stage. Takes precedence over batch-size. Default is 1\n");
 	printf("\n");
 
 	printf("-K --start-key <start> # Default: 0\n");
@@ -566,6 +569,14 @@ print_usage(const char* program)
 	printf("   Batch write mode is valid only for I, RU, RUF, and RUD workloads. Batch write mode is disabled by default.\n");
 	printf("   batch-write-size takes precedence over batch-size.\n");
 	printf("\n");
+
+	printf("   --batch-delete-size <size> # Default: 1\n");
+	printf("   Enable batch delete mode with number of records to process in each batch delete call.\n");
+	printf("   batch delete mode uses batch operations for delete transactions.\n");
+	printf("   Batch delete mode is valid only for RUD and BD workloads. Batch write mode is disabled by default.\n");
+	printf("   batch-delete-size takes precedence over batch-size.\n");
+	printf("\n");
+
 
 	printf("   --compress\n");
 	printf("   Enable binary data compression through the aerospike client.\n");
@@ -1479,6 +1490,17 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				struct stage_def_s* stage = get_or_init_stage(args);
 				stage->batch_write_size = atoi(optarg);
+				break;
+			}
+
+			case BENCH_OPT_BATCH_DELETE_SIZE: {
+				if (args->workload_stages_file != NULL) {
+					fprintf(stderr, "Cannot specify both a workload stages "
+							"file and the batch-delete-size flag\n");
+					return -1;
+				}
+				struct stage_def_s* stage = get_or_init_stage(args);
+				stage->batch_delete_size = atoi(optarg);
 				break;
 			}
 

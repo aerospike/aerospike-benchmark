@@ -70,6 +70,8 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			stage_def_t, batch_write_size),
 	CYAML_FIELD_UINT("batch-read-size", CYAML_FLAG_OPTIONAL,
 			stage_def_t, batch_read_size),
+	CYAML_FIELD_UINT("batch-delete-size", CYAML_FLAG_OPTIONAL,
+			stage_def_t, batch_delete_size),
 	CYAML_FIELD_BOOL("async", CYAML_FLAG_OPTIONAL,
 			stage_def_t, async),
 	CYAML_FIELD_BOOL("random", CYAML_FLAG_OPTIONAL,

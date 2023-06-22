@@ -114,9 +114,11 @@ typedef struct stage_def_s {
 	uint32_t batch_read_size;
 	// batch size of writes to use, takes precedence over batch_size
 	uint32_t batch_write_size;
-	// whether or not this stage should be run in async mode
+	// batch size of deletes to use, takes precedence over batch_size
+	uint32_t batch_delete_size;
+	// whether this stage should be run in async mode
 	bool async;
-	// whether or not random objects should be created for each write op (as
+	// whether random objects should be created for each write op (as
 	// opposed to using a single fixed object over and over)
 	bool random;
 
@@ -165,9 +167,11 @@ typedef struct stage_s {
 	uint32_t batch_read_size;
 	// batch size of writes to use, takes precedence over batch_size
 	uint32_t batch_write_size;
-	// whether or not this stage should be run in async mode
+	// batch size of deletes to use, takes precedence over batch_size
+	uint32_t batch_delete_size;
+	// whether this stage should be run in async mode
 	bool async;
-	// whether or not random objects should be created for each write op (as
+	// whether random objects should be created for each write op (as
 	// opposed to using a single fixed object over and over)
 	bool random;
 

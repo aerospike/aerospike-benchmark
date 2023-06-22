@@ -137,16 +137,30 @@ coordinator_worker(void* udata)
 
 		if (stage->workload.type == WORKLOAD_TYPE_I) {
 			uint64_t nkeys = stage->key_end - stage->key_start;
-			if (stage->async) {
-				if (nkeys % stage->batch_write_size != 0) {
-					blog_warn("--keys is not divisible by --batch-write-size so more than "
-								"--keys records will be written\n");
-				}
+			if (nkeys % stage->batch_write_size != 0) {
+				blog_warn("--keys is not divisible by --batch-write-size so more than "
+							"--keys records will be written\n");
 			}
+
 			else {
 				if (stage->batch_write_size * n_threads > nkeys) {
 					blog_warn("--batch-write-size * --threads is greater than --keys so "
 								"more than --keys records will be written\n");
+				}
+			}
+		}
+
+		if (stage->workload.type == WORKLOAD_TYPE_D) {
+			uint64_t nkeys = stage->key_end - stage->key_start;
+			if (nkeys % stage->batch_delete_size != 0) {
+				blog_warn("--keys is not divisible by --batch-delete-size so some records "
+							"outside the range defined by --keys will be deleted\n");
+			}
+
+			else {
+				if (stage->batch_delete_size * n_threads > nkeys) {
+					blog_warn("--batch-delete-size * --threads is greater than --keys so some "
+								"records outside the range defined by --keys will be deleted\n");
 				}
 			}
 		}
