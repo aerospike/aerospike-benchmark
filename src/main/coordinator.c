@@ -142,7 +142,7 @@ coordinator_worker(void* udata)
 							"--keys records will be written\n");
 			}
 
-			else {
+			if (!stage->async) {
 				if (stage->batch_write_size * n_threads > nkeys) {
 					blog_warn("--batch-write-size * --threads is greater than --keys so "
 								"more than --keys records will be written\n");
@@ -157,7 +157,7 @@ coordinator_worker(void* udata)
 							"outside the range defined by --keys will be deleted\n");
 			}
 
-			else {
+			if (!stage->async) {
 				if (stage->batch_delete_size * n_threads > nkeys) {
 					blog_warn("--batch-delete-size * --threads is greater than --keys so some "
 								"records outside the range defined by --keys will be deleted\n");
