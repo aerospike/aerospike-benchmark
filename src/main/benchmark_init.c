@@ -555,7 +555,7 @@ print_usage(const char* program)
 
 	printf("   --batch-read-size <size> # Default: 1\n");
 	printf("   Enable batch read mode with number of records to process in each batch get call.\n");
-	printf("   batch read mode uses batch operations for read transactions.\n");
+	printf("   Batch read mode uses batch operations for read transactions.\n");
 	printf("   Batch read mode is valid only for RU, RR, RUF, and RUD workloads. Batch read mode is disabled by default.\n");
 	printf("   batch-read-size takes precedence over batch-size.\n");
 	printf("\n");
