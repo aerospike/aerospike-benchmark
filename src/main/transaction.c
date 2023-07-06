@@ -97,7 +97,8 @@ LOCAL_HELPER as_record* _gen_record(as_random* random, const cdata_t* cdata,
 LOCAL_HELPER as_record* _gen_nil_record(tdata_t* tdata);
 LOCAL_HELPER void _destroy_record(as_record* rec, const stage_t* stage);
 LOCAL_HELPER as_batch_records* _gen_batch_writes(const cdata_t* cdata,
-		tdata_t* tdata, const stage_t* stage, bool randomKeys, uint64_t key_start);
+		tdata_t* tdata, const stage_t* stage, bool randomKeys,
+		uint64_t key_start, bool deletes);
 LOCAL_HELPER as_batch_records*
 _gen_batch_writes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
 		const stage_t* stage, uint64_t start_key);
@@ -109,9 +110,6 @@ LOCAL_HELPER as_batch_records* _gen_batch_deletes_random_keys(
 		const cdata_t* cdata, tdata_t* tdata, const stage_t* stage);
 LOCAL_HELPER as_batch_records* _gen_batch_deletes_sequential_keys(
 		const cdata_t* cdata, tdata_t* tdata, const stage_t* stage, uint64_t start_key);
-LOCAL_HELPER as_batch_records* _gen_batch_deletes(
-		const cdata_t* cdata, tdata_t* tdata, const stage_t* stage, bool randomKeys,
-		uint64_t start_key);
 // Synchronous workload helper methods
 LOCAL_HELPER void random_read(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
@@ -694,6 +692,28 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 }
 
 /*
+ * generates a batch of write records with nil bins, used for deleting bins
+ * or entire records. keys are generated randomly between stage->key_start and stage->key_end
+ */
+LOCAL_HELPER inline as_batch_records*
+_gen_batch_deletes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage)
+{
+	return _gen_batch_writes(cdata, tdata, stage, true, stage->key_start, true);
+}
+
+/*
+ * generates a batch of write records with nil bins, used for deleting bins
+ * or entire records. keys used in the batch remove will be sequential from key_start
+ */
+LOCAL_HELPER inline as_batch_records*
+_gen_batch_deletes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage, uint64_t start_key)
+{
+	return _gen_batch_writes(cdata, tdata, stage, false, start_key, true);
+}
+
+/*
  * generates operations to write a batch of records following the obj_spec in cdata
  * keys are generated randomly between stage->key_start ad stage->key_end
  */
@@ -701,7 +721,7 @@ LOCAL_HELPER inline as_batch_records*
 _gen_batch_writes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
 		const stage_t* stage)
 {
-	return _gen_batch_writes(cdata, tdata, stage, true, stage->key_start);
+	return _gen_batch_writes(cdata, tdata, stage, true, stage->key_start, false);
 }
 
 /*
@@ -712,7 +732,7 @@ LOCAL_HELPER inline as_batch_records*
 _gen_batch_writes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
 		const stage_t* stage, uint64_t start_key)
 {
-	return _gen_batch_writes(cdata, tdata, stage, false, start_key);
+	return _gen_batch_writes(cdata, tdata, stage, false, start_key, false);
 }
 
 /*
@@ -724,7 +744,8 @@ _gen_batch_writes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,
  */
 LOCAL_HELPER as_batch_records*
 _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,	
-		const stage_t* stage, bool randomKeys, uint64_t start_key)
+		const stage_t* stage, bool randomKeys,
+		uint64_t start_key, bool deletes)
 {
 	uint32_t batch_size = stage->batch_write_size;
 	uint64_t key_val = start_key;
@@ -733,7 +754,13 @@ _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,
 
 	for (uint32_t i = 0; i < batch_size; i++) {
 		as_record* rec;
-		rec = _gen_record(tdata->random, cdata, tdata, stage);
+		if (deletes) {
+			rec = _gen_nil_record(tdata);
+		}
+		else {
+			rec = _gen_record(tdata->random, cdata, tdata, stage);
+		}
+
 		as_batch_write_record* batch_write = as_batch_write_reserve(batch);
 		// set the batchwrite key value pointer to the address of its own
 		// value so that when the key is initialized, its value is stored
@@ -761,69 +788,9 @@ _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,
 
 		batch_write->ops = op;
 
-		_destroy_record(rec, stage);
-	}
-
-	return batch;
-}
-
-/*
- * generates a batch of keys for use with aerospike_batch_remove
- * keys are generated randomly between stage->key_start ad stage->key_end
- */
-LOCAL_HELPER inline as_batch_records*
-_gen_batch_deletes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
-		const stage_t* stage)
-{
-	return _gen_batch_deletes(cdata, tdata, stage, true, stage->key_start);
-}
-
-/*
- * generates a batch of keys for use with aerospike_batch_remove
- * keys used in the batch remove will be sequential from key_start
- */
-LOCAL_HELPER inline as_batch_records*
-_gen_batch_deletes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
-		const stage_t* stage, uint64_t start_key)
-{
-	return _gen_batch_deletes(cdata, tdata, stage, false, start_key);
-}
-
-/*
- * generates a batch for use with aerospike_batch_remove.
- * if randomKeys == false the keys used in the batch will be sequential from key_start
- * otherwise keys are generated randomly between stage->key_start and stage->key_end
- * this function should only be called through its wrappers _gen_batch_deletes_random_keys
- * and _gen_batch_deletes_sequential_keys
- */
-LOCAL_HELPER as_batch_records*
-_gen_batch_deletes(const cdata_t* cdata, tdata_t* tdata,	
-		const stage_t* stage, bool randomKeys, uint64_t start_key)
-{
-	uint32_t batch_size = stage->batch_delete_size;
-	uint64_t key_val = start_key;
-
-	as_batch_records* batch = as_batch_records_create(batch_size);
-
-	for (uint32_t i = 0; i < batch_size; i++) {
-		as_record* rec;
-		rec = _gen_nil_record(tdata);
-		as_batch_remove_record* batch_remove = as_batch_remove_reserve(batch);
-		// set the batch remove key value pointer to the address of its own
-		// value so that when the key is initialized, its value is stored
-		// in batch->key.value
-		batch_remove->key.valuep = &batch_remove->key.value;
-
-		if (randomKeys) {
-			key_val = stage_gen_random_key(stage, tdata->random);
-			_gen_key(key_val, &batch_remove->key, cdata);
+		if (!deletes) {
+			_destroy_record(rec, stage);
 		}
-		else {
-			_gen_key(key_val, &batch_remove->key, cdata);
-			++key_val;
-		}
-
-		batch_remove->policy = &tdata->policies.batch_remove;
 	}
 
 	return batch;
@@ -1148,7 +1115,7 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 			batch = _gen_batch_deletes_sequential_keys(cdata, tdata, stage, key_val);
 			_batch_write_record_sync(tdata, cdata, coord, batch);
-			key_val += stage->batch_delete_size;  // TODO change to batch size
+			key_val += stage->batch_delete_size;
 
 			for (uint32_t i = 0; i < batch->list.size; i++) {
 				as_batch_write_record* r = as_vector_get(&batch->list, i);
@@ -1295,7 +1262,7 @@ random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		as_batch_records* batch;
 
 		batch = _gen_batch_deletes_random_keys(cdata, tdata, stage);
-		_batch_write_record_async(tdata, cdata, coord, batch);
+		_batch_write_record_async(batch, adata, tdata, cdata);
 
 		for (uint32_t i = 0; i < batch->list.size; i++) {
 			as_batch_write_record* r = as_vector_get(&batch->list, i);

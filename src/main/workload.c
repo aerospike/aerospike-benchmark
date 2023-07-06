@@ -386,6 +386,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		// if batch_size was set and batch_<op_type>_size isn't set, use batch_size
 		stage->batch_read_size = stage_def->batch_read_size ? stage_def->batch_read_size : stage->batch_size;
 		stage->batch_write_size = stage_def->batch_write_size ? stage_def->batch_write_size : stage->batch_size;
+		stage->batch_delete_size = stage_def->batch_delete_size ? stage_def->batch_delete_size : stage->batch_size;
 
 		if (stage_def->stage_idx != i + 1) {
 			fprintf(stderr,
