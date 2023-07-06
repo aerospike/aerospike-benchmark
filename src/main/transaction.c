@@ -715,7 +715,7 @@ _gen_batch_deletes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,
 
 /*
  * generates operations to write a batch of records following the obj_spec in cdata
- * keys are generated randomly between stage->key_start ad stage->key_end
+ * keys are generated randomly between stage->key_start and stage->key_end
  */
 LOCAL_HELPER inline as_batch_records*
 _gen_batch_writes_random_keys(const cdata_t* cdata, tdata_t* tdata,	

@@ -558,7 +558,7 @@ print_usage(const char* program)
 
 	printf("   --batch-read-size <size> # Default: 1\n");
 	printf("   Enable batch read mode with number of records to process in each batch get call.\n");
-	printf("   batch read mode uses batch operations for read transactions.\n");
+	printf("   Batch read mode uses batch operations for read transactions.\n");
 	printf("   Batch read mode is valid only for RU, RR, RUF, and RUD workloads. Batch read mode is disabled by default.\n");
 	printf("   batch-read-size takes precedence over batch-size.\n");
 	printf("\n");
@@ -566,7 +566,7 @@ print_usage(const char* program)
 	printf("   --batch-write-size <size> # Default: 1\n");
 	printf("   Batch writes require Aerospike server 6.0 or newer.\n");
 	printf("   Enable batch write mode with number of records to process in each batch write call.\n");
-	printf("   batch write mode uses batch operations for insert and update transactions.\n");
+	printf("   Batch write mode uses batch operations for insert and update transactions.\n");
 	printf("   Batch write mode is valid only for I, RU, RUF, and RUD workloads. Batch write mode is disabled by default.\n");
 	printf("   batch-write-size takes precedence over batch-size.\n");
 	printf("\n");
