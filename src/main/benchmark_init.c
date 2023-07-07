@@ -535,6 +535,8 @@ print_usage(const char* program)
 
 	printf("-z --threads <count> # Default: 16\n");
 	printf("   Load generating thread count.\n");
+	printf("   This is set to 1 if using --async.\n");
+	printf("   Use --event-loops in async mode.\n");
 	printf("\n");
 
 	printf("-g --throughput <tps> # Default: 0\n");
@@ -712,6 +714,7 @@ print_usage(const char* program)
 
 	printf("-a --async # Default: synchronous mode\n");
 	printf("   Enable asynchronous mode.\n");
+	printf("   Use --event-loops to tune performance in async mode.\n");
 	printf("\n");
 
 	printf("-c --async-max-commands <command count> # Default: 50\n");
