@@ -62,6 +62,9 @@ struct async_data_s {
 // Forward Declarations.
 //
 
+// Destructors
+LOCAL_HELPER void async_data_free(struct async_data_s* adata);
+
 // Random number helper methods
 LOCAL_HELPER uint32_t _pct_to_fp(float pct);
 LOCAL_HELPER uint32_t _random_fp(as_random*);
@@ -199,6 +202,24 @@ transaction_worker(void* udata)
 //==========================================================
 // Local helpers.
 //
+
+LOCAL_HELPER void
+async_data_free(struct async_data_s* adata)
+{
+	if (adata == NULL) {
+		return;
+	}
+
+	int rv;
+	if ((rv = pthread_mutex_destroy(&adata->done_lock)) != 0) {
+		blog_error("failed to destroy mutex - %d\n", rv);
+		exit(-1);
+	}
+
+	// dyn_throttle_free(&adata->)
+
+	return;
+}
 
 /******************************************************************************
  * Random number helper methods
@@ -1035,6 +1056,17 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 		else {
 			_record_write(cdata, end - adata->start_time);
 		}
+
+		// uint64_t start_time;
+		// clock_gettime(COORD_CLOCK, &adata->start_time);
+		// start_time = timespec_to_us(&adata->start_time);
+		// adata->start_time = start_time;
+
+		// // TODO throttle in here
+		// uint64_t pause_for =
+		// 	dyn_throttle_pause_for(&adata->tdata->dyn_throttle, adata->start_time);
+		// timespec_add_us(adata->start_time, pause_for);
+		// thr_coordinator_sleep(adata->coord, adata->start_time);
 
 		// set the event loop (only effective the first time around but let's
 		// avoid conditional logic)

@@ -21,6 +21,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -44,25 +45,36 @@ typedef struct dyn_throttle_s {
 	// a rolling average of the excess amount of time between records not
 	// accounted for by the pausing
 	float avg_fn_delay;
+
+	// if this dyn_throttle_t is going to be modified accross threads
+	// for example, by calling dyn_throttle_pause_for from a worker thread
+	// and an event loop thread, this lock should be acquired first
+	pthread_mutex_t modify_lock;
 } dyn_throttle_t;
 
 
 int dyn_throttle_init(dyn_throttle_t*, float target_period);
 
 // nothing needs to be done for free
-#define dyn_throttle_free(thr)
+void dyn_throttle_free(dyn_throttle_t*);
 
 /*
- * sets the throttler last_rec such that the next call to dyn_throttle_pause_for
+ * NOT THREAD SAFE sets the throttler last_rec such that the next call to dyn_throttle_pause_for
  * with parameter "next_rec" won't affect the learned avg_fn_delay
  */
 void dyn_throttle_reset_time(dyn_throttle_t*, uint64_t next_rec);
 
 /*
- * records the time "rec" in the time history table and returns the amount of
+ * under lock, records the time "rec" in the time history table and returns the amount of
  * time to pause for (in the same units as rec)
  */
 uint64_t dyn_throttle_pause_for(dyn_throttle_t*, uint64_t rec);
+
+/*
+ * NOT THREAD SAFE records the time "rec" in the time history table and returns the amount of
+ * time to pause for (in the same units as rec)
+ */
+uint64_t _dyn_throttle_pause_for(dyn_throttle_t*, uint64_t rec);
 
 
 

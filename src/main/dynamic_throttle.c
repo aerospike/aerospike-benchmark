@@ -18,10 +18,32 @@
 int
 dyn_throttle_init(dyn_throttle_t* thr, float target_period)
 {
+	int rv;
+	if ((rv = pthread_mutex_init(&thr->modify_lock, NULL)) != 0) {
+		blog_error("failed to initialize mutex - %d\n", rv);
+		exit(-1);
+	}
+
 	thr->target_period = target_period;
 	thr->avg_fn_delay = 0;
 	thr->n_records = 0;
+
 	return 0;
+}
+
+void
+dyn_throttle_free(dyn_throttle_t* thr) {
+	if (thr == NULL) {
+		return;
+	}
+
+	int rv;
+	if ((rv = pthread_mutex_destroy(&thr->modify_lock)) != 0) {
+		blog_error("failed to destroy mutex - %d\n", rv);
+		exit(-1);
+	}
+
+	return;
 }
 
 void
@@ -33,6 +55,26 @@ dyn_throttle_reset_time(dyn_throttle_t* thr, uint64_t new_rec)
 
 uint64_t
 dyn_throttle_pause_for(dyn_throttle_t* dt, uint64_t rec)
+{
+	uint64_t res;
+	int rv;
+	if ((rv = pthread_mutex_lock(&dt->modify_lock)) != 0) {
+		blog_error("failed to lock mutex - %d\n", rv);
+		exit(-1);
+	}
+
+	res = _dyn_throttle_pause_for(dt, rec);
+
+	if ((rv = pthread_mutex_unlock(&dt->modify_lock)) != 0) {
+		blog_error("failed to unlock mutex - %d\n", rv);
+		exit(-1);
+	}
+
+	return res;
+}
+
+uint64_t
+_dyn_throttle_pause_for(dyn_throttle_t* dt, uint64_t rec)
 {
 	uint64_t pause_for;
 	uint64_t n_records = dt->n_records;
