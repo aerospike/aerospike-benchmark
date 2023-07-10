@@ -135,6 +135,21 @@ coordinator_worker(void* udata)
 		stage_t* stage = &cdata->stages.stages[stage_idx];
 		fprint_stage(stdout, &cdata->stages, stage_idx);
 
+		if (stage->workload.type == WORKLOAD_TYPE_I) {
+			uint64_t nkeys = stage->key_end - stage->key_start;
+			if (nkeys % stage->batch_write_size != 0) {
+				blog_warn("--keys is not divisible by --batch-write-size so more than "
+							"--keys records will be written\n");
+			}
+			
+			if (!stage->async) {
+				if (stage->batch_write_size * n_threads > nkeys) {
+					blog_warn("--batch-write-size * --threads is greater than --keys so "
+								"more than --keys records will be written\n");
+				}
+			}
+		}
+
 		if (stage->duration > 0) {
 			// first sleep the minimum duration of the stage
 			_sleep_for(stage->duration);

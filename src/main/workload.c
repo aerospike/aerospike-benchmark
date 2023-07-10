@@ -66,6 +66,10 @@ static const cyaml_schema_field_t stage_mapping_schema[] = {
 			stage_def_t, pause),
 	CYAML_FIELD_UINT("batch-size", CYAML_FLAG_OPTIONAL,
 			stage_def_t, batch_size),
+	CYAML_FIELD_UINT("batch-write-size", CYAML_FLAG_OPTIONAL,
+			stage_def_t, batch_write_size),
+	CYAML_FIELD_UINT("batch-read-size", CYAML_FLAG_OPTIONAL,
+			stage_def_t, batch_read_size),
 	CYAML_FIELD_BOOL("async", CYAML_FLAG_OPTIONAL,
 			stage_def_t, async),
 	CYAML_FIELD_BOOL("random", CYAML_FLAG_OPTIONAL,
@@ -377,6 +381,10 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		// batch_size = 0 means it wasn't set, so set it to 1
 		stage->batch_size = MAX(stage_def->batch_size, 1);
 
+		// if batch_size was set and batch_<op_type>_size isn't set, use batch_size
+		stage->batch_read_size = stage_def->batch_read_size ? stage_def->batch_read_size : stage->batch_size;
+		stage->batch_write_size = stage_def->batch_write_size ? stage_def->batch_write_size : stage->batch_size;
+
 		if (stage_def->stage_idx != i + 1) {
 			fprintf(stderr,
 					"Stage %d is marked with index %d\n",
@@ -687,12 +695,14 @@ void stages_print(const stages_t* stages)
 				"  key-end: %" PRIu64 "\n"
 				"  pause: %" PRIu64 "\n"
 				"  batch-size: %" PRIu32 "\n"
+				"  batch-write-size: %" PRIu32 "\n"
+				"  batch-read-size: %" PRIu32 "\n"
 				"  async: %s\n"
 				"  random: %s\n"
 				"  ttl: %" PRId64 "\n",
 				stage->duration, stage->desc, stage->tps, stage->key_start,
-				stage->key_end, stage->pause, stage->batch_size,
-				boolstring(stage->async), boolstring(stage->random),
+				stage->key_end, stage->pause, stage->batch_size, stage->batch_write_size,
+				stage->batch_read_size, boolstring(stage->async), boolstring(stage->random),
 				stage->ttl);
 
 		printf( "  workload: %s",
