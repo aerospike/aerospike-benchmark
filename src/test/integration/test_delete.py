@@ -42,7 +42,7 @@ def test_linear_delete_batch():
 	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100", "--batch-size", "5"])
 	lib.check_for_range(0, 100)
 	# then delete it all
-	lib.run_benchmark(["--workload", "DB", "--start-key", "0", "--keys", "100" "--batch-size", "5"])
+	lib.run_benchmark(["--workload", "DB", "--start-key", "0", "--keys", "100", "--batch-size", "5"])
 	lib.check_for_range(0, 0)
 
 def test_linear_delete_async_batch():
