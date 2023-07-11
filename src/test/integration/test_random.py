@@ -1,5 +1,6 @@
 
 import lib
+import aerospike
 
 def test_random_read():
 	lib.run_benchmark(["--duration", "1", "--workload", "RU", "--start-key", "0", "--keys", "100"])
@@ -210,7 +211,7 @@ def test_random_read_update_read_only_async():
 			assert(bins1[bin_name] == bins2[bin_name])
 
 def test_random_read_update_delete_batch():
-	lib.run_benchmark(["--duration", "3", "--workload", "RUD", "--start-key", "0", "--keys", "100", "--batch-size", "5"])
+	lib.run_benchmark(["--duration", "3", "--workload", "RUD", "--start-key", "0", "--keys", "100", "--batch-size", "5", "--threads", "10"])
 
 	n_recs = len(lib.scan_records())
 	# we must have created at least one record, and no more than 100
@@ -220,13 +221,16 @@ def test_random_read_update_delete_batch():
 	# count the number of records with keys between 0 and 100
 	cnt = 0
 	for key in range(0, 100):
-		if lib.get_record(key) is not None:
-			cnt += 1
+		try:
+			if lib.get_record(key) is not None:
+				cnt += 1
+		except aerospike.exception.RecordNotFound:
+			continue
 	assert(cnt < 100)
 	assert(cnt == n_recs)
 
 def test_random_read_update_delete_batch_async():
-	lib.run_benchmark(["--duration", "3", "--workload", "RUD", "--start-key", "0", "--keys", "100", "--batch-size", "5", "--async"])
+	lib.run_benchmark(["--duration", "3", "--workload", "RUD", "--start-key", "0", "--keys", "100", "--batch-size", "5", "--async", "--threads", "5"])
 
 	n_recs = len(lib.scan_records())
 	# we must have created at least one record, and no more than 100
@@ -236,7 +240,11 @@ def test_random_read_update_delete_batch_async():
 	# count the number of records with keys between 0 and 100
 	cnt = 0
 	for key in range(0, 100):
-		if lib.get_record(key) is not None:
-			cnt += 1
+		try:
+			if lib.get_record(key) is not None:
+				cnt += 1
+		# somw records may have been deletes in the RUD workload
+		except aerospike.exception.RecordNotFound:
+			continue
 	assert(cnt < 100)
 	assert(cnt == n_recs)
