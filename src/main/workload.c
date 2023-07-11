@@ -699,14 +699,15 @@ void stages_print(const stages_t* stages)
 				"  pause: %" PRIu64 "\n"
 				"  batch-size: %" PRIu32 "\n"
 				"  batch-write-size: %" PRIu32 "\n"
+				"  batch-delete-size: %" PRIu32 "\n"
 				"  batch-read-size: %" PRIu32 "\n"
 				"  async: %s\n"
 				"  random: %s\n"
 				"  ttl: %" PRId64 "\n",
 				stage->duration, stage->desc, stage->tps, stage->key_start,
 				stage->key_end, stage->pause, stage->batch_size, stage->batch_write_size,
-				stage->batch_read_size, boolstring(stage->async), boolstring(stage->random),
-				stage->ttl);
+				stage->batch_delete_size, stage->batch_read_size, boolstring(stage->async),
+				boolstring(stage->random), stage->ttl);
 
 		printf( "  workload: %s",
 				workloads[stage->workload.type]);

@@ -575,7 +575,7 @@ print_usage(const char* program)
 	printf("   Batch deletes require Aerospike server 6.0 or newer.\n");
 	printf("   Enable batch delete mode with number of records to process in each batch delete call.\n");
 	printf("   batch delete mode uses batch operations for delete transactions.\n");
-	printf("   Batch delete mode is valid only for RUD and BD workloads. Batch write mode is disabled by default.\n");
+	printf("   Batch delete mode is valid only for RUD and BD workloads. Batch delete mode is disabled by default.\n");
 	printf("   batch-delete-size takes precedence over batch-size.\n");
 	printf("\n");
 

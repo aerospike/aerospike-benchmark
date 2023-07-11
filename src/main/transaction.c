@@ -1316,12 +1316,6 @@ random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 		batch = _gen_batch_deletes_random_keys(cdata, tdata, stage);
 		_batch_write_record_async(batch, adata, tdata, cdata);
-
-		for (uint32_t i = 0; i < batch->list.size; i++) {
-			as_batch_write_record* r = as_vector_get(&batch->list, i);
-			as_operations_destroy(r->ops);
-		}
-		as_batch_records_destroy(batch);
 	}
 }
 
