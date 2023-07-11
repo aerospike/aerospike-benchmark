@@ -97,8 +97,7 @@ LOCAL_HELPER as_record* _gen_record(as_random* random, const cdata_t* cdata,
 LOCAL_HELPER as_record* _gen_nil_record(tdata_t* tdata);
 LOCAL_HELPER void _destroy_record(as_record* rec, const stage_t* stage);
 LOCAL_HELPER as_batch_records* _gen_batch_writes(const cdata_t* cdata,
-		tdata_t* tdata, const stage_t* stage, bool randomKeys,
-		uint64_t key_start, bool deletes);
+		tdata_t* tdata, const stage_t* stage, bool randomKeys, uint64_t key_start);
 LOCAL_HELPER as_batch_records* _gen_batch_deletes(const cdata_t* cdata,
 		tdata_t* tdata,	const stage_t* stage, bool randomKeys,
 		uint64_t start_key);
@@ -774,7 +773,7 @@ LOCAL_HELPER inline as_batch_records*
 _gen_batch_writes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
 		const stage_t* stage)
 {
-	return _gen_batch_writes(cdata, tdata, stage, true, stage->key_start, false);
+	return _gen_batch_writes(cdata, tdata, stage, true, stage->key_start);
 }
 
 /*
@@ -785,7 +784,7 @@ LOCAL_HELPER inline as_batch_records*
 _gen_batch_writes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
 		const stage_t* stage, uint64_t start_key)
 {
-	return _gen_batch_writes(cdata, tdata, stage, false, start_key, false);
+	return _gen_batch_writes(cdata, tdata, stage, false, start_key);
 }
 
 /*
@@ -797,8 +796,7 @@ _gen_batch_writes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,
  */
 LOCAL_HELPER as_batch_records*
 _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,	
-		const stage_t* stage, bool randomKeys,
-		uint64_t start_key, bool deletes)
+		const stage_t* stage, bool randomKeys, uint64_t start_key)
 {
 	uint32_t batch_size = stage->batch_write_size;
 	uint64_t key_val = start_key;
@@ -806,13 +804,7 @@ _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,
 	as_batch_records* batch = as_batch_records_create(batch_size);
 
 	for (uint32_t i = 0; i < batch_size; i++) {
-		as_record* rec;
-		if (deletes) {
-			rec = _gen_nil_record(tdata);
-		}
-		else {
-			rec = _gen_record(tdata->random, cdata, tdata, stage);
-		}
+		as_record* rec = _gen_record(tdata->random, cdata, tdata, stage);
 
 		as_batch_write_record* batch_write = as_batch_write_reserve(batch);
 		// set the batchwrite key value pointer to the address of its own
@@ -841,9 +833,7 @@ _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,
 
 		batch_write->ops = op;
 
-		if (!deletes) {
-			_destroy_record(rec, stage);
-		}
+		_destroy_record(rec, stage);
 	}
 
 	return batch;
