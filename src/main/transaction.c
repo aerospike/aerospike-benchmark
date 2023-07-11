@@ -1052,7 +1052,6 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 			_destroy_record(rec, stage);
 			as_key_destroy(&key);
-
 			key_val++;
 		}
 		else {
