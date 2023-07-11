@@ -142,6 +142,11 @@ coordinator_worker(void* udata)
 							"--keys records will be written\n");
 			}
 
+			if (nkeys % (stage->batch_write_size * n_threads) != 0) {
+				blog_warn("--keys is not divisible by (--batch-write-size * --threads) so some records "
+							"outside the range defined by --keys will be written\n");
+			}
+
 			if (!stage->async) {
 				if (stage->batch_write_size * n_threads > nkeys) {
 					blog_warn("--batch-write-size * --threads is greater than --keys so "
@@ -154,6 +159,11 @@ coordinator_worker(void* udata)
 			uint64_t nkeys = stage->key_end - stage->key_start;
 			if (nkeys % stage->batch_delete_size != 0) {
 				blog_warn("--keys is not divisible by --batch-delete-size so some records "
+							"outside the range defined by --keys will be deleted\n");
+			}
+
+			if (nkeys % (stage->batch_delete_size * n_threads) != 0) {
+				blog_warn("--keys is not divisible by (--batch-delete-size * --threads) so some records "
 							"outside the range defined by --keys will be deleted\n");
 			}
 

@@ -46,7 +46,7 @@ UDFS = []
 SERVER_IP = None
 
 # used for testing, disable to connect to a locally running aerospike server
-USE_DOCKER_SERVERS=False
+USE_DOCKER_SERVERS=True
 
 # set when the cluser is up and running
 RUNNING = False

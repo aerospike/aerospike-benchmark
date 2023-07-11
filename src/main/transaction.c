@@ -717,17 +717,17 @@ _gen_batch_deletes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,
 }
 
 /*
- * generates operations to write a batch of records following the obj_spec in cdata
+ * generates operations to delete a batch of records/bins following the obj_spec in cdata
  * if randomKeys == false the keys used in the batch writes will be sequential from key_start
  * otherwise keys are generated randomly between stage->key_start and stage->key_end
- * this function should only be called through its wrappers _gen_batch_writes_random_keys
- * and _gen_batch_writes_sequential_keys
+ * this function should only be called through its wrappers _gen_batch_deletes_random_keys
+ * and _gen_batch_deletes_sequential_keys
  */
 LOCAL_HELPER as_batch_records*
 _gen_batch_deletes(const cdata_t* cdata, tdata_t* tdata,	
 		const stage_t* stage, bool randomKeys, uint64_t start_key)
 {
-	uint32_t batch_size = stage->batch_write_size;
+	uint32_t batch_size = stage->batch_delete_size;
 	uint64_t key_val = start_key;
 
 	as_batch_records* batch = as_batch_records_create(batch_size);
