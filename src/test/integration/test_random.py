@@ -17,7 +17,7 @@ def test_random_read():
 	assert(cnt == n_recs)
 
 def test_random_read_async():
-	lib.run_benchmark(["--duration", "3", "--workload", "RU", "--start-key", "0", "--keys", "100", "--async"])
+	lib.run_benchmark(["--duration", "1", "--workload", "RU", "--start-key", "0", "--keys", "100", "--async"])
 
 	n_recs = len(lib.scan_records())
 	# we must have created at least one record, and no more than 100
@@ -32,7 +32,7 @@ def test_random_read_async():
 	assert(cnt == n_recs)
 
 def test_random_read_batch():
-	lib.run_benchmark(["--duration", "3", "--workload", "RU", "--start-key", "0", "--keys", "100", "--batch-size", "5"])
+	lib.run_benchmark(["--duration", "1", "--workload", "RU", "--start-key", "0", "--keys", "100", "--batch-size", "16"])
 
 	n_recs = len(lib.scan_records())
 	# we must have created at least one record, and no more than 100
@@ -47,7 +47,7 @@ def test_random_read_batch():
 	assert(cnt == n_recs)
 
 def test_random_read_batch_async():
-	lib.run_benchmark(["--duration", "3", "--workload", "RU", "--start-key", "0", "--keys", "100", "--batch-size", "5", "--async"])
+	lib.run_benchmark(["--duration", "1", "--workload", "RU", "--start-key", "0", "--keys", "100", "--batch-size", "16", "--async"])
 
 	n_recs = len(lib.scan_records())
 	# we must have created at least one record, and no more than 100

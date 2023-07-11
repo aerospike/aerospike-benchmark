@@ -117,10 +117,6 @@ LOCAL_HELPER bool _dbg_validate_list(const struct bin_spec_s* bin_spec,
 		const as_list* as_val, bool do_assert);
 LOCAL_HELPER bool _dbg_validate_map(const struct bin_spec_s* bin_spec,
 		const as_map* val, bool do_assert);
-LOCAL_HELPER uint8_t
-_bin_spec_get_type(const struct bin_spec_s* bin_spec);
-LOCAL_HELPER bool
-_bin_spec_is_const(const struct bin_spec_s* bin_spec);
 #endif /* _TEST */
 
 

@@ -108,12 +108,8 @@ typedef struct stage_def_s {
 	// between 1 and pause
 	uint64_t pause;
 
-	// batch size for all batch types
+	// batch size of reads to use
 	uint32_t batch_size;
-	// batch size of reads to use, takes precedence over batch_size
-	uint32_t batch_read_size;
-	// batch size of writes to use, takes precedence over batch_size
-	uint32_t batch_write_size;
 	// whether or not this stage should be run in async mode
 	bool async;
 	// whether or not random objects should be created for each write op (as
@@ -144,7 +140,7 @@ typedef struct stage_s {
 	// minimum stage duration in seconds
 	uint64_t duration;
 
-	// string descriptor for the stage, printed when the stage begins
+	// string desctriptor for the stage, printed when the stage begins
 	char* desc;
 
 	// max transactions per second
@@ -159,12 +155,8 @@ typedef struct stage_s {
 	// between 1 and pause
 	uint64_t pause;
 
-	// batch size for all batch types
+	// batch size of reads to use
 	uint32_t batch_size;
-	// batch size of reads to use, takes precedence over batch_size
-	uint32_t batch_read_size;
-	// batch size of writes to use, takes precedence over batch_size
-	uint32_t batch_write_size;
 	// whether or not this stage should be run in async mode
 	bool async;
 	// whether or not random objects should be created for each write op (as
