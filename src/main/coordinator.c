@@ -135,7 +135,7 @@ coordinator_worker(void* udata)
 		stage_t* stage = &cdata->stages.stages[stage_idx];
 		fprint_stage(stdout, &cdata->stages, stage_idx);
 
-		if (stage->workload.type == WORKLOAD_TYPE_I) {
+		if (stage->workload.type == WORKLOAD_TYPE_I && stage->batch_write_size > 1) {
 			uint64_t nkeys = stage->key_end - stage->key_start;
 			if (nkeys % stage->batch_write_size != 0) {
 				blog_warn("--keys is not divisible by --batch-write-size so more than "
@@ -155,7 +155,7 @@ coordinator_worker(void* udata)
 			}
 		}
 
-		if (stage->workload.type == WORKLOAD_TYPE_D) {
+		if (stage->workload.type == WORKLOAD_TYPE_D && stage->batch_delete_size > 1) {
 			uint64_t nkeys = stage->key_end - stage->key_start;
 			if (nkeys % stage->batch_delete_size != 0) {
 				blog_warn("--keys is not divisible by --batch-delete-size so some records "
