@@ -1144,7 +1144,7 @@ linear_writes_async(struct async_data_s* adata)
 	uint64_t start_time;
 
 	key_val = atomic_fetch_add(&tdata->current_key, 1);
-	end_key = stage->key_end;
+	end_key = tdata->end_key;
 
 	if (tdata->do_work && key_val < end_key) {
 		clock_gettime(COORD_CLOCK, &wake_time);
@@ -1281,7 +1281,7 @@ linear_deletes_async(struct async_data_s* adata)
 	uint64_t start_time;
 
 	key_val = atomic_fetch_add(&tdata->current_key, 1);
-	end_key = stage->key_end;
+	end_key = tdata->end_key;
 
 	if (tdata->do_work && key_val < end_key) {
 		clock_gettime(COORD_CLOCK, &wake_time);
@@ -1404,7 +1404,16 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	// each worker thread takes a subrange of the total set
 	// of async commands to seed the event loops with
 	_calculate_sub_count(0, cdata->async_max_commands, t_idx,
-			cdata->transaction_worker_threads, &n_adatas);
+				cdata->transaction_worker_threads, &n_adatas);
+
+	// each worker thread takes a subrange of the total keys
+	// to transact on, this is only used in linear async workloads
+	// like I and DB where the workloads stop after end_key
+	uint64_t start_key, end_key;
+	_calculate_subrange(stage->key_start, stage->key_end, t_idx,
+				cdata->transaction_worker_threads, &start_key, &end_key);
+	tdata->current_key = start_key;
+	tdata->end_key = end_key;
 	
 	blog_info("async thread: %" PRIu32 ", starting: %" PRIu64 " transactions\n", t_idx, n_adatas);
 

@@ -327,6 +327,8 @@ init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 	atomic_init(&tdata->do_work, true);
 	atomic_init(&tdata->finished, false);
 
+	tdata->end_key = UINT64_MAX;
+
 	as_policies* p = &tdata->policies;
 	as_policies_init(p);
 
