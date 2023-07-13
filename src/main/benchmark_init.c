@@ -43,7 +43,7 @@
 // Typedefs & constants.
 //
 
-static const char* short_options = "vVh:p:U:P::n:s:b:K:k:o:Re:t:w:z:g:T:dLSC:N:B:M:Y:Dac:W:";
+static const char* short_options = "vVh:p:U:P::n:s:b:K:k:o:Re:t:w:z:g:T:dLSC:N:B:M:Y:Dac:";
 
 #define WARN_MSG 0x40000000
 
@@ -535,8 +535,7 @@ print_usage(const char* program)
 
 	printf("-z --threads <count> # Default: 16\n");
 	printf("   Load generating thread count.\n");
-	printf("   This is set to 1 if using --async.\n");
-	printf("   Use --event-loops in async mode.\n");
+	printf("   This also sets the number of event loops used with --async.\n");
 	printf("\n");
 
 	printf("-g --throughput <tps> # Default: 0\n");
@@ -714,16 +713,12 @@ print_usage(const char* program)
 
 	printf("-a --async # Default: synchronous mode\n");
 	printf("   Enable asynchronous mode.\n");
-	printf("   Use --event-loops to tune performance in async mode.\n");
+	printf("   Use --threads and --async-max-commands to tune performance in async mode.\n");
 	printf("\n");
 
 	printf("-c --async-max-commands <command count> # Default: 50\n");
 	printf("   Maximum number of concurrent asynchronous commands that are active at any point\n");
 	printf("   in time.\n");
-	printf("\n");
-
-	printf("-W --event-loops <thread count> # Default: 1\n");
-	printf("   Number of event loops (or selector threads) when running in asynchronous mode.\n");
 	printf("\n");
 
 	printf("   --tls-enable         # Default: TLS disabled\n");
@@ -926,7 +921,7 @@ print_args(args_t* args)
 	printf("async min conns per node: %d\n", args->async_min_conns_per_node);
 	printf("async max conns per node: %d\n", args->async_max_conns_per_node);
 	printf("async max commands:       %d\n", args->async_max_commands);
-	printf("event loops:              %d\n", args->event_loop_capacity);
+	printf("event loops:              %d\n", args->transaction_worker_threads);
 
 	if (args->tls.enable) {
 		printf("TLS:                    enabled\n");
@@ -1126,9 +1121,9 @@ validate_args(args_t* args)
 		return 1;
 	}
 
-	if (args->event_loop_capacity <= 0 || args->event_loop_capacity > 1000) {
-		printf("Invalid event-loops: %d  Valid values: [1-1000]\n",
-				args->event_loop_capacity);
+	if (args->transaction_worker_threads <= 0 || args->transaction_worker_threads > 1000) {
+		printf("Invalid threads/event_loops: %d  Valid values: [1-1000]\n",
+				args->transaction_worker_threads);
 		return 1;
 	}
 	return 0;
@@ -1648,10 +1643,6 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->async_max_commands = atoi(optarg);
 				break;
 
-			case 'W':
-				args->event_loop_capacity = atoi(optarg);
-				break;
-
 			case BENCH_OPT_SEND_KEY:
 				args->key = AS_POLICY_KEY_SEND;
 				break;
@@ -1813,7 +1804,6 @@ _load_defaults(args_t* args)
 	args->async_min_conns_per_node = 0;
 	args->async_max_conns_per_node = 300;
 	args->async_max_commands = 50;
-	args->event_loop_capacity = 1;
 	memset(&args->tls, 0, sizeof(as_config_tls));
 	args->tls_name = NULL;
 	args->auth_mode = AS_AUTH_INTERNAL;

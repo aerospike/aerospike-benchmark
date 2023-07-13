@@ -96,7 +96,6 @@ typedef struct args_s {
 	int async_max_conns_per_node;
 	bool durable_deletes;
 	int async_max_commands;
-	int event_loop_capacity;
 	as_config_tls tls;
 	char* tls_name;
 	as_auth_mode auth_mode;
@@ -168,6 +167,9 @@ typedef struct threaddata_s {
 
 	// For async linear workloads
 	_Atomic(uint64_t) current_key;
+
+	// the stopping point for async linear workloads
+	uint64_t end_key;
 
 	/*
 	 * note: to stop threads, tdata->finished must be set before tdata->do_work

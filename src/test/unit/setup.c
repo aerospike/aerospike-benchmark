@@ -59,7 +59,6 @@ setup(void)
 	args->durable_deletes = false;
 	args->conn_pools_per_node = 1;
 	args->async_max_commands = 50;
-	args->event_loop_capacity = 1;
 	args->auth_mode = AS_AUTH_INTERNAL;	
 	
 	data = cf_malloc(sizeof(cdata_t));

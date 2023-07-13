@@ -85,11 +85,11 @@ target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o B1400 -w RU,80 -g 2
 ```
 
 To:
- * Benchmark asynchronous methods using 1 event loop.
+ * Benchmark asynchronous methods using 4 event loops.
  * Limit the maximum number of concurrent commands to 50.
  * Use and 50% read 50% write pattern.
 ```sh
-target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o S:50 -w RU,50 --async --asyncMaxCommands 50 --eventLoops 1
+target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o S:50 -w RU,50 --async --asyncMaxCommands 50 --threads 4
 ```
 
 Command line usage can be read with:
