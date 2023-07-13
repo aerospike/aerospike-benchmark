@@ -184,7 +184,7 @@ connect_to_server(args_t* args, aerospike* client)
 {
 	if (stages_contain_async(&args->stages)) {
 #if AS_EVENT_LIB_DEFINED
-		if (! as_event_create_loops(args->event_loop_capacity)) {
+		if (! as_event_create_loops(args->transaction_worker_threads)) {
 			blog_error("Failed to create asynchronous event loops\n");
 			return 2;
 		}

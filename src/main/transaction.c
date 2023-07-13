@@ -94,6 +94,8 @@ LOCAL_HELPER int _apply_udf_async(as_key* key, struct async_data_s* adata,
 // Thread worker helper methods
 LOCAL_HELPER void _calculate_subrange(uint64_t key_start, uint64_t key_end,
 		uint32_t t_idx, uint32_t n_threads, uint64_t* t_start, uint64_t* t_end);
+LOCAL_HELPER void _calculate_sub_count(uint64_t start, uint64_t end,
+		uint32_t t_idx, uint32_t n_threads, uint64_t* count);
 LOCAL_HELPER void _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata);
 LOCAL_HELPER as_record* _gen_record(as_random* random, const cdata_t* cdata,
 		tdata_t* tdata, const stage_t* stage);
@@ -569,6 +571,20 @@ _calculate_subrange(uint64_t key_start, uint64_t key_end, uint32_t t_idx,
 	uint64_t n_keys = key_end - key_start;
 	*t_start = key_start + ((n_keys * t_idx) / n_threads);
 	*t_end   = key_start + ((n_keys * (t_idx + 1)) / n_threads);
+}
+
+/*
+ * calculates the subrange that the given thread should operate on,
+ * which is done by evenly dividing the interval into n_threads intervals
+ * used to determine how many async transactions each thread should seed
+ */
+LOCAL_HELPER void
+_calculate_sub_count(uint64_t start, uint64_t end, uint32_t t_idx,
+		uint32_t n_threads, uint64_t* count)
+{
+	uint64_t res_start, res_end;
+	_calculate_subrange(start, end, t_idx, n_threads, &res_start, &res_end);
+	*count = res_end - res_start;
 }
 
 LOCAL_HELPER void
@@ -1382,15 +1398,16 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 {
 	uint32_t t_idx = tdata->t_idx;
 
-	// thread 0 is designated to handle async calls, the rest can immediately
-	// terminate
-	if (t_idx != 0) {
-		thr_coordinator_complete(coord);
-		return;
-	}
-
 	int rv;
-	uint64_t n_adatas = cdata->async_max_commands;
+	uint64_t n_adatas;
+
+	// each worker thread takes a subrange of the total set
+	// of async commands to seed the event loops with
+	_calculate_sub_count(0, cdata->async_max_commands, t_idx,
+			cdata->transaction_worker_threads, &n_adatas);
+	
+	blog_info("async thread: %" PRIu32 ", starting: %" PRIu64 " transactions\n", t_idx, n_adatas);
+
 	struct async_data_s* adatas =
 		(struct async_data_s*) cf_calloc(sizeof(struct async_data_s), n_adatas);
 
@@ -1413,7 +1430,7 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		adata->cdata = cdata;
 		adata->coord = coord;
 		adata->stage = stage;
-		adata->ev_loop = NULL;
+		adata->ev_loop = as_event_loop_get_by_index(tdata->t_idx);
 
 		if ((rv = pthread_mutex_init(&adata->done_lock, NULL)) != 0) {
 			blog_error("failed to initialize mutex - %d\n", rv);
@@ -1506,8 +1523,7 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 		// dyn_throttle uses a target delay between consecutive events, so
 		// calculate the target delay given the requested transactions per
 		// second and the number of concurrent transactions (i.e. num threads)
-		uint32_t n_threads = stage->async ? 1 :
-			cdata->transaction_worker_threads;
+		uint32_t n_threads = cdata->transaction_worker_threads;
 		dyn_throttle_init(&tdata->dyn_throttle,
 				(1000000.f * n_threads) / stage->tps);
 	}
