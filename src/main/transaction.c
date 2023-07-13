@@ -80,6 +80,8 @@ LOCAL_HELPER int _batch_read_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_batch_read_records* records);
 LOCAL_HELPER int _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, as_key* key);
+LOCAL_HELPER int _batch_write_record_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, as_batch_records* records);
 
 // Read/Write singular/batch asynchronous operations
 LOCAL_HELPER int _write_record_async(as_key* key, as_record* rec,
@@ -90,6 +92,8 @@ LOCAL_HELPER int _batch_read_record_async(as_batch_read_records* keys,
 		struct async_data_s* adata, tdata_t* tdata, cdata_t* cdata);
 LOCAL_HELPER int _apply_udf_async(as_key* key, struct async_data_s* adata,
 		tdata_t* tdata, cdata_t* cdata, const stage_t* stage);
+LOCAL_HELPER int _batch_write_record_async(as_batch_records* keys, struct async_data_s* adata,
+		tdata_t* tdata, cdata_t* cdata);
 
 // Thread worker helper methods
 LOCAL_HELPER void _calculate_subrange(uint64_t key_start, uint64_t key_end,
@@ -101,8 +105,22 @@ LOCAL_HELPER as_record* _gen_record(as_random* random, const cdata_t* cdata,
 		tdata_t* tdata, const stage_t* stage);
 LOCAL_HELPER as_record* _gen_nil_record(tdata_t* tdata);
 LOCAL_HELPER void _destroy_record(as_record* rec, const stage_t* stage);
+LOCAL_HELPER as_batch_records* _gen_batch_writes(const cdata_t* cdata,
+		tdata_t* tdata, const stage_t* stage, bool randomKeys, uint64_t key_start);
+LOCAL_HELPER as_batch_records* _gen_batch_deletes(const cdata_t* cdata,
+		tdata_t* tdata,	const stage_t* stage, bool randomKeys,
+		uint64_t start_key);
+LOCAL_HELPER as_batch_records*
+_gen_batch_writes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage, uint64_t start_key);
+LOCAL_HELPER as_batch_records*
+_gen_batch_writes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage);
 LOCAL_HELPER void throttle(tdata_t* tdata, thr_coord_t* coord);
-
+LOCAL_HELPER as_batch_records* _gen_batch_deletes_random_keys(
+		const cdata_t* cdata, tdata_t* tdata, const stage_t* stage);
+LOCAL_HELPER as_batch_records* _gen_batch_deletes_sequential_keys(
+		const cdata_t* cdata, tdata_t* tdata, const stage_t* stage, uint64_t start_key);
 // Synchronous workload helper methods
 LOCAL_HELPER void random_read(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
@@ -144,6 +162,8 @@ LOCAL_HELPER void _async_write_listener(as_error* err, void* udata,
 		as_event_loop* event_loop);
 LOCAL_HELPER void _async_batch_read_listener(as_error* err,
 		as_batch_read_records* records, void* udata, as_event_loop* event_loop);
+LOCAL_HELPER void _async_batch_write_listener(as_error* err, as_batch_read_records* records,
+		void* udata, as_event_loop* event_loop);
 LOCAL_HELPER void _async_val_listener(as_error* err, as_val* val, void* udata,
 		as_event_loop* event_loop);
 LOCAL_HELPER void linear_writes_async(struct async_data_s* adata);
@@ -301,6 +321,43 @@ _write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 	throttle(tdata, coord);
 	return -1;
+}
+
+LOCAL_HELPER int
+_batch_write_record_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, as_batch_records* records)
+{
+	as_status status;
+	as_error err;
+
+	uint64_t start = cf_getus();
+	status = aerospike_batch_write(&cdata->client, &err, &tdata->policies.batch,
+			records);
+	uint64_t end = cf_getus();
+
+	if (status == AEROSPIKE_OK) {
+		_record_write(cdata, end - start);
+		throttle(tdata, coord);
+		return status;
+	}
+
+	// Handle error conditions.
+	if (status == AEROSPIKE_ERR_TIMEOUT) {
+		cdata->write_timeout_count++;
+	}
+	else {
+		cdata->write_error_count++;
+
+		if (cdata->debug) {
+			blog_error("Batch write error: ns=%s set=%s bin=%s code=%d "
+					"message=%s",
+					cdata->namespace, cdata->set, cdata->bin_name, status,
+					err.message);
+		}
+	}
+
+	throttle(tdata, coord);
+	return status;
 }
 
 LOCAL_HELPER int
@@ -474,6 +531,26 @@ _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
 }
 
 LOCAL_HELPER int
+_batch_write_record_async(as_batch_records* keys, struct async_data_s* adata,
+		tdata_t* tdata, cdata_t* cdata)
+{
+	as_status status;
+	as_error err;
+
+	adata->start_time = cf_getus();
+	status = aerospike_batch_write_async(&cdata->client, &err,
+			&tdata->policies.batch, keys, _async_batch_write_listener, adata,
+			adata->ev_loop);
+
+	if (status != AEROSPIKE_OK) {
+		// if the async call failed for any reason, call the callback directly
+		_async_batch_write_listener(&err, NULL, adata, adata->ev_loop);
+	}
+
+	return status;
+}
+
+LOCAL_HELPER int
 _read_record_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
 		cdata_t* cdata, const stage_t* stage)
 {
@@ -634,6 +711,152 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 }
 
 /*
+ * generates a batch of write records with nil bins, used for deleting bins
+ * or entire records. keys are generated randomly between stage->key_start and stage->key_end
+ */
+LOCAL_HELPER inline as_batch_records*
+_gen_batch_deletes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage)
+{
+	return _gen_batch_deletes(cdata, tdata, stage, true, stage->key_start);
+}
+
+/*
+ * generates a batch of write records with nil bins, used for deleting bins
+ * or entire records. keys used in the batch remove will be sequential from key_start
+ */
+LOCAL_HELPER inline as_batch_records*
+_gen_batch_deletes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage, uint64_t start_key)
+{
+	return _gen_batch_deletes(cdata, tdata, stage, false, start_key);
+}
+
+/*
+ * generates operations to delete a batch of records/bins following the obj_spec in cdata
+ * if randomKeys == false the keys used in the batch writes will be sequential from key_start
+ * otherwise keys are generated randomly between stage->key_start and stage->key_end
+ * this function should only be called through its wrappers _gen_batch_deletes_random_keys
+ * and _gen_batch_deletes_sequential_keys
+ */
+LOCAL_HELPER as_batch_records*
+_gen_batch_deletes(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage, bool randomKeys, uint64_t start_key)
+{
+	uint32_t batch_size = stage->batch_delete_size;
+	uint64_t key_val = start_key;
+
+	as_batch_records* batch = as_batch_records_create(batch_size);
+
+	for (uint32_t i = 0; i < batch_size; i++) {
+		as_record* rec = _gen_nil_record(tdata);
+
+		as_batch_write_record* batch_write = as_batch_write_reserve(batch);
+		// set the batchwrite key value pointer to the address of its own
+		// value so that when the key is initialized, its value is stored
+		// in batch_write->key.value
+		batch_write->key.valuep = &batch_write->key.value;
+
+		if (randomKeys) {
+			key_val = stage_gen_random_key(stage, tdata->random);
+			_gen_key(key_val, &batch_write->key, cdata);
+		}
+		else {
+			_gen_key(key_val, &batch_write->key, cdata);
+			++key_val;
+		}
+
+		// write the record as a series of bin-ops on the key
+		as_operations* op = as_operations_new(rec->bins.size);
+		op->ttl = rec->ttl;
+		op->gen = rec->gen;
+		for (uint32_t bin_idx = 0; bin_idx < rec->bins.size; bin_idx++) {
+			as_bin* bin = &rec->bins.entries[bin_idx];
+			as_operations_add_write(op, bin->name, bin->valuep);
+			as_val_reserve(bin->valuep);
+		}
+
+		batch_write->ops = op;
+	}
+
+	return batch;
+}
+
+/*
+ * generates operations to write a batch of records following the obj_spec in cdata
+ * keys are generated randomly between stage->key_start and stage->key_end
+ */
+LOCAL_HELPER inline as_batch_records*
+_gen_batch_writes_random_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage)
+{
+	return _gen_batch_writes(cdata, tdata, stage, true, stage->key_start);
+}
+
+/*
+ * generates operations to write a batch of records following the obj_spec in cdata
+ * keys used in the batch writes will be sequential from key_start
+ */
+LOCAL_HELPER inline as_batch_records*
+_gen_batch_writes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage, uint64_t start_key)
+{
+	return _gen_batch_writes(cdata, tdata, stage, false, start_key);
+}
+
+/*
+ * generates operations to write a batch of records following the obj_spec in cdata
+ * if randomKeys == false the keys used in the batch writes will be sequential from key_start
+ * otherwise keys are generated randomly between stage->key_start and stage->key_end
+ * this function should only be called through its wrappers _gen_batch_writes_random_keys
+ * and _gen_batch_writes_sequential_keys
+ */
+LOCAL_HELPER as_batch_records*
+_gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,	
+		const stage_t* stage, bool randomKeys, uint64_t start_key)
+{
+	uint32_t batch_size = stage->batch_write_size;
+	uint64_t key_val = start_key;
+
+	as_batch_records* batch = as_batch_records_create(batch_size);
+
+	for (uint32_t i = 0; i < batch_size; i++) {
+		as_record* rec = _gen_record(tdata->random, cdata, tdata, stage);
+
+		as_batch_write_record* batch_write = as_batch_write_reserve(batch);
+		// set the batchwrite key value pointer to the address of its own
+		// value so that when the key is initialized, its value is stored
+		// in batch_write->key.value
+		batch_write->key.valuep = &batch_write->key.value;
+
+		if (randomKeys) {
+			key_val = stage_gen_random_key(stage, tdata->random);
+			_gen_key(key_val, &batch_write->key, cdata);
+		}
+		else {
+			_gen_key(key_val, &batch_write->key, cdata);
+			++key_val;
+		}
+
+		// write the record as a series of bin-ops on the key
+		as_operations* op = as_operations_new(rec->bins.size);
+		op->ttl = rec->ttl;
+		op->gen = rec->gen;
+		for (uint32_t bin_idx = 0; bin_idx < rec->bins.size; bin_idx++) {
+			as_bin* bin = &rec->bins.entries[bin_idx];
+			as_operations_add_write(op, bin->name, bin->valuep);
+			as_val_reserve(bin->valuep);
+		}
+
+		batch_write->ops = op;
+
+		_destroy_record(rec, stage);
+	}
+
+	return batch;
+}
+
+/*
  * generates a record with all nil bins (used to remove records)
  */
 LOCAL_HELPER as_record*
@@ -679,7 +902,7 @@ random_read(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage)
 {
 	as_key key;
-	uint32_t batch_size = stage->batch_size;
+	uint32_t batch_size = stage->batch_read_size;
 
 	if (batch_size <= 1) {
 		// generate a random key
@@ -716,21 +939,35 @@ LOCAL_HELPER void
 random_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage)
 {
-	as_key key;
-	as_record* rec;
+	if (stage->batch_write_size <= 1) {
+		as_key key;
+		as_record* rec;
 
-	// generate a random key
-	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-	_gen_key(key_val, &key, cdata);
+		// generate a random key
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+		_gen_key(key_val, &key, cdata);
 
-	// create a record
-	rec = _gen_record(tdata->random, cdata, tdata, stage);
+		// create a record
+		rec = _gen_record(tdata->random, cdata, tdata, stage);
 
-	// write this record to the database
-	_write_record_sync(tdata, cdata, coord, &key, rec);
+		// write this record to the database
+		_write_record_sync(tdata, cdata, coord, &key, rec);
 
-	_destroy_record(rec, stage);
-	as_key_destroy(&key);
+		_destroy_record(rec, stage);
+		as_key_destroy(&key);
+	}
+	else {
+		as_batch_records* batch;
+
+		batch = _gen_batch_writes_random_keys(cdata, tdata, stage);
+		_batch_write_record_sync(tdata, cdata, coord, batch);
+
+		for (uint32_t i = 0; i < batch->list.size; i++) {
+			as_batch_write_record* r = as_vector_get(&batch->list, i);
+			as_operations_destroy(r->ops);
+		}
+		as_batch_records_destroy(batch);
+	}
 }
 
 LOCAL_HELPER void
@@ -751,21 +988,36 @@ LOCAL_HELPER void
 random_delete(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage)
 {
-	as_key key;
-	as_record* rec;
 
-	// generate a random key
-	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-	_gen_key(key_val, &key, cdata);
+	if (stage->batch_delete_size <= 1) {
+		as_key key;
+		as_record* rec;
 
-	// create a record
-	rec = _gen_nil_record(tdata);
+		// generate a random key
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+		_gen_key(key_val, &key, cdata);
 
-	// write this record to the database
-	_write_record_sync(tdata, cdata, coord, &key, rec);
+		// create a record
+		rec = _gen_nil_record(tdata);
 
-	// don't destroy delete records
-	as_key_destroy(&key);
+		// write this record to the database
+		_write_record_sync(tdata, cdata, coord, &key, rec);
+
+		// don't destroy delete records
+		as_key_destroy(&key);
+	}
+	else {
+		as_batch_records* batch;
+
+		batch = _gen_batch_deletes_random_keys(cdata, tdata, stage);
+		_batch_write_record_sync(tdata, cdata, coord, batch);
+
+		for (uint32_t i = 0; i < batch->list.size; i++) {
+			as_batch_write_record* r = as_vector_get(&batch->list, i);
+			as_operations_destroy(r->ops);
+		}
+		as_batch_records_destroy(batch);
+	}
 }
 
 
@@ -797,17 +1049,31 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	while (tdata->do_work &&
 			key_val < end_key) {
 
-		// create a record with given key
-		_gen_key(key_val, &key, cdata);
-		rec = _gen_record(tdata->random, cdata, tdata, stage);
+		if (stage->batch_write_size <= 1) {
+			// create a record with given key
+			_gen_key(key_val, &key, cdata);
+			rec = _gen_record(tdata->random, cdata, tdata, stage);
 
-		// write this record to the database
-		_write_record_sync(tdata, cdata, coord, &key, rec);
+			// write this record to the database
+			_write_record_sync(tdata, cdata, coord, &key, rec);
 
-		_destroy_record(rec, stage);
-		as_key_destroy(&key);
+			_destroy_record(rec, stage);
+			as_key_destroy(&key);
+			key_val++;
+		}
+		else {
+			as_batch_records* batch;
 
-		key_val++;
+			batch = _gen_batch_writes_sequential_keys(cdata, tdata, stage, key_val);
+			_batch_write_record_sync(tdata, cdata, coord, batch);
+			key_val += stage->batch_write_size;
+
+			for (uint32_t i = 0; i < batch->list.size; i++) {
+				as_batch_write_record* r = as_vector_get(&batch->list, i);
+				as_operations_destroy(r->ops);
+			}
+			as_batch_records_destroy(batch);
+		}
 	}
 
 	// once we've written everything, there's nothing left to do, so tell
@@ -890,17 +1156,32 @@ linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	while (tdata->do_work &&
 			key_val < end_key) {
 
-		// create a record with given key
-		_gen_key(key_val, &key, cdata);
-		rec = _gen_nil_record(tdata);
+		if (stage->batch_delete_size <= 1) {
+			// create a record with given key
+			_gen_key(key_val, &key, cdata);
+			rec = _gen_nil_record(tdata);
 
-		// delete this record from the database
-		_write_record_sync(tdata, cdata, coord, &key, rec);
+			// delete this record from the database
+			_write_record_sync(tdata, cdata, coord, &key, rec);
 
-		_destroy_record(rec, stage);
-		as_key_destroy(&key);
+			_destroy_record(rec, stage);
+			as_key_destroy(&key);
 
-		key_val++;
+			key_val++;
+		}
+		else {
+			as_batch_records* batch;
+
+			batch = _gen_batch_deletes_sequential_keys(cdata, tdata, stage, key_val);
+			_batch_write_record_sync(tdata, cdata, coord, batch);
+			key_val += stage->batch_delete_size;
+
+			for (uint32_t i = 0; i < batch->list.size; i++) {
+				as_batch_write_record* r = as_vector_get(&batch->list, i);
+				as_operations_destroy(r->ops);
+			}
+			as_batch_records_destroy(batch);
+		}
 	}
 
 	// once we've written everything, there's nothing left to do, so tell
@@ -947,7 +1228,7 @@ LOCAL_HELPER void
 random_read_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, struct async_data_s* adata)
 {
-	uint32_t batch_size = stage->batch_size;
+	uint32_t batch_size = stage->batch_read_size;
 
 	adata->op = read_op;
 
@@ -984,18 +1265,27 @@ LOCAL_HELPER void
 random_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, struct async_data_s* adata)
 {
-	as_record* rec;
-
-	// generate a random key
-	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
-
-	_gen_key(key_val, &adata->key, cdata);
-	rec = _gen_record(tdata->random, cdata, tdata, stage);
 	adata->op = write_op;
 
-	_write_record_async(&adata->key, rec, adata, tdata, cdata);
+	if (stage->batch_write_size <= 1) {
+		as_record* rec;
 
-	_destroy_record(rec, stage);
+		// generate a random key
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+
+		_gen_key(key_val, &adata->key, cdata);
+		rec = _gen_record(tdata->random, cdata, tdata, stage);
+
+		_write_record_async(&adata->key, rec, adata, tdata, cdata);
+
+		_destroy_record(rec, stage);
+	}
+	else {
+		as_batch_records* batch;
+
+		batch = _gen_batch_writes_random_keys(cdata, tdata, stage);
+		_batch_write_record_async(batch, adata, tdata, cdata);
+	}
 }
 
 LOCAL_HELPER void
@@ -1014,18 +1304,26 @@ LOCAL_HELPER void
 random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage, struct async_data_s* adata)
 {
-	as_record* rec;
+	if (stage->batch_delete_size <= 1) {
+		as_record* rec;
 
-	// generate a random key
-	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+		// generate a random key
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
 
-	_gen_key(key_val, &adata->key, cdata);
-	rec = _gen_nil_record(tdata);
-	adata->op = write_op;
+		_gen_key(key_val, &adata->key, cdata);
+		rec = _gen_nil_record(tdata);
+		adata->op = write_op;
 
-	_write_record_async(&adata->key, rec, adata, tdata, cdata);
+		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
-	_destroy_record(rec, stage);
+		_destroy_record(rec, stage);
+	}
+	else {
+		as_batch_records* batch;
+
+		batch = _gen_batch_deletes_random_keys(cdata, tdata, stage);
+		_batch_write_record_async(batch, adata, tdata, cdata);
+	}
 }
 
 
@@ -1122,6 +1420,21 @@ _async_batch_read_listener(as_error* err, as_batch_read_records* records,
 }
 
 LOCAL_HELPER void
+_async_batch_write_listener(as_error* err, as_batch_records* records,
+		void* udata, as_event_loop* event_loop)
+{
+	_async_listener(err, udata, event_loop);
+
+	if (records != NULL) {
+		for (uint32_t i = 0; i < records->list.size; i++) {
+			as_batch_write_record* r = as_vector_get(&records->list, i);
+			as_operations_destroy(r->ops);
+		}
+		as_batch_records_destroy(records);
+	}
+}
+
+LOCAL_HELPER void
 _async_val_listener(as_error* err, as_val* val, void* udata,
 		as_event_loop* event_loop)
 {
@@ -1151,21 +1464,30 @@ linear_writes_async(struct async_data_s* adata)
 		start_time = timespec_to_us(&wake_time);
 		adata->start_time = start_time;
 
-		as_record* rec;
-		_gen_key(key_val, &adata->key, cdata);
-		rec = _gen_record(tdata->random, cdata, tdata, stage);
 		adata->op = write_op;
 
-		_write_record_async(&adata->key, rec, adata, tdata, cdata);
+		if (stage->batch_write_size <= 1) {
+			as_record* rec;
+			_gen_key(key_val, &adata->key, cdata);
+			rec = _gen_record(tdata->random, cdata, tdata, stage);
 
-		_destroy_record(rec, stage);
+			_write_record_async(&adata->key, rec, adata, tdata, cdata);
+
+			_destroy_record(rec, stage);
+			key_val++;
+		}
+		else {
+			as_batch_records* batch;
+
+			batch = _gen_batch_writes_sequential_keys(cdata, tdata, stage, key_val);
+			_batch_write_record_async(batch, adata, tdata, cdata);
+			key_val += stage->batch_write_size;
+		}
 
 		uint64_t pause_for =
 			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
 		timespec_add_us(&wake_time, pause_for);
 		thr_coordinator_sleep(coord, &wake_time);
-
-		key_val++;
 	}
 	else {
 		int rv;
@@ -1280,29 +1602,36 @@ linear_deletes_async(struct async_data_s* adata)
 	struct timespec wake_time;
 	uint64_t start_time;
 
-	key_val = atomic_fetch_add(&tdata->current_key, 1);
-	end_key = tdata->end_key;
-
 	if (tdata->do_work && key_val < end_key) {
 		clock_gettime(COORD_CLOCK, &wake_time);
 		start_time = timespec_to_us(&wake_time);
 		adata->start_time = start_time;
 
-		as_record* rec;
-		_gen_key(key_val, &adata->key, cdata);
-		rec = _gen_nil_record(tdata);
-		adata->op = delete_op;
+			adata->op = delete_op;
 
-		_write_record_async(&adata->key, rec, adata, tdata, cdata);
+		if (stage->batch_delete_size <= 1) {
 
-		_destroy_record(rec, stage);
+			as_record* rec;
+			_gen_key(key_val, &adata->key, cdata);
+			rec = _gen_nil_record(tdata);
+
+			_write_record_async(&adata->key, rec, adata, tdata, cdata);
+
+			_destroy_record(rec, stage);
+			key_val++;
+		}
+		else {
+			as_batch_records* batch;
+
+			batch = _gen_batch_deletes_sequential_keys(cdata, tdata, stage, key_val);
+			_batch_write_record_async(batch, adata, tdata, cdata);
+			key_val += stage->batch_delete_size;
+		}
 
 		uint64_t pause_for =
 			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
 		timespec_add_us(&wake_time, pause_for);
 		thr_coordinator_sleep(coord, &wake_time);
-
-		key_val++;
 	}
 	else {
 		int rv;

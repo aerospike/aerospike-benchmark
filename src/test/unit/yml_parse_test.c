@@ -36,6 +36,9 @@ static void assert_workloads_eq(const stages_t* parsed,
 		ck_assert_uint_eq(a->key_end, b->key_end);
 		ck_assert_uint_eq(a->pause, b->pause);
 		ck_assert_uint_eq(a->batch_size, b->batch_size);
+		ck_assert_uint_eq(a->batch_read_size, b->batch_read_size);
+		ck_assert_uint_eq(a->batch_write_size, b->batch_write_size);
+		ck_assert_uint_eq(a->batch_delete_size, b->batch_delete_size);
 		ck_assert(a->async == b->async);
 		ck_assert(a->random == b->random);
 
@@ -155,6 +158,9 @@ DEFINE_TEST(test_simple,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -187,6 +193,9 @@ DEFINE_TEST(test_tps,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -219,6 +228,9 @@ DEFINE_TEST(test_expiration_time,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -251,6 +263,9 @@ DEFINE_TEST(test_key_start,
 				.key_end = 100543,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -283,6 +298,9 @@ DEFINE_TEST(test_key_end,
 				.key_end = 1321,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -315,6 +333,9 @@ DEFINE_TEST(test_pause,
 				.key_end = 100001,
 				.pause = 231,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -347,6 +368,111 @@ DEFINE_TEST(test_batch_size,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 32,
+				.batch_read_size = 32,
+				.batch_write_size = 32,
+				.batch_delete_size = 32,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_I,
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		});
+
+DEFINE_TEST(test_batch_delete_size,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  batch-delete-size: 32",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 32,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_I,
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		});
+
+DEFINE_TEST(test_batch_write_size,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  batch-write-size: 32",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 32,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_I,
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"I4"
+		});
+
+DEFINE_TEST(test_batch_read_size,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  batch-read-size: 32",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 32,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -379,6 +505,9 @@ DEFINE_TEST(test_async,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = true,
 				.random = false,
 				.workload = (workload_t) {
@@ -411,6 +540,9 @@ DEFINE_TEST(test_random,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = true,
 				.workload = (workload_t) {
@@ -442,6 +574,9 @@ DEFINE_TEST(test_workload_ru_default,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -474,6 +609,9 @@ DEFINE_TEST(test_workload_ru_pct,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -506,6 +644,9 @@ DEFINE_TEST(test_workload_rr_default,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -538,6 +679,9 @@ DEFINE_TEST(test_workload_rr_pct,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -573,6 +717,9 @@ DEFINE_UDF_TEST(test_workload_ruf_default,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -615,6 +762,9 @@ DEFINE_UDF_TEST(test_workload_ruf_pct,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -653,6 +803,9 @@ DEFINE_TEST(test_workload_db,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -684,6 +837,9 @@ DEFINE_UDF_TEST(test_workload_rud_default,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -720,6 +876,9 @@ DEFINE_UDF_TEST(test_workload_rud_pct,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -758,6 +917,9 @@ DEFINE_TEST(test_obj_spec,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -791,6 +953,9 @@ DEFINE_TEST(test_read_bins,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -831,6 +996,9 @@ DEFINE_TEST(test_write_bins,
 				.key_end = 100001,
 				.pause = 0,
 				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
 				.async = false,
 				.random = false,
 				.workload = (workload_t) {
@@ -869,6 +1037,9 @@ yaml_parse_suite(void)
 	tcase_add_test(tc_simple, test_key_end);
 	tcase_add_test(tc_simple, test_pause);
 	tcase_add_test(tc_simple, test_batch_size);
+	tcase_add_test(tc_simple, test_batch_write_size);
+	tcase_add_test(tc_simple, test_batch_read_size);
+	tcase_add_test(tc_simple, test_batch_delete_size);
 	tcase_add_test(tc_simple, test_async);
 	tcase_add_test(tc_simple, test_random);
 	tcase_add_test(tc_simple, test_workload_ru_default);
