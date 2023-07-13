@@ -112,7 +112,8 @@ def test_write_batch_simple_async():
 		lib.obj_spec_is_I3(b["testbin_3"])
 
 	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100",
-		"-o", "I1,I2,I3,I4", "--random", "--write-bins", "1,3", "--async", "--batch-write-size", "25"])
+		"-o", "I1,I2,I3,I4", "--random", "--write-bins", "1,3", "--async",
+		"--batch-write-size", "25", "--threads", "4"])
 	lib.check_for_range(0, 100, lambda meta, key, bins: check_bins(bins))
 
 def test_write_batch_random():
@@ -181,7 +182,7 @@ def test_write_batch_delete_async():
 		lib.obj_spec_is_I4(b["testbin_4"])
 
 	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100",
-		"-o", "I1,I2,I3,I4", "--random", "--async", "--batch-size", "100"])
+		"-o", "I1,I2,I3,I4", "--random", "--async", "--batch-size", "10", "--threads", "2"])
 	lib.check_for_range(0, 100, lambda meta, key, bins: check_bins_before(bins))
 	lib.run_benchmark(["--workload", "DB", "--start-key", "0", "--keys", "100",
 		"-o", "I1,I2,I3,I4", "--write-bins", "1,3", "--async"], do_reset=False)

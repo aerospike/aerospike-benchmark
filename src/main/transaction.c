@@ -1452,11 +1452,12 @@ linear_writes_async(struct async_data_s* adata)
 	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-	uint64_t key_val, end_key;
+	uint64_t key_val, end_key, inc_by;
 	struct timespec wake_time;
 	uint64_t start_time;
 
-	key_val = atomic_fetch_add(&tdata->current_key, 1);
+	inc_by = stage->batch_write_size <= 1 ? 1 : stage->batch_write_size;
+	key_val = atomic_fetch_add(&tdata->current_key, inc_by);
 	end_key = tdata->end_key;
 
 	if (tdata->do_work && key_val < end_key) {
@@ -1474,14 +1475,11 @@ linear_writes_async(struct async_data_s* adata)
 			_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 			_destroy_record(rec, stage);
-			key_val++;
 		}
 		else {
 			as_batch_records* batch;
-
 			batch = _gen_batch_writes_sequential_keys(cdata, tdata, stage, key_val);
 			_batch_write_record_async(batch, adata, tdata, cdata);
-			key_val += stage->batch_write_size;
 		}
 
 		uint64_t pause_for =
@@ -1598,9 +1596,13 @@ linear_deletes_async(struct async_data_s* adata)
 	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-        uint64_t key_val, end_key;
+        uint64_t key_val, end_key, inc_by;
 	struct timespec wake_time;
 	uint64_t start_time;
+
+	inc_by = stage->batch_delete_size <= 1 ? 1 : stage->batch_delete_size;
+	key_val = atomic_fetch_add(&tdata->current_key, inc_by);
+	end_key = tdata->end_key;
 
 	if (tdata->do_work && key_val < end_key) {
 		clock_gettime(COORD_CLOCK, &wake_time);
@@ -1610,7 +1612,6 @@ linear_deletes_async(struct async_data_s* adata)
 			adata->op = delete_op;
 
 		if (stage->batch_delete_size <= 1) {
-
 			as_record* rec;
 			_gen_key(key_val, &adata->key, cdata);
 			rec = _gen_nil_record(tdata);
@@ -1618,14 +1619,11 @@ linear_deletes_async(struct async_data_s* adata)
 			_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 			_destroy_record(rec, stage);
-			key_val++;
 		}
 		else {
 			as_batch_records* batch;
-
 			batch = _gen_batch_deletes_sequential_keys(cdata, tdata, stage, key_val);
 			_batch_write_record_async(batch, adata, tdata, cdata);
-			key_val += stage->batch_delete_size;
 		}
 
 		uint64_t pause_for =
