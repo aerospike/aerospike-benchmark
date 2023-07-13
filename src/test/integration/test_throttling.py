@@ -29,7 +29,7 @@ def test_tps_multithreaded():
 	assert(5*DEFAULT_TPS * .90 <= n_records <= 5*DEFAULT_TPS * 1.10)
 
 def test_tps_multithreaded_async():
-	# test throughput throttling with simple objects and one thread
+	# test throughput throttling with simple objects and many threads
 	lib.run_benchmark(["--workload", "RU,0.0001", "--duration", "5",
 		"--start-key", "0", "--keys", "1000000000", "-o", "I",
 		"--throughput", f"{DEFAULT_TPS}", "-z", "16", "--async"])
