@@ -713,7 +713,7 @@ print_usage(const char* program)
 
 	printf("-a --async # Default: synchronous mode\n");
 	printf("   Enable asynchronous mode.\n");
-	printf("   Use --threads and --async-max-commands to tune performance in async mode.\n");
+	printf("   Use --threads and --async-max-commands to tune async performance.\n");
 	printf("\n");
 
 	printf("-c --async-max-commands <command count> # Default: 50\n");
