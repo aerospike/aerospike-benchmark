@@ -24,6 +24,7 @@
 // Includes.
 //
 
+#include <errno.h>
 #include <string.h>
 #include <time.h>
 
@@ -456,6 +457,20 @@ void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 	fprintf(out_file, "\n");
 }
 
+int sleep_for_ns(uint64_t n_secs)
+{
+	struct timespec sleep_time;
+	int res;
+
+	sleep_time.tv_sec = 0;
+	sleep_time.tv_nsec = n_secs;
+
+	do {
+		res = nanosleep(&sleep_time, &sleep_time);
+	} while (res != 0 && errno == EINTR);
+
+	return res;
+}
 
 //==========================================================
 // Local helpers.

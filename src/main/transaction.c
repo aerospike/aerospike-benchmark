@@ -6,6 +6,7 @@
 #include <transaction.h>
 
 #include <assert.h>
+#include <math.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #ifndef __aarch64__
@@ -53,6 +54,9 @@ struct async_data_s {
 		delete_op,
 		udf_op
 	} op;
+
+	bool inactive;
+	_Atomic(uint64_t)* tpp;
 
 	pthread_mutex_t done_lock;
 };
@@ -1120,44 +1124,44 @@ linear_writes_async(struct async_data_s* adata)
 {
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
-	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-	uint64_t key_val, end_key;
-	struct timespec wake_time;
-	uint64_t start_time;
+	if (! tdata->do_work) {
+		goto finished;
+	}
 
+	if (*adata->tpp == 0) {
+		// throttle this adata
+		adata->inactive = true;
+		goto finished;
+	}
+	--(*adata->tpp);
+
+	uint64_t key_val, end_key;
 	key_val = atomic_fetch_add(&tdata->current_key, 1);
 	end_key = stage->key_end;
 
-	if (tdata->do_work && key_val < end_key) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
-
-		as_record* rec;
-		_gen_key(key_val, &adata->key, cdata);
-		rec = _gen_record(tdata->random, cdata, tdata, stage);
-		adata->op = write_op;
-
-		_write_record_async(&adata->key, rec, adata, tdata, cdata);
-
-		_destroy_record(rec, stage);
-
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
-
-		key_val++;
+	if (key_val >= end_key) {
+		goto finished;
 	}
-	else {
-		int rv;
 
-		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
-			blog_error("failed to unlock mutex - %d\n", rv);
-			exit(-1);
-		}
+	as_record* rec;
+	_gen_key(key_val, &adata->key, cdata);
+	rec = _gen_record(tdata->random, cdata, tdata, stage);
+	adata->op = write_op;
+
+	_write_record_async(&adata->key, rec, adata, tdata, cdata);
+
+	_destroy_record(rec, stage);
+
+	return;
+
+finished:;
+	int rv;
+
+	if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+		blog_error("failed to unlock mutex - %d\n", rv);
+		exit(-1);
 	}
 }
 
@@ -1169,37 +1173,36 @@ random_read_write_async(struct async_data_s* adata)
 	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-        struct timespec wake_time;
-	uint64_t start_time;
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 
-	if (tdata->do_work) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
+	if (! tdata->do_work) {
+		goto finished;
+	}
 
-		// roll the die
-		uint32_t die = _random_fp(tdata->random);
+	if (*adata->tpp == 0) {
+		adata->inactive = true;
+		goto finished;
+	}
+	--(*adata->tpp);
 
-		if (die < read_pct) {
-			random_read_async(tdata, cdata, coord, stage, adata);
-		}
-		else {
-			random_write_async(tdata, cdata, coord, stage, adata);
-		}
+	// roll the die
+	uint32_t die = _random_fp(tdata->random);
 
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
+	if (die < read_pct) {
+		random_read_async(tdata, cdata, coord, stage, adata);
 	}
 	else {
-		int rv;
+		random_write_async(tdata, cdata, coord, stage, adata);
+	}
 
-		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
-			blog_error("failed to unlock mutex - %d\n", rv);
-			exit(-1);
-		}
+	return;
+
+finished:;
+	int rv;
+
+	if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+		blog_error("failed to unlock mutex - %d\n", rv);
+		exit(-1);
 	}
 }
 
@@ -1211,44 +1214,43 @@ random_read_write_udf_async(struct async_data_s* adata)
 	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-        struct timespec wake_time;
-	uint64_t start_time;
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
 
-	if (tdata->do_work) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
+	if (! tdata->do_work) {
+		goto finished;
+	}
 
-		// roll the die
-		uint32_t die = _random_fp(tdata->random);
+	if (*adata->tpp == 0) {
+		adata->inactive = true;
+		goto finished;
+	}
+	--(*adata->tpp);
 
-		if (die < read_pct) {
-			random_read_async(tdata, cdata, coord, stage, adata);
-		}
-		else if (die < write_pct) {
-			random_write_async(tdata, cdata, coord, stage, adata);
-		}
-		else {
-			random_udf_async(tdata, cdata, coord, stage, adata);
-		}
+	// roll the die
+	uint32_t die = _random_fp(tdata->random);
 
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
+	if (die < read_pct) {
+		random_read_async(tdata, cdata, coord, stage, adata);
+	}
+	else if (die < write_pct) {
+		random_write_async(tdata, cdata, coord, stage, adata);
 	}
 	else {
-		int rv;
+		random_udf_async(tdata, cdata, coord, stage, adata);
+	}
 
-		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
-			blog_error("failed to unlock mutex - %d\n", rv);
-			exit(-1);
-		}
+	return;
+
+finished:;
+	int rv;
+
+	if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+		blog_error("failed to unlock mutex - %d\n", rv);
+		exit(-1);
 	}
 }
 
@@ -1257,44 +1259,43 @@ linear_deletes_async(struct async_data_s* adata)
 {
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
-	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-        uint64_t key_val, end_key;
-	struct timespec wake_time;
-	uint64_t start_time;
+	if (! tdata->do_work) {
+		goto finished;
+	}
 
+	if (*adata->tpp == 0) {
+		adata->inactive = true;
+		goto finished;
+	}
+	--(*adata->tpp);
+
+	uint64_t key_val, end_key;
 	key_val = atomic_fetch_add(&tdata->current_key, 1);
 	end_key = stage->key_end;
 
-	if (tdata->do_work && key_val < end_key) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
-
-		as_record* rec;
-		_gen_key(key_val, &adata->key, cdata);
-		rec = _gen_nil_record(tdata);
-		adata->op = delete_op;
-
-		_write_record_async(&adata->key, rec, adata, tdata, cdata);
-
-		_destroy_record(rec, stage);
-
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
-
-		key_val++;
+	if (key_val >= end_key) {
+		goto finished;
 	}
-	else {
-		int rv;
 
-		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
-			blog_error("failed to unlock mutex - %d\n", rv);
-			exit(-1);
-		}
+	as_record* rec;
+	_gen_key(key_val, &adata->key, cdata);
+	rec = _gen_nil_record(tdata);
+	adata->op = delete_op;
+
+	_write_record_async(&adata->key, rec, adata, tdata, cdata);
+
+	_destroy_record(rec, stage);
+
+	return;
+
+finished:;
+	int rv;
+
+	if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+		blog_error("failed to unlock mutex - %d\n", rv);
+		exit(-1);
 	}
 }
 
@@ -1306,44 +1307,43 @@ random_read_write_delete_async(struct async_data_s* adata)
 	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-	struct timespec wake_time;
-	uint64_t start_time;
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
 	// store the cumulative probability in write_pct
 	write_pct = read_pct + write_pct;
 
-	if (tdata->do_work) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
+	if (! tdata->do_work) {
+		goto finished;
+	}
 
-		// roll the die
-		uint32_t die = _random_fp(tdata->random);
+	if (*adata->tpp == 0) {
+		adata->inactive = true;
+		goto finished;
+	}
+	--(*adata->tpp);
 
-		if (die < read_pct) {
-			random_read_async(tdata, cdata, coord, stage, adata);
-		}
-		else if (die < write_pct) {
-			random_write_async(tdata, cdata, coord, stage, adata);
-		}
-		else {
-			random_delete_async(tdata, cdata, coord, stage, adata);
-		}
+	// roll the die
+	uint32_t die = _random_fp(tdata->random);
 
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
+	if (die < read_pct) {
+		random_read_async(tdata, cdata, coord, stage, adata);
+	}
+	else if (die < write_pct) {
+		random_write_async(tdata, cdata, coord, stage, adata);
 	}
 	else {
-		int rv;
+		random_delete_async(tdata, cdata, coord, stage, adata);
+	}
 
-		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
-			blog_error("failed to unlock mutex - %d\n", rv);
-			exit(-1);
-		}
+	return;
+
+finished:;
+	int rv;
+
+	if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+		blog_error("failed to unlock mutex - %d\n", rv);
+		exit(-1);
 	}
 }
 
@@ -1376,6 +1376,23 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 }
 
+struct timespec timespec_diff(struct timespec l, struct timespec r)
+{
+	struct timespec res;
+	res.tv_sec = l.tv_sec - r.tv_sec;
+	res.tv_nsec = l.tv_nsec - r.tv_nsec;
+
+	return res;
+}
+
+double timespec_get_ms(struct timespec ts) {
+	double res;
+	res = ts.tv_sec * 1000.0;
+	res += ts.tv_nsec / 1.0e6;
+
+	return res;
+}
+
 LOCAL_HELPER void
 do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
@@ -1393,6 +1410,17 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	uint64_t n_adatas = cdata->async_max_commands;
 	struct async_data_s* adatas =
 		(struct async_data_s*) cf_calloc(sizeof(struct async_data_s), n_adatas);
+
+	_Atomic(uint64_t) throttle_tpp;
+	atomic_init(&throttle_tpp, UINT64_MAX);
+
+	int cycles = 1000;
+	double desired_tpp = MAXFLOAT;
+
+	if (stage->tps > 0) {
+		desired_tpp = stage->tps / (double) cycles;
+		throttle_tpp = floor(desired_tpp);
+	}
 
 	switch (stage->workload.type) {
 	case WORKLOAD_TYPE_RU:
@@ -1414,6 +1442,7 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		adata->coord = coord;
 		adata->stage = stage;
 		adata->ev_loop = NULL;
+		adata->tpp = &throttle_tpp;
 
 		if ((rv = pthread_mutex_init(&adata->done_lock, NULL)) != 0) {
 			blog_error("failed to initialize mutex - %d\n", rv);
@@ -1448,6 +1477,46 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			random_read_write_delete_async(adata);
 			break;
 		}
+	}
+
+	struct timespec start;
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
+	uint64_t period_us = 1000000 / cycles;
+
+	// if the adata was set to inactive due to throttling
+	// restart it if more work needs to be done
+	double partial = 0.0;
+	while(tdata->do_work && tdata->current_key < stage->key_end) {
+		sleep_for_ns(period_us);
+
+		struct timespec cycle_end;
+		clock_gettime(CLOCK_MONOTONIC, &cycle_end);
+
+		struct timespec delta = timespec_diff(cycle_end, start);
+		double calculated_tpp = timespec_get_ms(delta) * desired_tpp + partial;
+		double actual_tpp = floor(calculated_tpp);
+		throttle_tpp = actual_tpp;
+
+		partial = calculated_tpp - actual_tpp;
+		// blog_info("delta_ms: %lf, actual_tpp: %lf\n", timespec_get_ms(delta), actual_tpp);
+
+		for (int i = 0; i < n_adatas; i++) {
+			struct async_data_s* adata = &adatas[i];
+			if (adata->inactive && throttle_tpp >= 1) {
+				//blog_info("inactive: %d, tpp %d\n", adata->inactive, coord->tpp);
+				adata->inactive = false;
+
+				if ((rv = pthread_mutex_lock(&adata->done_lock)) != 0) {
+					blog_error("failed to lock mutex - %d\n", rv);
+					exit(-1);
+				}
+
+				adata->workload_cb(adata);
+			}
+		}
+
+		start = cycle_end;
 	}
 
 	// wait for all the async calls to finish
