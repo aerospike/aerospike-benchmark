@@ -190,10 +190,3 @@ char* parse_string_literal(const char* restrict str,
 
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 		uint64_t elapsed_s, as_vector* percentiles, FILE *out_file);
-
-/*
- * sleep for at least the specified number of nano seconds, which is safe on signals
- *
- * returns 0 if the sleep was successful, otherwise -1 if an error occured
- */
-int sleep_for_ns(uint64_t n_secs);

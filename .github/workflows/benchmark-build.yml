@@ -2,9 +2,9 @@ name: Build and Test All
 
 on:
   push:
-    branches: [ main, test-ready, "*-bugfix", TOOLS-2525-throttle-async ]
+    branches: [ main, test-ready, "*-bugfix" ]
   pull_request:
-    branches: [ main, test-ready, "*-bugfix", async ]
+    branches: [ main, test-ready, "*-bugfix" ]
 jobs:
   build:
     runs-on: ubuntu-22.04

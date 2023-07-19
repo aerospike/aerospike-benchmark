@@ -75,6 +75,11 @@ LOCAL_HELPER void _record_read(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_write(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_udf(cdata_t* cdata, uint64_t dt_us);
 
+// Timing helper methods
+LOCAL_HELPER int sleep_for_ns(uint64_t n_secs);
+LOCAL_HELPER struct timespec timespec_diff(struct timespec l, struct timespec r);
+LOCAL_HELPER double timespec_get_ms(struct timespec ts);
+
 // Read/Write singular/batch synchronous operations
 LOCAL_HELPER int _write_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_key* key, as_record* rec);
@@ -265,6 +270,41 @@ _record_udf(cdata_t* cdata, uint64_t dt_us)
 	cdata->udf_count++;
 }
 
+/******************************************************************************
+ * Timing helpers
+ *****************************************************************************/
+
+struct timespec timespec_diff(struct timespec l, struct timespec r)
+{
+	struct timespec res;
+	res.tv_sec = l.tv_sec - r.tv_sec;
+	res.tv_nsec = l.tv_nsec - r.tv_nsec;
+
+	return res;
+}
+
+double timespec_get_ms(struct timespec ts) {
+	double res;
+	res = ts.tv_sec * 1000.0;
+	res += ts.tv_nsec / 1.0e6;
+
+	return res;
+}
+
+int sleep_for_ns(uint64_t n_secs)
+{
+	struct timespec sleep_time;
+	int res;
+
+	sleep_time.tv_sec = 0;
+	sleep_time.tv_nsec = n_secs;
+
+	do {
+		res = nanosleep(&sleep_time, &sleep_time);
+	} while (res != 0 && errno == EINTR);
+
+	return res;
+}
 
 /******************************************************************************
  * Read/Write singular/batch synchronous operations
@@ -1376,23 +1416,6 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 }
 
-struct timespec timespec_diff(struct timespec l, struct timespec r)
-{
-	struct timespec res;
-	res.tv_sec = l.tv_sec - r.tv_sec;
-	res.tv_nsec = l.tv_nsec - r.tv_nsec;
-
-	return res;
-}
-
-double timespec_get_ms(struct timespec ts) {
-	double res;
-	res = ts.tv_sec * 1000.0;
-	res += ts.tv_nsec / 1.0e6;
-
-	return res;
-}
-
 LOCAL_HELPER void
 do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		stage_t* stage)
@@ -1484,8 +1507,6 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	uint64_t period_us = 1000000 / cycles;
 
-	// if the adata was set to inactive due to throttling
-	// restart it if more work needs to be done
 	double partial = 0.0;
 	while(tdata->do_work && tdata->current_key < stage->key_end) {
 		sleep_for_ns(period_us);
@@ -1499,12 +1520,12 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		throttle_tpp = actual_tpp;
 
 		partial = calculated_tpp - actual_tpp;
-		// blog_info("delta_ms: %lf, actual_tpp: %lf\n", timespec_get_ms(delta), actual_tpp);
 
 		for (int i = 0; i < n_adatas; i++) {
 			struct async_data_s* adata = &adatas[i];
+			// if the adata was set to inactive due to throttling
+			// restart it while more work needs to be done
 			if (adata->inactive && throttle_tpp >= 1) {
-				//blog_info("inactive: %d, tpp %d\n", adata->inactive, coord->tpp);
 				adata->inactive = false;
 
 				if ((rv = pthread_mutex_lock(&adata->done_lock)) != 0) {
