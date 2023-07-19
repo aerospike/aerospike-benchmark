@@ -6,6 +6,7 @@
 #include <transaction.h>
 
 #include <assert.h>
+#include <errno.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdatomic.h>
