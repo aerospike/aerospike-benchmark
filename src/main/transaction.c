@@ -71,7 +71,7 @@ struct async_data_s {
 LOCAL_HELPER uint32_t _pct_to_fp(float pct);
 LOCAL_HELPER uint32_t _random_fp(as_random*);
 
-// Latency recrding helpers
+// Latency recording helpers
 LOCAL_HELPER void _record_read(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_write(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_udf(cdata_t* cdata, uint64_t dt_us);
