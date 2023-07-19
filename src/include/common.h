@@ -115,6 +115,7 @@ void blog_detailv(as_log_level level, const char* fmt, va_list ap);
 void blog_detail(as_log_level level, const char* fmt, ...);
 
 #define blog_info(_fmt, ...) { blog_detail(AS_LOG_LEVEL_INFO, _fmt, ##__VA_ARGS__); }
+#define blog_warn(_fmt, ...) { blog_detail(AS_LOG_LEVEL_WARN, _fmt, ##__VA_ARGS__); }
 #define blog_error(_fmt, ...) { blog_detail(AS_LOG_LEVEL_ERROR, _fmt, ##__VA_ARGS__); }
 
 static inline const char*
