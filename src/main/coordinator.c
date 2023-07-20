@@ -138,7 +138,13 @@ coordinator_worker(void* udata)
 		if (stage->workload.type == WORKLOAD_TYPE_I) {
 			uint64_t nkeys = stage->key_end - stage->key_start;
 
-			if (!stage->async) {
+			if (stage->async) {
+				if (nkeys % stage->batch_write_size != 0) {
+					blog_warn("--keys is not divisible by --batch-write-size so more than "
+								"--keys records will be written\n");
+				}
+			}
+			else { // TODO when async is multithreaded change this
 				if (stage->batch_write_size * n_threads > nkeys) {
 					blog_warn("--batch-write-size * --threads is greater than --keys so "
 								"more than --keys records will be written\n");
@@ -149,18 +155,18 @@ coordinator_worker(void* udata)
 								"--keys records will be written\n");
 				}
 			}
-			else { // TODO when async is multithreaded change this
-				if (nkeys % stage->batch_write_size != 0) {
-					blog_warn("--keys is not divisible by --batch-write-size so more than "
-								"--keys records will be written\n");
-				}
-			}
 		}
 
 		if (stage->workload.type == WORKLOAD_TYPE_D) {
 			uint64_t nkeys = stage->key_end - stage->key_start;
 
-			if (!stage->async) {
+			if (stage->async) {
+				if (nkeys % stage->batch_delete_size != 0) {
+					blog_warn("--keys is not divisible by --batch-delete-size so more than "
+								"--keys records will be deleted\n");
+				}
+			}
+			else { // TODO when async is multithreaded change this
 				if (stage->batch_delete_size * n_threads > nkeys) {
 					blog_warn("--batch-delete-size * --threads is greater than --keys so more than "
 								"--keys records will be deleted\n");
@@ -168,12 +174,6 @@ coordinator_worker(void* udata)
 
 				if (nkeys % (stage->batch_delete_size * n_threads) != 0) {
 					blog_warn("--keys is not divisible by (--batch-delete-size * --threads) so more than "
-								"--keys records will be deleted\n");
-				}
-			}
-			else { // TODO when async is multithreaded change this
-				if (nkeys % stage->batch_delete_size != 0) {
-					blog_warn("--keys is not divisible by --batch-delete-size so more than "
 								"--keys records will be deleted\n");
 				}
 			}
