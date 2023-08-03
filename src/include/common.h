@@ -99,6 +99,11 @@ static inline void timespec_add_us(struct timespec* ts, uint64_t us)
 	ts->tv_nsec = nsec % 1000000000LU;
 }
 
+static inline void timespec_add_s(struct timespec* ts, uint64_t s)
+{
+	ts->tv_sec += s;
+}
+
 
 /*
  * returns the length of the given number were it to be printed in decimal
@@ -186,4 +191,3 @@ char* parse_string_literal(const char* restrict str,
 
 void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 		uint64_t elapsed_s, as_vector* percentiles, FILE *out_file);
-
