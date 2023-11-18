@@ -5,9 +5,12 @@
 
 #include <transaction.h>
 
+#include <asm-generic/errno-base.h>
 #include <assert.h>
 #include <pthread.h>
 #include <stdatomic.h>
+#include <stdint.h>
+#include <unistd.h>
 #ifndef __aarch64__
 #include <xmmintrin.h>
 #endif
@@ -31,8 +34,8 @@ struct async_data_s;
 struct async_data_s {
 	tdata_t* tdata;
 	cdata_t* cdata;
-        thr_coord_t* coord;
-        stage_t* stage;
+	thr_coord_t* coord;
+	stage_t* stage;
 
 	// keep each async_data in the same event loop to prevent the possibility
 	// of overflowing an event loop due to bad scheduling
@@ -1021,7 +1024,7 @@ LOCAL_HELPER void
 _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 {
 	struct async_data_s* adata = (struct async_data_s*) udata;
-
+	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
 
 	if (!err) {
@@ -1070,12 +1073,23 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 					"Delete",
 					"UDF"
 				};
+
 				blog_error("%s error: ns=%s set=%s key=%d bin=%s code=%d "
-						   "message=%s",
-						   op_strs[adata->op], cdata->namespace, cdata->set,
-						   adata->key.value.integer.value, cdata->bin_name,
-						   err->code, err->message);
+					"message=%s",
+					op_strs[adata->op], cdata->namespace, cdata->set,
+					adata->key.value.integer.value, cdata->bin_name,
+					err->code, err->message);
 			}
+		}
+	}
+
+	uint64_t v;
+
+	while ((v = atomic_fetch_sub(&tdata->async_throttle, 1)) <= 0) {
+		atomic_fetch_add(&tdata->async_throttle, 1);
+
+		while ((v = atomic_load(&tdata->async_throttle)) <= 0) {
+			usleep(tdata->min_usleep / 4);
 		}
 	}
 
@@ -1120,20 +1134,15 @@ linear_writes_async(struct async_data_s* adata)
 {
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
-	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-	uint64_t key_val, end_key;
-	struct timespec wake_time;
-	uint64_t start_time;
-
+	uint64_t key_val;
+	uint64_t end_key;
 	key_val = atomic_fetch_add(&tdata->current_key, 1);
 	end_key = stage->key_end;
 
 	if (tdata->do_work && key_val < end_key) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
+		adata->start_time = cf_getus();
 
 		as_record* rec;
 		_gen_key(key_val, &adata->key, cdata);
@@ -1143,11 +1152,6 @@ linear_writes_async(struct async_data_s* adata)
 		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 		_destroy_record(rec, stage);
-
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
 
 		key_val++;
 	}
@@ -1169,14 +1173,10 @@ random_read_write_async(struct async_data_s* adata)
 	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-        struct timespec wake_time;
-	uint64_t start_time;
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 
 	if (tdata->do_work) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
+		adata->start_time = cf_getus();
 
 		// roll the die
 		uint32_t die = _random_fp(tdata->random);
@@ -1187,11 +1187,6 @@ random_read_write_async(struct async_data_s* adata)
 		else {
 			random_write_async(tdata, cdata, coord, stage, adata);
 		}
-
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
 	}
 	else {
 		int rv;
@@ -1211,8 +1206,6 @@ random_read_write_udf_async(struct async_data_s* adata)
 	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-        struct timespec wake_time;
-	uint64_t start_time;
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
@@ -1220,9 +1213,7 @@ random_read_write_udf_async(struct async_data_s* adata)
 	write_pct = read_pct + write_pct;
 
 	if (tdata->do_work) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
+		adata->start_time = cf_getus();
 
 		// roll the die
 		uint32_t die = _random_fp(tdata->random);
@@ -1236,11 +1227,6 @@ random_read_write_udf_async(struct async_data_s* adata)
 		else {
 			random_udf_async(tdata, cdata, coord, stage, adata);
 		}
-
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
 	}
 	else {
 		int rv;
@@ -1257,20 +1243,15 @@ linear_deletes_async(struct async_data_s* adata)
 {
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
-	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-        uint64_t key_val, end_key;
-	struct timespec wake_time;
-	uint64_t start_time;
+	uint64_t key_val, end_key;
 
 	key_val = atomic_fetch_add(&tdata->current_key, 1);
 	end_key = stage->key_end;
 
 	if (tdata->do_work && key_val < end_key) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
+		adata->start_time = cf_getus();
 
 		as_record* rec;
 		_gen_key(key_val, &adata->key, cdata);
@@ -1280,11 +1261,6 @@ linear_deletes_async(struct async_data_s* adata)
 		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
 		_destroy_record(rec, stage);
-
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
 
 		key_val++;
 	}
@@ -1306,8 +1282,6 @@ random_read_write_delete_async(struct async_data_s* adata)
 	thr_coord_t* coord = adata->coord;
 	const stage_t* stage = adata->stage;
 
-	struct timespec wake_time;
-	uint64_t start_time;
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 	uint32_t write_pct = _pct_to_fp(stage->workload.write_pct);
 
@@ -1315,9 +1289,7 @@ random_read_write_delete_async(struct async_data_s* adata)
 	write_pct = read_pct + write_pct;
 
 	if (tdata->do_work) {
-		clock_gettime(COORD_CLOCK, &wake_time);
-		start_time = timespec_to_us(&wake_time);
-		adata->start_time = start_time;
+		adata->start_time = cf_getus();
 
 		// roll the die
 		uint32_t die = _random_fp(tdata->random);
@@ -1331,11 +1303,6 @@ random_read_write_delete_async(struct async_data_s* adata)
 		else {
 			random_delete_async(tdata, cdata, coord, stage, adata);
 		}
-
-		uint64_t pause_for =
-			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
-		timespec_add_us(&wake_time, pause_for);
-		thr_coordinator_sleep(coord, &wake_time);
 	}
 	else {
 		int rv;
@@ -1389,11 +1356,6 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		return;
 	}
 
-	int rv;
-	uint64_t n_adatas = cdata->async_max_commands;
-	struct async_data_s* adatas =
-		(struct async_data_s*) cf_calloc(sizeof(struct async_data_s), n_adatas);
-
 	switch (stage->workload.type) {
 	case WORKLOAD_TYPE_RU:
 	case WORKLOAD_TYPE_RR:
@@ -1406,14 +1368,33 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		break;
 	}
 
-	for (uint32_t i = 0; i < n_adatas; i++) {
-		struct async_data_s* adata = &adatas[i];
+	uint64_t n_remaining = cdata->async_max_commands;
+	struct async_data_s* adatas =
+		(struct async_data_s*) cf_calloc(sizeof(struct async_data_s), n_remaining);
+	struct async_data_s* remaining[n_remaining];
+
+	for (uint32_t i = 0; i < n_remaining; i++) {
+		remaining[i] = &adatas[i];
+	}
+
+	// microseconds per txn
+	uint64_t min_usleep = (double)1.0 / (double)stage->tps * 1000000;
+
+	min_usleep = min_usleep > 0 ? 1 : min_usleep;
+	tdata->min_usleep = min_usleep;
+
+	atomic_store(&tdata->async_throttle, stage->tps == 0 ? INT64_MAX : 0);
+
+	for (uint32_t i = 0; i < n_remaining; i++) {
+		struct async_data_s* adata = remaining[i];
 
 		adata->tdata = tdata;
 		adata->cdata = cdata;
 		adata->coord = coord;
 		adata->stage = stage;
 		adata->ev_loop = NULL;
+
+		int rv;
 
 		if ((rv = pthread_mutex_init(&adata->done_lock, NULL)) != 0) {
 			blog_error("failed to initialize mutex - %d\n", rv);
@@ -1450,24 +1431,92 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		}
 	}
 
-	// wait for all the async calls to finish
-	for (uint32_t i = 0; i < n_adatas; i++) {
-		struct async_data_s* adata = &adatas[i];
+	const uint64_t nsps = 1000 * 1000 * 1000; // nsec per sec
+	// Loads one min_usleep worth of txns.
+	cf_clock start_time = cf_getns() - (min_usleep * 1000);
+	double prior_contig_unworked = 0.0;
 
-		if ((rv = pthread_mutex_lock(&adata->done_lock)) != 0) {
-			blog_error("failed to lock mutex - %d\n", rv);
-			exit(-1);
+	// Wait for all the async calls to finish
+	while (n_remaining != 0) {
+		uint32_t remaining_write_i = 0;
+
+		// Checks if any worker is finished.
+		for (uint32_t i = 0; i < n_remaining; i++) {
+			int rv;
+			struct async_data_s* adata = remaining[i];
+
+			if (stage->tps != 0) {
+				if ((rv = pthread_mutex_trylock(&adata->done_lock)) != 0) {
+					if (rv == EBUSY) {
+						remaining[remaining_write_i++] = adata;
+						continue;
+					}
+
+					blog_error("failed to lock mutex - %d\n", rv);
+					exit(-1);
+				}
+			}
+			else {
+				if ((rv = pthread_mutex_lock(&adata->done_lock)) != 0) {
+					blog_error("failed to lock mutex - %d\n", rv);
+					exit(-1);
+				}
+			}
+
+			if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
+				blog_error("failed to unlock mutex - %d\n", rv);
+				exit(-1);
+			}
+
+			if ((rv = pthread_mutex_destroy(&adata->done_lock)) != 0) {
+				blog_error("failed to destroy mutex - %d\n", rv);
+				exit(-1);
+			}
 		}
 
-		if ((rv = pthread_mutex_unlock(&adata->done_lock)) != 0) {
-			blog_error("failed to unlock mutex - %d\n", rv);
-			exit(-1);
+		// If any worker finished then we are done with transactions.
+		if (remaining_write_i != n_remaining) {
+			if (remaining_write_i == 0) {
+				break;
+			}
+			// Else - still need to cleanup memory.
+
+			n_remaining = remaining_write_i;
+			continue;
 		}
 
-		if ((rv = pthread_mutex_destroy(&adata->done_lock)) != 0) {
-			blog_error("failed to destroy mutex - %d\n", rv);
-			exit(-1);
+		cf_clock now_time = cf_getns();
+		cf_clock delta_time = now_time - start_time;
+
+		start_time = now_time;
+
+		double delta_s = (double)delta_time / nsps;
+		double contig_work = (delta_s * stage->tps) + prior_contig_unworked;
+		uint64_t discreet_work = (uint64_t)contig_work;
+
+		if (discreet_work > 0) {
+			uint64_t target_per_thread = 4;
+
+			// Accumulate the fraction of work missed by discreet_work.
+			prior_contig_unworked = contig_work - discreet_work;
+
+			blog_info("XXX adatas %lu discreet_work %lu contig_work %lf prior_contig_unworked %lf\n",
+					  n_remaining, discreet_work, contig_work, prior_contig_unworked);
+
+			do {
+				uint64_t work = discreet_work < target_per_thread ?
+								discreet_work : target_per_thread;
+
+				discreet_work -= work;
+				atomic_fetch_add(&tdata->async_throttle, work);
+			}
+			while (discreet_work != 0);
 		}
+		else {
+			prior_contig_unworked = contig_work;
+		}
+
+		usleep(min_usleep);
 	}
 
 	switch (stage->workload.type) {
