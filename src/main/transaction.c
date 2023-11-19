@@ -31,7 +31,7 @@
 
 struct async_data_s;
 
-struct async_data_s {
+typedef struct async_data_s {
 	tdata_t* tdata;
 	cdata_t* cdata;
 	thr_coord_t* coord;
@@ -58,7 +58,7 @@ struct async_data_s {
 	} op;
 
 	pthread_mutex_t done_lock;
-};
+} async_data_t;
 
 
 //==========================================================
@@ -86,12 +86,12 @@ LOCAL_HELPER int _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* co
 
 // Read/Write singular/batch asynchronous operations
 LOCAL_HELPER int _write_record_async(as_key* key, as_record* rec,
-		struct async_data_s* adata, tdata_t* tdata, cdata_t* cdata);
-LOCAL_HELPER int _read_record_async(as_key* key, struct async_data_s* adata,
+		async_data_t* adata, tdata_t* tdata, cdata_t* cdata);
+LOCAL_HELPER int _read_record_async(as_key* key, async_data_t* adata,
 		tdata_t* tdata, cdata_t* cdata, const stage_t* stage);
 LOCAL_HELPER int _batch_read_record_async(as_batch_read_records* keys,
-		struct async_data_s* adata, tdata_t* tdata, cdata_t* cdata);
-LOCAL_HELPER int _apply_udf_async(as_key* key, struct async_data_s* adata,
+		async_data_t* adata, tdata_t* tdata, cdata_t* cdata);
+LOCAL_HELPER int _apply_udf_async(as_key* key, async_data_t* adata,
 		tdata_t* tdata, cdata_t* cdata, const stage_t* stage);
 
 // Thread worker helper methods
@@ -128,13 +128,13 @@ LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 
 // Asynchronous workload helper methods
 LOCAL_HELPER void random_read_async(tdata_t* tdata, cdata_t* cdata,
-		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
+		thr_coord_t* coord, const stage_t* stage, async_data_t* adata);
 LOCAL_HELPER void random_write_async(tdata_t* tdata, cdata_t* cdata,
-		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
+		thr_coord_t* coord, const stage_t* stage, async_data_t* adata);
 LOCAL_HELPER void random_udf_async(tdata_t* tdata, cdata_t* cdata,
-		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
+		thr_coord_t* coord, const stage_t* stage, async_data_t* adata);
 LOCAL_HELPER void random_delete_async(tdata_t* tdata, cdata_t* cdata,
-		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
+		thr_coord_t* coord, const stage_t* stage, async_data_t* adata);
 
 // Asynchronous workload methods
 LOCAL_HELPER void _async_listener(as_error* err, void* udata,
@@ -147,17 +147,27 @@ LOCAL_HELPER void _async_batch_read_listener(as_error* err,
 		as_batch_read_records* records, void* udata, as_event_loop* event_loop);
 LOCAL_HELPER void _async_val_listener(as_error* err, as_val* val, void* udata,
 		as_event_loop* event_loop);
-LOCAL_HELPER void linear_writes_async(struct async_data_s* adata);
-LOCAL_HELPER void random_read_write_async(struct async_data_s* adata);
-LOCAL_HELPER void random_read_write_udf_async(struct async_data_s* adata);
-LOCAL_HELPER void linear_deletes_async(struct async_data_s* adata);
-LOCAL_HELPER void random_read_write_delete_async(struct async_data_s* adata);
+LOCAL_HELPER void linear_writes_async(async_data_t* adata);
+LOCAL_HELPER void random_read_write_async(async_data_t* adata);
+LOCAL_HELPER void random_read_write_udf_async(async_data_t* adata);
+LOCAL_HELPER void linear_deletes_async(async_data_t* adata);
+LOCAL_HELPER void random_read_write_delete_async(async_data_t* adata);
 
 // Main worker thread loop
 LOCAL_HELPER void do_sync_workload(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, stage_t* stage);
 LOCAL_HELPER void do_async_workload(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, stage_t* stage);
+LOCAL_HELPER void async_workload_init_coord(thr_coord_t* coord,
+		const stage_t* stage);
+LOCAL_HELPER void async_workload_start_workers(async_data_t** worker_datas,
+		tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord, stage_t* stage);
+LOCAL_HELPER bool async_workload_is_done(async_data_t** worker_datas,
+		uint32_t n_workers, uint64_t tps);
+LOCAL_HELPER void async_workload_distribute(cf_clock delta_time,
+		double* prior_contig_unworked, uint64_t tps, tdata_t* tdata);
+LOCAL_HELPER void async_workload_notify_coord_done(thr_coord_t* coord,
+		const stage_t* stage);
 LOCAL_HELPER void init_stage(const cdata_t* cdata, tdata_t* tdata,
 		stage_t* stage);
 LOCAL_HELPER void terminate_stage(const cdata_t* cdata, tdata_t* tdata,
@@ -456,7 +466,7 @@ _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
  *****************************************************************************/
 
 LOCAL_HELPER int
-_write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
+_write_record_async(as_key* key, as_record* rec, async_data_t* adata,
 		tdata_t* tdata, cdata_t* cdata)
 {
 	as_status status;
@@ -475,7 +485,7 @@ _write_record_async(as_key* key, as_record* rec, struct async_data_s* adata,
 }
 
 LOCAL_HELPER int
-_read_record_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
+_read_record_async(as_key* key, async_data_t* adata, tdata_t* tdata,
 		cdata_t* cdata, const stage_t* stage)
 {
 	as_status status;
@@ -503,7 +513,7 @@ _read_record_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
 }
 
 LOCAL_HELPER int
-_batch_read_record_async(as_batch_read_records* keys, struct async_data_s* adata,
+_batch_read_record_async(as_batch_read_records* keys, async_data_t* adata,
 		tdata_t* tdata, cdata_t* cdata)
 {
 	as_status status;
@@ -523,7 +533,7 @@ _batch_read_record_async(as_batch_read_records* keys, struct async_data_s* adata
 }
 
 LOCAL_HELPER int
-_apply_udf_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
+_apply_udf_async(as_key* key, async_data_t* adata, tdata_t* tdata,
 		cdata_t* cdata, const stage_t* stage)
 {
 	as_status status;
@@ -932,7 +942,7 @@ random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 
 LOCAL_HELPER void
 random_read_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		const stage_t* stage, struct async_data_s* adata)
+		const stage_t* stage, async_data_t* adata)
 {
 	uint32_t batch_size = stage->batch_size;
 
@@ -969,7 +979,7 @@ random_read_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER void
 random_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		const stage_t* stage, struct async_data_s* adata)
+		const stage_t* stage, async_data_t* adata)
 {
 	as_record* rec;
 
@@ -987,7 +997,7 @@ random_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER void
 random_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		const stage_t* stage, struct async_data_s* adata)
+		const stage_t* stage, async_data_t* adata)
 {
 	// generate a random key
 	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
@@ -999,7 +1009,7 @@ random_udf_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 LOCAL_HELPER void
 random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
-		const stage_t* stage, struct async_data_s* adata)
+		const stage_t* stage, async_data_t* adata)
 {
 	as_record* rec;
 
@@ -1023,7 +1033,7 @@ random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 LOCAL_HELPER void
 _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 {
-	struct async_data_s* adata = (struct async_data_s*) udata;
+	async_data_t* adata = (async_data_t*) udata;
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
 
@@ -1085,11 +1095,11 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 
 	int64_t v;
 
-	while ((v = atomic_fetch_sub(&tdata->async_throttle, 1)) <= 0) {
-		atomic_fetch_add(&tdata->async_throttle, 1);
+	while ((v = atomic_fetch_sub(&tdata->async_req_quota, 1)) <= 0) {
+		atomic_fetch_add(&tdata->async_req_quota, 1);
 
 		// Not immediately looping back to sub to avoid cache invalidation.
-		while ((v = atomic_load(&tdata->async_throttle)) <= 0) {
+		while ((v = atomic_load(&tdata->async_req_quota)) <= 0) {
 			usleep(tdata->min_usleep / 4);
 		}
 	}
@@ -1131,7 +1141,7 @@ _async_val_listener(as_error* err, as_val* val, void* udata,
 }
 
 LOCAL_HELPER void
-linear_writes_async(struct async_data_s* adata)
+linear_writes_async(async_data_t* adata)
 {
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
@@ -1167,7 +1177,7 @@ linear_writes_async(struct async_data_s* adata)
 }
 
 LOCAL_HELPER void
-random_read_write_async(struct async_data_s* adata)
+random_read_write_async(async_data_t* adata)
 {
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
@@ -1200,7 +1210,7 @@ random_read_write_async(struct async_data_s* adata)
 }
 
 LOCAL_HELPER void
-random_read_write_udf_async(struct async_data_s* adata)
+random_read_write_udf_async(async_data_t* adata)
 {
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
@@ -1240,7 +1250,7 @@ random_read_write_udf_async(struct async_data_s* adata)
 }
 
 LOCAL_HELPER void
-linear_deletes_async(struct async_data_s* adata)
+linear_deletes_async(async_data_t* adata)
 {
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
@@ -1276,7 +1286,7 @@ linear_deletes_async(struct async_data_s* adata)
 }
 
 LOCAL_HELPER void
-random_read_write_delete_async(struct async_data_s* adata)
+random_read_write_delete_async(async_data_t* adata)
 {
 	tdata_t* tdata = adata->tdata;
 	cdata_t* cdata = adata->cdata;
@@ -1350,13 +1360,60 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 {
 	uint32_t t_idx = tdata->t_idx;
 
-	// thread 0 is designated to handle async calls, the rest can immediately
-	// terminate
+	// Thread 0 is designated to handle async calls, the rest can immediately
+	// terminate.
 	if (t_idx != 0) {
 		thr_coordinator_complete(coord);
 		return;
 	}
 
+	async_workload_init_coord(coord, stage);
+
+	uint32_t n_workers = cdata->async_max_commands;
+	async_data_t* adatas =
+		(async_data_t*)cf_calloc(sizeof(async_data_t), n_workers);
+	async_data_t* worker_datas[n_workers];
+
+	for (uint32_t i = 0; i < n_workers; i++) {
+		worker_datas[i] = &adatas[i];
+	}
+
+	uint64_t tps = stage->tps;
+
+	// Microseconds per txn.
+	uint64_t min_usleep = (double)1.0 / (double)tps * 1000000;
+
+	min_usleep = min_usleep > 0 ? 1 : min_usleep;
+	tdata->min_usleep = min_usleep;
+
+	atomic_store(&tdata->async_req_quota, tps == 0 ? INT64_MAX : 0);
+
+	async_workload_start_workers(worker_datas, tdata, cdata, coord, stage);
+
+	// Reduction causes the loading of one min_usleep worth of txns.
+	cf_clock start_time = cf_getns() - (min_usleep * 1000);
+	double prior_contig_unworked = 0.0;
+
+	while (! async_workload_is_done(worker_datas, n_workers, tps)) {
+		cf_clock now_time = cf_getns();
+		cf_clock delta_time = now_time - start_time;
+
+		start_time = now_time;
+
+		async_workload_distribute(delta_time, &prior_contig_unworked, tps,
+			tdata);
+		usleep(min_usleep); // wait for more work
+	}
+
+	async_workload_notify_coord_done(coord, stage);
+
+	// free the async_data structs
+	cf_free(adatas);
+}
+
+LOCAL_HELPER void
+async_workload_init_coord(thr_coord_t* coord, const stage_t* stage)
+{
 	switch (stage->workload.type) {
 	case WORKLOAD_TYPE_RU:
 	case WORKLOAD_TYPE_RR:
@@ -1368,26 +1425,16 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	default:
 		break;
 	}
+}
 
-	uint64_t n_remaining = cdata->async_max_commands;
-	struct async_data_s* adatas =
-		(struct async_data_s*) cf_calloc(sizeof(struct async_data_s), n_remaining);
-	struct async_data_s* remaining[n_remaining];
+LOCAL_HELPER void
+async_workload_start_workers(async_data_t** worker_datas, tdata_t* tdata,
+		cdata_t* cdata, thr_coord_t* coord, stage_t* stage)
+{
+	uint64_t n_workers = cdata->async_max_commands;
 
-	for (uint32_t i = 0; i < n_remaining; i++) {
-		remaining[i] = &adatas[i];
-	}
-
-	// microseconds per txn
-	uint64_t min_usleep = (double)1.0 / (double)stage->tps * 1000000;
-
-	min_usleep = min_usleep > 0 ? 1 : min_usleep;
-	tdata->min_usleep = min_usleep;
-
-	atomic_store(&tdata->async_throttle, stage->tps == 0 ? INT64_MAX : 0);
-
-	for (uint32_t i = 0; i < n_remaining; i++) {
-		struct async_data_s* adata = remaining[i];
+	for (uint32_t i = 0; i < n_workers; i++) {
+		async_data_t* adata = worker_datas[i];
 
 		adata->tdata = tdata;
 		adata->cdata = cdata;
@@ -1431,25 +1478,23 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			break;
 		}
 	}
+}
 
-	const uint64_t nsps = 1000 * 1000 * 1000; // nsec per sec
-	// Loads one min_usleep worth of txns.
-	cf_clock start_time = cf_getns() - (min_usleep * 1000);
-	double prior_contig_unworked = 0.0;
+LOCAL_HELPER bool
+async_workload_is_done(async_data_t** worker_datas, uint32_t n_workers,
+		uint64_t tps)
+{
+	while (true) {
+		uint32_t worker_datas_write_i = 0;
 
-	// Wait for all the async calls to finish
-	while (n_remaining != 0) {
-		uint32_t remaining_write_i = 0;
-
-		// Checks if any worker is finished.
-		for (uint32_t i = 0; i < n_remaining; i++) {
+		for (uint32_t i = 0; i < n_workers; i++) {
 			int rv;
-			struct async_data_s* adata = remaining[i];
+			async_data_t* adata = worker_datas[i];
 
-			if (stage->tps != 0) {
+			if (tps != 0) {
 				if ((rv = pthread_mutex_trylock(&adata->done_lock)) != 0) {
 					if (rv == EBUSY) {
-						remaining[remaining_write_i++] = adata;
+						worker_datas[worker_datas_write_i++] = adata;
 						continue;
 					}
 
@@ -1476,47 +1521,52 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		}
 
 		// If any worker finished then we are done with transactions.
-		if (remaining_write_i != n_remaining) {
-			if (remaining_write_i == 0) {
-				break;
+		if (worker_datas_write_i != n_workers) {
+			if (worker_datas_write_i == 0) {
+				return true;
 			}
-			// Else - still need to cleanup memory.
+			// Else - done but need to wait for other workers to finish.
 
-			n_remaining = remaining_write_i;
+			n_workers = worker_datas_write_i;
 			continue;
 		}
 
-		cf_clock now_time = cf_getns();
-		cf_clock delta_time = now_time - start_time;
-
-		start_time = now_time;
-
-		double delta_s = (double)delta_time / nsps;
-		double contig_work = (delta_s * stage->tps) + prior_contig_unworked;
-		uint64_t discreet_work = (uint64_t)contig_work;
-
-		if (discreet_work > 0) {
-			uint64_t target_per_thread = 4;
-
-			// Accumulate the fraction of work missed by discreet_work.
-			prior_contig_unworked = contig_work - discreet_work;
-
-
-			while (discreet_work != 0) {
-				uint64_t work = discreet_work < target_per_thread ?
-								discreet_work : target_per_thread;
-
-				int64_t v = atomic_fetch_add(&tdata->async_throttle, work);
-				discreet_work -= work;
-			}
-		}
-		else {
-			prior_contig_unworked = contig_work;
-		}
-
-		usleep(min_usleep);
+		break; // not done
 	}
 
+	return false;
+}
+
+LOCAL_HELPER void
+async_workload_distribute(cf_clock delta_time, double* prior_contig_unworked,
+		uint64_t tps, tdata_t* tdata)
+{
+	double delta_sec = (double)delta_time / (1000000000) /*nsec per sec*/;
+	double contig_work = (delta_sec * tps) + *prior_contig_unworked;
+	uint64_t discreet_work = (uint64_t)contig_work;
+
+	if (discreet_work > 0) {
+		uint64_t target_per_thread = 4;
+
+		// Accumulate the fraction of work missed by discreet_work.
+		*prior_contig_unworked = contig_work - discreet_work;
+
+		while (discreet_work != 0) {
+			uint64_t work = discreet_work < target_per_thread ?
+				discreet_work : target_per_thread;
+
+			atomic_fetch_add(&tdata->async_req_quota, work);
+			discreet_work -= work;
+		}
+	}
+	else {
+		*prior_contig_unworked = contig_work;
+	}
+}
+
+LOCAL_HELPER void
+async_workload_notify_coord_done(thr_coord_t* coord, const stage_t* stage)
+{
 	switch (stage->workload.type) {
 	case WORKLOAD_TYPE_I:
 	case WORKLOAD_TYPE_D:
@@ -1527,9 +1577,6 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	default:
 		break;
 	}
-
-	// free the async_data structs
-	cf_free(adatas);
 }
 
 LOCAL_HELPER void

@@ -161,7 +161,7 @@ typedef struct threaddata_s {
 	as_random* random;
 	dyn_throttle_t dyn_throttle;
 	uint64_t min_usleep;
-	_Atomic(int64_t) async_throttle;
+	_Atomic(int64_t) async_req_quota;
 
 
 	// thread index: [0, n_threads)
