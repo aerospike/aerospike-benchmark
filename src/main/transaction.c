@@ -1083,11 +1083,12 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 		}
 	}
 
-	uint64_t v;
+	int64_t v;
 
 	while ((v = atomic_fetch_sub(&tdata->async_throttle, 1)) <= 0) {
 		atomic_fetch_add(&tdata->async_throttle, 1);
 
+		// Not immediately looping back to sub to avoid cache invalidation.
 		while ((v = atomic_load(&tdata->async_throttle)) <= 0) {
 			usleep(tdata->min_usleep / 4);
 		}
@@ -1500,17 +1501,14 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			// Accumulate the fraction of work missed by discreet_work.
 			prior_contig_unworked = contig_work - discreet_work;
 
-			blog_info("XXX adatas %lu discreet_work %lu contig_work %lf prior_contig_unworked %lf\n",
-					  n_remaining, discreet_work, contig_work, prior_contig_unworked);
 
-			do {
+			while (discreet_work != 0) {
 				uint64_t work = discreet_work < target_per_thread ?
 								discreet_work : target_per_thread;
 
+				int64_t v = atomic_fetch_add(&tdata->async_throttle, work);
 				discreet_work -= work;
-				atomic_fetch_add(&tdata->async_throttle, work);
 			}
-			while (discreet_work != 0);
 		}
 		else {
 			prior_contig_unworked = contig_work;
