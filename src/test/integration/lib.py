@@ -280,6 +280,9 @@ def stop():
 	Disconnects the client and stops the running asd process.
 	"""
 	if RUNNING:
+		print("resetting asd")
+		reset()
+
 		print("Disconnecting client")
 
 		if CLIENT is None:
