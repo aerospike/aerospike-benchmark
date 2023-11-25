@@ -1381,7 +1381,7 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	uint64_t tps = stage->tps;
 
 	// Microseconds per txn.
-	uint64_t min_usleep = (double)1.0 / (double)tps * 1000000;
+	uint64_t min_usleep = ((double)1.0 / (double)tps) * 1000000;
 
 	min_usleep = min_usleep > 0 ? 1 : min_usleep;
 	tdata->min_usleep = min_usleep;
@@ -1546,18 +1546,10 @@ async_workload_distribute(cf_clock delta_time, double* prior_contig_unworked,
 	uint64_t discreet_work = (uint64_t)contig_work;
 
 	if (discreet_work > 0) {
-		uint64_t target_per_thread = 4;
-
 		// Accumulate the fraction of work missed by discreet_work.
 		*prior_contig_unworked = contig_work - discreet_work;
 
-		while (discreet_work != 0) {
-			uint64_t work = discreet_work < target_per_thread ?
-				discreet_work : target_per_thread;
-
-			atomic_fetch_add(&tdata->async_req_quota, work);
-			discreet_work -= work;
-		}
+		atomic_fetch_add(&tdata->async_req_quota, discreet_work);
 	}
 	else {
 		*prior_contig_unworked = contig_work;
