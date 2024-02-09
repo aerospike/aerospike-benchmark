@@ -302,12 +302,32 @@ benchmark_init(int argc, char* argv[])
 // Local helpers.
 //
 
-LOCAL_HELPER void
+static void
 print_version()
 {
-	fprintf(stdout, "Aerospike Benchmark Utility\n");
-	fprintf(stdout, "Version %s\n", TOOL_VERSION);
-	fprintf(stdout, "C Client Version %s\n", aerospike_client_version);
+	char* build = NULL;
+	char* version_cpy = strdup(TOOL_VERSION);
+	char* token = strtok(version_cpy, "-");
+	char* version = token;
+
+	token = strtok(NULL, "-");
+
+	while (token != NULL) {
+		token = strtok(NULL, "-");
+
+		if (token != NULL) {
+			build = token;
+		}
+	}
+	
+	fprintf(stdout, "Aerospike Benchmark\n");
+	fprintf(stdout, "Version %s\n", version);
+
+	if (build != NULL) {
+		fprintf(stdout, "Build %s\n", build);
+	}
+
+	free(version_cpy);
 }
 
 LOCAL_HELPER void
