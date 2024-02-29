@@ -302,7 +302,7 @@ benchmark_init(int argc, char* argv[])
 // Local helpers.
 //
 
-static void
+LOCAL_HELPER void
 print_version()
 {
 	char* build = NULL;
