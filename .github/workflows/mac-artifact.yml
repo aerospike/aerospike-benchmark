@@ -78,7 +78,7 @@ jobs:
         if_true: asbench
         if_false: asbench-${{ matrix.ev-lib }}
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with: 
         name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.artifact-name.outputs.value }}
         path: ${{ steps.working-dir.outputs.value }}/target/asbench
