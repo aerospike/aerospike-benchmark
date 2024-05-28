@@ -89,13 +89,13 @@ jobs:
     if: "${{ inputs.submodule == '' }}"
 
     steps:
-      - uses: kenchan0130/actions-system-info@v1.1.0
+      - uses: kenchan0130/actions-system-info@v1.3.0
         id: system-info
       - name: Get artifacts
         uses: actions/download-artifact@v3
         with:
           path: target
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: binaries
           path: target
