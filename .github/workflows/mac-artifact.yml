@@ -14,11 +14,11 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [macos-11, macos-14]
+        os: [macos-12, macos-14]
         # ev-lib: ["", libev, libuv, libevent]
         ev-lib: [libuv]   
         include:
-          - os: macos-11
+          - os: macos-12
             openssl-path: /usr/local/opt/openssl
             ev-path: /usr/local
           - os: macos-14
