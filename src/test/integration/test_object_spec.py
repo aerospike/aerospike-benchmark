@@ -159,7 +159,8 @@ def test_list():
 
 def test_map():
 	def check_bin(b):
-		assert(type(b) is dict)
+		# Python client may return a aerospike.KeyOrderedDict
+		assert(issubclass(type(b), dict))
 		assert(len(b) == 50)
 		for key in b:
 			lib.obj_spec_is_S(key, 5)
@@ -171,7 +172,8 @@ def test_map():
 
 def test_const_map():
 	def check_bin(b):
-		assert(type(b) is dict)
+		# Python client may return a aerospike.KeyOrderedDict
+		assert(issubclass(type(b), dict))
 		assert(len(b) == 1)
 		for key in b:
 			lib.obj_spec_is_const_I(key, 123)
@@ -186,7 +188,8 @@ def test_compound():
 		assert(type(b) is list)
 		assert(len(b) == 3)
 
-		assert(type(b[0]) is dict)
+		# Python client may return a aerospike.KeyOrderedDict
+		assert(issubclass(type(b[0]), dict))
 		assert(len(b[0]) == 50)
 		for key in b[0]:
 			lib.obj_spec_is_S(key, 5)
@@ -199,7 +202,9 @@ def test_compound():
 
 		lib.obj_spec_is_D(b[2][0])
 		lib.obj_spec_is_I2(b[2][1])
-		assert(type(b[2][2]) is dict)
+
+		# Python client may return a aerospike.KeyOrderedDict
+		assert(issubclass(type(b[2][2]), dict))
 		assert(len(b[2][2]) == 10)
 		for key in b[2][2]:
 			lib.obj_spec_is_I5(key)
@@ -231,7 +236,9 @@ def test_compound_multiple_bins():
 
 		assert(type(b["testbin"]) is list)
 		lib.obj_spec_is_I1(b["testbin"][0])
-		assert(type(b["testbin"][1]) is dict)
+
+		# Python client may return a aerospike.KeyOrderedDict
+		assert(issubclass(type(b["testbin"][1]), dict))
 		assert(len(b["testbin"][1]) == 45)
 		for key in b["testbin"][1]:
 			lib.obj_spec_is_S(key, 32)
@@ -240,7 +247,8 @@ def test_compound_multiple_bins():
 		lib.obj_spec_is_I2(b["testbin_2"])
 		lib.obj_spec_is_I3(b["testbin_3"])
 
-		assert(type(b["testbin_4"]) is dict)
+		# Python client may return a aerospike.KeyOrderedDict
+		assert(issubclass(type(b["testbin_4"]), dict))
 		assert(len(b["testbin_4"]) == 1)
 		for key in b["testbin_4"]:
 			lib.obj_spec_is_S(key, 10)
