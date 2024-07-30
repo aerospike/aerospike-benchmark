@@ -1,7 +1,7 @@
 name: Mac Artifact
 on:
   push:
-    branches: [ main, test-ready, "bugfix-*" ]
+    branches: [ main, actionsHub, "bugfix-*" ]
   pull_request:
     branches: []
   workflow_call:
@@ -12,10 +12,19 @@ on:
         type: string
 jobs:
   build:
-    runs-on: macos-11
     strategy:
       matrix:
-        ev-lib: ["", libev, libuv, libevent]
+        os: [macos-12, macos-14]
+        # ev-lib: ["", libev, libuv, libevent]
+        ev-lib: [libuv]   
+        include:
+          - os: macos-12
+            openssl-path: /usr/local/opt/openssl
+            ev-path: /usr/local
+          - os: macos-14
+            openssl-path: /opt/homebrew/opt/openssl
+            ev-path: /opt/homebrew
+    runs-on: ${{ matrix.os }}
     env:
       LIBYAML_VERSION: 0.2.5
     steps:
@@ -33,7 +42,7 @@ jobs:
         cond: ${{ inputs.submodule != '' }}
         if_true: aerospike-tools/${{ inputs.submodule }}  # In this case we are expecting to checkout the tools package.
         if_false: asbench
-    - uses: kenchan0130/actions-system-info@v1.1.0
+    - uses: kenchan0130/actions-system-info@v1.3.0
       id: system-info
     - name: Install dependencies from brew
       run: |
@@ -55,7 +64,7 @@ jobs:
         git describe --tags --always
     - name: Build asbench
       run: |
-        make EVENT_LIB=${{ matrix.ev-lib }} LIBUV_STATIC_PATH=/usr/local/lib LIBEVENT_STATIC_PATH=/usr/local/lib LIBEV_STATIC_PATH=/usr/local/lib OPENSSL_STATIC_PATH=/usr/local/opt/openssl/lib
+        make EVENT_LIB=${{ matrix.ev-lib }} LIBUV_STATIC_PATH=${{ matrix.ev-path }}/lib LIBEVENT_STATIC_PATH=${{ matrix.ev-path }}/lib LIBEV_STATIC_PATH=${{ matrix.ev-path }}/lib OPENSSL_STATIC_PATH=${{ matrix.openssl-path }}/lib
       working-directory: ${{ steps.working-dir.outputs.value }}
     - name: Sanity test asbench artifact
       run: |
@@ -69,24 +78,24 @@ jobs:
         if_true: asbench
         if_false: asbench-${{ matrix.ev-lib }}
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with: 
         name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.artifact-name.outputs.value }}
         path: ${{ steps.working-dir.outputs.value }}/target/asbench
         if-no-files-found: error
   bundle-binaries:
     needs: build
-    runs-on: macos-11
+    runs-on: macos-14
     if: "${{ inputs.submodule == '' }}"
 
     steps:
-      - uses: kenchan0130/actions-system-info@v1.1.0
+      - uses: kenchan0130/actions-system-info@v1.3.0
         id: system-info
       - name: Get artifacts
         uses: actions/download-artifact@v3
         with:
           path: target
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: binaries
           path: target
