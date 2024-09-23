@@ -1861,7 +1861,7 @@ _load_defaults(args_t* args)
 	args->set = "testset";
 	args->bin_name = strdup("testbin");
 	args->start_key = 1;
-	args->keys = 1000008;
+	args->keys = 1000000;
 	memset(&args->stage_defs, 0, sizeof(struct stage_defs_s));
 	args->workload_stages_file = NULL;
 	obj_spec_parse(&args->obj_spec, "I");

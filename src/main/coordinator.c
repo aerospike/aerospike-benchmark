@@ -124,6 +124,7 @@ coordinator_worker(void* udata)
 	cdata_t* cdata = args->cdata;
 	tdata_t** tdatas = args->tdatas;
 	uint32_t n_threads = args->n_threads;
+	uint32_t worker_threads = args->cdata->transaction_worker_threads;
 	as_random random;
 
 	uint32_t n_stages = cdata->stages.n_stages;
@@ -145,12 +146,12 @@ coordinator_worker(void* udata)
 				}
 			}
 			else { // TODO when async is multithreaded change this
-				if (stage->batch_write_size * n_threads > nkeys) {
+				if (stage->batch_write_size * worker_threads > nkeys) {
 					blog_warn("--batch-write-size * --threads is greater than --keys so "
 								"more than --keys records will be written\n");
 				}
 
-				if (nkeys % (stage->batch_write_size * n_threads) != 0) {
+				if (nkeys % (stage->batch_write_size * worker_threads) != 0) {
 					blog_warn("--keys is not divisible by (--batch-write-size * --threads) so more than "
 								"--keys records will be written\n");
 				}
@@ -167,12 +168,12 @@ coordinator_worker(void* udata)
 				}
 			}
 			else { // TODO when async is multithreaded change this
-				if (stage->batch_delete_size * n_threads > nkeys) {
+				if (stage->batch_delete_size * worker_threads > nkeys) {
 					blog_warn("--batch-delete-size * --threads is greater than --keys so more than "
 								"--keys records will be deleted\n");
 				}
 
-				if (nkeys % (stage->batch_delete_size * n_threads) != 0) {
+				if (nkeys % (stage->batch_delete_size * worker_threads) != 0) {
 					blog_warn("--keys is not divisible by (--batch-delete-size * --threads) so more than "
 								"--keys records will be deleted\n");
 				}
