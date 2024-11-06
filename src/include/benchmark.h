@@ -160,11 +160,17 @@ typedef struct threaddata_s {
 	struct thr_coordinator_s* coord;
 	as_random* random;
 	dyn_throttle_t dyn_throttle;
+	uint64_t min_usleep;
+	_Atomic(int64_t) async_req_quota;
+
 
 	// thread index: [0, n_threads)
 	uint32_t t_idx;
 	// which workload stage we're currrently on
 	_Atomic(uint32_t) stage_idx;
+
+	// For async linear workloads
+	_Atomic(uint64_t) current_key;
 
 	/*
 	 * note: to stop threads, tdata->finished must be set before tdata->do_work
