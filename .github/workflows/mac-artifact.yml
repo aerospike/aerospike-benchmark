@@ -83,7 +83,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with: 
-        name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ runner.os }}-${{ steps.system-info.outputs.release }}-${{ steps.artifact-name.outputs.value }}
+        name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ matrix.os }}-${{ steps.system-info.outputs.release }}-${{ steps.artifact-name.outputs.value }}
         path: ${{ steps.working-dir.outputs.value }}/target/asbench
         if-no-files-found: error
   bundle-binaries:
