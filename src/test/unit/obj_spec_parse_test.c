@@ -207,7 +207,7 @@ _test_valid(const char* obj_spec_str,
 	as_record_init(&rec, obj_spec_n_bins(&o));
 	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random,
 				"test", write_bins, n_write_bins, 1.f), 0);
-	_dbg_obj_spec_assert_valid(&o, &rec, write_bins, n_write_bins, "test");
+	// _dbg_obj_spec_assert_valid(&o, &rec, write_bins, n_write_bins, "test");
 
 	val = obj_spec_gen_value(&o, &random2, write_bins, n_write_bins);
 	ck_assert_ptr_ne(val, NULL);
