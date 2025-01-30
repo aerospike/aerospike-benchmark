@@ -81,7 +81,7 @@ LOCAL_HELPER void _destroy_consumer_states(struct consumer_state_s* state);
 LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 		const char* const obj_spec_str);
 LOCAL_HELPER int _parse_const_val(const char* const obj_spec_str,
-		const char** stream, struct bin_spec_s* bin_spec, char delim);
+		const char** stream, struct bin_spec_s* bin_spec, char delim, uint8_t type, uint8_t map_state);
 LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
 LOCAL_HELPER as_val* _gen_random_bool(as_random* random);
 LOCAL_HELPER as_val* _gen_random_int(uint8_t range, as_random* random);
@@ -1234,7 +1234,7 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 				default: {
 					const char* prev_str = str;
 					// try parsing as a constant value
-					if (_parse_const_val(obj_spec_str, &str, bin_spec, state->delimiter) != 0) {
+					if (_parse_const_val(obj_spec_str, &str, bin_spec, state->delimiter, state->type, state->state) != 0) {
 						_destroy_consumer_states(state);
 						return -1;
 					}
@@ -1382,12 +1382,16 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 
 LOCAL_HELPER int
 _parse_const_val(const char* const obj_spec_str,
-		const char** str_ptr, struct bin_spec_s* bin_spec, char delim)
+		const char** str_ptr, struct bin_spec_s* bin_spec, char delim, uint8_t type, uint8_t map_state)
 {
 	const char* str = *str_ptr;
 	switch (*str) {
 		case 'T':
 			if (!isalpha(str[1])) {
+				if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {  // Reject bool as map key
+					_print_parse_error("Map key cannot be boolean", obj_spec_str, str);
+					return -1;
+				}
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_true;
 				*str_ptr = str + 1;
@@ -1395,6 +1399,10 @@ _parse_const_val(const char* const obj_spec_str,
 			}
 		case 't':
 			if (strncasecmp(str, "true", 4) == 0 && !isalpha(str[4])) {
+				if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {  // Reject bool as map key
+					_print_parse_error("Map key cannot be boolean", obj_spec_str, str);
+					return -1;
+				}
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_true;
 				*str_ptr = str + 4;
@@ -1404,6 +1412,10 @@ _parse_const_val(const char* const obj_spec_str,
 
 		case 'F':
 			if (!isalpha(str[1])) {
+				if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {  // Reject bool as map key
+					_print_parse_error("Map key cannot be boolean", obj_spec_str, str);
+					return -1;
+				}
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_false;
 				*str_ptr = str + 1;
@@ -1411,6 +1423,10 @@ _parse_const_val(const char* const obj_spec_str,
 			}
 		case 'f':
 			if (strncasecmp(str, "false", 5) == 0 && !isalpha(str[5])) {
+				if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {  // Reject bool as map key
+					_print_parse_error("Map key cannot be boolean", obj_spec_str, str);
+					return -1;
+				}
 				bin_spec->type = BIN_SPEC_TYPE_BOOL | BIN_SPEC_TYPE_CONST;
 				bin_spec->const_bool.val = as_false;
 				*str_ptr = str + 5;
@@ -1447,6 +1463,11 @@ _parse_const_val(const char* const obj_spec_str,
 				if (errno != 0 || endptr == str) {
 					_print_parse_error("Invalid floating point value",
 							obj_spec_str, str);
+					return -1;
+				}
+
+				if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {  // Reject double as map key
+					_print_parse_error("Map key cannot be double", obj_spec_str, str);
 					return -1;
 				}
 
