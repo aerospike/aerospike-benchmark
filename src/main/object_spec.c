@@ -1160,6 +1160,12 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					break;
 				}
 				case 'D':
+					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
+						_print_parse_error("Map key cannot be double",
+								obj_spec_str, str);
+						_destroy_consumer_states(state);
+						return -1;
+					}
 					bin_spec->type = BIN_SPEC_TYPE_DOUBLE;
 					str++;
 					break;
