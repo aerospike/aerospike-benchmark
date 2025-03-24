@@ -19,7 +19,7 @@ Additional external dependencies:
  * OpenSSL (libssl and libcrypto)
  * libyaml-devel
  * libev, libuv, or libevent, if an event library is used
-  * If on macOS install via `brew`
+ * If on macOS install via `brew`
 
 This project uses git submodules, so you will need to initialize and update submodules before building this project.
 
@@ -71,7 +71,7 @@ make report
 
 To run a random read/update workload for 30 seconds, run:
 ```sh
-target/benchmark --workload RU,50 --duration 30
+target/asbench --workload RU,50 --duration 30
 ```
 
 To:
@@ -81,7 +81,7 @@ To:
  * Timeout after 50ms for reads and writes.
  * Restrict transactions/second to 2500.
 ```sh
-target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o B1400 -w RU,80 -g 2500 -T 50 -z 8
+target/asbench -h 127.0.0.1 -p 3000 -n test -k 1000000 -o B1400 -w RU,80 -g 2500 -T 50 -z 8
 ```
 
 To:
@@ -89,10 +89,10 @@ To:
  * Limit the maximum number of concurrent commands to 50.
  * Use and 50% read 50% write pattern.
 ```sh
-target/benchmarks -h 127.0.0.1 -p 3000 -n test -k 1000000 -o S:50 -w RU,50 --async --asyncMaxCommands 50 --eventLoops 1
+target/asbench -h 127.0.0.1 -p 3000 -n test -k 1000000 -o S:50 -w RU,50 --async --asyncMaxCommands 50 --eventLoops 1
 ```
 
 Command line usage can be read with:
 ```sh
-target/benchmark --help
+target/asbench --help
 ```
