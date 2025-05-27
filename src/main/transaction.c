@@ -169,6 +169,9 @@ LOCAL_HELPER void linear_deletes_async(tdata_t* tdata, cdata_t* cdata,
 LOCAL_HELPER void random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 
+// Main worker thread helper methods
+LOCAL_HELPER void _set_stage_policies(tdata_t* tdata, stage_t* stage);
+
 // Main worker thread loop
 LOCAL_HELPER void do_sync_workload(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, stage_t* stage);
@@ -722,6 +725,8 @@ _gen_batch_deletes_sequential_keys(const cdata_t* cdata, tdata_t* tdata,
  * this function should only be called through its wrappers _gen_batch_deletes_random_keys
  * and _gen_batch_deletes_sequential_keys
  */
+// TODO: use as_batch_remove_reserve instead of as_batch_write_reserve
+// i.e. use batch remove instead of batch write
 LOCAL_HELPER as_batch_records*
 _gen_batch_deletes(const cdata_t* cdata, tdata_t* tdata,	
 		const stage_t* stage, bool randomKeys, uint64_t start_key)
@@ -739,6 +744,10 @@ _gen_batch_deletes(const cdata_t* cdata, tdata_t* tdata,
 		// value so that when the key is initialized, its value is stored
 		// in batch_write->key.value
 		batch_write->key.valuep = &batch_write->key.value;
+
+		// set the batch write record policy to that of the stage
+		// for uniform behavior across the batch
+		batch_write->policy = &tdata->policies.batch_write;
 
 		if (randomKeys) {
 			key_val = stage_gen_random_key(stage, tdata->random);
@@ -811,6 +820,10 @@ _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,
 		// value so that when the key is initialized, its value is stored
 		// in batch_write->key.value
 		batch_write->key.valuep = &batch_write->key.value;
+
+		// set the batch write record policy to that of the stage
+		// for uniform behavior across the batch
+		batch_write->policy = &tdata->policies.batch_write;
 
 		if (randomKeys) {
 			key_val = stage_gen_random_key(stage, tdata->random);
@@ -1786,18 +1799,25 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 }
 
 LOCAL_HELPER void
-init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
+_set_stage_policies(tdata_t* tdata, stage_t* stage)
 {
 	if (stage->workload.type == WORKLOAD_TYPE_RR) {
-		tdata->policies.write.exists = AS_POLICY_EXISTS_REPLACE;
-		tdata->policies.operate.exists = AS_POLICY_EXISTS_REPLACE;
+		tdata->policies.write.exists = AS_POLICY_EXISTS_CREATE_OR_REPLACE;
+		tdata->policies.operate.exists = AS_POLICY_EXISTS_CREATE_OR_REPLACE;
+		tdata->policies.batch_write.exists = AS_POLICY_EXISTS_CREATE_OR_REPLACE;
 	}
 	else {
 		tdata->policies.write.exists = AS_POLICY_EXISTS_IGNORE;
 		tdata->policies.operate.exists = AS_POLICY_EXISTS_IGNORE;
+		tdata->policies.batch_write.exists = AS_POLICY_EXISTS_IGNORE;
 	}
 	tdata->policies.apply.ttl = stage->ttl;
+}
 
+LOCAL_HELPER void
+init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
+{
+	_set_stage_policies(tdata, stage);
 	if (stage->tps == 0) {
 		// tps = 0 means no throttling
 		dyn_throttle_init(&tdata->dyn_throttle, 0);
