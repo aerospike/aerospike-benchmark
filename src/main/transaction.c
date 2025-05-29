@@ -1811,6 +1811,7 @@ _set_stage_policies(tdata_t* tdata, stage_t* stage)
 		tdata->policies.operate.exists = AS_POLICY_EXISTS_IGNORE;
 		tdata->policies.batch_write.exists = AS_POLICY_EXISTS_IGNORE;
 	}
+
 	tdata->policies.apply.ttl = stage->ttl;
 }
 
