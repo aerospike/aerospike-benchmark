@@ -1818,6 +1818,7 @@ LOCAL_HELPER void
 init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 {
 	_set_stage_policies(tdata, stage);
+
 	if (stage->tps == 0) {
 		// tps = 0 means no throttling
 		dyn_throttle_init(&tdata->dyn_throttle, 0);
