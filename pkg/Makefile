@@ -1,6 +1,6 @@
 # Variables required for this Makefile
 PKG_DIR = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-TOP_DIR = $(PKG_DIR)/../bin
+TOP_DIR = $(PKG_DIR)/../target
 BUILD_DIR = $(PKG_DIR)/build
 TARGET_DIR = $(PKG_DIR)/target
 # asbench doesn't support configs yet but fpm complains without this

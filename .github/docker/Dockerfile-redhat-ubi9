@@ -6,9 +6,9 @@ ADD .github/docker/entrypoint.sh /tmp/entrypoint.sh
 ADD .github/docker/install_deps.sh /tmp/install_deps.sh
 
 RUN source /tmp/install_deps.sh && install_deps_redhat-ubi9
-ADD --chown=build:build . /opt/asbackup
+ADD --chown=build:build . /opt/asbench
 USER build
 
-WORKDIR /opt/asbackup
-ENTRYPOINT ["/opt/asbackup/.github/docker/entrypoint.sh"]
+WORKDIR /opt/asbench
+ENTRYPOINT ["/opt/asbench/.github/docker/entrypoint.sh"]
 CMD ["-b"]

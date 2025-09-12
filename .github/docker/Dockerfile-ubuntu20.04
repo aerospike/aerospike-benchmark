@@ -10,8 +10,8 @@ ADD .github/docker/install_deps.sh /tmp/install_deps.sh
 RUN source /tmp/install_deps.sh && install_deps_ubuntu20.04
 
 
-ADD --chown=build:build . /opt/asbackup
-WORKDIR /opt/asbackup
+ADD --chown=build:build . /opt/asbench
+WORKDIR /opt/asbench
 USER build
-ENTRYPOINT ["/opt/asbackup/.github/docker/entrypoint.sh"]
+ENTRYPOINT ["/opt/asbench/.github/docker/entrypoint.sh"]
 CMD ["-b"]
