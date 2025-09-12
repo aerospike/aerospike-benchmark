@@ -8,7 +8,7 @@ CONFIG_DIR = /etc/aerospike
 
 # Package variables
 NAME = "asbench"
-VERSION = $(shell git describe --tags --always)
+VERSION = $(shell git describe --tags --always | cut -d '-' -f 1-2)
 MAINTAINER = "Aerospike"
 DESCRIPTION = "Aerospike Benchmark, a tool for performance testing Aerospike database."
 LICENSE = "Apache License 2.0"
