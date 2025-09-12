@@ -8,11 +8,11 @@ jobs:
   build-artifacts:
     strategy:
       matrix:
-        distro: [ debian11, debian12, ubuntu20.04, ubuntu22.04, ubuntu24.04 ] # redhat-ubi9 ]
+        distro: [ debian11, debian12, ubuntu20.04, ubuntu22.04, ubuntu24.04, redhat-ubi9 ]
     uses: aerospike/shared-workflows/.github/workflows/reusable_execute-build.yaml@main
     with:
       project: database
-      build-name: asbackup
+      build-name: asbench
       build-version: v1.0.0
       build-script: set -x && chmod o+rw dist &&  cd local && git checkout ${{ github.ref_name }} && git submodule update --init --recursive && .github/docker/entrypoint.sh -c -d ${{ matrix.distro }} && .github/docker/entrypoint.sh -e -d ${{ matrix.distro }} && find ../dist
       artifact-directory: dist
@@ -42,12 +42,12 @@ jobs:
   upload-artifacts:
     strategy:
       matrix:
-        distro: [ debian11, debian12, ubuntu20.04, ubuntu22.04, ubuntu24.04 ] # redhat-ubi9 ]
+        distro: [ debian11, debian12, ubuntu20.04, ubuntu22.04, ubuntu24.04, redhat-ubi9 ]
     needs: sign-artifacts
     uses: aerospike/shared-workflows/.github/workflows/reusable_deploy-artifacts.yaml@main # vn.n.n
     with:
       project: database
-      build-name: asbackup
+      build-name: asbench
       version: ${{ github.ref_name }}
       artifactory-url: https://aerospike.jfrog.io
       artifactory-oidc-provider-name: database-gh-aerospike

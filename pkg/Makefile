@@ -3,16 +3,16 @@ PKG_DIR = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TOP_DIR = $(PKG_DIR)/../bin
 BUILD_DIR = $(PKG_DIR)/build
 TARGET_DIR = $(PKG_DIR)/target
-# asbackup doesn't support configs yet but fpm complains without this
+# asbench doesn't support configs yet but fpm complains without this
 CONFIG_DIR = /etc/aerospike
 
 # Package variables
-NAME = "asbackup"
+NAME = "asbench"
 VERSION = $(shell git describe --tags --always)
 MAINTAINER = "Aerospike"
-DESCRIPTION = "ASBackup, a tool for backing up and restoring data for Aerospike database."
+DESCRIPTION = "Aerospike Benchmark, a tool for performance testing Aerospike database."
 LICENSE = "Apache License 2.0"
-URL = "https://github.com/aerospike/aerospike-tools-backup"
+URL = "https://github.com/aerospike/aerospike-tools-bench"
 VENDOR = "Aerospike, Inc."
 ARCH = $(shell uname -m)
 
@@ -34,7 +34,7 @@ deb: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--package $(TARGET_DIR)/asbackup_$(VERSION)_$(BUILD_DISTRO)_$(ARCH).deb
+		--package $(TARGET_DIR)/asbench_$(VERSION)_$(BUILD_DISTRO)_$(ARCH).deb
 
 .PHONY: rpm
 rpm: prep
@@ -50,7 +50,7 @@ rpm: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--package $(TARGET_DIR)/asbackup-$(VERSION).$(BUILD_DISTRO).$(ARCH).rpm
+		--package $(TARGET_DIR)/asbench-$(VERSION).$(BUILD_DISTRO).$(ARCH).rpm
 
 .PHONY: tar
 tar: prep
@@ -66,18 +66,16 @@ tar: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--package $(TARGET_DIR)/asbackup-$(BUILD_DISTRO)-$(VERSION)-$(ARCH).tar
+		--package $(TARGET_DIR)/asbench-$(BUILD_DISTRO)-$(VERSION)-$(ARCH).tar
 
 .PHONY: prep
 prep:
 	install -d $(TARGET_DIR)
 	install -d $(BUILD_DIR)/$(CONFIG_DIR)
 	install -d $(BUILD_DIR)/opt/aerospike/bin
-	install -pm 755 $(TOP_DIR)/asbackup $(BUILD_DIR)/opt/aerospike/bin
-	install -pm 755 $(TOP_DIR)/asrestore $(BUILD_DIR)/opt/aerospike/bin
+	install -pm 755 $(TOP_DIR)/asbench $(BUILD_DIR)/opt/aerospike/bin
 	install -d $(BUILD_DIR)/usr/bin
-	ln -sf /opt/aerospike/bin/asbackup $(BUILD_DIR)/usr/bin/asbackup
-	ln -sf /opt/aerospike/bin/asrestore $(BUILD_DIR)/usr/bin/asrestore
+	ln -sf /opt/aerospike/bin/asbench $(BUILD_DIR)/usr/bin/asbench
 
 .PHONY: clean
 clean:
