@@ -49,10 +49,7 @@ jobs:
       id: system-info
     - name: Install dependencies from brew
       run: |
-        brew install libev openssl@3 automake # libuv and libevent already installed
-        # Ensure we have a modern cmake version - uninstall existing and reinstall from homebrew/core
-        brew uninstall cmake || true
-        brew install cmake
+        brew install libev openssl@3 automake cmake # libuv and libevent already installed
       # this will checkout the whole tools repo when run from aerospike-tools, but we will
       # just cd into the correct directory calculated from working-dir
     - uses: actions/checkout@v3
