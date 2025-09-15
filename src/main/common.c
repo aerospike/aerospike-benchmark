@@ -456,7 +456,6 @@ void print_hdr_percentiles(struct hdr_histogram* h, const char* name,
 	fprintf(out_file, "\n");
 }
 
-
 //==========================================================
 // Local helpers.
 //
