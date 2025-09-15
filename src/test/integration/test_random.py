@@ -102,15 +102,15 @@ def test_random_read_replace_empty():
 	lib.run_benchmark(["--duration", "1", "--workload", "RR", "--start-key", "0", "--keys", "100"])
 
 	n_recs = len(lib.scan_records())
-	# RR won't write keys that don't already exist
-	assert(n_recs == 0)
+	# RR replace will create records that don't exist
+	assert(n_recs == 100)
 
 def test_random_read_replace_empty_async():
 	lib.run_benchmark(["--duration", "1", "--workload", "RR", "--start-key", "0", "--keys", "100", "--async"])
 
 	n_recs = len(lib.scan_records())
-	# RR won't write keys that don't already exist
-	assert(n_recs == 0)
+	# RR replace will create records that don't exist
+	assert(n_recs == 100)
 
 def test_random_read_replace():
 	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100"])

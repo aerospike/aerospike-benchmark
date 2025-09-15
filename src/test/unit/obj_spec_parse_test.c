@@ -395,10 +395,10 @@ DEFINE_FAILING_TCASE(test_const_D_f, "f", "a single 'f' is not a valid float");
 DEFINE_FAILING_TCASE(test_const_D_0f, "0f", "floats must always contain a '.'");
 DEFINE_FAILING_TCASE(test_const_D_1f, "1f", "floats must always contain a '.'");
 
-DEFINE_TCASE(test_const_map_key_bool, "{true:S5}");
+DEFINE_FAILING_TCASE(test_const_map_key_bool, "{true:S5}", "maps cannot have boolean keys");
 DEFINE_TCASE(test_const_map_key_int, "{10:S5}");
 DEFINE_TCASE(test_const_map_key_str, "{\"test_key\":S5}");
-DEFINE_TCASE(test_const_map_key_double, "{3.14f:S5}");
+DEFINE_FAILING_TCASE(test_const_map_key_double, "{3.14f:S5}", "maps cannot have double keys");
 DEFINE_FAILING_TCASE(test_const_map_keys, "{5*10:S5}", "constant map keys "
 		"cannot have multipliers");
 DEFINE_FAILING_TCASE(test_const_map_key_bool_rep, "{true:S5,I:I,true:B10}",
@@ -438,11 +438,11 @@ DEFINE_TCASE(test_map_II, "{I1:I2}");
 DEFINE_TCASE(test_map_ID, "{I1:D}");
 DEFINE_TCASE(test_map_IS, "{I1:S4}");
 DEFINE_TCASE(test_map_IB, "{I1:B5}");
-DEFINE_TCASE(test_map_Db, "{D:b}");
-DEFINE_TCASE(test_map_DI, "{D:I2}");
-DEFINE_TCASE(test_map_DD, "{D:D}");
-DEFINE_TCASE(test_map_DS, "{D:S4}");
-DEFINE_TCASE(test_map_DB, "{D:B5}");
+DEFINE_FAILING_TCASE(test_map_Db, "{D:b}", "maps cannot have double keys");
+DEFINE_FAILING_TCASE(test_map_DI, "{D:I2}", "maps cannot have double keys");
+DEFINE_FAILING_TCASE(test_map_DD, "{D:D}", "maps cannot have double keys");
+DEFINE_FAILING_TCASE(test_map_DS, "{D:S4}", "maps cannot have double keys");
+DEFINE_FAILING_TCASE(test_map_DB, "{D:B5}", "maps cannot have double keys");
 DEFINE_TCASE(test_map_Sb, "{S2:b}");
 DEFINE_TCASE(test_map_SI, "{S2:I2}");
 DEFINE_TCASE(test_map_SD, "{S2:D}");
@@ -495,12 +495,12 @@ DEFINE_FAILING_TCASE(test_spaces, "I1 D", "need commas separating tokens");
  */
 DEFINE_TCASE(test_map_to_list, "{I5:[S10,B20,D,b]}");
 DEFINE_TCASE(test_list_of_maps, "[{I5:I1},{S10:B20}]");
-DEFINE_TCASE(test_mixed_list_of_maps, "[{D:I3},S10,{S20:B1},b]");
+DEFINE_FAILING_TCASE(test_mixed_list_of_maps, "[{D:I3},S10,{S20:B1},b]", "map cannot have double keys");
 DEFINE_TCASE(test_nested_lists,
 		"[[S10,I4,[B10,B5,D],D],S20,[B100,I7,D,b],[[I3],[I4,I5,I6]]]");
-DEFINE_TCASE(test_nested_maps, "{I5:{S30:{D:{B123:b}}}}");
-DEFINE_TCASE(test_nested_mix,
-		"[{S10:D},[I3,{S10:B20},{I3:{D:[I1,I2,b]}},B10,b],{B32:[b,I3,I5,{I7:D}]}]");
+DEFINE_FAILING_TCASE(test_nested_maps, "{I5:{S30:{D:{B123:b}}}}", "map cannot have double keys");
+DEFINE_FAILING_TCASE(test_nested_mix,
+		"[{S10:D},[I3,{S10:B20},{I3:{D:[I1,I2,b]}},B10,b],{B32:[b,I3,I5,{I7:D}]}]", "map cannot have double keys");
 DEFINE_FAILING_TCASE(test_map_key_list, "{[I3,I5]:I6}", "map key cannot be a list");
 DEFINE_FAILING_TCASE(test_map_key_map, "{{S20:I4}:I1}", "map key cannot be a map");
 DEFINE_FAILING_TCASE(test_map_to_undeclared_list, "{I4:I1,I2}", "map value must be single type");
@@ -532,7 +532,7 @@ DEFINE_TCASE(test_mult_map, "20*{I6:S20}");
 DEFINE_TCASE(test_mult_within_list, "2*[5*I1,3*I2,100*S3]");
 DEFINE_TCASE(test_mult_within_map, "30*{I3:[5*S20]}");
 DEFINE_TCASE(test_mult_map_key_I, "{3*I2:S3}");
-DEFINE_TCASE(test_mult_map_key_D, "{5*D:S3}");
+DEFINE_FAILING_TCASE(test_mult_map_key_D, "{5*D:S3}", "map cannot have double keys");
 DEFINE_TCASE(test_mult_map_key_S, "{2*S2:S3}");
 DEFINE_TCASE(test_mult_map_key_B, "{700*B5:S3}");
 DEFINE_TCASE(test_mult_map_key_I_high_coverage, "{200*I1:S3}");
@@ -784,10 +784,10 @@ obj_spec_suite(void)
 	tcase_add_ftest(tc_constants, test_const_D_0f);
 	tcase_add_ftest(tc_constants, test_const_D_1f);
 
-	tcase_add_ptest(tc_constants, test_const_map_key_bool);
+	tcase_add_ftest(tc_constants, test_const_map_key_bool);
 	tcase_add_ptest(tc_constants, test_const_map_key_int);
 	tcase_add_ptest(tc_constants, test_const_map_key_str);
-	tcase_add_ptest(tc_constants, test_const_map_key_double);
+	tcase_add_ftest(tc_constants, test_const_map_key_double);
 	tcase_add_ftest(tc_constants, test_const_map_keys);
 	tcase_add_ftest(tc_constants, test_const_map_key_bool_rep);
 	tcase_add_ftest(tc_constants, test_const_map_key_int_rep);
@@ -819,11 +819,11 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_map, test_map_ID);
 	tcase_add_ptest(tc_map, test_map_IS);
 	tcase_add_ptest(tc_map, test_map_IB);
-	tcase_add_ptest(tc_map, test_map_Db);
-	tcase_add_ptest(tc_map, test_map_DI);
-	tcase_add_ptest(tc_map, test_map_DD);
-	tcase_add_ptest(tc_map, test_map_DS);
-	tcase_add_ptest(tc_map, test_map_DB);
+	tcase_add_ftest(tc_map, test_map_Db);
+	tcase_add_ftest(tc_map, test_map_DI);
+	tcase_add_ftest(tc_map, test_map_DD);
+	tcase_add_ftest(tc_map, test_map_DS);
+	tcase_add_ftest(tc_map, test_map_DB);
 	tcase_add_ptest(tc_map, test_map_Sb);
 	tcase_add_ptest(tc_map, test_map_SI);
 	tcase_add_ptest(tc_map, test_map_SD);
@@ -872,10 +872,10 @@ obj_spec_suite(void)
 	tcase_add_checked_fixture(tc_nested, simple_setup, simple_teardown);
 	tcase_add_ptest(tc_nested, test_map_to_list);
 	tcase_add_ptest(tc_nested, test_list_of_maps);
-	tcase_add_ptest(tc_nested, test_mixed_list_of_maps);
+	tcase_add_ftest(tc_nested, test_mixed_list_of_maps);
 	tcase_add_ptest(tc_nested, test_nested_lists);
-	tcase_add_ptest(tc_nested, test_nested_maps);
-	tcase_add_ptest(tc_nested, test_nested_mix);
+	tcase_add_ftest(tc_nested, test_nested_maps);
+	tcase_add_ftest(tc_nested, test_nested_mix);
 	tcase_add_ftest(tc_nested, test_map_key_list);
 	tcase_add_ftest(tc_nested, test_map_key_map);
 	tcase_add_ftest(tc_nested, test_map_to_undeclared_list);
@@ -902,7 +902,7 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_multipliers, test_mult_within_list);
 	tcase_add_ptest(tc_multipliers, test_mult_within_map);
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_I);
-	tcase_add_ptest(tc_multipliers, test_mult_map_key_D);
+	tcase_add_ftest(tc_multipliers, test_mult_map_key_D);
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_S);
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_B);
 	tcase_add_ptest(tc_multipliers, test_mult_map_key_I_high_coverage);
