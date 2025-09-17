@@ -41,6 +41,22 @@ function install_deps_debian12() {
 
 }
 
+function install_deps_debian13() {
+  apt -y install $BUILD_DEPS_DEBIAN $FPM_DEPS_DEBIAN
+  gem install fpm
+
+  cd /opt
+  git clone https://github.com/libuv/libuv
+  cd libuv
+  git checkout v1.43.0
+  sh autogen.sh
+  ./configure
+  make
+  make install
+  cd ..
+
+}
+
 function install_deps_ubuntu20.04() {
   apt -y install $BUILD_DEPS_UBUNTU $FPM_DEPS_UBUNTU_2004
   gem install fpm
@@ -88,10 +104,23 @@ function install_deps_ubuntu24.04() {
   cd ..
 
 }
+function install_deps_redhat-el8() {
+  dnf -y install $BUILD_DEPS_REDHAT ruby rpm-build make git python3 python3-pip rsync
 
-function install_deps_redhat-ubi9() {
-  #todo redhat ubi9 does not have flex or readline-devel available in the yum repos
+  gem install fpm
 
+    cd /opt
+    git clone https://github.com/libuv/libuv
+    cd libuv
+    git checkout v1.43.0
+    sh autogen.sh
+    ./configure
+    make
+    make install
+    cd ..
+}
+
+function install_deps_redhat-el9() {
   dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
 
   gem install fpm
@@ -106,3 +135,21 @@ function install_deps_redhat-ubi9() {
     make install
     cd ..
 }
+
+function install_deps_amazon-2023() {
+  dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
+
+  gem install fpm
+
+    cd /opt
+    git clone https://github.com/libuv/libuv
+    cd libuv
+    git checkout v1.43.0
+    sh autogen.sh
+    ./configure
+    make
+    make install
+    cd ..
+}
+
+
