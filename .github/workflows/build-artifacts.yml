@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-tags: true
       - name: Extract Version
         id: extract
         uses: aerospike/shared-workflows/.github/actions/extract-version-from-tag@feature/INFRA-189-build-info-in-build-step
