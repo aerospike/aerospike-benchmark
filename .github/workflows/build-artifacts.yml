@@ -52,8 +52,6 @@ jobs:
         chmod o+rw dist
         find .
         cd local
-        git checkout ${{ github.ref_name }}
-        git submodule update --init --recursive
         .github/docker/entrypoint.sh -c -d ${{ matrix.distro }}
         .github/docker/entrypoint.sh -e -d ${{ matrix.distro }}
         find ../dist
