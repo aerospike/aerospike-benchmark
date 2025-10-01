@@ -47,14 +47,15 @@ jobs:
       project: database
       build-name: asbench
       build-id: ${{ github.run_number }}-buildinfo-${{ matrix.distro }}-${{ matrix.host }}
-      build-script: set -x && \
-        chmod o+rw dist && \
-        find . && \
-        cd local && \
-        git checkout ${{ github.ref_name }} && \
-        git submodule update --init --recursive && \
-        .github/docker/entrypoint.sh -c -d ${{ matrix.distro }} && \
-        .github/docker/entrypoint.sh -e -d ${{ matrix.distro }} && \
+      build-script: |
+        set -x
+        chmod o+rw dist
+        find .
+        cd local
+        git checkout ${{ github.ref_name }}
+        git submodule update --init --recursive
+        .github/docker/entrypoint.sh -c -d ${{ matrix.distro }}
+        .github/docker/entrypoint.sh -e -d ${{ matrix.distro }}
         find ../dist
       artifact-directory: dist
       artifact-name: unsigned-artifacts-${{ matrix.distro }}-${{ matrix.host }}
