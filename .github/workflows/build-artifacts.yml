@@ -16,10 +16,11 @@ jobs:
       - uses: actions/checkout@v5
       - name: Extract Version
         id: extract
-        uses: aerospike/shared-workflows/.github/actions/extract-version-from-tag@9528942eff580457800a2ca2a9a0bb5e309fa80c
+        uses: aerospike/shared-workflows/.github/actions/extract-version-from-tag@feature/INFRA-189-build-info-in-build-step
     outputs:
       version: ${{ steps.extract.outputs.version }}
       git_tag: ${{ steps.extract.outputs.git_tag }}
+      source: ${{ steps.extract.outputs.source }}
   build-artifacts:
     needs: extract-version
     strategy:
