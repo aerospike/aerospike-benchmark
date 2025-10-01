@@ -16,6 +16,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-tags: true
+          fetch-depth: 0
       - name: Extract Version
         id: extract
         uses: aerospike/shared-workflows/.github/actions/extract-version-from-tag@feature/INFRA-189-build-info-in-build-step
