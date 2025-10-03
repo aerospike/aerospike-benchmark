@@ -23,6 +23,7 @@ function build_container() {
 
 function execute_build_image() {
   export BUILD_DISTRO="$1"
+  export VERSION="$2"
   docker run -e BUILD_DISTRO -v $(realpath ../dist):/tmp/output asbackup-pkg-builder-"$BUILD_DISTRO"-"$(git rev-parse HEAD | cut -c -8)"
   ls -laht ../dist
 }
@@ -33,7 +34,7 @@ BUILD_CONTAINERS=false
 EXECUTE_BUILD=false
 BUILD_DISTRO=${BUILD_DISTRO:-"all"}
 
-while getopts "ibced:" opt; do
+while getopts "ibcedv:" opt; do
     case ${opt} in
         i )
             INSTALL=true
@@ -48,8 +49,15 @@ while getopts "ibced:" opt; do
             EXECUTE_BUILD=true
             ;;
         d )
-            BUILD_DISTRO="$OPTARG"
+            BUILD_DISTRO=$OPTARG
             ;;
+		v )
+			VERSION=$OPTARG
+			;;
+		* )
+			echo "Unknown option: $opt" >&2
+			exit 1
+			;;
     esac
 done
 
@@ -62,6 +70,7 @@ then
     -b ( build internal )
     -c ( build containers )
     -e ( execute docker package build )
+	-v ( version )
     -d [ redhat | ubuntu | debian ]""" 1>&2
     exit 1
 fi
@@ -123,7 +132,7 @@ if [ "$INSTALL" = "true" ]; then
       echo "distro not supported"
   fi
 elif [ "$BUILD_INTERNAL" = "true" ]; then
-  build_packages
+  build_packages $VERSION
 elif [ "$BUILD_CONTAINERS" = "true" ]; then
   if  [ "$BUILD_DISTRO" = "all" ]; then
     build_container debian11
