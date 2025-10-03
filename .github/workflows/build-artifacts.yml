@@ -53,7 +53,7 @@ jobs:
         find .
         cd local
         .github/docker/entrypoint.sh -c -d ${{ matrix.distro }}
-        .github/docker/entrypoint.sh -e -d ${{ matrix.distro }}
+        .github/docker/entrypoint.sh -e -d ${{ matrix.distro }} -v ${{ needs.extract-version.outputs.version }}
         find ../dist
       artifact-directory: dist
       artifact-name: unsigned-artifacts-${{ matrix.distro }}-${{ matrix.host }}
