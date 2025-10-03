@@ -88,6 +88,7 @@ typedef struct args_s {
 	int rack_id;
 	as_policy_read_mode_ap read_mode_ap;
 	as_policy_read_mode_sc read_mode_sc;
+	int read_touch_ttl_percent;
 	as_policy_commit_level write_commit_level;
 	int min_conns_per_node;
 	int max_conns_per_node;
