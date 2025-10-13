@@ -59,3 +59,5 @@ jobs:
       artifact-name: signed-artifacts-${{ matrix.distro }}-${{ matrix.host }}
       retention-days: 1
       dry-run: false
+      build-id: v1.0.0
+
