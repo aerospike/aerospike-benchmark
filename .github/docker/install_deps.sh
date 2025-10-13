@@ -136,6 +136,23 @@ function install_deps_redhat-el9() {
     cd ..
 }
 
+function install_deps_redhat-el10() {
+  dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
+
+  gem install fpm
+
+    cd /opt
+    git clone https://github.com/libuv/libuv
+    cd libuv
+    git checkout v1.43.0
+    sh autogen.sh
+    ./configure
+    make
+    make install
+    cd ..
+}
+
+
 function install_deps_amazon-2023() {
   dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
 
