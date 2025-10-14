@@ -8,7 +8,8 @@ CONFIG_DIR = /etc/aerospike
 
 # Package variables
 NAME = "asbench"
-VERSION = $(shell git describe --tags --always | cut -d '-' -f 1-2)
+# Running inside container might not have tag history. Enable setting outside.
+VERSION ?= $(shell git describe --tags --always | cut -d '-' -f 1-2)
 MAINTAINER = "Aerospike"
 DESCRIPTION = "Aerospike Benchmark, a tool for performance testing Aerospike database."
 LICENSE = "Apache License 2.0"

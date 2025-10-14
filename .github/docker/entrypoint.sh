@@ -23,7 +23,7 @@ function build_container() {
 
 function execute_build_image() {
   export BUILD_DISTRO="$1"
-  docker run -e BUILD_DISTRO -v $(realpath ../dist):/tmp/output asbackup-pkg-builder-"$BUILD_DISTRO"-"$(git rev-parse HEAD | cut -c -8)"
+  docker run -e BUILD_DISTRO -e VERSION -v $(realpath ../dist):/tmp/output asbackup-pkg-builder-"$BUILD_DISTRO"-"$(git rev-parse HEAD | cut -c -8)"
   ls -laht ../dist
 }
 
@@ -33,7 +33,7 @@ BUILD_CONTAINERS=false
 EXECUTE_BUILD=false
 BUILD_DISTRO=${BUILD_DISTRO:-"all"}
 
-while getopts "ibced:" opt; do
+while getopts "ibced:v:" opt; do
     case ${opt} in
         i )
             INSTALL=true
@@ -48,8 +48,15 @@ while getopts "ibced:" opt; do
             EXECUTE_BUILD=true
             ;;
         d )
-            BUILD_DISTRO="$OPTARG"
+            BUILD_DISTRO=$OPTARG
             ;;
+	v )
+		export VERSION=$OPTARG
+		;;
+	* )
+		echo "Unknown option: $opt" >&2
+		exit 1
+		;;
     esac
 done
 
@@ -62,6 +69,7 @@ then
     -b ( build internal )
     -c ( build containers )
     -e ( execute docker package build )
+	-v ( version )
     -d [ redhat | ubuntu | debian ]""" 1>&2
     exit 1
 fi
