@@ -105,9 +105,11 @@ function install_deps_ubuntu24.04() {
 
 }
 function install_deps_redhat-el8() {
-  dnf -y install $BUILD_DEPS_REDHAT ruby rpm-build make git python3 python3-pip rsync
+  dnf module enable -y ruby:2.7
+  dnf -y install ruby ruby-devel redhat-rpm-config rubygems rpm-build make git
+  gem install --no-document fpm
 
-  gem install fpm
+  dnf -y install $BUILD_DEPS_REDHAT python3 python3-pip rsync
 
     cd /opt
     git clone https://github.com/libuv/libuv
