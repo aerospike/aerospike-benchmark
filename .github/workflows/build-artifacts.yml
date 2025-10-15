@@ -19,7 +19,7 @@ jobs:
       build-script: |
         set -x &&
         cd local && 
-        git fetch --unshallow --tags &&
+        git fetch --unshallow --tags --no-recurse-submodules &&
         git submodule update --init &&
         ls -laht &&
         echo ref_name ${{ github.ref_name }} &&
