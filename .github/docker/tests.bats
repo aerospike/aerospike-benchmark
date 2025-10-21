@@ -1,17 +1,6 @@
 #!/usr/bin/env bats
 VERSION=$(git rev-parse HEAD | cut -c -8)
 
-@test "build debian11" {
-  .github/docker/entrypoint.sh -c -d debian11
-  [ "$?" -eq 0 ]
-}
-
-@test "build debian11 package" {
-  TEMP_DIR=$(mktemp -d)
-  docker run -e BUILD_DISTRO="debian11" -v $TEMP_DIR:/tmp/output "asbackup-pkg-builder-debian11-$VERSION"
-  [ $? -eq 0 ] && [ -f $TEMP_DIR/debian11/*.deb ]
-}
-
 @test "build debian12" {
   .github/docker/entrypoint.sh -c -d debian12
   [ "$?" -eq 0 ]

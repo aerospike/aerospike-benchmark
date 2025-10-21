@@ -8,22 +8,6 @@ FPM_DEPS_UBUNTU_2004="ruby make rpm git rsync binutils"
 FPM_DEPS_UBUNTU="ruby-rubygems make rpm git rsync binutils"
 
 AWS_SDK_VERSION="1.10.55"
-function install_deps_debian11() {
-  apt -y install $BUILD_DEPS_DEBIAN $FPM_DEPS_DEBIAN
-  gem install fpm -v 1.17.0
-
-  cd /opt
-  git clone https://github.com/libuv/libuv
-  cd libuv
-  git checkout v1.43.0
-  sh autogen.sh
-  ./configure
-  make
-  make install
-  cd ..
-
-
-}
 
 function install_deps_debian12() {
   apt -y install $BUILD_DEPS_DEBIAN $FPM_DEPS_DEBIAN

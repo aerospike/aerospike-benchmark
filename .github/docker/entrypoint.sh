@@ -80,8 +80,6 @@ elif grep -q "platform:el10" /etc/os-release; then
   ENV_DISTRO="redhat-el10"
 elif grep -q "amazon_linux:2023" /etc/os-release; then
   ENV_DISTRO="amazon-2023"
-elif grep -q "bullseye" /etc/os-release; then
-  ENV_DISTRO="debian11"
 elif grep -q "bookworm" /etc/os-release; then
   ENV_DISTRO="debian12"
 elif grep -q "trixie" /etc/os-release; then
@@ -114,9 +112,6 @@ if [ "$INSTALL" = "true" ]; then
   elif [ "$ENV_DISTRO" = "amazon-2023" ]; then
       echo "installing dependencies for Amazon 2023"
       install_deps_redhat-amazon-2023
-  elif [ "$ENV_DISTRO" = "debian11" ]; then
-      echo "installing dependencies for Debian 11"
-      install_deps_debian11
   elif [ "$ENV_DISTRO" = "debian12" ]; then
       echo "installing dependencies for Debian 12"
       install_deps_debian12
@@ -131,7 +126,6 @@ elif [ "$BUILD_INTERNAL" = "true" ]; then
   build_packages
 elif [ "$BUILD_CONTAINERS" = "true" ]; then
   if  [ "$BUILD_DISTRO" = "all" ]; then
-    build_container debian11
     build_container debian12
     build_container debian13
     build_container ubuntu20.04
@@ -148,8 +142,6 @@ fi
 
 if [ "$EXECUTE_BUILD" = "true" ]; then
    if [ "$BUILD_DISTRO" = "all" ]; then
-        echo "building package for Debian 11"
-        execute_build_image debian11
         echo "building package for Debian 12"
         execute_build_image debian12
         echo "building package for Debian 13"
