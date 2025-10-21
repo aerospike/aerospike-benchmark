@@ -7,7 +7,7 @@ TARGET_DIR = $(PKG_DIR)/target
 CONFIG_DIR = /etc/aerospike
 
 # Package variables
-NAME = "asbench"
+NAME = "aerospike-benchmark"
 VERSION = $(shell git describe --tags --always | cut -d '-' -f 1-2)
 MAINTAINER = "Aerospike"
 DESCRIPTION = "Aerospike Benchmark, a tool for performance testing Aerospike database."
