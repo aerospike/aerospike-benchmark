@@ -79,7 +79,7 @@ elif grep -q "platform:el9" /etc/os-release; then
 elif grep -q "platform:el10" /etc/os-release; then
   ENV_DISTRO="el10"
 elif grep -q "amazon_linux:2023" /etc/os-release; then
-  ENV_DISTRO="amazon-2023"
+  ENV_DISTRO="amzn2023"
 elif grep -q "bullseye" /etc/os-release; then
   ENV_DISTRO="debian11"
 elif grep -q "bookworm" /etc/os-release; then
@@ -111,9 +111,9 @@ if [ "$INSTALL" = "true" ]; then
   elif [ "$ENV_DISTRO" = "el10" ]; then
         echo "installing dependencies for RedHat el10"
         install_deps_el10
-  elif [ "$ENV_DISTRO" = "amazon-2023" ]; then
+  elif [ "$ENV_DISTRO" = "amzn2023" ]; then
       echo "installing dependencies for Amazon 2023"
-      install_deps_redhat-amazon-2023
+      install_deps_redhat-amzn2023
   elif [ "$ENV_DISTRO" = "debian11" ]; then
       echo "installing dependencies for Debian 11"
       install_deps_debian11
@@ -140,7 +140,7 @@ elif [ "$BUILD_CONTAINERS" = "true" ]; then
     build_container el8
     build_container el9
     build_container el10
-    build_container amazon-2023
+    build_container amzn2023
   else
     build_container $BUILD_DISTRO
   fi
@@ -167,7 +167,7 @@ if [ "$EXECUTE_BUILD" = "true" ]; then
         echo "building package for RedHat el10"
         execute_build_image el10
         echo "building package for Amazon 2023"
-        execute_build_image amazon-2023
+        execute_build_image amzn2023
     else
         echo "building package for $BUILD_DISTRO"
         execute_build_image $BUILD_DISTRO

@@ -153,7 +153,7 @@ function install_deps_el10() {
 }
 
 
-function install_deps_amazon-2023() {
+function install_deps_amzn2023() {
   dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
 
   gem install fpm -v 1.17.0
