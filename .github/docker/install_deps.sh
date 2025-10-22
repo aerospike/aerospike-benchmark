@@ -88,7 +88,7 @@ function install_deps_ubuntu24.04() {
   cd ..
 
 }
-function install_deps_redhat-el8() {
+function install_deps_el8() {
   dnf module enable -y ruby:2.7
   dnf -y install ruby ruby-devel redhat-rpm-config rubygems rpm-build make git
   gem install --no-document fpm -v 1.17.0
@@ -106,7 +106,7 @@ function install_deps_redhat-el8() {
     cd ..
 }
 
-function install_deps_redhat-el9() {
+function install_deps_el9() {
   dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
 
   gem install fpm -v 1.17.0
@@ -122,7 +122,7 @@ function install_deps_redhat-el9() {
     cd ..
 }
 
-function install_deps_redhat-el10() {
+function install_deps_el10() {
   dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
 
   gem install fpm -v 1.17.0
@@ -139,7 +139,7 @@ function install_deps_redhat-el10() {
 }
 
 
-function install_deps_amazon-2023() {
+function install_deps_amzn2023() {
   dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
 
   gem install fpm -v 1.17.0
