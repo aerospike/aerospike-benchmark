@@ -49,7 +49,7 @@ jobs:
         brew install libev openssl@3 automake # libuv and libevent already installed
       # this will checkout the whole tools repo when run from aerospike-tools, but we will
       # just cd into the correct directory calculated from working-dir
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         path: ${{ steps.checkout-dir.outputs.value }}
         fetch-depth: 0
