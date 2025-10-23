@@ -7,7 +7,6 @@ SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 
 
 
-source $SCRIPT_DIR/test_package.sh
 
 if [ -d ".git" ]; then
     GIT_DIR=$(pwd)
@@ -21,7 +20,6 @@ function build_container() {
   docker build --build-arg=PKG_VERSION="$PKG_VERSION" --build-arg=JF_USERNAME="$JF_USERNAME" --build-arg=JF_TOKEN="$JF_TOKEN" --progress=plain -t asbench-pkg-tester-"$1":"$PKG_VERSION" -f .github/docker/test/Dockerfile-"$1" .
   docker tag asbench-pkg-tester-"$1":"$PKG_VERSION" asbench-pkg-tester-"$1":"latest"
 }
-
 
 function execute_build_image() {
   export BUILD_DISTRO="$1"
