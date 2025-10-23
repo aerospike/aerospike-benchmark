@@ -14,13 +14,10 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [macos-13, macos-14, macos-15]
+        os: [macos-14, macos-15]
         # ev-lib: ["", libev, libuv, libevent]
         ev-lib: [libuv]   
         include:
-          - os: macos-13
-            openssl-path: /usr/local/opt/openssl
-            ev-path: /usr/local
           - os: macos-14
             openssl-path: /opt/homebrew/opt/openssl
             ev-path: /opt/homebrew
@@ -52,7 +49,7 @@ jobs:
         brew install libev openssl@3 automake # libuv and libevent already installed
       # this will checkout the whole tools repo when run from aerospike-tools, but we will
       # just cd into the correct directory calculated from working-dir
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         path: ${{ steps.checkout-dir.outputs.value }}
         fetch-depth: 0
