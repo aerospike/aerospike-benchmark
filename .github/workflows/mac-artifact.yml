@@ -14,15 +14,18 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [macos-14, macos-15]
+        os: [macos-14, macos-15, macos-26]
         # ev-lib: ["", libev, libuv, libevent]
         ev-lib: [libuv]   
         include:
           - os: macos-14
-            openssl-path: /opt/homebrew/opt/openssl
+            openssl-path: /opt/homebrew/opt/openssl@3
             ev-path: /opt/homebrew
           - os: macos-15
-            openssl-path: /opt/homebrew/opt/openssl
+            openssl-path: /opt/homebrew/opt/openssl@3
+            ev-path: /opt/homebrew
+          - os: macos-26
+            openssl-path: /opt/homebrew/opt/openssl@3
             ev-path: /opt/homebrew
     runs-on: ${{ matrix.os }}
     env:
