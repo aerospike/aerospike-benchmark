@@ -3,13 +3,12 @@ PKG_DIR = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TOP_DIR = $(PKG_DIR)/../target
 BUILD_DIR = $(PKG_DIR)/build
 TARGET_DIR = $(PKG_DIR)/target
-# asbench doesn't support configs yet but fpm complains without this
 CONFIG_DIR = /etc/aerospike
-
 # Package variables
-NAME = "aerospike-asbench"
-VERSION = $(shell git describe --tags --always)
+BUILD_DISTRO ?= $(shell .github/packaging/common/os_version.sh)
+NAME = "aerospike-$(PACKAGE_NAME)"
 MAINTAINER = "Aerospike"
+VERSION = $(shell git describe --tags --always)
 DESCRIPTION = "Aerospike Benchmark, a tool for performance testing Aerospike database."
 LICENSE = "Apache License 2.0"
 URL = "https://github.com/aerospike/aerospike-tools-bench"

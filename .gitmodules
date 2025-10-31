@@ -7,3 +7,6 @@
 [submodule "modules/libyaml"]
 	path = modules/libyaml
 	url = https://github.com/yaml/libyaml.git
+[submodule ".github/packaging/common"]
+	path = .github/packaging/common
+	url = https://github.com/aerospike/server-packaging-common.git
