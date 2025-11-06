@@ -20,7 +20,7 @@ jobs:
         distro:
           - el8
           - el9
-          - el10
+          #- el10
           - amzn2023
           - debian12
           #- debian13
