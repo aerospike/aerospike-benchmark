@@ -5,13 +5,14 @@ BUILD_DIR = $(PKG_DIR)/build
 TARGET_DIR = $(PKG_DIR)/target
 CONFIG_DIR = /etc/aerospike
 # Package variables
-BUILD_DISTRO ?= $(shell .github/packaging/common/os_version.sh)
+PACKAGE_NAME = asbench
+BUILD_DISTRO ?= $(shell $(PKG_DIR)/../.github/packaging/common/os_version.sh)
 NAME = "aerospike-$(PACKAGE_NAME)"
 MAINTAINER = "Aerospike"
-VERSION = $(shell git describe --tags --always)
+VERSION ?= $(shell git describe --tags --always --abbrev=9)
 DESCRIPTION = "Aerospike Benchmark, a tool for performance testing Aerospike database."
 LICENSE = "Apache License 2.0"
-URL = "https://github.com/aerospike/aerospike-tools-bench"
+URL = "https://github.com/aerospike/aerospike-benchmark"
 VENDOR = "Aerospike, Inc."
 ARCH = $(shell uname -m)
 

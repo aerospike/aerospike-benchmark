@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-@test "can run asbench" {
-  asbench --help
+@test "can run asadm" {
+  asadm --help
   [ "$?" -eq 0 ]
 }

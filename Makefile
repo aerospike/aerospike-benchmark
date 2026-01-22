@@ -10,7 +10,7 @@ endif
 
 ARCH = $(shell uname -m)
 PLATFORM = $(OS)-$(ARCH)
-VERSION := $(shell git describe --abbrev=9 2>/dev/null; if [ $${?} != 0 ]; then echo 'unknown'; fi)
+VERSION := $(shell git describe --tags --always --abbrev=9 2>/dev/null; if [ $${?} != 0 ]; then echo 'unknown'; fi)
 ROOT = $(CURDIR)
 NAME = $(shell basename $(ROOT))
 OS = $(shell uname)
@@ -190,8 +190,8 @@ TEST_DEPENDENCIES = $(TEST_OBJECTS:%.o=%.d) $(DEPENDENCIES:target/%=test_target/
 ###############################################################################
 
 
-.PHONY: all
-all:  build
+.PHONY: default
+default: build
 
 .PHONY: info
 info:
@@ -220,6 +220,22 @@ info:
 
 .PHONY: build
 build: target/asbench
+
+.PHONY: deb
+deb: prep
+	$(MAKE) -C $(ROOT)/pkg/ $@
+
+.PHONY: rpm
+rpm: prep
+	$(MAKE) -C $(ROOT)/pkg/ $@
+
+.PHONY: tar
+tar: prep
+	$(MAKE) -C $(ROOT)/pkg/ $@
+
+.PHONY: prep
+prep: build
+	$(MAKE) -C $(ROOT)/pkg/ $@
 
 .PHONY: archive
 archive: $(OBJECTS) target/libbench.a
