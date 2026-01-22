@@ -69,7 +69,7 @@ jobs:
     - name: Print version
       working-directory: ${{ steps.working-dir.outputs.value }}
       run: |
-        git describe --tags --always
+        git describe --tags --always --abbrev=9
     - name: Build asbench
       run: |
         make EVENT_LIB=${{ matrix.ev-lib }} LIBUV_STATIC_PATH=${{ matrix.ev-path }}/lib LIBEVENT_STATIC_PATH=${{ matrix.ev-path }}/lib LIBEV_STATIC_PATH=${{ matrix.ev-path }}/lib OPENSSL_STATIC_PATH=${{ matrix.openssl-path }}/lib
