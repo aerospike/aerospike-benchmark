@@ -10,7 +10,7 @@ endif
 
 ARCH = $(shell uname -m)
 PLATFORM = $(OS)-$(ARCH)
-VERSION := $(shell git describe 2>/dev/null; if [ $${?} != 0 ]; then echo 'unknown'; fi)
+VERSION := $(shell git describe --abbrev=9 2>/dev/null; if [ $${?} != 0 ]; then echo 'unknown'; fi)
 ROOT = $(CURDIR)
 NAME = $(shell basename $(ROOT))
 OS = $(shell uname)
