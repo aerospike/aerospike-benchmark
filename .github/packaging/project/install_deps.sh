@@ -7,16 +7,16 @@ export GOLANG_VERSION="1.24.6"
 
 export CURL_RETRY_OPTS=(--retry 5 --retry-delay 5)
 
-DEBIAN_11_DEPS='ca-certificates curl git rsync make cmake gcc g++ build-essential xz-utils liblzma-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev libncursesw5-dev uuid-dev tk-dev libssl1.1 libssl-dev ruby-rubygems rpm less'
-DEBIAN_12_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less"
-DEBIAN_13_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma liblzma-dev libffi-dev libsqlite3-dev build-essential gcc g++ zlib1g-dev libbz2-dev libreadline-dev libncursesw5-dev libnss3-dev uuid-dev tk-dev xz-utils less"
-UBUNTU_2004_DEPS="libreadline8 libreadline-dev ruby make cmake rpm git snapd curl binutils rsync libssl1.1 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less"
-UBUNTU_2204_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less"
-UBUNTU_2404_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less"
-EL8_DEPS="ruby rubygems redhat-rpm-config  rpm-build make cmake git rsync gcc gcc-c++ make automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less"
-EL9_DEPS="ruby rpmdevtools make git rsync gcc g++ make cmake automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less"
-EL10_DEPS="ruby rpmdevtools make git rsync gcc g++ make cmake automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less"
-AMZN2023_DEPS="readline-devel ruby rpmdevtools make cmake git rsync gcc g++ make automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less"
+DEBIAN_11_DEPS='ca-certificates curl git rsync make cmake gcc g++ build-essential xz-utils liblzma-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev libncursesw5-dev uuid-dev tk-dev libssl1.1 libssl-dev ruby-rubygems rpm less libyaml-dev'
+DEBIAN_12_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less libyaml-dev"
+DEBIAN_13_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma liblzma-dev libffi-dev libsqlite3-dev build-essential gcc g++ zlib1g-dev libbz2-dev libreadline-dev libncursesw5-dev libnss3-dev uuid-dev tk-dev xz-utils less libyaml-dev"
+UBUNTU_2004_DEPS="libreadline8 libreadline-dev ruby make cmake rpm git snapd curl binutils rsync libssl1.1 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less libyaml-dev"
+UBUNTU_2204_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less libyaml-dev"
+UBUNTU_2404_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less libyaml-dev"
+EL8_DEPS="ruby rubygems redhat-rpm-config  rpm-build make cmake git rsync gcc gcc-c++ make automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less libyaml-devel"
+EL9_DEPS="ruby rpmdevtools make git rsync gcc g++ make cmake automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less libyaml-devel"
+EL10_DEPS="ruby rpmdevtools make git rsync gcc g++ make cmake automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less libyaml-devel"
+AMZN2023_DEPS="readline-devel ruby rpmdevtools make cmake git rsync gcc g++ make automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less libyaml-devel"
 
 function install_deps_debian11() {
         rm -rf /var/lib/apt/lists/*
