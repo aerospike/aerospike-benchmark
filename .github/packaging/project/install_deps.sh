@@ -1,158 +1,125 @@
 #!/usr/bin/env bash
-VERSION=$(git rev-parse HEAD | cut -c -8)
-BUILD_DEPS_REDHAT="libtool cmake zlib zlib-devel openssl-devel "
-BUILD_DEPS_UBUNTU="libtool cmake zlib1g-dev libssl-dev "
-BUILD_DEPS_DEBIAN="libtool cmake zlib1g-dev libssl-dev "
-FPM_DEPS_DEBIAN="ruby-rubygems make rpm git rsync binutils"
-FPM_DEPS_UBUNTU_2004="ruby make rpm git rsync binutils"
-FPM_DEPS_UBUNTU="ruby-rubygems make rpm git rsync binutils"
+set -xeuo pipefail
 
-AWS_SDK_VERSION="1.10.55"
+# Build dependencies for C project
+DEBIAN_DEPS="libtool automake autoconf m4 cmake make gcc g++ build-essential zlib1g-dev libssl-dev libyaml-dev curl git rsync"
+UBUNTU_DEPS="libtool automake autoconf m4 cmake make gcc g++ build-essential zlib1g-dev libssl-dev libyaml-dev curl git rsync"
+# FPM dependencies for packaging
+FPM_DEPS_DEBIAN="ruby-rubygems rpm binutils"
+FPM_DEPS_UBUNTU_2004="ruby rpm binutils"
+FPM_DEPS_UBUNTU="ruby-rubygems rpm binutils"
+# RHEL dependencies (no curl - UBI images have curl-minimal pre-installed which conflicts)
+REDHAT_DEPS="libtool automake autoconf m4 cmake make gcc gcc-c++ zlib zlib-devel openssl-devel libyaml-devel git rsync"
+FPM_DEPS_EL8="ruby rubygems redhat-rpm-config rpm-build"
+FPM_DEPS_EL="ruby rpmdevtools"
+
+function install_libuv() {
+	cd /opt
+	git clone https://github.com/libuv/libuv
+	cd libuv
+	git checkout v1.43.0
+	sh autogen.sh
+	./configure
+	make
+	make install
+	cd ..
+}
+
+function install_deps_debian11() {
+	rm -rf /var/lib/apt/lists/*
+	apt-get clean
+	apt-get update -o Acquire::Retries=5
+	apt-get install -y --no-install-recommends $DEBIAN_DEPS $FPM_DEPS_DEBIAN
+	gem install fpm -v 1.17.0
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+}
 
 function install_deps_debian12() {
-  apt -y install $BUILD_DEPS_DEBIAN $FPM_DEPS_DEBIAN
-  gem install fpm -v 1.17.0
-
-  cd /opt
-  git clone https://github.com/libuv/libuv
-  cd libuv
-  git checkout v1.43.0
-  sh autogen.sh
-  ./configure
-  make
-  make install
-  cd ..
-
+	rm -rf /var/lib/apt/lists/*
+	apt-get clean
+	apt-get update -o Acquire::Retries=5
+	apt-get install -y --no-install-recommends $DEBIAN_DEPS $FPM_DEPS_DEBIAN
+	gem install fpm -v 1.17.0
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_debian13() {
-  apt -y install $BUILD_DEPS_DEBIAN $FPM_DEPS_DEBIAN
-  gem install fpm -v 1.17.0
-
-  cd /opt
-  git clone https://github.com/libuv/libuv
-  cd libuv
-  git checkout v1.43.0
-  sh autogen.sh
-  ./configure
-  make
-  make install
-  cd ..
-
+	rm -rf /var/lib/apt/lists/*
+	apt-get clean
+	apt-get update -o Acquire::Retries=5
+	apt-get install -y --no-install-recommends $DEBIAN_DEPS $FPM_DEPS_DEBIAN
+	gem install fpm -v 1.17.0
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_ubuntu20.04() {
-  apt -y install $BUILD_DEPS_UBUNTU $FPM_DEPS_UBUNTU_2004
-  gem install fpm -v 1.17.0
-
-  cd /opt
-  git clone https://github.com/libuv/libuv
-  cd libuv
-  git checkout v1.43.0
-  sh autogen.sh
-  ./configure
-  make
-  make install
-  cd ..
-
+	rm -rf /var/lib/apt/lists/*
+	apt-get clean
+	apt-get update -o Acquire::Retries=5
+	apt-get install -y --no-install-recommends $UBUNTU_DEPS $FPM_DEPS_UBUNTU_2004
+	gem install fpm -v 1.17.0
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_ubuntu22.04() {
-  apt -y install $BUILD_DEPS_UBUNTU $FPM_DEPS_UBUNTU
-  gem install fpm -v 1.17.0
-
-  cd /opt
-  git clone https://github.com/libuv/libuv
-  cd libuv
-  git checkout v1.43.0
-  sh autogen.sh
-  ./configure
-  make
-  make install
-  cd ..
-
+	rm -rf /var/lib/apt/lists/*
+	apt-get clean
+	apt-get update -o Acquire::Retries=5
+	apt-get install -y --no-install-recommends $UBUNTU_DEPS $FPM_DEPS_UBUNTU
+	gem install fpm -v 1.17.0
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_ubuntu24.04() {
-  apt -y install $BUILD_DEPS_UBUNTU $FPM_DEPS_UBUNTU
-  gem install fpm -v 1.17.0
-
-  cd /opt
-  git clone https://github.com/libuv/libuv
-  cd libuv
-  git checkout v1.43.0
-  sh autogen.sh
-  ./configure
-  make
-  make install
-  cd ..
-
+	rm -rf /var/lib/apt/lists/*
+	apt-get clean
+	apt-get update -o Acquire::Retries=5
+	apt-get install -y --no-install-recommends $UBUNTU_DEPS $FPM_DEPS_UBUNTU
+	gem install fpm -v 1.17.0
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
+
 function install_deps_el8() {
-  dnf module enable -y ruby:2.7
-  dnf -y install ruby ruby-devel redhat-rpm-config rubygems rpm-build make git
-  gem install --no-document fpm -v 1.17.0
-
-  dnf -y install $BUILD_DEPS_REDHAT python3 python3-pip rsync
-
-    cd /opt
-    git clone https://github.com/libuv/libuv
-    cd libuv
-    git checkout v1.43.0
-    sh autogen.sh
-    ./configure
-    make
-    make install
-    cd ..
+	dnf -y update
+	dnf module enable -y ruby:2.7
+	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL8
+	gem install --no-document fpm -v 1.17.0
+	install_libuv
+	dnf clean all
 }
 
 function install_deps_el9() {
-  dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
-
-  gem install fpm -v 1.17.0
-
-    cd /opt
-    git clone https://github.com/libuv/libuv
-    cd libuv
-    git checkout v1.43.0
-    sh autogen.sh
-    ./configure
-    make
-    make install
-    cd ..
+	dnf -y update
+	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL
+	gem install fpm -v 1.17.0
+	install_libuv
+	dnf clean all
 }
 
 function install_deps_el10() {
-  dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
-
-  gem install fpm -v 1.17.0
-
-    cd /opt
-    git clone https://github.com/libuv/libuv
-    cd libuv
-    git checkout v1.43.0
-    sh autogen.sh
-    ./configure
-    make
-    make install
-    cd ..
+	dnf -y update
+	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL
+	gem install fpm -v 1.17.0
+	install_libuv
+	dnf clean all
 }
-
 
 function install_deps_amzn2023() {
-  dnf -y install $BUILD_DEPS_REDHAT ruby rpmdevtools make git python3 python3-pip rsync
-
-  gem install fpm -v 1.17.0
-
-    cd /opt
-    git clone https://github.com/libuv/libuv
-    cd libuv
-    git checkout v1.43.0
-    sh autogen.sh
-    ./configure
-    make
-    make install
-    cd ..
+	dnf -y update
+	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL
+	gem install fpm -v 1.17.0
+	install_libuv
+	dnf clean all
 }
-
-
