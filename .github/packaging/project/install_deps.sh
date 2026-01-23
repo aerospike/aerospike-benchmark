@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 VERSION=$(git rev-parse HEAD | cut -c -8)
-BUILD_DEPS_REDHAT="libtool cmake zlib zlib-devel openssl-devel "
-BUILD_DEPS_UBUNTU="libtool cmake zlib1g-dev libssl-dev "
-BUILD_DEPS_DEBIAN="libtool cmake zlib1g-dev libssl-dev "
+BUILD_DEPS_REDHAT="libtool cmake zlib zlib-devel openssl-devel libyaml-devel"
+BUILD_DEPS_UBUNTU="libtool cmake zlib1g-dev libssl-dev libyaml-dev"
+BUILD_DEPS_DEBIAN="libtool cmake zlib1g-dev libssl-dev libyaml-dev"
 FPM_DEPS_DEBIAN="ruby-rubygems make rpm git rsync binutils"
 FPM_DEPS_UBUNTU_2004="ruby make rpm git rsync binutils"
 FPM_DEPS_UBUNTU="ruby-rubygems make rpm git rsync binutils"
