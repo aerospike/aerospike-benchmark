@@ -1,336 +1,125 @@
 #!/usr/bin/env bash
 set -xeuo pipefail
 
-export PYTHON_VERSION="3.10.18"
-export ASDF_VERSION="v0.18.0"
-export GOLANG_VERSION="1.24.6"
+# Build dependencies for C project
+DEBIAN_DEPS="libtool cmake make gcc g++ build-essential zlib1g-dev libssl-dev libyaml-dev curl git rsync"
+UBUNTU_DEPS="libtool cmake make gcc g++ build-essential zlib1g-dev libssl-dev libyaml-dev curl git rsync"
+# FPM dependencies for packaging
+FPM_DEPS_DEBIAN="ruby-rubygems rpm binutils"
+FPM_DEPS_UBUNTU_2004="ruby rpm binutils"
+FPM_DEPS_UBUNTU="ruby-rubygems rpm binutils"
+# RHEL dependencies
+REDHAT_DEPS="libtool cmake make gcc gcc-c++ zlib zlib-devel openssl-devel libyaml-devel curl git rsync"
+FPM_DEPS_EL8="ruby rubygems redhat-rpm-config rpm-build"
+FPM_DEPS_EL="ruby rpmdevtools"
 
-export CURL_RETRY_OPTS=(--retry 5 --retry-delay 5)
-
-DEBIAN_11_DEPS='ca-certificates curl git rsync make cmake gcc g++ build-essential xz-utils liblzma-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev libncursesw5-dev uuid-dev tk-dev libssl1.1 libssl-dev ruby-rubygems rpm less libyaml-dev'
-DEBIAN_12_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less libyaml-dev"
-DEBIAN_13_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma liblzma-dev libffi-dev libsqlite3-dev build-essential gcc g++ zlib1g-dev libbz2-dev libreadline-dev libncursesw5-dev libnss3-dev uuid-dev tk-dev xz-utils less libyaml-dev"
-UBUNTU_2004_DEPS="libreadline8 libreadline-dev ruby make cmake rpm git snapd curl binutils rsync libssl1.1 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less libyaml-dev"
-UBUNTU_2204_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less libyaml-dev"
-UBUNTU_2404_DEPS="libreadline8 libreadline-dev ruby-rubygems make cmake rpm git snapd curl binutils rsync libssl3 libssl-dev lzma lzma-dev libffi-dev build-essential gcc g++ less libyaml-dev"
-EL8_DEPS="ruby rubygems redhat-rpm-config  rpm-build make cmake git rsync gcc gcc-c++ make automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less libyaml-devel"
-EL9_DEPS="ruby rpmdevtools make git rsync gcc g++ make cmake automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less libyaml-devel"
-EL10_DEPS="ruby rpmdevtools make git rsync gcc g++ make cmake automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less libyaml-devel"
-AMZN2023_DEPS="readline-devel ruby rpmdevtools make cmake git rsync gcc g++ make automake zlib zlib-devel libffi-devel openssl-devel bzip2-devel xz-devel xz xz-libs sqlite sqlite-devel sqlite-libs less libyaml-devel"
+function install_libuv() {
+	cd /opt
+	git clone https://github.com/libuv/libuv
+	cd libuv
+	git checkout v1.43.0
+	sh autogen.sh
+	./configure
+	make
+	make install
+	cd ..
+}
 
 function install_deps_debian11() {
-        rm -rf /var/lib/apt/lists/*
-        apt-get clean
-        apt-get update -o Acquire::Retries=5
-        apt-get install -y --no-install-recommends $DEBIAN_11_DEPS
-	update-ca-certificates
-        if [ "$(uname -m)" = "x86_64" ]; then
-                curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-                mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-        elif [ "$(uname -m)" = "aarch64" ]; then
-                curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-                mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-        else
-                echo "unknown arch $(uname -m)"
-                exit 1
-        fi
-        /opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-        install /root/go/bin/asdf /usr/local/bin/asdf
-        asdf plugin add python https://github.com/asdf-community/asdf-python.git
-        asdf install python $PYTHON_VERSION
-        asdf set python $PYTHON_VERSION
-        echo "python $PYTHON_VERSION" >/.tool-versions
-        echo "python $PYTHON_VERSION" >/root/.tool-versions
-        asdf exec python -m pip install --break-system-packages pipenv
-        install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-        install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-        install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-        install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-        install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
-        gem install fpm -v 1.17.0
-        rm -rf /var/lib/apt/lists/*
+	rm -rf /var/lib/apt/lists/*
+	apt-get clean
+	apt-get update -o Acquire::Retries=5
+	apt-get install -y --no-install-recommends $DEBIAN_DEPS $FPM_DEPS_DEBIAN
+	gem install fpm -v 1.17.0
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_debian12() {
 	rm -rf /var/lib/apt/lists/*
 	apt-get clean
 	apt-get update -o Acquire::Retries=5
-	apt-get install -y --no-install-recommends $DEBIAN_12_DEPS
-	if [ "$(uname -m)" = "x86_64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-	elif [ "$(uname -m)" = "aarch64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-	else
-		echo "unknown arch $(uname -m)"
-		exit 1
-	fi
-	/opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-	install /root/go/bin/asdf /usr/local/bin/asdf
-	asdf plugin add python https://github.com/asdf-community/asdf-python.git
-	asdf install python $PYTHON_VERSION
-	asdf set python $PYTHON_VERSION
-	echo "python $PYTHON_VERSION" >/.tool-versions
-	echo "python $PYTHON_VERSION" >/root/.tool-versions
-	asdf exec python -m pip install --break-system-packages pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
+	apt-get install -y --no-install-recommends $DEBIAN_DEPS $FPM_DEPS_DEBIAN
 	gem install fpm -v 1.17.0
-	rm -rf /var/lib/apt/lists/*
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_debian13() {
 	rm -rf /var/lib/apt/lists/*
 	apt-get clean
 	apt-get update -o Acquire::Retries=5
-	apt-get install -y --no-install-recommends $DEBIAN_13_DEPS
-	if [ "$(uname -m)" = "x86_64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-	elif [ "$(uname -m)" = "aarch64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-	else
-		echo "unknown arch $(uname -m)"
-		exit 1
-	fi
-	/opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-	install /root/go/bin/asdf /usr/local/bin/asdf
-	asdf plugin add python https://github.com/asdf-community/asdf-python.git
-	asdf install python $PYTHON_VERSION
-	asdf set python $PYTHON_VERSION
-	echo "python $PYTHON_VERSION" >/.tool-versions
-	echo "python $PYTHON_VERSION" >/root/.tool-versions
-	asdf exec python -m pip install --break-system-packages pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
+	apt-get install -y --no-install-recommends $DEBIAN_DEPS $FPM_DEPS_DEBIAN
 	gem install fpm -v 1.17.0
-	rm -rf /var/lib/apt/lists/*
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_ubuntu20.04() {
 	rm -rf /var/lib/apt/lists/*
 	apt-get clean
 	apt-get update -o Acquire::Retries=5
-	apt-get install -y --no-install-recommends $UBUNTU_2004_DEPS
-	if [ "$(uname -m)" = "x86_64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-	elif [ "$(uname -m)" = "aarch64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-	else
-		echo "unknown arch $(uname -m)"
-		exit 1
-	fi
-	/opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-	install /root/go/bin/asdf /usr/local/bin/asdf
-	asdf plugin add python https://github.com/asdf-community/asdf-python.git
-	asdf install python $PYTHON_VERSION
-	asdf set python $PYTHON_VERSION
-	echo "python $PYTHON_VERSION" >/.tool-versions
-	echo "python $PYTHON_VERSION" >/root/.tool-versions
-	asdf exec python -m pip install pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
+	apt-get install -y --no-install-recommends $UBUNTU_DEPS $FPM_DEPS_UBUNTU_2004
 	gem install fpm -v 1.17.0
-	rm -rf /var/lib/apt/lists/*
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_ubuntu22.04() {
 	rm -rf /var/lib/apt/lists/*
 	apt-get clean
 	apt-get update -o Acquire::Retries=5
-	apt-get install -y --no-install-recommends $UBUNTU_2204_DEPS
-	if [ "$(uname -m)" = "x86_64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-	elif [ "$(uname -m)" = "aarch64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-	else
-		echo "unknown arch $(uname -m)"
-		exit 1
-	fi
-	/opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-	install /root/go/bin/asdf /usr/local/bin/asdf
-	asdf plugin add python https://github.com/asdf-community/asdf-python.git
-	asdf install python $PYTHON_VERSION
-	asdf set python $PYTHON_VERSION
-	echo "python $PYTHON_VERSION" >/.tool-versions
-	echo "python $PYTHON_VERSION" >/root/.tool-versions
-	asdf exec python -m pip install pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
+	apt-get install -y --no-install-recommends $UBUNTU_DEPS $FPM_DEPS_UBUNTU
 	gem install fpm -v 1.17.0
-	rm -rf /var/lib/apt/lists/*
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_ubuntu24.04() {
 	rm -rf /var/lib/apt/lists/*
 	apt-get clean
 	apt-get update -o Acquire::Retries=5
-	apt-get install -y --no-install-recommends $UBUNTU_2404_DEPS
-	if [ "$(uname -m)" = "x86_64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-	elif [ "$(uname -m)" = "aarch64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-	else
-		echo "unknown arch $(uname -m)"
-		exit 1
-	fi
-
-	/opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-	install /root/go/bin/asdf /usr/local/bin/asdf
-	asdf plugin add python https://github.com/asdf-community/asdf-python.git
-	asdf install python $PYTHON_VERSION
-	asdf set python $PYTHON_VERSION
-	echo "python $PYTHON_VERSION" >/.tool-versions
-	echo "python $PYTHON_VERSION" >/root/.tool-versions
-	asdf exec python -m pip install --break-system-packages pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
+	apt-get install -y --no-install-recommends $UBUNTU_DEPS $FPM_DEPS_UBUNTU
 	gem install fpm -v 1.17.0
-	rm -rf /var/lib/apt/lists/*
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
 function install_deps_el8() {
 	dnf -y update
 	dnf module enable -y ruby:2.7
-	yum install -y "https://download.rockylinux.org/pub/rocky/8.10/Devel/$(uname -m)/os/Packages/r/readline-devel-7.0-10.el8.$(uname -m).rpm"
-	dnf -y install $EL8_DEPS
-	gem install --no-document fpm
-	if [ "$(uname -m)" = "x86_64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-	elif [ "$(uname -m)" = "aarch64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-	else
-		echo "unknown arch $(uname -m)"
-		exit 1
-	fi
-	/opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-	install /root/go/bin/asdf /usr/local/bin/asdf
-	asdf plugin add python https://github.com/asdf-community/asdf-python.git
-	asdf install python $PYTHON_VERSION
-	asdf set python $PYTHON_VERSION
-	echo "python $PYTHON_VERSION" >/.tool-versions
-	echo "python $PYTHON_VERSION" >/root/.tool-versions
-	asdf exec python -m pip install pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
-
-	gem install fpm -v 1.17.0
+	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL8
+	gem install --no-document fpm -v 1.17.0
+	install_libuv
+	dnf clean all
 }
 
 function install_deps_el9() {
 	dnf -y update
-	yum install -y "https://dl.rockylinux.org/vault/rocky/9.6/devel/$(uname -m)/os/Packages/r/readline-devel-8.1-4.el9.$(uname -m).rpm"
-	dnf -y install $EL9_DEPS
-
-	if [ "$(uname -m)" = "x86_64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-	elif [ "$(uname -m)" = "aarch64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-	else
-		echo "unknown arch $(uname -m)"
-		exit 1
-	fi
-	/opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-	install /root/go/bin/asdf /usr/local/bin/asdf
-	asdf plugin add python https://github.com/asdf-community/asdf-python.git
-	asdf install python $PYTHON_VERSION
-	asdf set python $PYTHON_VERSION
-	echo "python $PYTHON_VERSION" >/.tool-versions
-	echo "python $PYTHON_VERSION" >/root/.tool-versions
-	asdf exec python -m pip install --break-system-packages pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
+	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL
 	gem install fpm -v 1.17.0
+	install_libuv
+	dnf clean all
 }
 
 function install_deps_el10() {
 	dnf -y update
-	yum install -y "https://dl.rockylinux.org/vault/rocky/10.0/devel/$(uname -m)/os/Packages/r/readline-devel-8.2-11.el10.$(uname -m).rpm"
-	dnf -y install $EL10_DEPS
-	if [ "$(uname -m)" = "x86_64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-	elif [ "$(uname -m)" = "aarch64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-	else
-		echo "unknown arch $(uname -m)"
-		exit 1
-	fi
-	/opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-	install /root/go/bin/asdf /usr/local/bin/asdf
-	asdf plugin add python https://github.com/asdf-community/asdf-python.git
-	asdf install python $PYTHON_VERSION
-	asdf set python $PYTHON_VERSION
-	echo "python $PYTHON_VERSION" >/.tool-versions
-	echo "python $PYTHON_VERSION" >/root/.tool-versions
-	asdf exec python -m pip install --break-system-packages pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
-	gem install fpm
+	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL
+	gem install fpm -v 1.17.0
+	install_libuv
+	dnf clean all
 }
 
 function install_deps_amzn2023() {
 	dnf -y update
-	dnf -y install $AMZN2023_DEPS
-	if [ "$(uname -m)" = "x86_64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-amd64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-amd64.tar.gz -C /opt/golang
-	elif [ "$(uname -m)" = "aarch64" ]; then
-		curl -L "${CURL_RETRY_OPTS[@]}" https://go.dev/dl/go"$GOLANG_VERSION".linux-arm64.tar.gz -o /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz
-		mkdir -p /opt/golang && tar -zxvf /tmp/go"$GOLANG_VERSION".linux-arm64.tar.gz -C /opt/golang
-	else
-		echo "unknown arch $(uname -m)"
-		exit 1
-	fi
-	/opt/golang/go/bin/go install github.com/asdf-vm/asdf/cmd/asdf@$ASDF_VERSION
-	install /root/go/bin/asdf /usr/local/bin/asdf
-	asdf plugin add python https://github.com/asdf-community/asdf-python.git
-	asdf install python $PYTHON_VERSION
-	asdf set python $PYTHON_VERSION
-	echo "python $PYTHON_VERSION" >/.tool-versions
-	echo "python $PYTHON_VERSION" >/root/.tool-versions
-	asdf exec python -m pip install --break-system-packages pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/python /usr/bin/python3
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pipenv /usr/bin/pipenv
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip /usr/bin/pip
-	install /root/.asdf/installs/python/$PYTHON_VERSION/bin/pip3 /usr/bin/pip3
+	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL
 	gem install fpm -v 1.17.0
+	install_libuv
+	dnf clean all
 }
