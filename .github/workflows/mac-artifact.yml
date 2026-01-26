@@ -31,28 +31,33 @@ jobs:
     env:
       LIBYAML_VERSION: 0.2.5
     steps:
+    - name: Harden the runner (Audit all outbound calls)
+      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+      with:
+        egress-policy: audit
+
     - name: Get checkout directory
-      uses: haya14busa/action-cond@v1
+      uses: step-security/action-cond@45aa5a709bd075f11c74285d8b0ca4d527e5fbcf # v1.2.4
       id: checkout-dir
       with:
         cond: ${{ inputs.submodule != '' }}
         if_true: aerospike-tools  # In this case we are expecting to checkout the tools package.
         if_false: asbench
     - name: Get asbench working directory
-      uses: haya14busa/action-cond@v1
+      uses: step-security/action-cond@45aa5a709bd075f11c74285d8b0ca4d527e5fbcf # v1.2.4
       id: working-dir
       with:
         cond: ${{ inputs.submodule != '' }}
         if_true: aerospike-tools/${{ inputs.submodule }}  # In this case we are expecting to checkout the tools package.
         if_false: asbench
-    - uses: kenchan0130/actions-system-info@v1.3.0
+    - uses: kenchan0130/actions-system-info@b98fe44bc35efcc60a9828cf4a04783a8b370bde # v1.3.0
       id: system-info
     - name: Install dependencies from brew
       run: |
         brew install libev openssl@3 automake # libuv and libevent already installed
       # this will checkout the whole tools repo when run from aerospike-tools, but we will
       # just cd into the correct directory calculated from working-dir
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       with:
         path: ${{ steps.checkout-dir.outputs.value }}
         fetch-depth: 0
@@ -74,14 +79,14 @@ jobs:
         ./asbench | grep "ERROR Failed to connect"
       working-directory: ${{ steps.working-dir.outputs.value }}/target
     - name: Get artifact name
-      uses: haya14busa/action-cond@v1
+      uses: step-security/action-cond@45aa5a709bd075f11c74285d8b0ca4d527e5fbcf # v1.2.4
       id: artifact-name
       with:
         cond: ${{ matrix.ev-lib == '' }}
         if_true: asbench
         if_false: asbench-${{ matrix.ev-lib }}
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with: 
         name: ${{ steps.system-info.outputs.platform }}-${{ runner.arch }}-${{ matrix.os }}-${{ steps.system-info.outputs.release }}-${{ steps.artifact-name.outputs.value }}
         path: ${{ steps.working-dir.outputs.value }}/target/asbench
@@ -92,13 +97,18 @@ jobs:
     if: "${{ inputs.submodule == '' }}"
 
     steps:
-      - uses: kenchan0130/actions-system-info@v1.3.0
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - uses: kenchan0130/actions-system-info@b98fe44bc35efcc60a9828cf4a04783a8b370bde # v1.3.0
         id: system-info
       - name: Get artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: target
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: binaries
           path: target

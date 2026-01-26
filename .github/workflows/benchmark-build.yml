@@ -15,6 +15,11 @@ jobs:
       LIBYAML_VERSION: 0.2.5
       LIBCHECK_VERSION: 0.15.2
     steps:
+    - name: Harden the runner (Audit all outbound calls)
+      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+      with:
+        egress-policy: audit
+
     - name: Install event libs
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
@@ -33,7 +38,7 @@ jobs:
         cd lcov-1.16
         sudo make install
     - name: Download libcheck
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       with:
         repository: libcheck/check
         submodules: recursive
@@ -41,7 +46,7 @@ jobs:
         path: check-${{ env.LIBCHECK_VERSION }}
     - name: Cache libcheck
       id: cache-libcheck
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       env:
         cache-name: libcheck
       with:
@@ -62,7 +67,7 @@ jobs:
         sudo make install
         sudo ldconfig
     - name: Checkout asbench
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       with: 
         path: main
         submodules: recursive
@@ -80,7 +85,7 @@ jobs:
         rm -rf client
         rm -rf main/target
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # v3.1.6
       with:
         verbose: false
         directory: main/test_target

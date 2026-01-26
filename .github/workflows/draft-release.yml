@@ -11,9 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     name: Draft Release
     steps:
-    - uses: actions/checkout@v4
+    - name: Harden the runner (Audit all outbound calls)
+      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
     - name: Upload Artifacts to Release Draft
-      uses: "softprops/action-gh-release@v1"
+      uses: step-security/action-gh-release@d45511d7589f080cf54961ff056b9705a74fd160 # v2.5.0
       with:
         draft: true
         generate_release_notes: true
