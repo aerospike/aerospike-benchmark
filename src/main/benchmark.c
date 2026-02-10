@@ -322,6 +322,7 @@ init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 	tdata->t_idx = t_idx;
 	// always start on the first stage
 	atomic_init(&tdata->stage_idx, 0);
+	atomic_init(&tdata->current_key, args->start_key);
 
 	atomic_init(&tdata->do_work, true);
 	atomic_init(&tdata->finished, false);

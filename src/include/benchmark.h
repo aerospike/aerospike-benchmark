@@ -166,6 +166,9 @@ typedef struct threaddata_s {
 	// which workload stage we're currrently on
 	_Atomic(uint32_t) stage_idx;
 
+	// For async linear workloads
+	_Atomic(uint64_t) current_key;
+
 	/*
 	 * note: to stop threads, tdata->finished must be set before tdata->do_work
 	 * to prevent deadlocking
