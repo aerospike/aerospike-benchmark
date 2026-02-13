@@ -19,5 +19,4 @@ else
 	. "${1}"/bin/activate
 fi
 
-pytest src/test/integration
-
+pytest -v src/test/integration
