@@ -40,7 +40,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 					as_vector_get(&args->latency_percentiles, i));
 		}
 	}
-	
+
 	if (args->latency_histogram) {
 		if (args->histogram_output) {
 			cdata->histogram_output = fopen(args->histogram_output, "a");
@@ -64,7 +64,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			histogram_set_name(&cdata->write_histogram, "write_hist");
 			histogram_print_info(&cdata->write_histogram, cdata->histogram_output);
 		}
-		
+
 		if (has_reads) {
 			histogram_init(&cdata->read_histogram, 3, 100, (rangespec_t[]) {
 					{ .upper_bound = 4000,   .bucket_width = 100  },
@@ -85,7 +85,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			histogram_print_info(&cdata->udf_histogram, cdata->histogram_output);
 		}
 	}
-	
+
 	if (args->hdr_output) {
 		const static char write_output_prefix[] = "/write_";
 		const static char read_output_prefix[] = "/read_";
@@ -112,7 +112,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			as_string_builder_append(&cmp_write_output_b, write_output_prefix);
 			as_string_builder_append(&cmp_write_output_b, utc_time);
 
-			// duplicate the current buffer into txt (since only the extension differs
+			// duplicate the current buffer into txt (since only the extension differs)
 			as_string_builder_append(&txt_write_output_b, cmp_write_output_b.data);
 
 			as_string_builder_append(&cmp_write_output_b, compressed_output_suffix);
@@ -150,7 +150,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			as_string_builder_append(&cmp_read_output_b, read_output_prefix);
 			as_string_builder_append(&cmp_read_output_b, utc_time);
 
-			// duplicate the current buffer into txt (since only the extension differs
+			// duplicate the current buffer into txt (since only the extension differs)
 			as_string_builder_append(&txt_read_output_b, cmp_read_output_b.data);
 
 			as_string_builder_append(&cmp_read_output_b, compressed_output_suffix);
@@ -188,7 +188,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			as_string_builder_append(&cmp_udf_output_b, udf_output_prefix);
 			as_string_builder_append(&cmp_udf_output_b, utc_time);
 
-			// duplicate the current buffer into txt (since only the extension differs
+			// duplicate the current buffer into txt (since only the extension differs)
 			as_string_builder_append(&txt_udf_output_b, cmp_udf_output_b.data);
 
 			as_string_builder_append(&cmp_udf_output_b, compressed_output_suffix);
@@ -403,6 +403,21 @@ periodic_output_worker(void* udata)
 
 		int64_t elapsed = time - prev_time;
 		prev_time = time;
+
+		// Avoid a division by zero or negative elapsed time (this can happen on first wake
+		// or clock skew). Use 1 second so TPS caluclation does not get inflated.
+		if (elapsed <= 0) {
+			elapsed = 1000000;
+		}
+
+		// When woken early by COORD_SLEEP_INTERRUPTED (stage end), elapsed can
+		// be much less than 1 second, so TPS = count/elapsed would be inflated
+		// (e.g. 2x for 0.5s).
+		// We will set 1 second for the TPS denominator so
+		// the final line does not show an artificially high TPS.
+		if (status == COORD_SLEEP_INTERRUPTED && elapsed < 1000000) {
+			elapsed = 1000000;
+		}
 
 		uint64_t write_current = atomic_exchange(&cdata->write_count, 0);
 		uint64_t write_timeout_current = atomic_exchange(&cdata->write_timeout_count, 0);
