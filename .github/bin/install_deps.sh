@@ -19,10 +19,9 @@ function install_libuv() {
 	cd libuv
 	git checkout v1.43.0
 	sh autogen.sh
-	./configure
+	./configure --enable-static --disable-shared
 	make
 	make install
-	ldconfig 2>/dev/null || true
 	cd /
 }
 

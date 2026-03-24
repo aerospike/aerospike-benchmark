@@ -278,7 +278,7 @@ jobs:
       - name: Sanity test asbench artifact
         working-directory: target
         run: |
-          ./asbench | grep "ERROR Failed to connect"
+          (./asbench || true) | grep "ERROR Failed to connect"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
