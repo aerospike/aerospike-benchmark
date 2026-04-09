@@ -47,8 +47,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			if (!cdata->histogram_output) {
 				fprintf(stderr, "Unable to open %s in append mode\n",
 						args->histogram_output);
-				ret = -1;
-				// follow through with initialization, so cleanup won't segfault
+				return -1;
 			}
 		}
 		else {
