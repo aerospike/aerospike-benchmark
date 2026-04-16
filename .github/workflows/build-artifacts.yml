@@ -151,6 +151,7 @@ jobs:
         distro:
           - el8
           - el9
+          - el10
           - amzn2023
           - debian11
           - debian12
