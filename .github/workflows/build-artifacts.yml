@@ -163,6 +163,7 @@ jobs:
     container: >-
       ${{ matrix.distro == 'el8' && 'redhat/ubi8:8.10' ||
         matrix.distro == 'el9' && 'redhat/ubi9:9.6' ||
+        matrix.distro == 'el10' && 'redhat/ubi10:10.0' ||
         matrix.distro == 'amzn2023' && 'amazonlinux:2023.9.20251208.0' ||
         matrix.distro == 'debian11' && 'debian:bullseye-20251208' ||
         matrix.distro == 'debian12' && 'debian:bookworm-20230411' ||
