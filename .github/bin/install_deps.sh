@@ -108,6 +108,14 @@ function install_deps_el9() {
 	dnf clean all
 }
 
+function install_deps_el10() {
+	dnf -y update
+	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL
+	gem install fpm -v "$FPM_VERSION"
+	install_libuv
+	dnf clean all
+}
+
 function install_deps_amzn2023() {
 	dnf -y update
 	dnf -y install $REDHAT_DEPS $FPM_DEPS_EL
