@@ -347,31 +347,34 @@ jobs:
     needs: [get-version, sign-artifacts]
     # always() needed because upstream jobs use always()
     if: ${{ always() && needs.sign-artifacts.result == 'success' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
       - name: Download signed artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: signed-artifacts-${{ needs.get-version.outputs.VERSION }}
           path: signed-artifacts
 
       - name: Extract package files (flatten paths)
         run: |
+          set -euo pipefail
           mkdir -p deploy-artifacts
           find signed-artifacts/ -type f \( \
             -name '*.deb' -o -name '*.rpm' -o -name '*.tgz' -o \
             -name '*.tar' -o -name '*.dmg' -o -name '*.pkg' -o \
             -name '*.exe' -o -name '*.asc' -o -name '*.sha256' \
           \) -exec cp -t deploy-artifacts/ {} +
-          echo "Deploy artifacts:"
+          count=$(find deploy-artifacts/ -maxdepth 1 -type f | wc -l)
+          echo "Deploy artifacts: ${count} file(s)"
           ls -la deploy-artifacts/
+          [[ ${count} -gt 0 ]] || { echo "ERROR: no deploy artifacts found" >&2; exit 1; }
       - name: Upload deploy artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: deploy-artifacts-${{ needs.get-version.outputs.VERSION }}
           path: deploy-artifacts/
@@ -418,6 +421,87 @@ jobs:
       gh-workflows-ref: v2.0.2
       dry-run: false
 
+  docker-deploy:
+    name: Docker deploy (ubuntu24.04)
+    needs: [get-version, create-release-bundle]
+    # always() needed because upstream jobs use always()
+    if: ${{ always() && needs.create-release-bundle.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download signed artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: deploy-artifacts-${{ needs.get-version.outputs.VERSION }}
+          path: ./deploy-artifacts
+
+      - name: Install JFrog CLI
+        id: jf
+        uses: step-security/setup-jfrog-cli@893a92f96c7727242adf0e603c77b1f2a22390e1 # v4.9.1
+        env:
+          JF_URL: https://artifact.aerospike.io
+          JF_PROJECT: database
+        with:
+          version: 2.78.8
+          oidc-provider-name: database-gh-aerospike
+          oidc-audience: database-gh-aerospike
+
+      - name: Docker login to Artifactory
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: artifact.aerospike.io
+          username: ${{ steps.jf.outputs.oidc-user }}
+          password: ${{ steps.jf.outputs.oidc-token }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Build Docker image (test mode)
+        env:
+          VERSION: ${{ needs.get-version.outputs.VERSION }}
+        run: |
+          set -euo pipefail
+          docker/docker-build.sh -t -v "${VERSION}" \
+            -d ubuntu24.04 \
+            -u ../deploy-artifacts
+
+      - name: Install Snyk CLI
+        run: npm install -g snyk
+
+      - name: Smoke test and Snyk scan Docker images
+        env:
+          VERSION: ${{ needs.get-version.outputs.VERSION }}
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          docker/test.sh -v "${VERSION}" \
+            -d ubuntu24.04 \
+            -a amd64 -a arm64 \
+            -c -s
+
+      - name: Push Docker image to JFrog
+        env:
+          VERSION: ${{ needs.get-version.outputs.VERSION }}
+        run: |
+          set -euo pipefail
+          docker/docker-build.sh -p -v "${VERSION}" \
+            -d ubuntu24.04 \
+            -r artifact.aerospike.io/database-docker-dev-local \
+            -u ../deploy-artifacts
+
   test-install-from-jfrog-and-execute:
     strategy:
       fail-fast: false
@@ -429,9 +513,9 @@ jobs:
           - { host: ubuntu-24.04-arm, distro: el9, container: "redhat/ubi9:9.6" }
     needs:
       - get-version
-      - upload-artifacts-to-jfrog
-    # always() needed because upstream jobs use always(); run after upload (not release bundle)
-    if: ${{ always() && needs.upload-artifacts-to-jfrog.result == 'success' }}
+      - docker-deploy
+    # always() needed because upstream jobs use always(); run last so JFrog has time to index packages
+    if: ${{ always() && needs.docker-deploy.result == 'success' }}
     runs-on: ${{ matrix.host }}
     container: ${{ matrix.container }}
     permissions:

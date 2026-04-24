@@ -8,7 +8,7 @@ set -euo pipefail
 
 JFROG_URL="https://artifact.aerospike.io/artifactory"
 JFROG_KEY_URL="https://aerospike.jfrog.io/artifactory/api/security/keypair/aerospike/public"
-RETRY_TIMEOUT=300
+RETRY_TIMEOUT=1200
 RETRY_INTERVAL=10
 
 install_deb() {
@@ -63,7 +63,7 @@ install_rpm() {
   rpm_version=$(echo "$PKG_VERSION" | tr '-' '_')
   end=$((SECONDS + RETRY_TIMEOUT))
   while [ $SECONDS -lt $end ]; do
-    if dnf install -y "aerospike-${PACKAGE_NAME}-${rpm_version}-1.${arch}"; then return 0; fi
+    if dnf install -y "aerospike-${PACKAGE_NAME}-${rpm_version}-${RPM_RELEASE:-1}.${arch}"; then return 0; fi
     echo "Retrying in ${RETRY_INTERVAL}s..."
     dnf makecache --refresh || true
     sleep "$RETRY_INTERVAL"
