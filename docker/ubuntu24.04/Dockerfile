@@ -59,7 +59,7 @@ RUN --mount=type=bind,source=.,target=/build-ctx \
     if [ "${PKG_SHA}" != "PLACEHOLDER" ]; then \
         echo "${PKG_SHA}  /tmp/asbench.deb" | sha256sum -c -; \
     fi && \
-    dpkg -i /tmp/asbench.deb && \
+    apt-get install -y /tmp/asbench.deb && \
     rm -f /tmp/asbench.deb && \
     rm -rf /var/lib/apt/lists/*
 
