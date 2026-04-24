@@ -14,10 +14,6 @@ on:
         required: false
         type: string
         default: ""
-  pull_request:
-    # yamllint disable-line rule:quoted-strings
-    branches:
-      - "*"
   push:
     branches:
       # yamllint disable-line rule:quoted-strings
