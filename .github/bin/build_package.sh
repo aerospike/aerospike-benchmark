@@ -11,7 +11,7 @@ function build_packages() {
 	# build
 	cd "$GIT_DIR" || exit 1
 	make clean
-	make
+	make EVENT_LIB=libuv LIBUV_STATIC_PATH=/usr/local/lib
 
 	echo "build_package.sh version: $(git describe --tags --always --abbrev=9)"
 	VERSION=${PKG_VERSION:-$(git describe --tags --always --abbrev=9)}
