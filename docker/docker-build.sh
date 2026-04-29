@@ -11,7 +11,8 @@
 #
 # Modes:
 #   -t   Test: build and load locally (one image per arch, --load compatible)
-#   -p   Push: build and push multi-arch manifests to registry
+#   -p   Push: build and push to registry (multi-arch, or single-arch per-tag when -a selects one arch)
+#   -M   Manifest: stitch per-arch tags into a multi-arch manifest (buildx imagetools create --push)
 #   -g   Update Dockerfiles only (no bake / no build)
 #
 
@@ -34,13 +35,17 @@ log_warn()    { printf '\e[33m[WARN]\e[0m  %s\n' "$*" >&2; }
 # ---------------------------------------------------------------------------
 function usage() {
   cat <<'EOF'
-Usage: docker/docker-build.sh -t|-p|-g -v VERSION [OPTIONS]
+Usage: docker/docker-build.sh -t|-p|-M|-g -v VERSION [OPTIONS]
 
 Build Docker images for Aerospike asbench (Ubuntu 24.04).
 
 MODES (one required):
     -t               Test mode: build and load locally (single platform per arch)
-    -p               Push mode: build and push multi-arch manifests to registry
+    -p               Push mode: build and push to registry
+                       • Single arch (-a amd64 or -a arm64): pushes one platform with a per-arch tag
+                       • No -a / both arches: builds multi-arch manifest and pushes
+    -M, --manifest   Manifest mode: stitch existing per-arch tags into a multi-arch manifest
+                       using docker buildx imagetools create --push (no image build)
     -g, --generate   Update Dockerfiles only, no build
 
 REQUIRED:
@@ -79,7 +84,16 @@ TAGS PRODUCED:
     <reg>/aerospike-asbench:<version>-<distro>-<arch>
     e.g. aerospike/aerospike-asbench:2.2.5-ubuntu24.04-amd64
 
-  Push mode — single distro:
+  Push mode — single arch (-a amd64 or -a arm64):
+    <reg>/aerospike-asbench:<version>-<distro>-<arch>
+    e.g. aerospike/aerospike-asbench:2.2.5-ubuntu24.04-amd64
+
+  Push mode — multi-arch (no -a or both -a flags):
+    <reg>/aerospike-asbench:<version>
+    <reg>/aerospike-asbench:<version>-<timestamp>   (when -T is set)
+
+  Manifest mode (-M):
+    Stitches per-arch tags (<version>-<distro>-amd64 + <version>-<distro>-arm64) into:
     <reg>/aerospike-asbench:<version>
     <reg>/aerospike-asbench:<version>-<timestamp>   (when -T is set)
 
@@ -87,10 +101,17 @@ EXAMPLES:
     # Build + load using local packages dir
     docker/docker-build.sh -t -v 2.2.5-rc1 -u /path/to/dist
 
-    # Build + push to JFrog dev registry
+    # Native per-arch build and local test (from matrix runner)
+    docker/docker-build.sh -t -v 2.2.5 -a amd64 -u /path/to/dist
+
+    # Build + push multi-arch to JFrog dev registry
     docker/docker-build.sh -p -v 2.2.5 \
         -r artifact.aerospike.io/database-docker-dev-local \
         -u https://aerospike.jfrog.io/artifactory/database-dev-local
+
+    # Stitch manifest after native per-arch pushes
+    docker/docker-build.sh -M -v 2.2.5 -d ubuntu24.04 \
+        -r artifact.aerospike.io/database-docker-dev-local
 
     # Build without updating Dockerfiles
     docker/docker-build.sh -t -v 2.2.5 -S
@@ -115,6 +136,35 @@ function _emit_test_target() {
   echo "  platforms  = [\"linux/${arch}\"]"
   if [[ -n "${local_pkg}" ]]; then
     echo "  args = { ASBENCH_LOCAL_PKG = \"${local_pkg}\" }"
+  fi
+  echo "  tags = ["
+  for ((i = 0; i < n; i++)); do
+    if [[ $i -lt $((n - 1)) ]]; then
+      echo "    \"${tags[$i]}\","
+    else
+      echo "    \"${tags[$i]}\""
+    fi
+  done
+  echo "  ]"
+  echo "}"
+  echo ""
+}
+
+function _emit_single_arch_push_target() {
+  local name="$1" ctx="$2" arch="$3" local_pkg="$4"
+  shift 4
+  local tags=("$@")
+  local n=${#tags[@]}
+  echo "target \"${name}\" {"
+  echo "  context    = \"${ctx}\""
+  echo "  dockerfile = \"Dockerfile\""
+  echo "  platforms  = [\"linux/${arch}\"]"
+  if [[ -n "${local_pkg}" ]]; then
+    if [[ "${arch}" == "amd64" ]]; then
+      echo "  args = { ASBENCH_LOCAL_PKG_AMD64 = \"${local_pkg}\" }"
+    else
+      echo "  args = { ASBENCH_LOCAL_PKG_ARM64 = \"${local_pkg}\" }"
+    fi
   fi
   echo "  tags = ["
   for ((i = 0; i < n; i++)); do
@@ -213,28 +263,44 @@ function generate_bake() {
     for distro in "${ACTIVE_DISTROS[@]}"; do
       local ctx="${distro_ctx[${distro}]}"
       local slug="${distro//\./-}"
-      local push_pkg_amd64="" push_pkg_arm64=""
-      case "${distro}" in
-      ubuntu24.04)
-        push_pkg_amd64="${LOCAL_PKG_UBUNTU_AMD64}"
-        push_pkg_arm64="${LOCAL_PKG_UBUNTU_ARM64}"
-        ;;
-      esac
-      local tags=()
-      for reg in "${REGISTRY_PREFIXES[@]}"; do
-        if [[ "${multi_distro}" == true ]]; then
-          tags+=("${reg}/aerospike-asbench:${VERSION}-${distro}")
-          if [[ -n "${TIMESTAMP}" ]]; then
-            tags+=("${reg}/aerospike-asbench:${VERSION}-${distro}-${TIMESTAMP}")
+      if [[ "${PUSH_SINGLE_ARCH}" == true ]]; then
+        local arch="${ACTIVE_ARCHES[0]}"
+        local local_pkg=""
+        case "${distro}" in
+        ubuntu24.04)
+          if [[ "${arch}" == "amd64" ]]; then local_pkg="${LOCAL_PKG_UBUNTU_AMD64}"; fi
+          if [[ "${arch}" == "arm64" ]]; then local_pkg="${LOCAL_PKG_UBUNTU_ARM64}"; fi
+          ;;
+        esac
+        local tags=()
+        for reg in "${REGISTRY_PREFIXES[@]}"; do
+          tags+=("${reg}/aerospike-asbench:${VERSION}-${distro}-${arch}")
+        done
+        _emit_single_arch_push_target "${slug}" "${ctx}" "${arch}" "${local_pkg}" "${tags[@]}"
+      else
+        local push_pkg_amd64="" push_pkg_arm64=""
+        case "${distro}" in
+        ubuntu24.04)
+          push_pkg_amd64="${LOCAL_PKG_UBUNTU_AMD64}"
+          push_pkg_arm64="${LOCAL_PKG_UBUNTU_ARM64}"
+          ;;
+        esac
+        local tags=()
+        for reg in "${REGISTRY_PREFIXES[@]}"; do
+          if [[ "${multi_distro}" == true ]]; then
+            tags+=("${reg}/aerospike-asbench:${VERSION}-${distro}")
+            if [[ -n "${TIMESTAMP}" ]]; then
+              tags+=("${reg}/aerospike-asbench:${VERSION}-${distro}-${TIMESTAMP}")
+            fi
+          else
+            tags+=("${reg}/aerospike-asbench:${VERSION}")
+            if [[ -n "${TIMESTAMP}" ]]; then
+              tags+=("${reg}/aerospike-asbench:${VERSION}-${TIMESTAMP}")
+            fi
           fi
-        else
-          tags+=("${reg}/aerospike-asbench:${VERSION}")
-          if [[ -n "${TIMESTAMP}" ]]; then
-            tags+=("${reg}/aerospike-asbench:${VERSION}-${TIMESTAMP}")
-          fi
-        fi
-      done
-      _emit_push_target "${slug}" "${ctx}" "${push_pkg_amd64}" "${push_pkg_arm64}" "${tags[@]}"
+        done
+        _emit_push_target "${slug}" "${ctx}" "${push_pkg_amd64}" "${push_pkg_arm64}" "${tags[@]}"
+      fi
       push_target_names+=("${slug}")
     done
 
@@ -259,6 +325,8 @@ ACTIVE_ARCHES=()
 LOCAL_PKG_UBUNTU_AMD64=""
 LOCAL_PKG_UBUNTU_ARM64=""
 LOCAL_PKGS_COPIED=()
+
+PUSH_SINGLE_ARCH=false
 
 function _setup_local_pkgs() {
   local dir="$1"
@@ -319,6 +387,53 @@ function _cleanup_local_pkgs() {
   done
 }
 
+# ---------------------------------------------------------------------------
+# run_manifest_mode — stitch per-arch tags into a multi-arch manifest
+# ---------------------------------------------------------------------------
+function run_manifest_mode() {
+  log_info "=== Manifest mode: stitching per-arch tags ==="
+  for distro in "${ACTIVE_DISTROS[@]}"; do
+    local multi_distro=false
+    if [[ ${#ACTIVE_DISTROS[@]} -gt 1 ]]; then multi_distro=true; fi
+
+    local source_tags=()
+    for arch in "${ACTIVE_ARCHES[@]}"; do
+      for reg in "${REGISTRY_PREFIXES[@]}"; do
+        source_tags+=("${reg}/aerospike-asbench:${VERSION}-${distro}-${arch}")
+      done
+    done
+
+    local dest_tags=()
+    for reg in "${REGISTRY_PREFIXES[@]}"; do
+      if [[ "${multi_distro}" == true ]]; then
+        dest_tags+=("${reg}/aerospike-asbench:${VERSION}-${distro}")
+        if [[ -n "${TIMESTAMP}" ]]; then
+          dest_tags+=("${reg}/aerospike-asbench:${VERSION}-${distro}-${TIMESTAMP}")
+        fi
+      else
+        dest_tags+=("${reg}/aerospike-asbench:${VERSION}")
+        if [[ -n "${TIMESTAMP}" ]]; then
+          dest_tags+=("${reg}/aerospike-asbench:${VERSION}-${TIMESTAMP}")
+        fi
+      fi
+    done
+
+    log_info "  Sources : ${source_tags[*]}"
+    log_info "  Dest    : ${dest_tags[*]}"
+
+    local tag_args=()
+    for t in "${dest_tags[@]}"; do tag_args+=("--tag" "${t}"); done
+
+    docker buildx imagetools create --progress plain \
+      "${tag_args[@]}" \
+      "${source_tags[@]}"
+
+    log_success "Manifest created for ${distro}."
+    log_info "Inspecting manifest..."
+    docker buildx imagetools inspect "${dest_tags[0]}"
+  done
+}
+
 function main() {
   local mode=""
   local skip_update=false
@@ -333,8 +448,9 @@ function main() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    -t) mode="test" ; shift ;;
-    -p) mode="push" ; shift ;;
+    -t) mode="test"     ; shift ;;
+    -p) mode="push"     ; shift ;;
+    -M | --manifest) mode="manifest" ; shift ;;
     -g | --generate)  full_generate=true       ; shift ;;
     -v | --version)       VERSION="$2"             ; shift 2 ;;
     -r | --registry)      REGISTRY_PREFIXES+=("$2") ; shift 2 ;;
@@ -357,12 +473,12 @@ function main() {
     generate_only=true
   fi
   if [[ "${full_generate}" == false && -z "${mode}" ]]; then
-    log_warn "A mode (-t, -p, or -g) is required."
+    log_warn "A mode (-t, -p, -M, or -g) is required."
     usage
     exit 1
   fi
 
-  if [[ -z "${VERSION}" && "${skip_update}" == false ]]; then
+  if [[ -z "${VERSION}" && "${skip_update}" == false && "${mode}" != "manifest" ]]; then
     log_warn "--version is required (or use --skip-update to skip Dockerfile update)."
     usage
     exit 1
@@ -396,6 +512,21 @@ function main() {
     done
   fi
 
+  # Deduplicate ACTIVE_ARCHES (preserve order)
+  local seen_arches=()
+  local deduped_arches=()
+  for a in "${ACTIVE_ARCHES[@]}"; do
+    local already=false
+    for s in "${seen_arches[@]+"${seen_arches[@]}"}"; do
+      if [[ "${s}" == "${a}" ]]; then already=true; break; fi
+    done
+    if [[ "${already}" == false ]]; then
+      deduped_arches+=("${a}")
+      seen_arches+=("${a}")
+    fi
+  done
+  ACTIVE_ARCHES=("${deduped_arches[@]+"${deduped_arches[@]}"}")
+
   if [[ ${#ACTIVE_DISTROS[@]} -eq 0 ]]; then
     log_warn "No valid distros after filtering."
     exit 1
@@ -403,6 +534,12 @@ function main() {
   if [[ ${#ACTIVE_ARCHES[@]} -eq 0 ]]; then
     log_warn "No valid arches after filtering."
     exit 1
+  fi
+
+  # Detect single-arch push mode
+  if [[ "${mode}" == "push" && ${#ACTIVE_ARCHES[@]} -eq 1 ]]; then
+    PUSH_SINGLE_ARCH=true
+    log_info "Single-arch push mode: will push per-arch tagged image (${ACTIVE_ARCHES[0]})"
   fi
 
   if [[ -z "${VERSION}" && "${skip_update}" == true && "${generate_only}" == false && "${dry_run}" == false ]]; then
@@ -419,7 +556,7 @@ function main() {
   fi
 
   # ---- Step 1: Update Dockerfiles ----
-  if [[ "${skip_update}" == false ]]; then
+  if [[ "${skip_update}" == false && "${mode}" != "manifest" ]]; then
     log_info "=== Updating Dockerfiles ==="
     local update_args=("--version" "${VERSION}")
     if [[ -n "${packages_dir}" ]];     then update_args+=("--packages-dir" "${packages_dir}"); fi
@@ -437,6 +574,14 @@ function main() {
 
   if [[ "${dry_run}" == true ]]; then
     log_info "Dry run: skipping bake generation and Docker build."
+    exit 0
+  fi
+
+  # ---- Manifest mode (no build) ----
+  if [[ "${mode}" == "manifest" ]]; then
+    run_manifest_mode
+    echo ""
+    log_success "Done!"
     exit 0
   fi
 
