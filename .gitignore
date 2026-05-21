@@ -1,5 +1,5 @@
 *.csproj.user
-bin
+/bin
 obj
 target
 test_target

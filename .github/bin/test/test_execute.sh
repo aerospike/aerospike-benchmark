@@ -2,3 +2,4 @@
 set -euo pipefail
 
 asbench --help
+asbench --version
