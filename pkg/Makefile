@@ -16,7 +16,8 @@ URL = "https://github.com/aerospike/aerospike-benchmark"
 VENDOR = "Aerospike, Inc."
 ARCH = $(shell uname -m)
 RPM_VERSION := $(subst -,_,$(VERSION))
-MAC_VERSION := $(RPM_VERSION)
+# pkgbuild rejects '-' and '_' in --version; normalize pre-release tags to '.' (see CI .pkg rename).
+MAC_VERSION := $(subst _,.,$(subst -,.,$(VERSION)))
 MAC_ROOT = $(BUILD_DIR)/mac-root
 PKG_ID = com.aerospike.asbench
 MAC_PKG = $(TARGET_DIR)/aerospike-asbench-$(MAC_VERSION)-$(ARCH).pkg
