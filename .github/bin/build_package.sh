@@ -3,8 +3,8 @@ set -xeuo pipefail
 
 function build_packages() {
 	if [ "${ENV_DISTRO:-}" = "" ]; then
-		echo "ENV_DISTRO is not set"
-		return
+		echo "ENV_DISTRO is not set" >&2
+		return 1
 	fi
 	GIT_DIR=$(git rev-parse --show-toplevel)
 

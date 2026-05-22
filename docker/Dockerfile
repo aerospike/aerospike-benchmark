@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 #
 # Aerospike asbench - Docker image.
 #
