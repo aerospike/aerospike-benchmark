@@ -4,3 +4,8 @@
   asbench --help
   [ "$?" -eq 0 ]
 }
+
+@test "asbench reports version" {
+  asbench --version
+  [ "$?" -eq 0 ]
+}
