@@ -25,7 +25,6 @@
 int
 initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 		hdr_timespec* start_timespec) {
-	int ret = 0;
 	bool has_writes = stages_contain_writes(&cdata->stages);
 	bool has_reads = stages_contain_reads(&cdata->stages);
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
@@ -47,8 +46,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			if (!cdata->histogram_output) {
 				fprintf(stderr, "Unable to open %s in append mode\n",
 						args->histogram_output);
-				ret = -1;
-				// follow through with initialization, so cleanup won't segfault
+				return -1;
 			}
 		}
 		else {
@@ -122,14 +120,14 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			if (!cdata->hdr_comp_write_output) {
 				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 						cmp_write_output_b.data, strerror(errno));
-				ret = -1;
+				return -1;
 			}
 
 			cdata->hdr_text_write_output = fopen(txt_write_output_b.data, "a");
 			if (!cdata->hdr_text_write_output) {
 				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 						cmp_write_output_b.data, strerror(errno));
-				ret = -1;
+				return -1;
 			}
 
 			as_string_builder_destroy(&cmp_write_output_b);
@@ -160,14 +158,14 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			if (!cdata->hdr_comp_read_output) {
 				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 						cmp_read_output_b.data, strerror(errno));
-				ret = -1;
+				return -1;
 			}
 
 			cdata->hdr_text_read_output = fopen(txt_read_output_b.data, "a");
 			if (!cdata->hdr_text_read_output) {
 				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 						cmp_read_output_b.data, strerror(errno));
-				ret = -1;
+				return -1;
 			}
 
 			as_string_builder_destroy(&cmp_read_output_b);
@@ -198,14 +196,14 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			if (!cdata->hdr_comp_udf_output) {
 				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 						cmp_udf_output_b.data, strerror(errno));
-				ret = -1;
+				return -1;
 			}
 
 			cdata->hdr_text_udf_output = fopen(txt_udf_output_b.data, "a");
 			if (!cdata->hdr_text_udf_output) {
 				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
 						cmp_udf_output_b.data, strerror(errno));
-				ret = -1;
+				return -1;
 			}
 
 			as_string_builder_destroy(&cmp_udf_output_b);
@@ -226,7 +224,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			hdr_init(1, 1000000, 3, &cdata->udf_hdr);
 		}
 	}
-	return ret;
+	return 0;
 }
 
 void
