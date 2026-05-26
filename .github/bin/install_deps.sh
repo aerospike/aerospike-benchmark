@@ -91,6 +91,17 @@ function install_deps_ubuntu24.04() {
 	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 }
 
+function install_deps_ubuntu26.04() {
+	rm -rf /var/lib/apt/lists/*
+	apt-get clean
+	apt-get update -o Acquire::Retries=5
+	apt-get install -y --no-install-recommends $UBUNTU_DEPS $FPM_DEPS_UBUNTU
+	gem install fpm -v "$FPM_VERSION"
+	install_libuv
+	apt-get clean
+	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+}
+
 function install_deps_el8() {
 	dnf -y update
 	dnf module enable -y ruby:2.7
