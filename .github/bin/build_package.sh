@@ -10,12 +10,13 @@ function build_packages() {
 
 	# build
 	cd "$GIT_DIR" || exit 1
-	make clean
-	make EVENT_LIB=libuv LIBUV_STATIC_PATH=/usr/local/lib
-
 	echo "build_package.sh version: $(git describe --tags --always --abbrev=9)"
 	VERSION=${PKG_VERSION:-$(git describe --tags --always --abbrev=9)}
 	export VERSION
+	make clean
+	# Pass VERSION explicitly so the embedded TOOL_VERSION matches the package
+	# version, even when the git tag hasn't been pushed yet (tag-last pipeline).
+	make EVENT_LIB=libuv LIBUV_STATIC_PATH=/usr/local/lib VERSION="${VERSION}"
 
 	# package
 	cd "$GIT_DIR"/pkg || exit 1
