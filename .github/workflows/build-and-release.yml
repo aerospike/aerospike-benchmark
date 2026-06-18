@@ -270,12 +270,18 @@ jobs:
         env:
           OPENSSL_STATIC_PATH: ${{ matrix.openssl-path }}/lib
           EV_PATH: ${{ matrix.ev-path }}
+          # Embed the workflow VERSION (from the VERSION file) into the binary, so
+          # asbench --version matches the package even though the git tag is created
+          # tag-last. Without this, make falls back to `git describe` and the binary
+          # reports the PREVIOUS tag (the linux build_package.sh already does this).
+          VERSION: ${{ needs.get-version.outputs.VERSION }}
         run: |
           make EVENT_LIB=libuv \
             LIBUV_STATIC_PATH="${EV_PATH}/lib" \
             LIBEVENT_STATIC_PATH="${EV_PATH}/lib" \
             LIBEV_STATIC_PATH="${EV_PATH}/lib" \
-            OPENSSL_STATIC_PATH="${OPENSSL_STATIC_PATH}"
+            OPENSSL_STATIC_PATH="${OPENSSL_STATIC_PATH}" \
+            VERSION="${VERSION}"
 
       - name: Sanity test asbench
         run: |
@@ -721,7 +727,10 @@ jobs:
       jf-bundle-name: "aerospike-asbench"
       oidc-provider-name: database-gh-aerospike
       oidc-audience: database-gh-aerospike
-      version: ${{ needs.get-version.outputs.BUNDLE_VERSION }}
+      # Real release (main, not skip_tagging) publishes the release bundle under
+      # the direct VERSION (e.g. 2.2.7); feature-style / non-release publishes keep
+      # the branch-prefixed BUNDLE_VERSION (e.g. mybranch-2.2.7-mybranch.<sha>).
+      version: ${{ github.ref == 'refs/heads/main' && inputs.skip_tagging != true && needs.get-version.outputs.VERSION || needs.get-version.outputs.BUNDLE_VERSION }}
       gh-workflows-ref: v3.6.0
       dry-run: false
 
