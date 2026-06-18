@@ -721,7 +721,10 @@ jobs:
       jf-bundle-name: "aerospike-asbench"
       oidc-provider-name: database-gh-aerospike
       oidc-audience: database-gh-aerospike
-      version: ${{ needs.get-version.outputs.BUNDLE_VERSION }}
+      # Real release (main, not skip_tagging) publishes the release bundle under
+      # the direct VERSION (e.g. 2.2.7); feature-style / non-release publishes keep
+      # the branch-prefixed BUNDLE_VERSION (e.g. mybranch-2.2.7-mybranch.<sha>).
+      version: ${{ github.ref == 'refs/heads/main' && inputs.skip_tagging != true && needs.get-version.outputs.VERSION || needs.get-version.outputs.BUNDLE_VERSION }}
       gh-workflows-ref: v3.6.0
       dry-run: false
 
