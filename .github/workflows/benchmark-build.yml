@@ -38,7 +38,7 @@ jobs:
         cd lcov-1.16
         sudo make install
     - name: Download libcheck
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         repository: libcheck/check
         submodules: recursive
@@ -67,7 +67,7 @@ jobs:
         sudo make install
         sudo ldconfig
     - name: Checkout asbench
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with: 
         path: main
         submodules: recursive
