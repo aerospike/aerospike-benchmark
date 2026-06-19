@@ -256,7 +256,7 @@ LOCAL_HELPER bool
 is_single_bin(aerospike* client, const char* namespace)
 {
 	char filter[256];
-	sprintf(filter, "namespace/%s", namespace);
+	snprintf(filter, sizeof(filter), "namespace/%s", namespace);
 	
 	char* res = 0;
 	as_error err;
