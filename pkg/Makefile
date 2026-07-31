@@ -16,8 +16,10 @@ URL = "https://github.com/aerospike/aerospike-benchmark"
 VENDOR = "Aerospike, Inc."
 ARCH = $(shell uname -m)
 RPM_VERSION := $(subst -,_,$(VERSION))
-# rpm Release / deb revision: the "-1" after the version in package names.
+# rpm Release / deb revision. The deb revision embeds the distro per Debian
+# convention (e.g. 5.0.3-1debian12), like the rpm dist tag.
 ITERATION ?= 1
+DEB_ITERATION = $(ITERATION)$(BUILD_DISTRO)
 # pkgbuild rejects '-' and '_' in --version; normalize pre-release tags to '.' (see CI .pkg rename).
 MAC_VERSION := $(subst _,.,$(subst -,.,$(VERSION)))
 MAC_ROOT = $(BUILD_DIR)/mac-root
@@ -37,13 +39,13 @@ deb: prep
 		--chdir $(BUILD_DIR)/ \
 		--name $(NAME) \
 		--version $(VERSION) \
-		--iteration $(ITERATION) \
+		--iteration $(DEB_ITERATION) \
 		--maintainer $(MAINTAINER) \
 		--description $(DESCRIPTION) \
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--package $(TARGET_DIR)/$(NAME)_$(VERSION)-$(ITERATION)_$(BUILD_DISTRO)_$(ARCH).deb
+		--package $(TARGET_DIR)/$(NAME)_$(VERSION)-$(DEB_ITERATION)_$(ARCH).deb
 
 .PHONY: rpm
 rpm: prep
