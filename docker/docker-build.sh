@@ -377,8 +377,8 @@ function generate_bake() {
 #   LOCAL_PKGS_COPIED           (paths to clean up on EXIT)
 # ---------------------------------------------------------------------------
 function resolve_packages() {
-  local pkg_amd64="aerospike-asbench_${VERSION}_ubuntu24.04_x86_64.deb"
-  local pkg_arm64="aerospike-asbench_${VERSION}_ubuntu24.04_aarch64.deb"
+  local pkg_amd64="aerospike-asbench_${VERSION}-1ubuntu24.04_x86_64.deb"
+  local pkg_arm64="aerospike-asbench_${VERSION}-1ubuntu24.04_aarch64.deb"
   local pool="${DEB_BASE_URL}/pool/${UBUNTU_CODENAME}/aerospike-asbench"
 
   ASBENCH_AMD64_URL="${pool}/${pkg_amd64}"
