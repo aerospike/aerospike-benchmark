@@ -107,6 +107,9 @@ jobs:
       contents: read
     outputs:
       VERSION: ${{ steps.compute.outputs.version }}
+      PKG_VERSION: ${{ steps.release.outputs.PKG_VERSION }}
+      ITERATION: ${{ steps.release.outputs.ITERATION }}
+      RELEASE: ${{ steps.release.outputs.RELEASE }}
     steps:
       - name: Compute VERSION (SemVer-aware for branch builds)
         id: compute
@@ -132,6 +135,22 @@ jobs:
           fi
           echo "VERSION: ${VERSION}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Package file names and image tags never carry the "rcN" pre-release
+      # tag; rcN becomes the package iteration instead (rpm Release / deb
+      # revision), e.g. 1.2.3-rc2 -> version 1.2.3, iteration 2, and the
+      # release string 1.2.3-2 for names with no iteration field of their own.
+      # VERSION stays as-is: it is the git tag and what the binaries report.
+      - name: Derive package version and iteration
+        id: release
+        env:
+          VERSION: ${{ steps.compute.outputs.version }}
+        run: |
+          set -euo pipefail
+          .github/bin/pkg_release.sh "${VERSION}" all | tee -a "$GITHUB_OUTPUT"
 
   build-artifacts:
     needs: get-version
@@ -285,20 +304,21 @@ jobs:
       - name: Create .pkg
         env:
           VERSION: ${{ needs.get-version.outputs.VERSION }}
+          RELEASE: ${{ needs.get-version.outputs.RELEASE }}
         run: |
           make -C pkg osx-pkg VERSION="${VERSION}"
           # Must match MAC_VERSION in pkg/Makefile: pkgbuild rejects '-' and '_',
-          # so SemVer pre-release tags are emitted with '.' separators.
-          PKG_VERSION="${VERSION//-/.}"
+          # so the release string is emitted with '.' separators.
+          MAC_VERSION="${RELEASE//-/.}"
           ARCH=$(uname -m)
-          mv "pkg/target/aerospike-asbench-${PKG_VERSION}-${ARCH}.pkg" \
-             "aerospike-asbench-${VERSION}-${{ matrix.os }}-${{ runner.arch }}.pkg"
+          mv "pkg/target/aerospike-asbench-${MAC_VERSION}-${ARCH}.pkg" \
+             "aerospike-asbench-${RELEASE}-${{ matrix.os }}-${{ runner.arch }}.pkg"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: unsigned-artifacts-${{ needs.get-version.outputs.VERSION }}-${{ matrix.os }}-${{ runner.arch }}
-          path: aerospike-asbench-${{ needs.get-version.outputs.VERSION }}-${{ matrix.os }}-${{ runner.arch }}.pkg
+          path: aerospike-asbench-${{ needs.get-version.outputs.RELEASE }}-${{ matrix.os }}-${{ runner.arch }}.pkg
           if-no-files-found: error
           retention-days: 1
 
@@ -612,6 +632,7 @@ jobs:
       - name: Build (native) and smoke test
         env:
           VERSION: ${{ needs.get-version.outputs.VERSION }}
+          RELEASE: ${{ needs.get-version.outputs.RELEASE }}
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set -euo pipefail
@@ -623,7 +644,7 @@ jobs:
           # Reuse the linux-install bats smoke test against the loaded image
           # by shimming `asbench` to `docker run` calls.
           sudo apt-get update -qq && sudo apt-get install -y bats
-          IMAGE="aerospike/aerospike-asbench:${VERSION}-${{ matrix.arch }}"
+          IMAGE="aerospike/aerospike-asbench:${RELEASE}-${{ matrix.arch }}"
           SHIM_DIR=$(mktemp -d)
           cat > "${SHIM_DIR}/asbench" <<EOF
           #!/bin/sh
