@@ -30,6 +30,10 @@ MAC_PKG = $(TARGET_DIR)/aerospike-asbench-$(MAC_VERSION)-$(ARCH).pkg
 .PHONY: all
 all: deb rpm tar
 
+# The aerospike-tools bundle ships these same /opt/aerospike/bin paths. deb
+# Replaces (without Conflicts) lets dpkg hand file ownership to this package;
+# rpm has no equivalent, so Conflicts turns an opaque file-conflict error into
+# an actionable one.
 .PHONY: deb
 deb: prep
 	fpm --force \
@@ -45,6 +49,7 @@ deb: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
+		--replaces "aerospike-tools" \
 		--package $(TARGET_DIR)/$(NAME)_$(VERSION)-$(DEB_ITERATION)_$(ARCH).deb
 
 .PHONY: rpm
@@ -63,6 +68,7 @@ rpm: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
+		--conflicts "aerospike-tools" \
 		--package $(TARGET_DIR)/$(NAME)-$(RPM_VERSION)-$(ITERATION).$(BUILD_DISTRO).$(ARCH).rpm
 
 .PHONY: tar
