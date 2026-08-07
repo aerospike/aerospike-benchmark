@@ -108,6 +108,7 @@ osx-pkg: prep-mac
 		--identifier $(PKG_ID) \
 		--version $(MAC_VERSION) \
 		--install-location / \
+		--scripts $(PKG_DIR)/mac-scripts \
 		$(MAC_PKG)
 
 .PHONY: clean
