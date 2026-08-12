@@ -20,11 +20,26 @@ RPM_VERSION := $(subst -,_,$(VERSION))
 # convention (e.g. 5.0.3-1debian12), like the rpm dist tag.
 ITERATION ?= 1
 DEB_ITERATION = $(ITERATION)$(BUILD_DISTRO)
-# pkgbuild rejects '-' and '_' in --version; normalize pre-release tags to '.' (see CI .pkg rename).
+# pkgbuild rejects '-' and '_' in --version; normalize pre-release tags to '.'.
+# This is the version *inside* the pkg only -- the file name below keeps the
+# canonical hyphenated VERSION.
 MAC_VERSION := $(subst _,.,$(subst -,.,$(VERSION)))
 MAC_ROOT = $(BUILD_DIR)/mac-root
 PKG_ID = com.aerospike.asbench
-MAC_PKG = $(TARGET_DIR)/aerospike-asbench-$(MAC_VERSION)-$(ARCH).pkg
+# macOS artifact file name:
+#
+#     aerospike-asbench-<version>-macos<major>-<arch>.pkg
+#     e.g. aerospike-asbench-1.1.2-macos15-arm64.pkg
+#
+# Lower case and '-' separated so a Homebrew cask can interpolate it directly
+# (`arch arm: "arm64", intel: "x86_64"` + url ".../...-macos15-#{arch}.pkg").
+# <arch> is `uname -m` -- the tokens Homebrew's Hardware::CPU.arch emits, not
+# runner.arch (ARM64 / X64: upper case, and "X64" is not a macOS arch).
+# macos<major> is the build host's macOS major version -- the oldest macOS the
+# artifact supports, and what keeps names unique when one version ships a pkg
+# per (macOS major, arch) pair.
+MAC_PLATFORM = $(shell $(PKG_DIR)/../.github/bin/os_version.sh)
+MAC_PKG = $(TARGET_DIR)/aerospike-asbench-$(VERSION)-$(MAC_PLATFORM)-$(ARCH).pkg
 
 
 .PHONY: all
@@ -94,6 +109,7 @@ prep:
 # Staging for macOS installer: install to /usr/local/aerospike/bin with symlink at /usr/local/bin.
 .PHONY: prep-mac
 prep-mac:
+	@test -n "$(MAC_PLATFORM)" || { echo "ERROR: empty macOS platform token -- .github/bin/os_version.sh failed; refusing to build an unnamed pkg" >&2; exit 1; }
 	install -d $(TARGET_DIR)
 	rm -rf $(MAC_ROOT)
 	install -d $(MAC_ROOT)/usr/local/aerospike/bin
