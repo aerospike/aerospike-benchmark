@@ -15,21 +15,29 @@ LICENSE = "Apache License 2.0"
 URL = "https://github.com/aerospike/aerospike-benchmark"
 VENDOR = "Aerospike, Inc."
 ARCH = $(shell uname -m)
-RPM_VERSION := $(subst -,_,$(VERSION))
+# Package names never carry the "rcN" pre-release tag: rcN becomes the package
+# iteration, so 1.1.2-rc2 packages as version 1.1.2 iteration 2. VERSION itself
+# is untouched -- it is the git tag and what asbench --version reports.
+PKG_RELEASE_SH = $(PKG_DIR)/../.github/bin/pkg_release.sh
+PKG_VERSION := $(shell $(PKG_RELEASE_SH) '$(VERSION)' version)
+ITERATION ?= $(shell $(PKG_RELEASE_SH) '$(VERSION)' iteration)
+# For names with no iteration field of their own (.tar, macOS .pkg).
+RELEASE = $(PKG_VERSION)-$(ITERATION)
+RPM_VERSION := $(subst -,_,$(PKG_VERSION))
 # rpm Release / deb revision. The deb revision embeds the distro per Debian
-# convention (e.g. 5.0.3-1debian12), like the rpm dist tag.
-ITERATION ?= 1
+# convention (e.g. 1.1.2-1debian12), like the rpm dist tag.
 DEB_ITERATION = $(ITERATION)$(BUILD_DISTRO)
-# pkgbuild rejects '-' and '_' in --version; normalize pre-release tags to '.'.
-# This is the version *inside* the pkg only -- the file name below keeps the
-# canonical hyphenated VERSION.
-MAC_VERSION := $(subst _,.,$(subst -,.,$(VERSION)))
+# pkgbuild --version rejects hyphens and underscores; collapse both to dots
+# (1.1.2-1 -> 1.1.2.1), and defensively normalize any underscore-form
+# inputs (env overrides) too. This is the version *inside* the pkg only;
+# the file name below keeps the canonical hyphenated RELEASE.
+MAC_VERSION = $(subst _,.,$(subst -,.,$(RELEASE)))
 MAC_ROOT = $(BUILD_DIR)/mac-root
 PKG_ID = com.aerospike.asbench
 # macOS artifact file name:
 #
-#     aerospike-asbench-<version>-macos<major>-<arch>.pkg
-#     e.g. aerospike-asbench-1.1.2-macos15-arm64.pkg
+#     aerospike-asbench-<version>-<iteration>-macos<major>-<arch>.pkg
+#     e.g. aerospike-asbench-1.1.2-1-macos15-arm64.pkg
 #
 # Lower case and '-' separated so a Homebrew cask can interpolate it directly
 # (`arch arm: "arm64", intel: "x86_64"` + url ".../...-macos15-#{arch}.pkg").
@@ -37,9 +45,11 @@ PKG_ID = com.aerospike.asbench
 # runner.arch (ARM64 / X64: upper case, and "X64" is not a macOS arch).
 # macos<major> is the build host's macOS major version -- the oldest macOS the
 # artifact supports, and what keeps names unique when one version ships a pkg
-# per (macOS major, arch) pair.
+# per (macOS major, arch) pair. The version field is RELEASE (version +
+# iteration), so an rc respin of the same version is a distinct file
+# (1.1.2-2 vs 1.1.2-3) and the name matches the deb/rpm/tar naming.
 MAC_PLATFORM = $(shell $(PKG_DIR)/../.github/bin/os_version.sh)
-MAC_PKG = $(TARGET_DIR)/aerospike-asbench-$(VERSION)-$(MAC_PLATFORM)-$(ARCH).pkg
+MAC_PKG = $(TARGET_DIR)/aerospike-asbench-$(RELEASE)-$(MAC_PLATFORM)-$(ARCH).pkg
 
 
 .PHONY: all
@@ -53,14 +63,14 @@ deb: prep
 		--output-type deb \
 		--chdir $(BUILD_DIR)/ \
 		--name $(NAME) \
-		--version $(VERSION) \
+		--version $(PKG_VERSION) \
 		--iteration $(DEB_ITERATION) \
 		--maintainer $(MAINTAINER) \
 		--description $(DESCRIPTION) \
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--package $(TARGET_DIR)/$(NAME)_$(VERSION)-$(DEB_ITERATION)_$(ARCH).deb
+		--package $(TARGET_DIR)/$(NAME)_$(PKG_VERSION)-$(DEB_ITERATION)_$(ARCH).deb
 
 .PHONY: rpm
 rpm: prep
@@ -88,13 +98,13 @@ tar: prep
 		--output-type tar \
 		--chdir $(BUILD_DIR)/ \
 		--name $(NAME) \
-		--version $(VERSION) \
+		--version $(PKG_VERSION) \
 		--maintainer $(MAINTAINER) \
 		--description $(DESCRIPTION) \
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--package $(TARGET_DIR)/$(NAME)-$(BUILD_DISTRO)-$(VERSION)-$(ARCH).tar
+		--package $(TARGET_DIR)/$(NAME)-$(BUILD_DISTRO)-$(RELEASE)-$(ARCH).tar
 
 .PHONY: prep
 prep:
