@@ -12,6 +12,17 @@ ARCH = $(shell uname -m)
 PLATFORM = $(OS)-$(ARCH)
 VERSION := $(shell git describe --tags --always --abbrev=9 2>/dev/null; if [ $${?} != 0 ]; then echo 'unknown'; fi)
 ROOT = $(CURDIR)
+# What the binary prints. "rcN" is a build detail: it lives in the package
+# iteration, not in the product version. A passing rc is promoted to GA with no
+# rebuild, so the binary that ships as GA must not call itself a release
+# candidate -- it is the same file either way. The packaged version is
+# untouched: it stays the git tag and the input pkg/Makefile derives names from.
+TOOL_VERSION := $(shell $(CURDIR)/.github/bin/pkg_release.sh '$(VERSION)' version)
+# An unresolvable script path would leave this empty and embed a blank
+# version, which no test asserts on -- fail the build instead.
+ifeq ($(strip $(TOOL_VERSION)),)
+$(error could not derive TOOL_VERSION from VERSION='$(VERSION)' -- .github/bin/pkg_release.sh not found or failed)
+endif
 NAME = $(shell basename $(ROOT))
 OS = $(shell uname)
 ARCH = $(shell uname -m)
@@ -46,7 +57,7 @@ endif
 CFLAGS = -std=gnu11 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
-CFLAGS += -DTOOL_VERSION=\"$(VERSION)\"
+CFLAGS += -DTOOL_VERSION=\"$(TOOL_VERSION)\"
 
 DIR_LIBYAML ?= $(ROOT)/modules/libyaml
 DIR_LIBYAML_BUILD := $(DIR_LIBYAML)/build
