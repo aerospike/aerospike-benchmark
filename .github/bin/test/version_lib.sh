@@ -11,6 +11,15 @@ expected_version() {
 	if [ -f "$version_file" ]; then
 		file_version="$(tr -d '[:space:]' <"$version_file")"
 	fi
+	# Set-but-empty is a lost workflow output, not "unset": GitHub renders an
+	# unresolvable needs.<job>.outputs.<name> as the empty string rather than
+	# failing the step, and ${VAR:-...} would silently fall back to the VERSION
+	# file -- asserting a different claim than the workflow intended and
+	# reporting it as a pass.
+	if [ -n "${EXPECTED_VERSION+set}" ] && [ -z "$EXPECTED_VERSION" ]; then
+		echo "EXPECTED_VERSION is set but empty -- a workflow output was lost" >&2
+		return 1
+	fi
 	expected="${EXPECTED_VERSION:-$file_version}"
 	if [ -z "$expected" ]; then
 		echo "no VERSION file at $version_file and no EXPECTED_VERSION set" >&2
@@ -40,7 +49,16 @@ expected_version_lines() {
 	fi
 	printf 'Version %s\n' "$core"
 	if [ "$expected" != "$core" ]; then
-		printf 'Build %s\n' "${expected##*-}"
+		# print_version() splits on "-" and strtok skips trailing delimiters, so
+		# a version ending in "-" yields no Build line at all. Emitting the
+		# literal "Build " here would blame the binary for a malformed
+		# expectation.
+		local build="${expected##*-}"
+		if [ -z "$build" ]; then
+			echo "malformed version '$expected' (empty trailing field)" >&2
+			return 1
+		fi
+		printf 'Build %s\n' "$build"
 	fi
 }
 
