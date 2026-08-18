@@ -28,11 +28,29 @@ if [[ -z "$version" ]]; then
 	exit 1
 fi
 
-pkg_version=$(printf '%s' "$version" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+)-rc[0-9]+/\1/')
-iteration=$(printf '%s' "$version" | sed -nE 's/^[0-9]+\.[0-9]+\.[0-9]+-rc([0-9]+).*$/\1/p')
-# Base 10 so rc01 and rc1 cannot yield two differently named packages that
-# dpkg/rpm would then compare as equal.
-iteration=$((10#${iteration:-1}))
+# The rcN token must be a WHOLE pre-release identifier, not a prefix of one:
+# an unanchored match would strip "rc2" out of the middle of "rc2x" and glue the
+# remainder onto the core, yielding the package version 2.2.10x -- a string the
+# binary is not stamped with. "rc" is matched case-insensitively so an uppercase
+# RC2 cannot leak into a file name or image tag, and the digit run is bounded so
+# it cannot overflow bash's signed-64-bit arithmetic and wrap onto another
+# iteration. Leading zeros are still folded (rc01 == rc1), so one rc can never
+# yield two differently named packages that dpkg/rpm would compare as equal.
+if [[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-[Rr][Cc]0*([0-9]{1,4})(-(.*))?$ ]]; then
+	pkg_version="${BASH_REMATCH[1]}${BASH_REMATCH[3]:+-${BASH_REMATCH[4]}}"
+	iteration="${BASH_REMATCH[2]}"
+	if ((iteration < 1)); then
+		echo "rc numbering starts at rc1; '$version' would package as iteration 0, which dpkg/rpm sort below every other build of $pkg_version" >&2
+		exit 1
+	fi
+elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9.]+)*$ ]]; then
+	# Not an rc: the identifier stays in the version, iteration 1.
+	pkg_version="$version"
+	iteration=1
+else
+	echo "unparseable version '$version' (expected MAJOR.MINOR.PATCH with an optional pre-release identifier)" >&2
+	exit 1
+fi
 
 case "${2:-all}" in
 version) printf '%s\n' "$pkg_version" ;;
