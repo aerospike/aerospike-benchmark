@@ -420,8 +420,15 @@ function resolve_packages() {
         LOCAL_PKG_AMD64="${pkg_amd64}"
         LOCAL_PKGS_COPIED+=("${SCRIPT_DIR}/${pkg_amd64}")
       else
-        log_warn "  ${pkg_amd64} not found in ${PACKAGES_DIR} — will fall back to URL"
-        ASBENCH_AMD64_SHA256="PLACEHOLDER"
+        # --packages-dir/-u named a local directory explicitly, so a miss is a
+        # bug in the derived name (it comes from pkg_release.sh and must match
+        # what pkg/Makefile built), not a reason to fall back to the network --
+        # which would also set SHA256=PLACEHOLDER and so skip verification of
+        # whatever it downloaded.
+        log_warn "  ${pkg_amd64} not found under ${PACKAGES_DIR}."
+        log_warn "  Available: $(find -L "${real_dir}" -maxdepth 3 -name '*.deb' -exec basename {} \; 2>/dev/null | tr '\n' ' ')"
+        log_warn "  This name is derived from pkg_release.sh; fix the derivation rather than falling back to an unverified download."
+        exit 1
       fi
     fi
     if [[ "${need_arm64}" == true ]]; then
@@ -434,8 +441,15 @@ function resolve_packages() {
         LOCAL_PKG_ARM64="${pkg_arm64}"
         LOCAL_PKGS_COPIED+=("${SCRIPT_DIR}/${pkg_arm64}")
       else
-        log_warn "  ${pkg_arm64} not found in ${PACKAGES_DIR} — will fall back to URL"
-        ASBENCH_ARM64_SHA256="PLACEHOLDER"
+        # --packages-dir/-u named a local directory explicitly, so a miss is a
+        # bug in the derived name (it comes from pkg_release.sh and must match
+        # what pkg/Makefile built), not a reason to fall back to the network --
+        # which would also set SHA256=PLACEHOLDER and so skip verification of
+        # whatever it downloaded.
+        log_warn "  ${pkg_arm64} not found under ${PACKAGES_DIR}."
+        log_warn "  Available: $(find -L "${real_dir}" -maxdepth 3 -name '*.deb' -exec basename {} \; 2>/dev/null | tr '\n' ' ')"
+        log_warn "  This name is derived from pkg_release.sh; fix the derivation rather than falling back to an unverified download."
+        exit 1
       fi
     fi
   elif [[ "${COMPUTE_SHA}" == true ]]; then
@@ -471,6 +485,10 @@ function _cleanup_local_pkgs() {
 VERSION=""
 PKG_VERSION=""
 ITERATION=""
+# Distinguishes "-i was not given" from "-i was given an empty value": both
+# leave ITERATION empty, and silently re-deriving in the second case would
+# discard an override the caller meant to make.
+ITERATION_SET=false
 IMAGE_TAG=""
 TIMESTAMP="$(date -u +%Y%m%d%H%M%S)"
 REGISTRY_PREFIXES=()
@@ -503,7 +521,11 @@ function main() {
     -p) mode="push" ; shift ;;
     -M | --manifest) mode="manifest" ; shift ;;
     -v | --version)       VERSION="$2"             ; shift 2 ;;
-    -i | --iteration)     ITERATION="$2"           ; shift 2 ;;
+    -i | --iteration)
+      [[ "${2:-}" =~ ^[0-9]+$ ]] || {
+        log_warn "--iteration must be a positive integer, got '${2:-}'."
+        usage; exit 1; }
+      ITERATION="$2" ; ITERATION_SET=true ; shift 2 ;;
     -r | --registry)      REGISTRY_PREFIXES+=("$2") ; shift 2 ;;
     -a | --arch)          arch_filters+=("$2")     ; shift 2 ;;
     -u | --packages-url)  pkg_url="$2"             ; shift 2 ;;
@@ -531,19 +553,19 @@ function main() {
   fi
 
   # The .deb name and the image tag carry the PACKAGE version and iteration,
-  # not VERSION: rcN is folded into the iteration by pkg/Makefile
-  # (<version>-rc2 -> <version>-2ubuntu24.04), so deriving either from VERSION
-  # would look for a .deb that is never built and publish an image tagged with a
-  # pre-release identifier the packages do not carry. Same source of truth as
-  # the Makefile, and the same tag scheme as aerospike-admin.
+  # not VERSION: .github/bin/pkg_release.sh folds rcN into the iteration
+  # (2.2.10-rc2 -> version 2.2.10, iteration 2 -> .deb 2.2.10-2ubuntu24.04,
+  # image tag 2.2.10-2). Deriving either from VERSION would look for a .deb that
+  # is never built and publish an image tagged with a pre-release identifier the
+  # packages do not carry. pkg/Makefile calls the same script, so the .deb this
+  # resolves is the .deb that was built; the tag scheme matches aerospike-admin.
   local pkg_release_sh="${SCRIPT_DIR}/../.github/bin/pkg_release.sh"
   if [[ ! -x "${pkg_release_sh}" ]]; then
-    log_warn "missing ${pkg_release_sh}"
+    log_warn "${pkg_release_sh} is missing or not executable."
     exit 1
   fi
   PKG_VERSION=$("${pkg_release_sh}" "${VERSION}" version)
-  # Only derive when -i did not already set it.
-  if [[ -z "${ITERATION}" ]]; then
+  if [[ "${ITERATION_SET}" == false ]]; then
     ITERATION=$("${pkg_release_sh}" "${VERSION}" iteration)
   fi
   IMAGE_TAG="${PKG_VERSION}-${ITERATION}"
