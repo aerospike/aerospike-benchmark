@@ -1,7 +1,9 @@
 # Post-install smoke tests
 
-`test_execute.bats` runs in CI (`Verify installation`) on every Linux distro and macOS
-runner, against the signed package after it is installed. It checks that asbench runs and
+`test_execute.bats` runs in the release workflow (`Verify installation` in
+`build-and-release.yml`) on every Linux distro and macOS runner, against the signed package
+after it is installed. That workflow is `workflow_dispatch`-only, so these checks do **not**
+run on a pull request. It checks that asbench runs and
 that **the version it reports matches the repo's `VERSION` file**, so a package labelled
 with one version but carrying a binary stamped with another fails here instead of
 downstream in the aerospike-tools bundle.
