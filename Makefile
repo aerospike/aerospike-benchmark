@@ -12,9 +12,6 @@ ARCH = $(shell uname -m)
 PLATFORM = $(OS)-$(ARCH)
 VERSION := $(shell git describe --tags --always --abbrev=9 2>/dev/null; if [ $${?} != 0 ]; then echo 'unknown'; fi)
 ROOT = $(CURDIR)
-# Embedded whole: print_version() splits it, so 2.2.10-rc1 reports
-# "Version 2.2.10 / Build rc1".
-TOOL_VERSION := $(VERSION)
 NAME = $(shell basename $(ROOT))
 OS = $(shell uname)
 ARCH = $(shell uname -m)
@@ -49,7 +46,7 @@ endif
 CFLAGS = -std=gnu11 -Wall -fPIC -O3 -MMD -MP
 CFLAGS += -fno-common -fno-strict-aliasing
 CFLAGS += -D_FILE_OFFSET_BITS=64 -D_REENTRANT -D_GNU_SOURCE
-CFLAGS += -DTOOL_VERSION=\"$(TOOL_VERSION)\"
+CFLAGS += -DTOOL_VERSION=\"$(VERSION)\"
 
 DIR_LIBYAML ?= $(ROOT)/modules/libyaml
 DIR_LIBYAML_BUILD := $(DIR_LIBYAML)/build

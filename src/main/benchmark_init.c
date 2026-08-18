@@ -305,10 +305,19 @@ benchmark_init(int argc, char* argv[])
 LOCAL_HELPER void
 print_version()
 {
+	const char* raw = TOOL_VERSION;
+	char* version_cpy = strdup(raw[0] != '\0' ? raw : "unknown");
+
+	if (version_cpy == NULL) {
+		fprintf(stderr, "out of memory\n");
+		return;
+	}
+
 	char* build = NULL;
-	char* version_cpy = strdup(TOOL_VERSION);
 	char* token = strtok(version_cpy, "-");
-	char* version = token;
+	// strtok returns NULL for a string with no non-delimiter token (""; "-"),
+	// so this cannot be handed straight to "%s".
+	const char* version = (token != NULL) ? token : "unknown";
 
 	// Everything after the first "-" is build metadata; the last field is the
 	// one that identifies the build (rc1, the commit sha). The old loop read
@@ -318,7 +327,6 @@ print_version()
 		build = token;
 	}
 
-	
 	fprintf(stdout, "Aerospike Benchmark\n");
 	fprintf(stdout, "Version %s\n", version);
 
