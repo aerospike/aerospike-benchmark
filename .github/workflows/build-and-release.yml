@@ -26,14 +26,22 @@
 # === Feature-branch publishing (for external customers without GHA access) ===
 #   Dispatch this workflow on any branch with `release=true`:
 #      - No git tag is created (tags are main-only).
-#      - VERSION is a SemVer 2.0 pre-release identifier, so it sorts correctly
-#        in apt/dnf and never collides with main:
+#      - VERSION is a SemVer 2.0 pre-release identifier that never collides
+#        with main:
 #            2.2.10-rc1 + branch feature/foo, sha abc123456
 #          → VERSION       2.2.10-rc1-feature-foo-abc123456
 #          → BUILD_VERSION 2.2.10-abc123456   (sha pins it; iteration stays 1)
-#      - Packages are uploaded to the JFrog dev repo and installable via
-#        apt/dnf with that version pin. A release bundle is created so the
-#        artifacts can be promoted through JFrog.
+#      - Packages are uploaded to the JFrog dev repo. The installable version to
+#        pin with apt/dnf is derived from BUILD_VERSION, not VERSION -- that is
+#        what names the package:
+#            2.2.10-abc123456-1ubuntu24.04    (deb)
+#            2.2.10_abc123456-1.el9           (rpm)
+#        Note a dev build's version sorts ABOVE a GA release in dpkg/rpm (in
+#        deb-version(7) terms, end-of-string sorts before any character except
+#        '~'), so a host pinned to one is not offered the GA that follows it.
+#        Uninstall the dev build before upgrading.
+#      - A release bundle is created so the artifacts can be promoted through
+#        JFrog.
 #
 # === Main feature-style build (publish from main without tagging) ===
 #   Dispatch on main with `release=true` and `skip_tagging=true`:
@@ -76,8 +84,11 @@ on:
         default: false
 
 # Two runs on the same ref resolve to the same VERSION and race each other to
-# the same artifact paths (deb/rpm pools are flat: last write wins). Serialise
-# instead of cancelling -- a half-published run must finish, not be interrupted.
+# the same artifact paths (deb/rpm pools are flat: last write wins).
+# cancel-in-progress: false so a half-published run is never interrupted; a
+# second dispatch waits for it. Note this is not a queue -- a group holds one
+# in-progress run and at most one PENDING run, so a third dispatch cancels the
+# waiting one rather than lining up behind it.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -122,14 +133,40 @@ jobs:
             exit 1
           fi
 
-          # Reject a reused version before anything is built. create-tag checks
-          # this too, but only after the packages and the release bundle are
-          # published -- by then the previous build's files in the flat deb/rpm
-          # pools have already been overwritten.
-          if [[ "${GITHUB_REF}" == "refs/heads/main" && "${SKIP_TAGGING}" != "true" ]] \
-             && git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
-            echo "::error::Tag '${VERSION}' already exists. Bump VERSION (Bump Version workflow) to the next -rcN before releasing again." >&2
+          # An rc number is the package iteration, so a leading zero would make
+          # rc01 and rc1 name the same package -- two releases dpkg/rpm then
+          # compare as equal. rc0 would package as iteration 0, which sorts
+          # below every other build of the version.
+          if [[ "$VERSION" =~ -[Rr][Cc]0 ]]; then
+            echo "::error::VERSION '$VERSION': rc numbers must not have a leading zero and must start at rc1 (rc01 would name the same package as rc1)." >&2
             exit 1
+          fi
+
+          if [[ "${GITHUB_REF}" == "refs/heads/main" && "${SKIP_TAGGING}" != "true" ]]; then
+            # Reject a reused version before anything is built. create-tag checks
+            # this too, but only after the packages and the release bundle are
+            # published -- by then the previous build's files in the flat deb/rpm
+            # pools have already been overwritten.
+            if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+              echo "::error::Tag '${VERSION}' already exists. Bump VERSION (Bump Version workflow) to the next -rcN before releasing again." >&2
+              exit 1
+            fi
+
+            # The tag check above keys on the release identity; artifact names key
+            # on the PACKAGE release (<version>-<iteration>), which is coarser.
+            # A bare X.Y.Z packages as iteration 1 -- byte-identical to X.Y.Z-rc1
+            # -- so building a bare GA for a version that already shipped an rc
+            # would overwrite that rc's signed artifacts in the flat pools and
+            # re-point its docker tag, with no tag collision to stop it. It would
+            # also sort BELOW rc2 and later. GA is a JFrog promotion of the
+            # passing rc, never a rebuild; enforce that rather than documenting it.
+            if [[ "$VERSION" != *-* ]]; then
+              rc_tags=$(git tag --list "${VERSION}-rc*" | tr '\n' ' ')
+              if [[ -n "${rc_tags// /}" ]]; then
+                echo "::error::VERSION '${VERSION}' already shipped as: ${rc_tags}-- promote the passing rc through JFrog instead of rebuilding. A bare '${VERSION}' emits the same '${VERSION}-1' artifact names and would overwrite it." >&2
+                exit 1
+              fi
+            fi
           fi
 
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
@@ -143,7 +180,6 @@ jobs:
     outputs:
       VERSION: ${{ steps.compute.outputs.version }}
       BUILD_VERSION: ${{ steps.compute.outputs.build_version }}
-      PKG_VERSION: ${{ steps.release.outputs.PKG_VERSION }}
       ITERATION: ${{ steps.release.outputs.ITERATION }}
       RELEASE: ${{ steps.release.outputs.RELEASE }}
     steps:
@@ -259,7 +295,12 @@ jobs:
         env:
           ENV_DISTRO: ${{ matrix.distro }}
           BUILD_DISTRO: ${{ matrix.distro }}
-          PKG_VERSION: ${{ needs.get-version.outputs.BUILD_VERSION }}
+          # BUILD_VERSION, not PKG_VERSION: pkg/Makefile defines its own
+          # PKG_VERSION (the rcN-stripped one), and an env var of that name
+          # reaching make is only overridden by a make precedence rule -- so
+          # `make -e` or a PKG_VERSION= command-line override would put rcN
+          # back into the .deb file name.
+          BUILD_VERSION: ${{ needs.get-version.outputs.BUILD_VERSION }}
         run: |
           set -euo pipefail
           source .github/bin/build_package.sh
@@ -312,7 +353,14 @@ jobs:
         with:
           path: |
             target/asbench
-          key: ${{ env.cache-name }}-${{ env.cache-index }}-${{ matrix.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.release }}-${{ needs.get-version.outputs.VERSION }}
+          # github.sha, not just the version: on a main release VERSION is the
+          # VERSION file verbatim and carries no commit identity, so a
+          # re-dispatch after a mid-pipeline failure (no tag was created, so
+          # nothing forces an rcN bump) would hit this cache and package the
+          # PREVIOUS binary while the linux legs rebuilt with the fix. The
+          # version assertions cannot catch that -- both binaries are stamped
+          # from the same BUILD_VERSION.
+          key: ${{ env.cache-name }}-${{ env.cache-index }}-${{ matrix.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.release }}-${{ needs.get-version.outputs.BUILD_VERSION }}-${{ github.sha }}
 
       - name: Build mac asbench
         if: steps.cache-asbench.outputs.cache-hit != 'true'
@@ -344,7 +392,12 @@ jobs:
           out=$(./target/asbench --version 2>&1)
           printf '%s\n' "$out"
           . .github/bin/test/version_lib.sh
-          assert_version_output "$out" "$(expected_version VERSION)"
+          # Assigned on its own line: expected_version's non-zero status (no
+          # version at all, or EXPECTED_VERSION disagreeing with the VERSION
+          # file) is discarded in an argument position, so the real diagnosis
+          # would be buried under a spurious parse error.
+          expected=$(expected_version VERSION)
+          assert_version_output "$out" "$expected"
 
       - name: Create .pkg
         env:
