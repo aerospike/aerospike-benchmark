@@ -16,8 +16,7 @@ URL = "https://github.com/aerospike/aerospike-benchmark"
 VENDOR = "Aerospike, Inc."
 ARCH = $(shell uname -m)
 # Package names never carry the "rcN" pre-release tag: rcN becomes the package
-# iteration, so 1.1.2-rc2 packages as version 1.1.2 iteration 2. VERSION itself
-# is untouched -- it is the git tag and what asbench --version reports.
+# iteration, so 2.2.10-rc2 packages as version 2.2.10 iteration 2.
 PKG_RELEASE_SH = $(PKG_DIR)/../.github/bin/pkg_release.sh
 PKG_VERSION := $(shell $(PKG_RELEASE_SH) '$(VERSION)' version)
 ITERATION ?= $(shell $(PKG_RELEASE_SH) '$(VERSION)' iteration)
