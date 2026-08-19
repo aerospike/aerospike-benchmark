@@ -488,7 +488,6 @@ ITERATION=""
 # Distinguishes "-i was not given" from "-i was given an empty value": both
 # leave ITERATION empty, and silently re-deriving in the second case would
 # discard an override the caller meant to make.
-ITERATION_SET=false
 IMAGE_TAG=""
 TIMESTAMP="$(date -u +%Y%m%d%H%M%S)"
 REGISTRY_PREFIXES=()
@@ -522,10 +521,11 @@ function main() {
     -M | --manifest) mode="manifest" ; shift ;;
     -v | --version)       VERSION="$2"             ; shift 2 ;;
     -i | --iteration)
-      [[ "${2:-}" =~ ^[0-9]+$ ]] || {
-        log_warn "--iteration must be a positive integer, got '${2:-}'."
-        usage; exit 1; }
-      ITERATION="$2" ; ITERATION_SET=true ; shift 2 ;;
+      if [[ ! "${2:-}" =~ ^[1-9][0-9]*$ ]]; then
+        log_error "--iteration must be a positive integer with no leading zero, got '${2:-}'"
+        exit 1
+      fi
+      ITERATION="$2"; shift 2 ;;
     -r | --registry)      REGISTRY_PREFIXES+=("$2") ; shift 2 ;;
     -a | --arch)          arch_filters+=("$2")     ; shift 2 ;;
     -u | --packages-url)  pkg_url="$2"             ; shift 2 ;;
@@ -565,7 +565,7 @@ function main() {
     exit 1
   fi
   PKG_VERSION=$("${pkg_release_sh}" "${VERSION}" version)
-  if [[ "${ITERATION_SET}" == false ]]; then
+  if [[ -z "${ITERATION}" ]]; then
     ITERATION=$("${pkg_release_sh}" "${VERSION}" iteration)
   fi
   IMAGE_TAG="${PKG_VERSION}-${ITERATION}"
