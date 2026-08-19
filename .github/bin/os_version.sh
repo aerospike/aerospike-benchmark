@@ -59,11 +59,10 @@ main() {
 
 		# This script has no `set -e`, so the status has to be checked
 		# explicitly: an sw_vers that fails while printing anything at all to
-		# stdout would otherwise emit a non-empty garbage token, and
-		# pkg/Makefile's prep-mac guard -- a `test -n` -- would wave it
-		# through. The token becomes a path component of the .pkg file name,
-		# so it is validated for shape as well as emptiness; "macosn/a" would
-		# otherwise put a '/' in the artifact name.
+		# stdout would otherwise emit a non-empty garbage token. The token
+		# becomes a path component of the .pkg file name, so it is validated
+		# for shape as well as emptiness; "macosn/a" would otherwise put a '/'
+		# in the artifact name.
 		local mac_version=''
 		if ! mac_version=$(sw_vers -productVersion 2>/dev/null)
 		then

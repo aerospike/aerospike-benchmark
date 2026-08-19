@@ -32,6 +32,7 @@ UBUNTU_CODENAME="noble"
 log_info()    { printf '\e[36m[INFO]\e[0m  %s\n' "$*" >&2; }
 log_success() { printf '\e[32m[OK]\e[0m    %s\n' "$*" >&2; }
 log_warn()    { printf '\e[33m[WARN]\e[0m  %s\n' "$*" >&2; }
+log_error()   { printf '\e[31m[ERROR]\e[0m %s\n' "$*" >&2; }
 
 # ---------------------------------------------------------------------------
 # Usage
@@ -420,14 +421,9 @@ function resolve_packages() {
         LOCAL_PKG_AMD64="${pkg_amd64}"
         LOCAL_PKGS_COPIED+=("${SCRIPT_DIR}/${pkg_amd64}")
       else
-        # --packages-dir/-u named a local directory explicitly, so a miss is a
-        # bug in the derived name (it comes from pkg_release.sh and must match
-        # what pkg/Makefile built), not a reason to fall back to the network --
-        # which would also set SHA256=PLACEHOLDER and so skip verification of
-        # whatever it downloaded.
-        log_warn "  ${pkg_amd64} not found under ${PACKAGES_DIR}."
-        log_warn "  Available: $(find -L "${real_dir}" -maxdepth 3 -name '*.deb' -exec basename {} \; 2>/dev/null | tr '\n' ' ')"
-        log_warn "  This name is derived from pkg_release.sh; fix the derivation rather than falling back to an unverified download."
+        log_error "  ${pkg_amd64} not found under ${PACKAGES_DIR}."
+        log_error "  Available: $(find -L "${real_dir}" -maxdepth 3 -name '*.deb' -exec basename {} \; 2>/dev/null | tr '\n' ' ')"
+        log_error "  This name comes from pkg_release.sh; fix the derivation rather than falling back to an unverified download."
         exit 1
       fi
     fi
@@ -441,14 +437,9 @@ function resolve_packages() {
         LOCAL_PKG_ARM64="${pkg_arm64}"
         LOCAL_PKGS_COPIED+=("${SCRIPT_DIR}/${pkg_arm64}")
       else
-        # --packages-dir/-u named a local directory explicitly, so a miss is a
-        # bug in the derived name (it comes from pkg_release.sh and must match
-        # what pkg/Makefile built), not a reason to fall back to the network --
-        # which would also set SHA256=PLACEHOLDER and so skip verification of
-        # whatever it downloaded.
-        log_warn "  ${pkg_arm64} not found under ${PACKAGES_DIR}."
-        log_warn "  Available: $(find -L "${real_dir}" -maxdepth 3 -name '*.deb' -exec basename {} \; 2>/dev/null | tr '\n' ' ')"
-        log_warn "  This name is derived from pkg_release.sh; fix the derivation rather than falling back to an unverified download."
+        log_error "  ${pkg_arm64} not found under ${PACKAGES_DIR}."
+        log_error "  Available: $(find -L "${real_dir}" -maxdepth 3 -name '*.deb' -exec basename {} \; 2>/dev/null | tr '\n' ' ')"
+        log_error "  This name comes from pkg_release.sh; fix the derivation rather than falling back to an unverified download."
         exit 1
       fi
     fi
@@ -536,18 +527,18 @@ function main() {
     -n | --no-cache)      no_cache=true            ; shift ;;
     -N | --dry-run)       dry_run=true             ; shift ;;
     -h | --help)      usage ; exit 0 ;;
-    *) log_warn "Unknown option: $1" ; usage ; exit 1 ;;
+    *) log_error "Unknown option: $1" ; usage ; exit 1 ;;
     esac
   done
 
   if [[ -z "${mode}" ]]; then
-    log_warn "A mode (-t, -p, or -M) is required."
+    log_error "A mode (-t, -p, or -M) is required."
     usage
     exit 1
   fi
 
   if [[ -z "${VERSION}" ]]; then
-    log_warn "--version is required."
+    log_error "--version is required."
     usage
     exit 1
   fi
@@ -561,7 +552,7 @@ function main() {
   # resolves is the .deb that was built; the tag scheme matches aerospike-admin.
   local pkg_release_sh="${SCRIPT_DIR}/../.github/bin/pkg_release.sh"
   if [[ ! -x "${pkg_release_sh}" ]]; then
-    log_warn "${pkg_release_sh} is missing or not executable."
+    log_error "${pkg_release_sh} is missing or not executable."
     exit 1
   fi
   PKG_VERSION=$("${pkg_release_sh}" "${VERSION}" version)
@@ -602,7 +593,7 @@ function main() {
   fi
 
   if [[ ${#ACTIVE_ARCHES[@]} -eq 0 ]]; then
-    log_warn "No valid arches after filtering."
+    log_error "No valid arches after filtering."
     exit 1
   fi
 

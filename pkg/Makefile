@@ -19,12 +19,8 @@ ARCH = $(shell uname -m)
 # iteration, so 2.2.10-rc2 packages as version 2.2.10 iteration 2.
 PKG_RELEASE_SH = $(PKG_DIR)/../.github/bin/pkg_release.sh
 PKG_VERSION := $(shell $(PKG_RELEASE_SH) '$(VERSION)' version)
-# `:= $(or ...)` rather than `?=`: `?=` is always recursively expanded, so
-# pkg_release.sh would be re-run at every expansion -- including twice inside a
-# single fpm command line, once for the recorded revision and once for the file
-# name. Those are the "separate evaluations of the same variable" this file
-# already avoids for RELEASE and MAC_PLATFORM. $(or) short-circuits, so an
-# env or command-line override still wins and costs no fork.
+# `:= $(or ...)` rather than `?=`, which is always recursively expanded and
+# would re-run pkg_release.sh at every expansion; an override still wins.
 ITERATION := $(or $(ITERATION),$(shell $(PKG_RELEASE_SH) '$(VERSION)' iteration))
 # For names with no iteration field of their own (.tar, macOS .pkg).
 RELEASE := $(PKG_VERSION)-$(ITERATION)
@@ -39,22 +35,14 @@ DEB_ITERATION := $(ITERATION)$(BUILD_DISTRO)
 MAC_VERSION := $(subst _,.,$(subst -,.,$(RELEASE)))
 MAC_ROOT = $(BUILD_DIR)/mac-root
 PKG_ID = com.aerospike.asbench
-# macOS artifact file name:
+# macOS artifact file name, lower case and '-' separated so a Homebrew cask can
+# interpolate it (<arch> is `uname -m`, the token a cask's `arch` stanza emits):
 #
 #     aerospike-asbench-<version>-<iteration>-macos<major>-<arch>.pkg
-#     e.g. aerospike-asbench-2.2.10-1-macos15-arm64.pkg
-#
-# Lower case, '-' separated, <arch> from `uname -m`, so a Homebrew cask can
-# interpolate it directly (url ".../...-macos15-#{arch}.pkg"). The version field
-# is RELEASE, so an rc respin is a distinct file (2.2.10-2 vs 2.2.10-3) and the
-# name matches the deb/rpm/tar convention.
 #
 # macos<major> is the generation the artifact was BUILT on, not a minimum it
-# supports -- nothing pins MACOSX_DEPLOYMENT_TARGET. It is what keeps one
-# release's per-runner artifacts distinct.
-#
-# MAC_PLATFORM is `:=` so check-version's guard tests the very token that lands
-# in the file name, and os_version.sh is not re-run per expansion.
+# supports; it keeps one release's per-runner artifacts distinct. MAC_PLATFORM
+# is `:=` so check-version's guard tests the token that lands in the name.
 MAC_PLATFORM := $(shell $(PKG_DIR)/../.github/bin/os_version.sh)
 MAC_PKG = $(TARGET_DIR)/aerospike-asbench-$(RELEASE)-$(MAC_PLATFORM)-$(ARCH).pkg
 
@@ -113,12 +101,9 @@ tar: prep
 		--vendor $(VENDOR) \
 		--package $(TARGET_DIR)/$(NAME)-$(RELEASE)-$(BUILD_DISTRO)-$(ARCH).tar
 
-# Every artifact name is built from PKG_VERSION, ITERATION and MAC_PLATFORM,
-# all three of which come from $(shell ...) -- which yields the empty string on
-# failure and does NOT fail the build. Unguarded, a pkg_release.sh that cannot
-# run produces `fpm --version --iteration <distro>` and the file names
-# aerospike-asbench_-<distro>_<arch>.deb / aerospike-asbench---macos<N>-<arch>.pkg,
-# both of which pass every downstream check. Assert before building anything.
+# PKG_VERSION, ITERATION and MAC_PLATFORM all come from $(shell ...), which
+# yields the empty string on failure without failing the build; unguarded, an
+# empty one ships aerospike-asbench_-<distro>_<arch>.deb past every later check.
 .PHONY: check-version
 check-version:
 	@test -n '$(VERSION)' && test '$(VERSION)' != 'unknown' \

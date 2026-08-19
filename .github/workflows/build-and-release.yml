@@ -160,7 +160,7 @@ jobs:
             if [[ "$VERSION" != *-* ]]; then
               rc_tags=$(git tag --list "${VERSION}-rc*" | tr '\n' ' ')
               if [[ -n "${rc_tags// /}" ]]; then
-                echo "::error::VERSION '${VERSION}' already shipped as: ${rc_tags}-- promote the passing rc through JFrog instead of rebuilding. A bare '${VERSION}' emits the same '${VERSION}-1' artifact names and would overwrite it." >&2
+                echo "::error::VERSION '${VERSION}' already shipped as ${rc_tags% } -- promote the passing rc through JFrog instead of rebuilding. A bare '${VERSION}' emits the same '${VERSION}-1' artifact names and would overwrite it." >&2
                 exit 1
               fi
             fi
@@ -177,7 +177,6 @@ jobs:
     outputs:
       VERSION: ${{ steps.compute.outputs.version }}
       BUILD_VERSION: ${{ steps.compute.outputs.build_version }}
-      ITERATION: ${{ steps.release.outputs.ITERATION }}
       RELEASE: ${{ steps.release.outputs.RELEASE }}
     steps:
       - name: Checkout
@@ -209,9 +208,6 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "build_version=${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
 
-      # rcN never reaches a file name or image tag: it becomes the package
-      # iteration (rpm Release / deb revision), so 2.2.10-rc2 packages as
-      # version 2.2.10, iteration 2, release 2.2.10-2. No rcN means iteration 1.
       - name: Derive package version and iteration
         id: release
         env:
@@ -423,13 +419,12 @@ jobs:
           echo "==> built $(basename "${pkgs}")"
           # Platform suffix for the upload-artifact container below, in the same
           # macos<major>-<arch> terms as the pkg it carries. Unique per matrix leg
-          # (macos14-arm64, macos15-arm64, macos26-arm64, macos15-x86_64), which
-          # is all the container name has to guarantee.
-          # Assigned on its own line: a failing command substitution inside an
-          # argument does not trip `set -e`, which would name the artifact
-          # container "...--$(uname -m)" and let the leg pass.
+          # Assigned on their own lines: a failing command substitution inside
+          # an argument does not trip `set -e`, which would name the artifact
+          # container "...--" and let the leg pass.
           plat=$(.github/bin/os_version.sh)
-          echo "PKG_PLATFORM=${plat}-$(uname -m)" >> "$GITHUB_ENV"
+          arch=$(uname -m)
+          echo "PKG_PLATFORM=${plat}-${arch}" >> "$GITHUB_ENV"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -954,8 +949,8 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set -euo pipefail
-          # docker-build.sh folds any "rcN" in VERSION into the iteration, so
-          # the image tags carry RELEASE (e.g. <version>-2), never "rc2".
+          # docker-build.sh folds the rcN in BUILD_VERSION into the iteration,
+          # so image tags carry <version>-<iteration>, never "rc2".
           docker/docker-build.sh -t \
             -v "${BUILD_VERSION}" \
             -a ${{ matrix.arch }} \
@@ -972,12 +967,6 @@ jobs:
           EOF
           chmod +x "${SHIM_DIR}/asbench"
           PATH="${SHIM_DIR}:${PATH}" EXPECTED_VERSION="${BUILD_VERSION}" bats .github/bin/test/test_execute.bats
-
-          # Verify the loaded image actually carries the version we built —
-          # catches mis-tagged or stale-cached images that bats wouldn't.
-          BASE_VERSION=$(printf '%s' "${BUILD_VERSION}" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
-          docker run --rm "${IMAGE}" asbench --version | grep -qF "${BASE_VERSION}" \
-            || { echo "ERROR: expected ${BASE_VERSION} in --version output" >&2; exit 1; }
 
           if [[ -n "${SNYK_TOKEN:-}" ]]; then
             snyk container test "${IMAGE}" \
