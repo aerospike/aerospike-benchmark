@@ -30,6 +30,20 @@ MAC_PKG = $(TARGET_DIR)/aerospike-asbench-$(MAC_VERSION)-$(ARCH).pkg
 .PHONY: all
 all: deb rpm tar
 
+# The aerospike-tools bundle ships these same /opt/aerospike/bin paths, so
+# the two packages cannot coexist while it does. Two conflicts express that
+# without predicting the bundle's future: the versioned one covers every
+# bundle released before the bundle started declaring the virtual token (a
+# frozen fact about the past, never needs raising), and the token one covers
+# every future file-shipping bundle at any version (the bundle Provides it as
+# long as it ships binaries, and drops it if it ever stops, at which point
+# coexistence starts working with no change here). Installing either side
+# over the other refuses with a named, actionable conflict instead of a raw
+# file collision. Keep both values in step with citrusleaf/aerospike-tools
+# and the other standalone tool repos.
+TOOLS_PRE_TOKEN_BOUND = 13.0.3
+TOOLS_BUNDLE_TOKEN = aerospike-tools-binaries
+
 .PHONY: deb
 deb: prep
 	fpm --force \
@@ -45,6 +59,8 @@ deb: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
+		--conflicts "aerospike-tools (<< $(TOOLS_PRE_TOKEN_BOUND))" \
+		--conflicts "$(TOOLS_BUNDLE_TOKEN)" \
 		--package $(TARGET_DIR)/$(NAME)_$(VERSION)-$(DEB_ITERATION)_$(ARCH).deb
 
 .PHONY: rpm
@@ -63,6 +79,8 @@ rpm: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
+		--conflicts "aerospike-tools < $(TOOLS_PRE_TOKEN_BOUND)" \
+		--conflicts "$(TOOLS_BUNDLE_TOKEN)" \
 		--package $(TARGET_DIR)/$(NAME)-$(RPM_VERSION)-$(ITERATION).$(BUILD_DISTRO).$(ARCH).rpm
 
 .PHONY: tar
