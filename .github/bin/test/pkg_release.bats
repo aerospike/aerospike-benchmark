@@ -3,8 +3,9 @@
 # Table test for pkg_release.sh -- the single computation behind every .deb,
 # .rpm, .tar and .pkg file name and every docker image tag in this repo.
 #
-# Unlike test_execute.bats these tests need no installed asbench and no
-# packaging, so they run on every pull request (build-check.yml).
+# Unlike test_execute.bats these tests need no installed binary and no
+# packaging, so they run on every pull request. The script and this file are
+# shared verbatim across the tools repos; keep the copies byte-identical.
 
 setup() {
   PKG_RELEASE="$(cd "$BATS_TEST_DIRNAME/.." && pwd)/pkg_release.sh"
@@ -34,6 +35,13 @@ ITERATION=${want_iteration}
 RELEASE=${want_release}" ]
 }
 
+# assert_rc_rejected <input>
+assert_rc_rejected() {
+  run "$PKG_RELEASE" "$1" all
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"rc folds into the iteration"* ]]
+}
+
 @test "GA version packages as iteration 1" {
   assert_release "2.2.10" "2.2.10" "1"
 }
@@ -60,7 +68,6 @@ RELEASE=${want_release}" ]
   # 2.2.10-rc2x is not rcN, so it must NOT be folded to 2.2.10x.
   assert_release "2.2.10-rc2x" "2.2.10-rc2x" "1"
   assert_release "2.2.10-rc2rc3" "2.2.10-rc2rc3" "1"
-  assert_release "2.2.10-rc" "2.2.10-rc" "1"
 }
 
 @test "git describe output is passed through untouched" {
@@ -73,11 +80,19 @@ RELEASE=${want_release}" ]
   [[ "$output" == *"rc numbering starts at rc1"* ]]
 }
 
-@test "an unbounded rc digit run cannot overflow into another iteration" {
-  # Must not wrap via 64-bit arithmetic onto a small iteration.
-  run "$PKG_RELEASE" "2.2.10-rc18446744073709551617" release
-  [ "$status" -eq 0 ]
-  [ "$output" != "2.2.10-1" ]
+@test "a bare -rc is rejected, not shipped in a name" {
+  assert_rc_rejected "2.2.10-rc"
+}
+
+@test "an rc digit run past the bound is rejected, not passed through" {
+  assert_rc_rejected "2.2.10-rc12345"
+  # Must not wrap via 64-bit arithmetic onto a small iteration either.
+  assert_rc_rejected "2.2.10-rc18446744073709551617"
+}
+
+@test "a second rc identifier cannot ride the trailing group into the name" {
+  assert_rc_rejected "5.0.3-rc2-rc3"
+  assert_rc_rejected "5.0.3-rc2-master.rc4"
 }
 
 @test "an empty version is a usage error" {
