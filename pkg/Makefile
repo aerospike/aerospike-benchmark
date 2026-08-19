@@ -30,10 +30,15 @@ MAC_PKG = $(TARGET_DIR)/aerospike-asbench-$(MAC_VERSION)-$(ARCH).pkg
 .PHONY: all
 all: deb rpm tar
 
-# The aerospike-tools bundle ships these same /opt/aerospike/bin paths. deb
-# Replaces (without Conflicts) lets dpkg hand file ownership to this package;
-# rpm has no equivalent, so Conflicts turns an opaque file-conflict error into
-# an actionable one.
+# aerospike-tools older than TOOLS_SPLIT_VERSION is the monolithic bundle that
+# ships these same /opt/aerospike/bin paths. From TOOLS_SPLIT_VERSION on it is
+# a transitional metapackage that ships no binaries and Depends on this package
+# instead. Versioned Breaks + Replaces (deb) and Conflicts (rpm) are the
+# standard package-split handoff (Debian Policy 7.6.1); the metapackage itself
+# is never matched by them, so this never needs revisiting. Keep the value in
+# step with the cutover in citrusleaf/aerospike-tools and the other tool repos.
+TOOLS_SPLIT_VERSION = 13.0.3
+
 .PHONY: deb
 deb: prep
 	fpm --force \
@@ -49,7 +54,8 @@ deb: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--replaces "aerospike-tools" \
+		--replaces "aerospike-tools (<< $(TOOLS_SPLIT_VERSION))" \
+		--deb-field "Breaks: aerospike-tools (<< $(TOOLS_SPLIT_VERSION))" \
 		--package $(TARGET_DIR)/$(NAME)_$(VERSION)-$(DEB_ITERATION)_$(ARCH).deb
 
 .PHONY: rpm
@@ -68,7 +74,7 @@ rpm: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--conflicts "aerospike-tools" \
+		--conflicts "aerospike-tools < $(TOOLS_SPLIT_VERSION)" \
 		--package $(TARGET_DIR)/$(NAME)-$(RPM_VERSION)-$(ITERATION).$(BUILD_DISTRO).$(ARCH).rpm
 
 .PHONY: tar
