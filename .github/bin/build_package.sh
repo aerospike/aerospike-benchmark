@@ -33,7 +33,7 @@ function build_packages() {
 	# build
 	cd "$GIT_DIR" || exit 1
 	echo "build_package.sh version: $(git describe --tags --always --abbrev=9)"
-	VERSION=${PKG_VERSION:-$(git describe --tags --always --abbrev=9)}
+	VERSION=${BUILD_VERSION:-${PKG_VERSION:-$(git describe --tags --always --abbrev=9)}}
 	export VERSION
 	make clean
 	# Pass VERSION explicitly so the embedded TOOL_VERSION matches the package

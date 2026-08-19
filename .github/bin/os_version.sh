@@ -36,10 +36,51 @@ main() {
 	local distro_long=''
 	local distro_short=''
 
-	# Make sure this script is running on Linux
-	# The script is not designed to work on non-Linux
-	# operating systems.
 	kernel=$(uname -s | tr '[:upper:]' '[:lower:]')
+
+	# macOS: emit "macos<major>" from the product version (26.0 -> macos26).
+	# No longer part of any artifact name -- .pkg files are named per arch, not
+	# per macOS generation (see MAC_PKG in pkg/Makefile). Kept for callers that
+	# want the build host's generation.
+	if [ "$kernel" = 'darwin' ]
+	then
+		# -long is only honoured by the Linux tail below, which this branch
+		# returns before reaching. Reject it rather than silently emitting the
+		# short form and letting a caller believe it got a long token.
+		if [ "$OPT_LONG" = "1" ]
+		then
+			error "-long is not supported on darwin."
+			exit 1
+		fi
+
+		# This script has no `set -e`, so the status has to be checked
+		# explicitly: an sw_vers that fails while printing anything at all to
+		# stdout would otherwise emit a non-empty garbage token. The token
+		# becomes a path component of the .pkg file name, so it is validated
+		# for shape as well as emptiness; "macosn/a" would otherwise put a '/'
+		# in the artifact name.
+		local mac_version=''
+		if ! mac_version=$(sw_vers -productVersion 2>/dev/null)
+		then
+			error "sw_vers -productVersion failed."
+			exit 1
+		fi
+		if [ -z "$mac_version" ]
+		then
+			error "sw_vers -productVersion returned nothing."
+			exit 1
+		fi
+		case "$mac_version" in
+		*[!0-9.]* | '' | .* | *.)
+			error "sw_vers -productVersion returned '$mac_version', not a version."
+			exit 1
+			;;
+		esac
+		echo "macos${mac_version%%.*}"
+		exit 0
+	fi
+
+	# Everything below is Linux-only.
 	if [ "$kernel" != 'linux' ]
 	then
 		error "$kernel is not supported."
