@@ -15,6 +15,11 @@ LICENSE = "Apache License 2.0"
 URL = "https://github.com/aerospike/aerospike-benchmark"
 VENDOR = "Aerospike, Inc."
 ARCH = $(shell uname -m)
+# dpkg and rpm spell architectures differently: dpkg wants amd64/arm64/all
+# where uname and rpm say x86_64/aarch64/noarch. macOS uname -m already
+# reports arm64 -- the dpkg spelling, but not rpm's.
+DEB_ARCH = $(patsubst noarch,all,$(patsubst aarch64,arm64,$(patsubst x86_64,amd64,$(ARCH))))
+RPM_ARCH = $(patsubst arm64,aarch64,$(ARCH))
 # Package names never carry the "rcN" pre-release tag: rcN becomes the package
 # iteration, so 2.2.10-rc2 packages as version 2.2.10 iteration 2.
 PKG_RELEASE_SH = $(PKG_DIR)/../.github/bin/pkg_release.sh
@@ -57,6 +62,7 @@ deb: prep
 		--config-files $(CONFIG_DIR) \
 		--input-type dir \
 		--output-type deb \
+		--architecture $(DEB_ARCH) \
 		--chdir $(BUILD_DIR)/ \
 		--name $(NAME) \
 		--version $(PKG_VERSION) \
@@ -66,7 +72,7 @@ deb: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--package $(TARGET_DIR)/$(NAME)_$(PKG_VERSION)-$(DEB_ITERATION)_$(ARCH).deb
+		--package $(TARGET_DIR)/$(NAME)_$(PKG_VERSION)-$(DEB_ITERATION)_$(DEB_ARCH).deb
 
 .PHONY: rpm
 rpm: prep
@@ -84,7 +90,7 @@ rpm: prep
 		--license $(LICENSE) \
 		--url $(URL) \
 		--vendor $(VENDOR) \
-		--package $(TARGET_DIR)/$(NAME)-$(RPM_VERSION)-$(ITERATION).$(BUILD_DISTRO).$(ARCH).rpm
+		--package $(TARGET_DIR)/$(NAME)-$(RPM_VERSION)-$(ITERATION).$(BUILD_DISTRO).$(RPM_ARCH).rpm
 
 .PHONY: tar
 tar: prep
