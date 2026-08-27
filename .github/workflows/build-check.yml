@@ -96,6 +96,22 @@ jobs:
           fi
           echo "OK: rcN folded into the iteration, absent from all package names"
 
+          # dpkg spells architectures differently from uname and rpm, so assert
+          # the mapping rather than trusting whatever arch the runner reports.
+          amd=$(make -C pkg -n deb rpm VERSION=2.2.10-rc3 BUILD_DISTRO=ubuntu24.04 ARCH=x86_64 \
+                | tr ' ' '\n' | grep -E '\.(deb|rpm)$')
+          arm=$(make -C pkg -n deb rpm VERSION=2.2.10-rc3 BUILD_DISTRO=ubuntu24.04 ARCH=aarch64 \
+                | tr ' ' '\n' | grep -E '\.(deb|rpm)$')
+          for want in "_amd64.deb" ".x86_64.rpm"; do
+            printf '%s\n' "${amd}" | grep -qF -- "${want}" \
+              || { echo "::error::ARCH=x86_64 did not emit '${want}': ${amd}" >&2; exit 1; }
+          done
+          for want in "_arm64.deb" ".aarch64.rpm"; do
+            printf '%s\n' "${arm}" | grep -qF -- "${want}" \
+              || { echo "::error::ARCH=aarch64 did not emit '${want}': ${arm}" >&2; exit 1; }
+          done
+          echo "OK: deb names carry the dpkg architecture, rpm names the uname one"
+
   installer-build:
     name: Build .${{ matrix.pkg }} (${{ matrix.distro }}, amd64)
     runs-on: ubuntu-24.04
