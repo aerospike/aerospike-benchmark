@@ -615,7 +615,7 @@ print_usage(const char* program)
 	printf("   Causes the benchmark tool to generate data which will roughly compress by this proportion.\n");
 	printf("\n");
 
-	printf("   --connection-timeout <ms> # Default: 1000\n");
+	printf("   --connect-timeout <ms> # Default: 1000\n");
 	printf("   Initial host connection timeout in milliseconds.\n");
 	printf("   The timeout when opening a connection to the server host for the first time.\n");
 	printf("\n");
