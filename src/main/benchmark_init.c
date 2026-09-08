@@ -368,9 +368,9 @@ print_usage(const char* program)
 	printf("   User name for Aerospike servers that require authentication.\n");
 	printf("\n");
 
-	printf("-P[<password>]  # Default: empty\n");
+	printf("-P[<password>] --password[=<password>]  # Default: empty\n");
 	printf("   User's password for Aerospike servers that require authentication.\n");
-	printf("   If -P is set, the actual password if optional. If the password is not given,\n");
+	printf("   If -P is set, the actual password is optional. If the password is not given,\n");
 	printf("   the user will be prompted on the command line.\n");
 	printf("   If the password is given, it must be provided directly after -P with no\n");
 	printf("   intervening space (ie. -Pmypass).\n");
@@ -457,7 +457,7 @@ print_usage(const char* program)
 	printf("     batch-delete-size: specifies the batch size of deletes for this stage. Takes precedence over batch-size. Default is 1\n");
 	printf("\n");
 
-	printf("-K --start-key <start> # Default: 0\n");
+	printf("-K --start-key <start> # Default: 1\n");
 	printf("   Set the starting value of the working set of keys. If using an\n");
 	printf("   'insert' workload, the start_value indicates the first value to\n");
 	printf("   write. Otherwise, the start_value indicates the smallest value in\n");
@@ -632,15 +632,15 @@ print_usage(const char* program)
 	printf("   Write socket timeout in milliseconds.\n");
 	printf("\n");
 
-	printf("-T --timeout <ms>    # Default: 0\n");
+	printf("-T --timeout <ms>    # Default: 1000\n");
 	printf("   Read/Write total timeout in milliseconds.\n");
 	printf("\n");
 
-	printf("   --read-timeout <ms> # Default: 0\n");
+	printf("   --read-timeout <ms> # Default: 1000\n");
 	printf("   Read total timeout in milliseconds.\n");
 	printf("\n");
 
-	printf("   --write-timeout <ms> # Default: 0\n");
+	printf("   --write-timeout <ms> # Default: 1000\n");
 	printf("   Write total timeout in milliseconds.\n");
 	printf("\n");
 
@@ -692,13 +692,13 @@ print_usage(const char* program)
 	printf("   addition to the key digest.\n");
 	printf("\n");
 
-	printf("-C --replica {master,any,sequence,prefer-rack} # Default: master\n");
+	printf("-C --replica {master,any,sequence,prefer-rack} # Default: sequence\n");
 	printf("   Which replica to use for reads.\n");
 	printf("     master: Always use node containing master partition.\n");
 	printf("     any: Distribute reads across master and proles in round-robin fashion.\n");
 	printf("     sequence: Always try master first. If master fails, try proles\n");
 	printf("       in sequence.\n");
-	printf("     preferRack: Always try node on the same rack as the benchmark first.\n");
+	printf("     prefer-rack: Always try node on the same rack as the benchmark first.\n");
 	printf("       If no nodes on the same rack, use sequence. This option requires\n");
 	printf("       rack-id to be set.\n");
 	printf("\n");
@@ -1692,7 +1692,7 @@ set_args(int argc, char * const* argv, args_t* args)
 					args->write_commit_level = AS_POLICY_COMMIT_LEVEL_MASTER;
 				}
 				else {
-					printf("commitLevel be all or master\n");
+					printf("commit-level must be all or master\n");
 					return 1;
 				}
 				break;
