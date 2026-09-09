@@ -4,7 +4,7 @@ set -xeuo pipefail
 function assert_dynamic_deps() {
 	local allowed="libc.so.6 libm.so.6 libpthread.so.0 libdl.so.2 librt.so.1
 		libgcc_s.so.1 libz.so.1 ld-linux-x86-64.so.2 ld-linux-aarch64.so.1"
-	if [ "$ENV_DISTRO" = "el8" ] || [ "$ENV_DISTRO" = "debian11" ]; then
+	if [ "$ENV_DISTRO" = "el8" ]; then
 		allowed+=" libssl.so.1.1 libcrypto.so.1.1"
 	else
 		allowed+=" libssl.so.3 libcrypto.so.3"
