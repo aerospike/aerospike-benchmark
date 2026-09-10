@@ -25,17 +25,6 @@ function install_libuv() {
 	cd ..
 }
 
-function install_deps_debian11() {
-	rm -rf /var/lib/apt/lists/*
-	apt-get clean
-	apt-get update -o Acquire::Retries=5
-	apt-get install -y --no-install-recommends $DEBIAN_DEPS $FPM_DEPS_DEBIAN
-	gem install fpm -v 1.17.0
-	install_libuv
-	apt-get clean
-	rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
-}
-
 function install_deps_debian12() {
 	rm -rf /var/lib/apt/lists/*
 	apt-get clean
