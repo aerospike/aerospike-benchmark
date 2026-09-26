@@ -2,9 +2,8 @@ name: Copy aerospike-asbench images to Docker Hub
 
 # Copies already-published aerospike-asbench tags from JFrog to Docker Hub.
 # Does not build images and does not write anything back to Artifactory.
-# Tags: 2.2.9-3 (multi-arch index), 2.2.9-3-amd64 (linux/amd64),
-# 2.2.9-3-arm64 (linux/arm64). Extra dest tags 2.2.9 and latest
-# are aliases of 2.2.9-3.
+# Tags: 2.2.10-1_20260916T211617Z (multi-arch index). Extra dest
+# tags 2.2.10 and latest are aliases of 2.2.10-1_20260916T211617Z.
 
 on:
   workflow_dispatch:
@@ -18,9 +17,9 @@ on:
         required: true
         default: aerospike/aerospike-asbench
       tags:
-        description: Comma-separated tags to copy unchanged (index, linux/amd64, linux/arm64)
+        description: Comma-separated tags to copy unchanged (multi-arch index)
         required: true
-        default: 2.2.9-3,2.2.9-3-amd64,2.2.9-3-arm64
+        default: 2.2.10-1_20260916T211617Z
       dry-run:
         description: Inspect JFrog tags only; do not push to Docker Hub
         type: boolean
@@ -29,11 +28,11 @@ on:
       alias-from:
         description: Source tag to copy onto extra destination tags
         required: false
-        default: 2.2.9-3
+        default: 2.2.10-1_20260916T211617Z
       alias-tags:
         description: Extra destination tags (comma-separated) based on alias-from
         required: false
-        default: 2.2.9,latest
+        default: 2.2.10,latest
 
 permissions:
   contents: read
