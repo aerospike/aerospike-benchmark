@@ -69,7 +69,7 @@ To view coverage data in the console, run
 make report
 ```
 
-The integration tests start a two node Aerospike cluster in Docker. Each test session picks a random free port range, so the tests can run next to an Aerospike server already listening on port 3000.
+The integration tests start a two node Aerospike cluster in Docker and need `python3`. Each test session picks a random free port range and its own work directory, waits until both nodes have joined and migrations are done, and removes its containers when it exits. A session that was killed is cleaned up by the next one, so the tests can run next to an Aerospike server already listening on port 3000.
 
 The dictionary generator has its own tests:
 
@@ -294,6 +294,38 @@ target/asbench -h 127.0.0.1 -n test --workload-stages examples/synth/<file>.yaml
 | `timeseries.yaml` | one day of minute samples per device (`C,20,1440,60`) |
 | `sessions.yaml` | session attribute maps read by key (`CK,90,50`) |
 | `leaderboard.yaml` | top-1000 leaderboards with top-10 reads (`CI,30,1000,10`) |
+| `session_cache.yaml` | session cache with a 30 minute TTL, async replaces (`RR,95`) |
+| `batch_catalog.yaml` | product catalog loaded 100 per batch write and read 50 per batch read |
+| `partial_updates.yaml` | writes touch only 2 bins, reads fetch only 3 bins (`--write-bins`, `--read-bins`) |
+| `ramp.yaml` | capacity ramp at 1k tps, 10k tps, then unthrottled (run with `--latency`) |
+| `alltypes.yaml` | every generator and legacy type in one record |
+| `selectivity.yaml` | bins with 1%, 10% and 100% selectivity for secondary index queries |
+| `nested_documents.yaml` | deeply nested documents with a composite business id |
+| `write_delete.yaml` | load, then a read/update/delete mix, then delete everything |
+| `large_documents.yaml` | 1 KB text documents with read, update and delete mixes |
+
+### Coming from the professional services data synthesizer
+
+The last five files are the asbench versions of the `tools/create` (datasynth) examples: `alltypes.json`, `maptest.json`, `simple.json` with `example2.json`, `deletes.json` and `transformer.json`. Its data types map to asbench as follows:
+
+| datasynth type | asbench spec |
+|---|---|
+| `VERBATIM` | constant, e.g. `"This"` or `123` |
+| `NUMBER`, `NUMBER_RANGE` | `@int(min,max)` |
+| `NUMBER_STRING` with a mask | `@fmt("$#{int(100,1000)}")` |
+| `DOUBLE` | `@double(min,max)` |
+| `STRING`, `BLOB` | `S<n>`, `B<n>` |
+| `LIST`, `MAP` | `[3*...]`, `{3*key:value}`, and `{"k":...}` for fixed keys |
+| `PICK` | `@pick("a","b")`, weighted `@pick("a":90,"b":10)` |
+| `DELIMITED_STRING` | `@fmt("#{first_name}, #{first_name}, #{first_name}")` or `@words(n)` |
+| `DATE_1`, `NOW` | `@date(min,max[,"format"])`, `@now` |
+| `US_FIRST_NAME`, `US_LAST_NAME`, `US_STREET`, `US_CITY`, `US_STATE`, `US_ZIP`, `US_PHONE_NUMBER` | `@first_name`, `@last_name`, `@street`, `@city`, `@state` / `@state_abbr`, `@zip`, `@phone` |
+| `IP`, `IPPORT`, `UUID` | `@ipv4`, `@fmt("#{ipv4}:#{int(1024,65535)}")`, `@uuid` |
+| `GEOSPATIAL` | `@geojson` (a real GeoJSON point) |
+| `LOREM_IPSUM` | `@lorem(n)` |
+| `FAKER_EXP` | `@fmt("...#{generator}...")` |
+
+Differences to keep in mind: record keys are always integers (put composite ids in a bin with `@fmt`), stages run one after another rather than concurrently (use `RU`, `RUD` and `C` read/write mixes instead), and each write op has one object spec rather than several randomly chosen bin specs.
 
 ## Performance
 

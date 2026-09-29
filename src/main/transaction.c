@@ -2009,8 +2009,6 @@ random_cdt(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 {
 	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
 
-	// no target number of transactions, only a timeout, so this thread is
-	// ready to be stopped whenever the timer runs out
 	thr_coordinator_complete(coord);
 
 	while (tdata->do_work) {

@@ -21,8 +21,6 @@ import time
 # the number of server nodes to use
 N_NODES = 2
 
-# each node uses 4 consecutive ports (service, fabric, heartbeat, info), and
-# node i starts at PORT + 1000 * i
 PORTS_PER_NODE = 4
 NODE_PORT_STRIDE = 1000
 
@@ -37,11 +35,6 @@ def _port_free(port):
 
 
 def _pick_base_port():
-	"""
-	Picks a random base port such that every port of every cluster node is
-	free, so the tests never collide with an Aerospike server (or anything
-	else) already running on this machine.
-	"""
 	rng = random.SystemRandom()
 	for _ in range(200):
 		base = rng.randrange(10000, 60000, 10)
@@ -60,8 +53,7 @@ NAMESPACE = "test"
 SET = "test"
 CLIENT_ATTEMPTS = 20
 
-# every test session gets its own work directory and container names (keyed by
-# its port range), so a session never reuses a path or name left by another one
+# per-session names: Docker Desktop serves a stale mount if a path is reused
 SESSION_ID = "asbench-it-%d" % PORT
 WORK_DIRECTORY = "work-%d" % PORT
 LUA_DIRECTORY = WORK_DIRECTORY + "/lua"
@@ -260,12 +252,7 @@ def _pid_alive(pid):
 
 
 def _remove_stale_containers():
-	"""
-	Removes containers left behind by earlier test sessions that were killed
-	before they could clean up: stopped ones, and running ones whose owning
-	test process no longer exists. Containers of a live concurrent session and
-	containers without this harness's label are never touched.
-	"""
+	# never touch unlabeled containers or those of a live concurrent session
 	stale = DOCKER_CLIENT.containers.list(all=True,
 			filters={"label": CONTAINER_LABEL})
 	for container in stale:
@@ -282,9 +269,6 @@ def _remove_stale_containers():
 
 
 def _parse_info(response):
-	"""
-	Turns an info response ("cmd\tk1=v1;k2=v2") into a dict.
-	"""
 	if "\t" in response:
 		response = response.split("\t", 1)[1]
 	return dict(kv.split("=", 1) for kv in response.strip().split(";") if "=" in kv)
@@ -305,10 +289,6 @@ def _cluster_state():
 
 
 def _wait_for_cluster():
-	"""
-	Blocks until every node reports a cluster of N_NODES and no partitions are
-	migrating, so tests never run against a half formed cluster.
-	"""
 	deadline = time.time() + CLUSTER_READY_TIMEOUT
 	state = None
 	while time.time() < deadline:
@@ -413,10 +393,6 @@ def start(do_reset=True):
 
 
 def _teardown():
-	"""
-	Disconnects the client, removes the containers and deletes the work
-	directory. Every step runs even if an earlier one fails.
-	"""
 	global CLIENT
 	global NODES
 
@@ -603,7 +579,6 @@ def check_for_range(key_start, key_end, obj_checker=None):
 	check_recs_exist_in_range(key_start, key_end, obj_checker=obj_checker)
 
 
-# synthetic data (@generator) validation
 ASCII_RE = re.compile(r"^[\x20-\x7e]+$")
 USERNAME_RE = re.compile(r"^[a-z0-9._]+$")
 DOMAIN_RE = re.compile(r"^[a-z0-9]+\.[a-z]+$")
@@ -696,9 +671,6 @@ def obj_spec_is_geo_circle(val, r_min=100, r_max=5000):
 	assert(r_min <= radius <= r_max)
 
 def normalize(val):
-	"""
-	Turns a record value into plain python data so records can be compared.
-	"""
 	if isinstance(val, aerospike.GeoJSON):
 		return ("geojson", val.dumps())
 	if isinstance(val, dict):
@@ -711,10 +683,6 @@ def normalize_key(key):
 	return key if not isinstance(key, (list, dict)) else repr(key)
 
 def get_records(key_start, key_end):
-	"""
-	Returns {key: bins} for every key in [key_start, key_end), with values
-	normalized for comparison.
-	"""
 	recs = {}
 	for key in range(key_start, key_end):
 		record = get_record(key)
@@ -723,9 +691,6 @@ def get_records(key_start, key_end):
 	return recs
 
 def run_benchmark_output(args, ip=None, port=PORT, do_reset=True):
-	"""
-	Runs asbench like run_benchmark, returning (exit code, combined output).
-	"""
 	start(do_reset=do_reset)
 	directory = absolute_path("../../..")
 	if ip is None:
@@ -739,11 +704,6 @@ def run_benchmark_output(args, ip=None, port=PORT, do_reset=True):
 	return proc.returncode, proc.stdout
 
 def create_index(kind, bin_name, index_name, index_type=None):
-	"""
-	Creates a secondary index and remembers it so reset() removes it.
-	kind is "geo" or "numeric"/"string" for scalar bins; pass index_type
-	(e.g. aerospike.INDEX_TYPE_LIST) for collection element indexes.
-	"""
 	if index_type is None:
 		if kind == "geo":
 			CLIENT.index_geo2dsphere_create(NAMESPACE, SET, bin_name, index_name)
@@ -758,10 +718,6 @@ def create_index(kind, bin_name, index_name, index_type=None):
 	INDEXES.append(index_name)
 
 def query_keys(predicate, expected=None, attempts=20):
-	"""
-	Runs a secondary index query and returns the set of matching integer keys,
-	retrying while the index is still being built.
-	"""
 	keys = set()
 	for attempt in range(attempts):
 		keys = set()

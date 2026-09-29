@@ -39,7 +39,7 @@ _check_samples(const char* spec_str)
 {
 	struct obj_spec_s o;
 	as_random random;
-	as_random_init(&random);
+	seed_as_random(&random, 0x5EEDLU, __LINE__);
 
 	ck_assert_msg(obj_spec_parse(&o, spec_str) == 0, "failed to parse %s", spec_str);
 	const synth_spec_t* spec = _gen_of(&o);
@@ -121,7 +121,7 @@ _populate_seeded(const struct obj_spec_s* o, const as_bin_name* names,
 		as_record* rec, uint64_t seed, uint64_t key)
 {
 	as_random random;
-	as_random_init(&random);
+	seed_as_random(&random, 0x5EEDLU, __LINE__);
 	uint64_t x = seed ^ (key * 0x9E3779B97F4A7C15LU);
 	uint64_t record_seed = splitmix64(&x);
 	as_record_init(rec, obj_spec_n_bins(o));
@@ -224,7 +224,7 @@ START_TEST(int_inclusive_bounds)
 	struct obj_spec_s o;
 	as_random random;
 	uint32_t hist[3] = { 0, 0, 0 };
-	as_random_init(&random);
+	seed_as_random(&random, 0x5EEDLU, __LINE__);
 	ck_assert_int_eq(obj_spec_parse(&o, "@int(1,3)"), 0);
 	for (uint32_t i = 0; i < N_SAMPLES; i++) {
 		as_val* v = obj_spec_gen_bin_val(&o, 0, &random, 1.f);
@@ -246,7 +246,7 @@ START_TEST(weighted_pick_histogram)
 	as_random random;
 	uint32_t a = 0;
 	const uint32_t n = 100000;
-	as_random_init(&random);
+	seed_as_random(&random, 0x5EEDLU, __LINE__);
 	ck_assert_int_eq(obj_spec_parse(&o, "@pick(\"a\":90,\"b\":10)"), 0);
 	for (uint32_t i = 0; i < n; i++) {
 		as_val* v = obj_spec_gen_bin_val(&o, 0, &random, 1.f);
@@ -265,7 +265,7 @@ START_TEST(uniform_pick_histogram)
 	as_random random;
 	uint32_t hist[4] = { 0 };
 	const uint32_t n = 100000;
-	as_random_init(&random);
+	seed_as_random(&random, 0x5EEDLU, __LINE__);
 	ck_assert_int_eq(obj_spec_parse(&o, "@pick(\"a\",\"b\",\"c\",\"d\")"), 0);
 	for (uint32_t i = 0; i < n; i++) {
 		as_val* v = obj_spec_gen_bin_val(&o, 0, &random, 1.f);
@@ -307,7 +307,7 @@ START_TEST(dictionary_words_zero_copy)
 {
 	struct obj_spec_s o;
 	as_random random;
-	as_random_init(&random);
+	seed_as_random(&random, 0x5EEDLU, __LINE__);
 	ck_assert_int_eq(obj_spec_parse(&o, "@city"), 0);
 	const char* lo = SYNTH_DICT_CITY.pool;
 	const char* hi = SYNTH_DICT_CITY.pool + SYNTH_DICT_CITY.off[SYNTH_DICT_CITY.n];
@@ -342,7 +342,7 @@ START_TEST(map_keys_unique_near_cardinality)
 {
 	struct obj_spec_s o;
 	as_random random;
-	as_random_init(&random);
+	seed_as_random(&random, 0x5EEDLU, __LINE__);
 	ck_assert_int_eq(obj_spec_parse(&o, "{50*@state_abbr:@int(1,9)}"), 0);
 	for (uint32_t i = 0; i < 100; i++) {
 		as_val* v = obj_spec_gen_bin_val(&o, 0, &random, 1.f);
@@ -357,7 +357,7 @@ START_TEST(geojson_is_geo_particle_in_collections)
 {
 	struct obj_spec_s o;
 	as_random random;
-	as_random_init(&random);
+	seed_as_random(&random, 0x5EEDLU, __LINE__);
 	ck_assert_int_eq(obj_spec_parse(&o, "[2*@geojson], {@city:@geo_circle}"), 0);
 	as_val* list = obj_spec_gen_bin_val(&o, 0, &random, 1.f);
 	ck_assert_int_eq(as_list_get(as_list_fromval(list), 0)->type, AS_GEOJSON);
@@ -375,7 +375,7 @@ START_TEST(template_max_len_respected)
 {
 	struct obj_spec_s o;
 	as_random random;
-	as_random_init(&random);
+	seed_as_random(&random, 0x5EEDLU, __LINE__);
 	ck_assert_int_eq(obj_spec_parse(&o, "@fmt(\"#{company} #{sentence} "
 				"#{int(-9223372036854775808,9223372036854775807)} "
 				"#{double(-1e15,1e15)} #{words(20)}\")"), 0);

@@ -2236,7 +2236,8 @@ synth_check_val(const synth_spec_t* spec, const as_val* val)
 	if (n > spec->max_len && spec->kind != SYNTH_LOREM) {
 		return _sg_fail(spec, "longer than max_len", s);
 	}
-	for (size_t i = 0; i < n; i++) {
+	bool user_text = spec->kind == SYNTH_PICK || spec->kind == SYNTH_FMT;
+	for (size_t i = 0; i < n && !user_text; i++) {
 		if ((unsigned char) s[i] < 0x20 || (unsigned char) s[i] > 0x7e) {
 			return _sg_fail(spec, "non printable ASCII character", s);
 		}

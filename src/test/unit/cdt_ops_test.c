@@ -38,7 +38,7 @@ _setup(cdt_fixture_t* f, const char* spec, const char* workload, bool random)
 				f->stage.bin_names), 0);
 	f->stage.random = random;
 	f->cdata.compression_ratio = 1.f;
-	as_random_init(&f->tdata.random_state);
+	seed_as_random(&f->tdata.random_state, 0xCD7LU, 1);
 	f->tdata.random = &f->tdata.random_state;
 	_init_cdt_stage(&f->cdata, &f->tdata, &f->stage);
 }

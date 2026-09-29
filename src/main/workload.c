@@ -132,16 +132,8 @@ static const cyaml_config_t config = {
 LOCAL_HELPER int
 _parse_workload_distr(const char* pct_str, as_vector* pct_vec);
 
-/*
- * parses a CDT workload string: C|CI|CK[,<read pct>[,<cap>[,<k>]]]
- */
 LOCAL_HELPER int _parse_cdt_workload(workload_t* workload,
 		const char* workload_str);
-
-/*
- * checks that a stage running a CDT workload has a compatible object spec
- * and options
- */
 LOCAL_HELPER int _validate_cdt_stage(const stage_t* stage,
 		const stage_def_t* stage_def, uint32_t stage_num);
 
