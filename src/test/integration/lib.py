@@ -28,7 +28,7 @@ NODE_PORT_STRIDE = 1000
 def _port_free(port):
 	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 		try:
-			s.bind(("0.0.0.0", port))
+			s.bind(("127.0.0.1", port))
 		except OSError:
 			return False
 	return True
