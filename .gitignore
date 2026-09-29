@@ -89,3 +89,7 @@ docker/aerospike-asbench_*.deb
 
 # Claude Code personal settings
 .claude/settings.local.json
+
+# Integration test scratch: generated server configs, state and pid files
+src/test/integration/work*/
+*.pid
