@@ -23,8 +23,4 @@
 
 #include <benchmark.h>
 
-/*
- * generates args->gen_bench_iters records from the first stage's object spec
- * in-process (no server) and prints generation throughput
- */
 int run_gen_bench(const args_t* args);

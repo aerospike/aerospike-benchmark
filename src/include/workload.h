@@ -45,11 +45,8 @@ typedef enum {
 } workload_type_t;
 
 typedef enum {
-	// list append_items / map put_items, reads by index
 	CDT_MODE_PUT,
-	// map increment per generated entry, reads top-k by rank
 	CDT_MODE_INCR,
-	// as CDT_MODE_PUT, but map reads fetch one generated key
 	CDT_MODE_KEY
 } cdt_mode_t;
 
@@ -96,11 +93,7 @@ typedef struct workload_s {
 	float read_all_pct;
 	float write_all_pct;
 
-	/*
-	 * CDT workloads only: mode, the maximum number of elements kept in each
-	 * list/map bin after a write (0 = unbounded), and the number of elements
-	 * returned by a read
-	 */
+	// CDT only; cdt_cap 0 means unbounded
 	cdt_mode_t cdt_mode;
 	uint32_t cdt_cap;
 	uint32_t cdt_read_k;
@@ -209,7 +202,6 @@ typedef struct stage_s {
 	uint32_t* write_bins;
 	uint32_t n_write_bins;
 
-	// resolved name of every bin in obj_spec, indexed by bin number
 	as_bin_name* bin_names;
 
 	as_udf_module_name udf_package_name;

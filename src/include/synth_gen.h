@@ -132,11 +132,6 @@ typedef struct synth_spec_s {
 } synth_spec_t;
 
 
-/*
- * parses a generator token starting at str, which must point at '@'. On
- * success returns 0 and sets *endptr past the token. On failure returns -1 and
- * sets *err_msg and *err_loc for the caller to report.
- */
 int synth_parse(const char* str, const char** endptr, synth_spec_t* out,
 		const char** err_msg, const char** err_loc);
 
@@ -144,16 +139,9 @@ as_val* synth_gen_val(const synth_spec_t* spec, as_random* random);
 
 void synth_spec_free(synth_spec_t* spec);
 
-/*
- * prints the canonical form of spec, returning the remaining buffer size
- */
 size_t synth_spec_sprint(const synth_spec_t* spec, char** out_str,
 		size_t str_size);
 
-/*
- * number of distinct values the generator can produce, UINT64_MAX when
- * effectively unbounded
- */
 uint64_t synth_spec_cardinality(const synth_spec_t* spec);
 
 static inline uint8_t

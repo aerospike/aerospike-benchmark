@@ -194,7 +194,6 @@ typedef struct threaddata_s {
 	as_record fixed_delete_record;
 	as_list* fixed_udf_fn_args;
 
-	// prebuilt CDT operations, NULL when they must be built per transaction
 	const struct bin_spec_s** cdt_bin_specs;
 	as_operations* cdt_read_ops;
 	as_operations* cdt_write_ops;

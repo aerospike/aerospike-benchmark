@@ -238,11 +238,7 @@ struct bin_spec_kv_pair_s {
 typedef struct obj_spec_s {
 	struct bin_spec_s* bin_specs;
 	uint32_t n_bin_specs;
-	/*
-	 * explicit bin names given as name=<bin-type>, parallel to bin_specs (one
-	 * entry per bin_specs element, NULL when unnamed), or NULL if no bin in the
-	 * spec is named
-	 */
+	// one entry per bin_specs element (not per bin), NULL if nothing is named
 	char** bin_names;
 	bool has_gen;
 	/*
@@ -327,53 +323,24 @@ void obj_spec_shallow_copy(obj_spec_t* dst, const obj_spec_t* src);
  */
 uint32_t obj_spec_n_bins(const obj_spec_t*);
 
-/*
- * returns true if any bin (at any depth) uses an @generator
- */
 bool obj_spec_has_generators(const obj_spec_t*);
 
-/*
- * returns true if any top-level bin has an explicit name
- */
 bool obj_spec_has_bin_names(const obj_spec_t*);
 
-/*
- * writes the name of bin bin_idx (0-based over all bins, counting repeats)
- * into out: the explicit name (with _N for repeats after the first) if one was
- * given, otherwise <base>/<base>_N
- */
 void obj_spec_bin_name(const obj_spec_t*, uint32_t bin_idx, const char* base,
 		as_bin_name out);
 
-/*
- * fills out[0..n_bins) with every bin name, returning -1 (and printing an
- * error) if two bins would get the same name
- */
 int obj_spec_resolve_bin_names(const obj_spec_t*, const char* base,
 		as_bin_name* out);
 
-/*
- * returns the bin_spec that produces top-level bin bin_idx
- */
 const struct bin_spec_s* obj_spec_bin_spec(const obj_spec_t*, uint32_t bin_idx);
 
-/*
- * generates a value from a single bin_spec (e.g. one returned by
- * obj_spec_bin_spec)
- */
 as_val* obj_spec_bin_spec_gen_val(const struct bin_spec_s* bin_spec,
 		as_random* random, float compression_ratio);
 
-/*
- * generates the value of top-level bin bin_idx
- */
 as_val* obj_spec_gen_bin_val(const obj_spec_t*, uint32_t bin_idx,
 		as_random* random, float compression_ratio);
 
-/*
- * generates a key for the map in top-level bin bin_idx, using the key spec of
- * its first key/value pair (NULL if that bin is not a map)
- */
 as_val* obj_spec_gen_map_key(const obj_spec_t*, uint32_t bin_idx,
 		as_random* random);
 
@@ -398,10 +365,8 @@ int obj_spec_populate_bins(const obj_spec_t*, as_record*, as_random*,
 		uint32_t n_write_bins, float compression_ratio);
 
 /*
- * same as obj_spec_populate_bins, but with bin names precomputed by
- * obj_spec_resolve_bin_names. When record_seed is not NULL, every bin is
- * generated from its own random stream derived from (*record_seed, bin index),
- * so a bin's value does not depend on which other bins are written.
+ * with record_seed set, each bin gets its own stream seeded by (record_seed,
+ * bin index), so a bin's value does not depend on which other bins are written
  */
 int obj_spec_populate_bins_named(const obj_spec_t*, as_record*, as_random*,
 		const as_bin_name* bin_names, uint32_t* write_bins,

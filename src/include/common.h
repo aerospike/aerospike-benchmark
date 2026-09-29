@@ -78,9 +78,8 @@ typedef uint64_t ptr_int_t;
 #define UNLIKELY(expr) __builtin_expect((expr), 0)
 
 /*
- * safe printing to a fixed-size buffer, updating the size of the buffer. On
- * truncation the cursor stops on the terminating NUL so the buffer is never
- * overrun by later writes.
+ * safe printing to a fixed-size buffer; on truncation the cursor stops on the
+ * terminating NUL so later writes never overrun the buffer
  */
 #define sprint(out_str, str_size, ...) \
 	do { \
