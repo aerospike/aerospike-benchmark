@@ -274,6 +274,11 @@ def _remove_stale_containers():
 		if container.status != "running" or dead_owner:
 			print("Removing stale test container", container.name)
 			container.remove(force=True)
+			session = container.labels.get(CONTAINER_LABEL, "")
+			if session.startswith("asbench-it-") and session != SESSION_ID:
+				work = absolute_path("work-" + session[len("asbench-it-"):])
+				if os.path.isdir(work):
+					shutil.rmtree(work, ignore_errors=True)
 
 
 def _parse_info(response):
