@@ -35,6 +35,8 @@
 #include <aerospike/as_record.h>
 #include <aerospike/as_random.h>
 
+#include <synth_gen.h>
+
 
 //==========================================================
 // Typedefs & constants.
@@ -50,6 +52,7 @@
 #define BIN_SPEC_TYPE_DOUBLE 0x4
 #define BIN_SPEC_TYPE_LIST   0x5
 #define BIN_SPEC_TYPE_MAP    0x6
+#define BIN_SPEC_TYPE_GEN    0x7
 
 #define BIN_SPEC_TYPE_MASK 0x7
 
@@ -126,8 +129,7 @@ struct bin_spec_s {
 	 * one of the five main types of bins:
 	 * 	bool: a random boolean
 	 *	int: a random int, within certain bounds (described below)
-	 *	string: a string of fixed length, consisting of [a-z]{1,9}
-	 *			space-separated words
+	 *	string: a string of fixed length, consisting of [0-9a-z] characters
 	 *	bytes array: array of random bytes of data
 	 *	double: any 8-byte double floating point
 	 *	list: a list of bin_specs
@@ -222,6 +224,8 @@ struct bin_spec_s {
 			as_orderedmap val;
 		} const_map;
 
+		synth_spec_t gen;
+
 	};
 };
 
@@ -234,6 +238,13 @@ struct bin_spec_kv_pair_s {
 typedef struct obj_spec_s {
 	struct bin_spec_s* bin_specs;
 	uint32_t n_bin_specs;
+	/*
+	 * explicit bin names given as name=<bin-type>, parallel to bin_specs (one
+	 * entry per bin_specs element, NULL when unnamed), or NULL if no bin in the
+	 * spec is named
+	 */
+	char** bin_names;
+	bool has_gen;
 	/*
      * when set to true, this is a valid obj_spec, when set to false, this
 	 * obj_spec has already been freed/is owned by another obj_spec
@@ -266,9 +277,14 @@ typedef struct obj_spec_s {
  *        I8 for 2^56 - 2^64-1
  *    B) Generate a bytes bin or value with an bytearray of random bytes
  *        B12 - generates a bytearray of 12 random bytes
- *    S) Generate a string bin or value made of space-separated a-z{1,9} words
- *        S16 - a string with a 16 character length. ex: "uir a mskd poiur"
+ *    S) Generate a string bin or value made of [0-9a-z] characters
+ *        S16 - a string with a 16 character length. ex: "uir9a2mskd4poiur"
  *    D) Generate a Double bin or value (8 byte)
+ *    @name[(args)]) Generate a synthetic value (see synth_gen.h), e.g.
+ *        @first_name, @email, @int(18,90), @pick("a":70,"b":30)
+ *
+ * Any top-level bin may be given an explicit name: name=<bin-type>, e.g.
+ *     first=@first_name,age=@int(18,90),tags=[3*@word]
  *
  * Collection bins:
  *     [] - a list
@@ -312,6 +328,56 @@ void obj_spec_shallow_copy(obj_spec_t* dst, const obj_spec_t* src);
 uint32_t obj_spec_n_bins(const obj_spec_t*);
 
 /*
+ * returns true if any bin (at any depth) uses an @generator
+ */
+bool obj_spec_has_generators(const obj_spec_t*);
+
+/*
+ * returns true if any top-level bin has an explicit name
+ */
+bool obj_spec_has_bin_names(const obj_spec_t*);
+
+/*
+ * writes the name of bin bin_idx (0-based over all bins, counting repeats)
+ * into out: the explicit name (with _N for repeats after the first) if one was
+ * given, otherwise <base>/<base>_N
+ */
+void obj_spec_bin_name(const obj_spec_t*, uint32_t bin_idx, const char* base,
+		as_bin_name out);
+
+/*
+ * fills out[0..n_bins) with every bin name, returning -1 (and printing an
+ * error) if two bins would get the same name
+ */
+int obj_spec_resolve_bin_names(const obj_spec_t*, const char* base,
+		as_bin_name* out);
+
+/*
+ * returns the bin_spec that produces top-level bin bin_idx
+ */
+const struct bin_spec_s* obj_spec_bin_spec(const obj_spec_t*, uint32_t bin_idx);
+
+/*
+ * generates a value from a single bin_spec (e.g. one returned by
+ * obj_spec_bin_spec)
+ */
+as_val* obj_spec_bin_spec_gen_val(const struct bin_spec_s* bin_spec,
+		as_random* random, float compression_ratio);
+
+/*
+ * generates the value of top-level bin bin_idx
+ */
+as_val* obj_spec_gen_bin_val(const obj_spec_t*, uint32_t bin_idx,
+		as_random* random, float compression_ratio);
+
+/*
+ * generates a key for the map in top-level bin bin_idx, using the key spec of
+ * its first key/value pair (NULL if that bin is not a map)
+ */
+as_val* obj_spec_gen_map_key(const obj_spec_t*, uint32_t bin_idx,
+		as_random* random);
+
+/*
  * returns true if the given bin name base is compatible with the obj_spec, i.e.
  * if no bin names will be too long given the number of bins in the obj_spec
  * and the length of the name base
@@ -330,6 +396,17 @@ bool obj_spec_bin_name_compatible(const obj_spec_t*, const char* bin_name);
 int obj_spec_populate_bins(const obj_spec_t*, as_record*, as_random*,
 		const char* bin_name_template, uint32_t* write_bins,
 		uint32_t n_write_bins, float compression_ratio);
+
+/*
+ * same as obj_spec_populate_bins, but with bin names precomputed by
+ * obj_spec_resolve_bin_names. When record_seed is not NULL, every bin is
+ * generated from its own random stream derived from (*record_seed, bin index),
+ * so a bin's value does not depend on which other bins are written.
+ */
+int obj_spec_populate_bins_named(const obj_spec_t*, as_record*, as_random*,
+		const as_bin_name* bin_names, uint32_t* write_bins,
+		uint32_t n_write_bins, float compression_ratio,
+		const uint64_t* record_seed);
 
 /*
  * instead of populating a record's bins, returns an as_list of the objects

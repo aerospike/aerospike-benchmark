@@ -78,8 +78,13 @@ LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
 LOCAL_HELPER bool _consumer_state_map_repeat_const_key(struct consumer_state_s* state,
 		const struct bin_spec_s* bin_spec);
 LOCAL_HELPER void _destroy_consumer_states(struct consumer_state_s* state);
-LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
-		const char* const obj_spec_str);
+LOCAL_HELPER int _parse_bin_types(as_vector* bin_specs, as_vector* bin_names,
+		uint32_t* n_bins, const char* const obj_spec_str);
+LOCAL_HELPER bool _bin_spec_has_gen(const struct bin_spec_s* bin_spec);
+LOCAL_HELPER int _populate(const obj_spec_t* obj_spec, as_record* rec,
+		as_random* random, const as_bin_name* names, uint32_t* write_bins,
+		uint32_t n_write_bins, float compression_ratio,
+		const uint64_t* record_seed);
 LOCAL_HELPER int _parse_const_val(const char* const obj_spec_str,
 		const char** stream, struct bin_spec_s* bin_spec, char delim, uint8_t type, uint8_t map_state);
 LOCAL_HELPER void bin_spec_free(struct bin_spec_s* bin_spec);
@@ -212,16 +217,6 @@ raw_to_alphanum(uint64_t n)
 	return n & 0x7f7f7f7f7f7f7f7fLU;
 }
 
-/*
- * safe printing to a fixed-size buffer, updating the size of the buffer
- */
-#define sprint(out_str, str_size, ...) \
-	do { \
-		size_t __w = snprintf(*(out_str), str_size, __VA_ARGS__); \
-		*(out_str) += (str_size > __w ? __w : str_size); \
-		str_size = (str_size > __w ? str_size - __w : 0); \
-	} while (0)
-
 #ifdef _TEST
 
 LOCAL_HELPER inline uint8_t
@@ -330,16 +325,36 @@ obj_spec_parse(struct obj_spec_s* base_obj, const char* obj_spec_str)
 	int err;
 	// use as_vector to build the list of bin_specs, as it has dynamic sizing
 	as_vector bin_specs;
+	as_vector bin_names;
 	uint32_t n_bins;
 
 	// begin with a capacity of 8
 	as_vector_inita(&bin_specs, sizeof(struct bin_spec_s),
 			DEFAULT_LIST_BUILDER_CAPACITY);
+	as_vector_inita(&bin_names, sizeof(char*), DEFAULT_LIST_BUILDER_CAPACITY);
 
-	err = _parse_bin_types(&bin_specs, &n_bins, obj_spec_str);
+	err = _parse_bin_types(&bin_specs, &bin_names, &n_bins, obj_spec_str);
 	if (!err) {
 		// copy the vector into base_obj before cleaning up
+		uint32_t n_specs = bin_specs.size;
 		base_obj->bin_specs = as_vector_to_array(&bin_specs, &base_obj->n_bin_specs);
+
+		base_obj->bin_names = NULL;
+		for (uint32_t i = 0; i < bin_names.size; i++) {
+			if (*(char**) as_vector_get(&bin_names, i) != NULL) {
+				uint32_t n_names;
+				base_obj->bin_names = as_vector_to_array(&bin_names, &n_names);
+				break;
+			}
+		}
+
+		base_obj->has_gen = false;
+		for (uint32_t i = 0; i < n_specs; i++) {
+			if (_bin_spec_has_gen(&base_obj->bin_specs[i])) {
+				base_obj->has_gen = true;
+				break;
+			}
+		}
 
 		// n_bins is initialized by _parse_bin_types
 #ifdef __linux__
@@ -354,10 +369,14 @@ obj_spec_parse(struct obj_spec_s* base_obj, const char* obj_spec_str)
 		base_obj->valid = true;
 	}
 	else {
+		for (uint32_t i = 0; i < bin_names.size; i++) {
+			cf_free(*(char**) as_vector_get(&bin_names, i));
+		}
 		base_obj->valid = false;
 	}
 
 	as_vector_destroy(&bin_specs);
+	as_vector_destroy(&bin_names);
 	return err;
 }
 
@@ -365,9 +384,17 @@ void
 obj_spec_free(struct obj_spec_s* obj_spec)
 {
 	if (obj_spec->valid) {
+		uint32_t n_specs = 0;
 		for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
 			cnt += obj_spec->bin_specs[i].n_repeats;
 			bin_spec_free(&obj_spec->bin_specs[i]);
+			n_specs++;
+		}
+		if (obj_spec->bin_names != NULL) {
+			for (uint32_t i = 0; i < n_specs; i++) {
+				cf_free(obj_spec->bin_names[i]);
+			}
+			cf_free(obj_spec->bin_names);
 		}
 		cf_free(obj_spec->bin_specs);
 		obj_spec->valid = false;
@@ -406,6 +433,107 @@ obj_spec_n_bins(const struct obj_spec_s* obj_spec)
 }
 
 bool
+obj_spec_has_generators(const obj_spec_t* obj_spec)
+{
+	return obj_spec->has_gen;
+}
+
+bool
+obj_spec_has_bin_names(const obj_spec_t* obj_spec)
+{
+	return obj_spec->bin_names != NULL;
+}
+
+LOCAL_HELPER uint32_t
+_obj_spec_locate(const obj_spec_t* obj_spec, uint32_t bin_idx,
+		uint32_t* repeat_idx)
+{
+	uint32_t i = 0;
+	uint32_t tot = 0;
+	for (;;) {
+		uint32_t n_reps = obj_spec->bin_specs[i].n_repeats;
+		if (tot + n_reps > bin_idx) {
+			break;
+		}
+		tot += n_reps;
+		i++;
+	}
+	*repeat_idx = bin_idx - tot;
+	return i;
+}
+
+void
+obj_spec_bin_name(const obj_spec_t* obj_spec, uint32_t bin_idx,
+		const char* base, as_bin_name out)
+{
+	if (obj_spec->bin_names != NULL) {
+		uint32_t rep;
+		uint32_t spec_idx = _obj_spec_locate(obj_spec, bin_idx, &rep);
+		const char* name = obj_spec->bin_names[spec_idx];
+		if (name != NULL) {
+			gen_bin_name(out, name, rep);
+			return;
+		}
+	}
+	gen_bin_name(out, base, bin_idx);
+}
+
+int
+obj_spec_resolve_bin_names(const obj_spec_t* obj_spec, const char* base,
+		as_bin_name* out)
+{
+	uint32_t n_bins = obj_spec->n_bin_specs;
+	for (uint32_t i = 0; i < n_bins; i++) {
+		obj_spec_bin_name(obj_spec, i, base, out[i]);
+	}
+	for (uint32_t i = 0; i < n_bins; i++) {
+		for (uint32_t j = i + 1; j < n_bins; j++) {
+			if (strcmp(out[i], out[j]) == 0) {
+				fprintf(stderr, "Bins %u and %u of the object spec would both be "
+						"named \"%s\"\n", i + 1, j + 1, out[i]);
+				return -1;
+			}
+		}
+	}
+	return 0;
+}
+
+const struct bin_spec_s*
+obj_spec_bin_spec(const obj_spec_t* obj_spec, uint32_t bin_idx)
+{
+	uint32_t rep;
+	return &obj_spec->bin_specs[_obj_spec_locate(obj_spec, bin_idx, &rep)];
+}
+
+as_val*
+obj_spec_bin_spec_gen_val(const struct bin_spec_s* bin_spec, as_random* random,
+		float compression_ratio)
+{
+	return bin_spec_random_val(bin_spec, random, compression_ratio);
+}
+
+as_val*
+obj_spec_gen_bin_val(const obj_spec_t* obj_spec, uint32_t bin_idx,
+		as_random* random, float compression_ratio)
+{
+	return bin_spec_random_val(obj_spec_bin_spec(obj_spec, bin_idx), random,
+			compression_ratio);
+}
+
+as_val*
+obj_spec_gen_map_key(const obj_spec_t* obj_spec, uint32_t bin_idx,
+		as_random* random)
+{
+	const struct bin_spec_s* bin_spec = obj_spec_bin_spec(obj_spec, bin_idx);
+	if ((bin_spec->type & BIN_SPEC_TYPE_MASK) != BIN_SPEC_TYPE_MAP ||
+			(bin_spec->type & BIN_SPEC_TYPE_CONST) != 0 ||
+			bin_spec->map.n_entries == 0) {
+		return NULL;
+	}
+	return bin_spec_random_val(&bin_spec->map.kv_pairs[0].key, random, 1.f);
+}
+
+bool
 obj_spec_bin_name_compatible(const obj_spec_t* obj_spec, const char* bin_name)
 {
 	if (bin_name_too_large(strlen(bin_name), obj_spec->n_bin_specs)) {
@@ -431,9 +559,36 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 		as_random* random, const char* bin_name, uint32_t* write_bins,
 		uint32_t n_write_bins, float compression_ratio)
 {
+	uint32_t n_bins = obj_spec->n_bin_specs;
+	as_bin_name* names = (as_bin_name*) cf_malloc(n_bins * sizeof(as_bin_name));
+	for (uint32_t i = 0; i < n_bins; i++) {
+		obj_spec_bin_name(obj_spec, i, bin_name, names[i]);
+	}
+	int ret = _populate(obj_spec, rec, random, (const as_bin_name*) names,
+			write_bins, n_write_bins, compression_ratio, NULL);
+	cf_free(names);
+	return ret;
+}
+
+int
+obj_spec_populate_bins_named(const obj_spec_t* obj_spec, as_record* rec,
+		as_random* random, const as_bin_name* bin_names, uint32_t* write_bins,
+		uint32_t n_write_bins, float compression_ratio,
+		const uint64_t* record_seed)
+{
+	return _populate(obj_spec, rec, random, bin_names, write_bins,
+			n_write_bins, compression_ratio, record_seed);
+}
+
+LOCAL_HELPER int
+_populate(const obj_spec_t* obj_spec, as_record* rec, as_random* random,
+		const as_bin_name* names, uint32_t* write_bins, uint32_t n_write_bins,
+		float compression_ratio, const uint64_t* record_seed)
+{
 	uint32_t n_bin_specs =
 		write_bins == NULL ? obj_spec->n_bin_specs : n_write_bins;
 	as_bins* bins = &rec->bins;
+	as_random bin_random;
 
 	if (n_bin_specs > bins->capacity) {
 		fprintf(stderr, "Not enough bins allocated for obj_spec\n");
@@ -445,16 +600,19 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
 
 			for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
-				as_val* val = bin_spec_random_val(bin_spec, random,
+				as_random* r = random;
+				if (record_seed != NULL) {
+					seed_as_random(&bin_random, *record_seed, cnt);
+					r = &bin_random;
+				}
+				as_val* val = bin_spec_random_val(bin_spec, r,
 						compression_ratio);
 
 				if (val == NULL) {
 					return -1;
 				}
 
-				as_bin_name name;
-				gen_bin_name(name, bin_name, cnt);
-				if (!as_record_set(rec, name, (as_bin_value*) val)) {
+				if (!as_record_set(rec, names[cnt], (as_bin_value*) val)) {
 					// failed to set a record, meaning we ran out of space
 					fprintf(stderr, "Not enough free bin slots in record\n");
 					as_val_destroy(val);
@@ -465,16 +623,19 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 	}
 	else {
 		FOR_EACH_WRITE_BIN(write_bins, n_write_bins, obj_spec, _k, idx, bin_spec) {
-			as_val* val = bin_spec_random_val(bin_spec, random,
+			as_random* r = random;
+			if (record_seed != NULL) {
+				seed_as_random(&bin_random, *record_seed, idx);
+				r = &bin_random;
+			}
+			as_val* val = bin_spec_random_val(bin_spec, r,
 					compression_ratio);
 
 			if (val == NULL) {
 				return -1;
 			}
 
-			as_bin_name name;
-			gen_bin_name(name, bin_name, idx);
-			if (!as_record_set(rec, name, (as_bin_value*) val)) {
+			if (!as_record_set(rec, names[idx], (as_bin_value*) val)) {
 				// failed to set a record, meaning we ran out of space
 				fprintf(stderr, "Not enough free bin slots in record\n");
 				as_val_destroy(val);
@@ -534,6 +695,9 @@ snprint_obj_spec(const struct obj_spec_s* obj_spec, char* out_str,
 		size_t str_size)
 {
 	for (uint32_t i = 0, cnt = 0; cnt < obj_spec->n_bin_specs; i++) {
+		if (obj_spec->bin_names != NULL && obj_spec->bin_names[i] != NULL) {
+			sprint(&out_str, str_size, "%s=", obj_spec->bin_names[i]);
+		}
 		str_size = _sprint_bin(&obj_spec->bin_specs[i], &out_str, str_size);
 
 		cnt += obj_spec->bin_specs[i].n_repeats;
@@ -560,7 +724,7 @@ _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 			const struct bin_spec_s* bin_spec = &obj_spec->bin_specs[i];
 
 			for (uint32_t j = 0; j < bin_spec->n_repeats; j++, cnt++) {
-				gen_bin_name(name, bin_name, cnt);
+				obj_spec_bin_name(obj_spec, cnt, bin_name, name);
 
 				as_val* val = (as_val*) as_record_get(rec, name);
 				ck_assert_msg(val != NULL, "expected a record in bin \"%s\"",
@@ -583,7 +747,7 @@ _dbg_obj_spec_assert_valid(const struct obj_spec_s* obj_spec,
 				tot += n_reps;
 				obj_spec_idx++;
 			}
-			gen_bin_name(name, bin_name, bin_idx);
+			obj_spec_bin_name(obj_spec, bin_idx, bin_name, name);
 
 			as_val* val = (as_val*) as_record_get(rec, name);
 			ck_assert_msg(val != NULL, "expected a record in bin "
@@ -677,6 +841,12 @@ _dbg_validate_bin_spec(const struct bin_spec_s* bin_spec, const as_val* val, boo
 
 			case BIN_SPEC_TYPE_MAP:
 				return _dbg_validate_map(bin_spec, as_map_fromval(val), do_assert);
+
+			case BIN_SPEC_TYPE_GEN:
+				do_ck_assert_msg(synth_check_val(&bin_spec->gen, val),
+						"generated value failed validation for @%s",
+						synth_kind_name(bin_spec->gen.kind));
+				break;
 
 			default:
 				do_ck_assert_msg(0, "unknown bin_spec type (0x%x)", bin_spec->type);
@@ -833,8 +1003,47 @@ _destroy_consumer_states(struct consumer_state_s* state)
 }
 
 
+LOCAL_HELPER bool
+_bin_spec_has_gen(const struct bin_spec_s* bin_spec)
+{
+	switch (bin_spec->type) {
+		case BIN_SPEC_TYPE_GEN:
+			return true;
+		case BIN_SPEC_TYPE_LIST:
+			for (uint32_t i = 0, cnt = 0; cnt < bin_spec->list.length; i++) {
+				if (_bin_spec_has_gen(&bin_spec->list.list[i])) {
+					return true;
+				}
+				cnt += bin_spec->list.list[i].n_repeats;
+			}
+			return false;
+		case BIN_SPEC_TYPE_MAP:
+			for (uint32_t i = 0; i < bin_spec->map.n_entries; i++) {
+				if (_bin_spec_has_gen(&bin_spec->map.kv_pairs[i].key) ||
+						_bin_spec_has_gen(&bin_spec->map.kv_pairs[i].val)) {
+					return true;
+				}
+			}
+			return false;
+		default:
+			return false;
+	}
+}
+
+LOCAL_HELPER bool
+_is_bin_name_start(char c)
+{
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_';
+}
+
+LOCAL_HELPER bool
+_is_bin_name_char(char c)
+{
+	return _is_bin_name_start(c) || (c >= '0' && c <= '9') || c == '-';
+}
+
 LOCAL_HELPER int
-_parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
+_parse_bin_types(as_vector* bin_specs, as_vector* bin_names, uint32_t* n_bins,
 		const char* const obj_spec_str)
 {
 	struct consumer_state_s begin_state;
@@ -1032,6 +1241,65 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 					__builtin_unreachable();
 			}
 
+			const char* bin_name = NULL;
+			size_t bin_name_len = 0;
+			{
+				const char* p = str;
+				if (_is_bin_name_start(*p)) {
+					p++;
+					while (_is_bin_name_char(*p)) {
+						p++;
+					}
+				}
+				if (p != str && *p == '=') {
+					if (state != &begin_state) {
+						_print_parse_error("Bin names are only allowed on "
+								"top-level bins", obj_spec_str, str);
+						_destroy_consumer_states(state);
+						return -1;
+					}
+					bin_name_len = (size_t) (p - str);
+					if (bin_name_len >= sizeof(as_bin_name)) {
+						char msg[128];
+						snprintf(msg, sizeof(msg), "Bin name is longer than %zu "
+								"characters", sizeof(as_bin_name) - 1);
+						_print_parse_error(msg, obj_spec_str, str);
+						_destroy_consumer_states(state);
+						return -1;
+					}
+					for (uint32_t i = 0; i < bin_names->size; i++) {
+						const char* other = *(char**) as_vector_get(bin_names, i);
+						if (other != NULL && strlen(other) == bin_name_len &&
+								strncmp(other, str, bin_name_len) == 0) {
+							_print_parse_error("Bin name is used more than once",
+									obj_spec_str, str);
+							_destroy_consumer_states(state);
+							return -1;
+						}
+					}
+					bin_name = str;
+					str = p + 1;
+					if (*str == ' ') {
+						str++;
+					}
+				}
+				else if (*p == '=' && p == str) {
+					_print_parse_error("Expected a bin name before '='",
+							obj_spec_str, str);
+					_destroy_consumer_states(state);
+					return -1;
+				}
+			}
+			if (state == &begin_state) {
+				char* name_cpy = NULL;
+				if (bin_name != NULL) {
+					name_cpy = (char*) cf_malloc(bin_name_len + 1);
+					memcpy(name_cpy, bin_name, bin_name_len);
+					name_cpy[bin_name_len] = '\0';
+				}
+				as_vector_append(bin_names, &name_cpy);
+			}
+
 			// first, check to see if a multiplier has been applied to this
 			// bin_type
 			uint64_t mult;
@@ -1088,6 +1356,12 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 			}
 
 			bin_spec->n_repeats = mult;
+			if (bin_name != NULL && bin_name_too_large(bin_name_len, mult)) {
+				_print_parse_error("Bin name plus its _N repeat suffix would be "
+						"longer than 15 characters", obj_spec_str, bin_name);
+				_destroy_consumer_states(state);
+				return -1;
+			}
 			bool is_const = false;
 			switch (*str) {
 				case 'b':
@@ -1198,6 +1472,43 @@ _parse_bin_types(as_vector* bin_specs, uint32_t* n_bins,
 						str++;
 					}
 					continue;
+				}
+				case '@': {
+					const char* err_msg;
+					const char* err_loc;
+					const char* gen_end;
+					if (synth_parse(str, &gen_end, &bin_spec->gen, &err_msg,
+								&err_loc) != 0) {
+						_print_parse_error(err_msg, obj_spec_str, err_loc);
+						_destroy_consumer_states(state);
+						return -1;
+					}
+					bin_spec->type = BIN_SPEC_TYPE_GEN;
+
+					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
+						uint8_t out_type = synth_spec_out_type(&bin_spec->gen);
+						uint64_t card = synth_spec_cardinality(&bin_spec->gen);
+						if (out_type != SYNTH_OUT_STR && out_type != SYNTH_OUT_INT) {
+							_print_parse_error("Map key generator must produce a "
+									"string or an integer", obj_spec_str, str);
+							bin_spec_free(bin_spec);
+							_destroy_consumer_states(state);
+							return -1;
+						}
+						if (mult > card) {
+							char msg[160];
+							snprintf(msg, sizeof(msg), "@%s has only %" PRIu64
+									" distinct values, cannot fill %" PRIu64
+									" unique map keys",
+									synth_kind_name(bin_spec->gen.kind), card, mult);
+							_print_parse_error(msg, obj_spec_str, str);
+							bin_spec_free(bin_spec);
+							_destroy_consumer_states(state);
+							return -1;
+						}
+					}
+					str = gen_end;
+					break;
 				}
 				case '{': {
 					if (type == CONSUMER_TYPE_MAP && map_state == MAP_KEY) {
@@ -1503,8 +1814,8 @@ _parse_const_val(const char* const obj_spec_str,
 			return 0;
 		}
 	}
-	_print_parse_error("Expect 'I', 'S', 'B', or 'D' specifier, "
-			"a const value, or a list/map",
+	_print_parse_error("Expect 'b', 'I', 'S', 'B', or 'D' specifier, "
+			"an @generator, a const value, or a list/map",
 			obj_spec_str, str);
 	return -1;
 }
@@ -1551,6 +1862,10 @@ bin_spec_free(struct bin_spec_s* bin_spec)
 
 		case BIN_SPEC_TYPE_MAP | BIN_SPEC_TYPE_CONST:
 			as_orderedmap_destroy(&bin_spec->const_map.val);
+			break;
+
+		case BIN_SPEC_TYPE_GEN:
+			synth_spec_free(&bin_spec->gen);
 			break;
 	}
 }
@@ -1858,6 +2173,10 @@ bin_spec_random_val(const struct bin_spec_s* bin_spec, as_random* random,
 			as_val_reserve(val);
 			break;
 
+		case BIN_SPEC_TYPE_GEN:
+			val = synth_gen_val(&bin_spec->gen, random);
+			break;
+
 		default:
 			fprintf(stderr, "Unknown bin_spec type (0x%x)\n", bin_spec->type);
 			val = NULL;
@@ -1958,6 +2277,10 @@ _sprint_bin(const struct bin_spec_s* bin, char** out_str, size_t str_size)
 			cf_free(map_obj_str);
 			break;
 		}
+
+		case BIN_SPEC_TYPE_GEN:
+			str_size = synth_spec_sprint(&bin->gen, out_str, str_size);
+			break;
 	}
 	return str_size;
 }

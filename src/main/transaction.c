@@ -92,7 +92,7 @@ LOCAL_HELPER int _batch_write_record_async(as_batch_records* keys, struct async_
 LOCAL_HELPER void _calculate_subrange(uint64_t key_start, uint64_t key_end,
 		uint32_t t_idx, uint32_t n_threads, uint64_t* t_start, uint64_t* t_end);
 LOCAL_HELPER void _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata);
-LOCAL_HELPER as_record* _gen_record(as_random* random, const cdata_t* cdata,
+LOCAL_HELPER as_record* _gen_record(uint64_t key_val, const cdata_t* cdata,
 		tdata_t* tdata, const stage_t* stage);
 LOCAL_HELPER as_record* _gen_nil_record(tdata_t* tdata);
 LOCAL_HELPER void _destroy_record(as_record* rec, const stage_t* stage);
@@ -179,6 +179,27 @@ LOCAL_HELPER void do_async_workload(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, stage_t* stage);
 LOCAL_HELPER void init_stage(const cdata_t* cdata, tdata_t* tdata,
 		stage_t* stage);
+
+// CDT workload helpers
+LOCAL_HELPER uint16_t _cdt_count_write_ops(const stage_t* stage);
+LOCAL_HELPER void _build_cdt_write_ops(tdata_t* tdata, const cdata_t* cdata,
+		const stage_t* stage, as_operations* ops);
+LOCAL_HELPER void _build_cdt_read_ops(tdata_t* tdata, const stage_t* stage,
+		as_operations* ops);
+LOCAL_HELPER int _cdt_op_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, as_key* key, const as_operations* ops,
+		bool is_write);
+LOCAL_HELPER int _cdt_op_async(as_key* key, const as_operations* ops,
+		struct async_data_s* adata, tdata_t* tdata, cdata_t* cdata);
+LOCAL_HELPER void random_cdt_op(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, bool is_write);
+LOCAL_HELPER void random_cdt(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_cdt_async(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
+LOCAL_HELPER void _init_cdt_stage(const cdata_t* cdata, tdata_t* tdata,
+		const stage_t* stage);
+LOCAL_HELPER void _terminate_cdt_stage(tdata_t* tdata);
 LOCAL_HELPER void terminate_stage(const cdata_t* cdata, tdata_t* tdata,
 		stage_t* stage);
 
@@ -660,10 +681,19 @@ _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata)
  * generates a record with given key following the obj_spec in cdata
  */
 LOCAL_HELPER as_record*
-_gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
+_gen_record(uint64_t key_val, const cdata_t* cdata, tdata_t* tdata,
 		const stage_t* stage)
 {
 	as_record* rec;
+	uint64_t record_seed;
+	const uint64_t* seed_ptr = NULL;
+
+	if (cdata->seed_set) {
+		uint64_t x = cdata->seed ^ (key_val * 0x9E3779B97F4A7C15LU);
+		record_seed = splitmix64(&x);
+		seed_ptr = &record_seed;
+	}
+
 	uint32_t write_all_pct = _pct_to_fp(stage->workload.write_all_pct);
 	uint32_t die = _random_fp(tdata->random);
 
@@ -672,8 +702,9 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 			uint32_t n_objs = obj_spec_n_bins(&stage->obj_spec);
 			rec = as_record_new(n_objs);
 
-			obj_spec_populate_bins(&stage->obj_spec, rec, random,
-					cdata->bin_name, NULL, 0, cdata->compression_ratio);
+			obj_spec_populate_bins_named(&stage->obj_spec, rec, tdata->random,
+					(const as_bin_name*) stage->bin_names, NULL, 0,
+					cdata->compression_ratio, seed_ptr);
 			rec->ttl = stage->ttl;
 		}
 		else {
@@ -684,9 +715,9 @@ _gen_record(as_random* random, const cdata_t* cdata, tdata_t* tdata,
 		if (stage->random) {
 			rec = as_record_new(stage->n_write_bins);
 
-			obj_spec_populate_bins(&stage->obj_spec, rec, random,
-					cdata->bin_name, stage->write_bins, stage->n_write_bins,
-					cdata->compression_ratio);
+			obj_spec_populate_bins_named(&stage->obj_spec, rec, tdata->random,
+					(const as_bin_name*) stage->bin_names, stage->write_bins,
+					stage->n_write_bins, cdata->compression_ratio, seed_ptr);
 			rec->ttl = stage->ttl;
 		}
 		else {
@@ -813,7 +844,11 @@ _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,
 	as_batch_records* batch = as_batch_records_create(batch_size);
 
 	for (uint32_t i = 0; i < batch_size; i++) {
-		as_record* rec = _gen_record(tdata->random, cdata, tdata, stage);
+		if (randomKeys) {
+			key_val = stage_gen_random_key(stage, tdata->random);
+		}
+
+		as_record* rec = _gen_record(key_val, cdata, tdata, stage);
 
 		as_batch_write_record* batch_write = as_batch_write_reserve(batch);
 		// set the batchwrite key value pointer to the address of its own
@@ -825,12 +860,8 @@ _gen_batch_writes(const cdata_t* cdata, tdata_t* tdata,
 		// for uniform behavior across the batch
 		batch_write->policy = &tdata->policies.batch_write;
 
-		if (randomKeys) {
-			key_val = stage_gen_random_key(stage, tdata->random);
-			_gen_key(key_val, &batch_write->key, cdata);
-		}
-		else {
-			_gen_key(key_val, &batch_write->key, cdata);
+		_gen_key(key_val, &batch_write->key, cdata);
+		if (!randomKeys) {
 			++key_val;
 		}
 
@@ -944,7 +975,7 @@ random_write(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		_gen_key(key_val, &key, cdata);
 
 		// create a record
-		rec = _gen_record(tdata->random, cdata, tdata, stage);
+		rec = _gen_record(key_val, cdata, tdata, stage);
 
 		// write this record to the database
 		_write_record_sync(tdata, cdata, coord, &key, rec);
@@ -1048,7 +1079,7 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		if (stage->batch_write_size <= 1) {
 			// create a record with given key
 			_gen_key(key_val, &key, cdata);
-			rec = _gen_record(tdata->random, cdata, tdata, stage);
+			rec = _gen_record(key_val, cdata, tdata, stage);
 
 			// write this record to the database
 			_write_record_sync(tdata, cdata, coord, &key, rec);
@@ -1269,7 +1300,7 @@ random_write_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
 
 		_gen_key(key_val, &adata->key, cdata);
-		rec = _gen_record(tdata->random, cdata, tdata, stage);
+		rec = _gen_record(key_val, cdata, tdata, stage);
 
 		_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
@@ -1492,7 +1523,7 @@ linear_writes_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		if (stage->batch_write_size <= 1) {
 			as_record* rec;
 			_gen_key(key_val, &adata->key, cdata);
-			rec = _gen_record(tdata->random, cdata, tdata, stage);
+			rec = _gen_record(key_val, cdata, tdata, stage);
 
 			_write_record_async(&adata->key, rec, adata, tdata, cdata);
 
@@ -1710,6 +1741,391 @@ random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coor
 
 
 /******************************************************************************
+ * CDT workload methods
+ *****************************************************************************/
+
+struct cdt_incr_ctx_s {
+	as_operations* ops;
+	const char* name;
+	as_map_policy* policy;
+};
+
+LOCAL_HELPER bool
+_cdt_incr_cb(const as_val* key, const as_val* value, void* udata)
+{
+	struct cdt_incr_ctx_s* ctx = (struct cdt_incr_ctx_s*) udata;
+	as_val_reserve(key);
+	as_val_reserve(value);
+	as_operations_map_increment(ctx->ops, ctx->name, NULL, ctx->policy,
+			(as_val*) key, (as_val*) value);
+	return true;
+}
+
+LOCAL_HELPER uint32_t
+_cdt_map_len(const struct bin_spec_s* bin_spec)
+{
+	if (bin_spec->type & BIN_SPEC_TYPE_CONST) {
+		return as_map_size((as_map*) &bin_spec->const_map.val);
+	}
+	return bin_spec->map.length;
+}
+
+LOCAL_HELPER uint16_t
+_cdt_count_write_ops(const stage_t* stage)
+{
+	const workload_t* w = &stage->workload;
+	uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+	uint32_t trim = w->cdt_cap != 0 ? 1 : 0;
+	uint32_t n = 0;
+
+	for (uint32_t i = 0; i < n_bins; i++) {
+		const struct bin_spec_s* bin_spec = obj_spec_bin_spec(&stage->obj_spec, i);
+		switch (bin_spec->type & BIN_SPEC_TYPE_MASK) {
+			case BIN_SPEC_TYPE_LIST:
+				n += 1 + trim;
+				break;
+			case BIN_SPEC_TYPE_MAP:
+				n += (w->cdt_mode == CDT_MODE_INCR ? _cdt_map_len(bin_spec) : 1) +
+					trim;
+				break;
+			default:
+				n += 1;
+				break;
+		}
+	}
+	return n > UINT16_MAX ? UINT16_MAX : (uint16_t) n;
+}
+
+LOCAL_HELPER void
+_build_cdt_write_ops(tdata_t* tdata, const cdata_t* cdata, const stage_t* stage,
+		as_operations* ops)
+{
+	const workload_t* w = &stage->workload;
+	uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+	int64_t cap = (int64_t) w->cdt_cap;
+
+	for (uint32_t i = 0; i < n_bins; i++) {
+		const struct bin_spec_s* bin_spec = tdata->cdt_bin_specs[i];
+		const char* name = stage->bin_names[i];
+		as_val* val = obj_spec_bin_spec_gen_val(bin_spec, tdata->random,
+				cdata->compression_ratio);
+
+		switch (bin_spec->type & BIN_SPEC_TYPE_MASK) {
+			case BIN_SPEC_TYPE_LIST:
+				as_operations_list_append_items(ops, name, NULL,
+						&tdata->cdt_list_policy, (as_list*) val);
+				if (cap != 0) {
+					as_operations_list_remove_by_index_range(ops, name, NULL,
+							-cap, (uint64_t) cap, (as_list_return_type)
+							(AS_LIST_RETURN_NONE | AS_LIST_RETURN_INVERTED));
+				}
+				break;
+
+			case BIN_SPEC_TYPE_MAP:
+				if (w->cdt_mode == CDT_MODE_INCR) {
+					struct cdt_incr_ctx_s ctx = { ops, name, &tdata->cdt_map_policy };
+					as_map_foreach((as_map*) val, _cdt_incr_cb, &ctx);
+					as_val_destroy(val);
+					if (cap != 0) {
+						as_operations_map_remove_by_rank_range(ops, name, NULL,
+								-cap, (uint64_t) cap, (as_map_return_type)
+								(AS_MAP_RETURN_NONE | AS_MAP_RETURN_INVERTED));
+					}
+				}
+				else {
+					as_operations_map_put_items(ops, name, NULL,
+							&tdata->cdt_map_policy, (as_map*) val);
+					if (cap != 0) {
+						as_operations_map_remove_by_index_range(ops, name, NULL,
+								-cap, (uint64_t) cap, (as_map_return_type)
+								(AS_MAP_RETURN_NONE | AS_MAP_RETURN_INVERTED));
+					}
+				}
+				break;
+
+			default:
+				as_operations_add_write(ops, name, (as_bin_value*) val);
+				break;
+		}
+	}
+	ops->ttl = (uint32_t) stage->ttl;
+}
+
+LOCAL_HELPER void
+_build_cdt_read_ops(tdata_t* tdata, const stage_t* stage, as_operations* ops)
+{
+	const workload_t* w = &stage->workload;
+	uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+	int64_t k = (int64_t) w->cdt_read_k;
+
+	for (uint32_t i = 0; i < n_bins; i++) {
+		const struct bin_spec_s* bin_spec = tdata->cdt_bin_specs[i];
+		const char* name = stage->bin_names[i];
+
+		switch (bin_spec->type & BIN_SPEC_TYPE_MASK) {
+			case BIN_SPEC_TYPE_LIST:
+				as_operations_list_get_by_index_range(ops, name, NULL, -k,
+						(uint64_t) k, AS_LIST_RETURN_VALUE);
+				break;
+
+			case BIN_SPEC_TYPE_MAP: {
+				as_val* key = NULL;
+				if (w->cdt_mode == CDT_MODE_KEY &&
+						(bin_spec->type & BIN_SPEC_TYPE_CONST) == 0 &&
+						bin_spec->map.n_entries != 0) {
+					uint32_t r = as_random_next_uint32(tdata->random);
+					uint32_t entry = (uint32_t) (((uint64_t) r *
+								bin_spec->map.n_entries) >> 32);
+					key = obj_spec_bin_spec_gen_val(
+							&bin_spec->map.kv_pairs[entry].key, tdata->random, 1.f);
+				}
+
+				if (key != NULL) {
+					as_operations_map_get_by_key(ops, name, NULL, key,
+							AS_MAP_RETURN_VALUE);
+				}
+				else if (w->cdt_mode == CDT_MODE_INCR) {
+					as_operations_map_get_by_rank_range(ops, name, NULL, -k,
+							(uint64_t) k, AS_MAP_RETURN_KEY_VALUE);
+				}
+				else {
+					as_operations_map_get_by_index_range(ops, name, NULL, -k,
+							(uint64_t) k, AS_MAP_RETURN_KEY_VALUE);
+				}
+				break;
+			}
+
+			default:
+				as_operations_add_read(ops, name);
+				break;
+		}
+	}
+}
+
+LOCAL_HELPER int
+_cdt_op_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord, as_key* key,
+		const as_operations* ops, bool is_write)
+{
+	as_record* rec = NULL;
+	as_error err;
+
+	uint64_t start = cf_getus();
+	as_status status = aerospike_key_operate(&cdata->client, &err,
+			&tdata->policies.operate, key, ops, is_write ? NULL : &rec);
+	uint64_t end = cf_getus();
+
+	if (status == AEROSPIKE_OK) {
+		if (is_write) {
+			_record_write(cdata, end - start);
+		}
+		else {
+			_record_read(cdata, end - start);
+		}
+	}
+	else if (!is_write && status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+		cdata->read_miss_count++;
+	}
+	else if (status == AEROSPIKE_ERR_TIMEOUT) {
+		if (is_write) {
+			cdata->write_timeout_count++;
+		}
+		else {
+			cdata->read_timeout_count++;
+		}
+	}
+	else {
+		if (is_write) {
+			cdata->write_error_count++;
+		}
+		else {
+			cdata->read_error_count++;
+		}
+
+		if (cdata->debug) {
+			blog_error("CDT %s error: ns=%s set=%s key=%" PRId64 " code=%d "
+					"message=%s", is_write ? "write" : "read", cdata->namespace,
+					cdata->set, key->value.integer.value, status, err.message);
+		}
+	}
+
+	as_record_destroy(rec);
+	throttle(tdata, coord);
+	return status;
+}
+
+LOCAL_HELPER int
+_cdt_op_async(as_key* key, const as_operations* ops,
+		struct async_data_s* adata, tdata_t* tdata, cdata_t* cdata)
+{
+	as_status status;
+	as_error err;
+
+	adata->start_time = cf_getus();
+	status = aerospike_key_operate_async(&cdata->client, &err,
+			&tdata->policies.operate, key, ops, _async_read_listener, adata,
+			adata->ev_loop, NULL);
+
+	if (status != AEROSPIKE_OK) {
+		_async_read_listener(&err, NULL, adata, adata->ev_loop);
+	}
+
+	return status;
+}
+
+LOCAL_HELPER void
+random_cdt_op(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, bool is_write)
+{
+	as_key key;
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+	_gen_key(key_val, &key, cdata);
+
+	const as_operations* prebuilt = is_write ? tdata->cdt_write_ops :
+		tdata->cdt_read_ops;
+
+	if (prebuilt != NULL) {
+		_cdt_op_sync(tdata, cdata, coord, &key, prebuilt, is_write);
+	}
+	else {
+		as_operations ops;
+		if (is_write) {
+			as_operations_inita(&ops, tdata->cdt_n_write_ops);
+			_build_cdt_write_ops(tdata, cdata, stage, &ops);
+		}
+		else {
+			as_operations_inita(&ops, tdata->cdt_n_read_ops);
+			_build_cdt_read_ops(tdata, stage, &ops);
+		}
+		_cdt_op_sync(tdata, cdata, coord, &key, &ops, is_write);
+		as_operations_destroy(&ops);
+	}
+
+	as_key_destroy(&key);
+}
+
+LOCAL_HELPER void
+random_cdt(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+
+	// no target number of transactions, only a timeout, so this thread is
+	// ready to be stopped whenever the timer runs out
+	thr_coordinator_complete(coord);
+
+	while (tdata->do_work) {
+		uint32_t die = _random_fp(tdata->random);
+		random_cdt_op(tdata, cdata, coord, stage, die >= read_pct);
+	}
+}
+
+LOCAL_HELPER void
+_random_cdt_op_async(tdata_t* tdata, cdata_t* cdata, const stage_t* stage,
+		struct async_data_s* adata, bool is_write)
+{
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+	_gen_key(key_val, &adata->key, cdata);
+	adata->op = is_write ? write_op : read_op;
+
+	const as_operations* prebuilt = is_write ? tdata->cdt_write_ops :
+		tdata->cdt_read_ops;
+
+	if (prebuilt != NULL) {
+		_cdt_op_async(&adata->key, prebuilt, adata, tdata, cdata);
+	}
+	else {
+		as_operations ops;
+		if (is_write) {
+			as_operations_inita(&ops, tdata->cdt_n_write_ops);
+			_build_cdt_write_ops(tdata, cdata, stage, &ops);
+		}
+		else {
+			as_operations_inita(&ops, tdata->cdt_n_read_ops);
+			_build_cdt_read_ops(tdata, stage, &ops);
+		}
+		_cdt_op_async(&adata->key, &ops, adata, tdata, cdata);
+		as_operations_destroy(&ops);
+	}
+}
+
+LOCAL_HELPER void
+random_cdt_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, queue_t* adata_q)
+{
+	struct async_data_s* adata;
+	struct timespec wake_time;
+	uint64_t start_time;
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+
+	thr_coordinator_complete(coord);
+
+	while (tdata->do_work) {
+		adata = queue_pop_wait(adata_q);
+
+		clock_gettime(COORD_CLOCK, &wake_time);
+		start_time = timespec_to_us(&wake_time);
+		adata->start_time = start_time;
+
+		uint32_t die = _random_fp(tdata->random);
+		_random_cdt_op_async(tdata, cdata, stage, adata, die >= read_pct);
+
+		uint64_t pause_for =
+			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
+		timespec_add_us(&wake_time, pause_for);
+		thr_coordinator_sleep(coord, &wake_time);
+	}
+}
+
+LOCAL_HELPER void
+_init_cdt_stage(const cdata_t* cdata, tdata_t* tdata, const stage_t* stage)
+{
+	const workload_t* w = &stage->workload;
+	uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+
+	tdata->cdt_bin_specs = (const struct bin_spec_s**) cf_malloc(n_bins *
+			sizeof(struct bin_spec_s*));
+	for (uint32_t i = 0; i < n_bins; i++) {
+		tdata->cdt_bin_specs[i] = obj_spec_bin_spec(&stage->obj_spec, i);
+	}
+
+	as_list_policy_set(&tdata->cdt_list_policy, AS_LIST_UNORDERED,
+			AS_LIST_WRITE_DEFAULT);
+	as_map_policy_set(&tdata->cdt_map_policy,
+			w->cdt_mode == CDT_MODE_INCR ? AS_MAP_KEY_VALUE_ORDERED :
+			AS_MAP_KEY_ORDERED, AS_MAP_UPDATE);
+
+	tdata->cdt_n_write_ops = _cdt_count_write_ops(stage);
+	tdata->cdt_n_read_ops = (uint16_t) n_bins;
+	tdata->cdt_read_ops = NULL;
+	tdata->cdt_write_ops = NULL;
+
+	if (workload_contains_reads(w) && w->cdt_mode != CDT_MODE_KEY) {
+		tdata->cdt_read_ops = as_operations_new(tdata->cdt_n_read_ops);
+		_build_cdt_read_ops(tdata, stage, tdata->cdt_read_ops);
+	}
+	if (workload_contains_writes(w) && !stage->random) {
+		tdata->cdt_write_ops = as_operations_new(tdata->cdt_n_write_ops);
+		_build_cdt_write_ops(tdata, cdata, stage, tdata->cdt_write_ops);
+	}
+}
+
+LOCAL_HELPER void
+_terminate_cdt_stage(tdata_t* tdata)
+{
+	if (tdata->cdt_read_ops != NULL) {
+		as_operations_destroy(tdata->cdt_read_ops);
+		tdata->cdt_read_ops = NULL;
+	}
+	if (tdata->cdt_write_ops != NULL) {
+		as_operations_destroy(tdata->cdt_write_ops);
+		tdata->cdt_write_ops = NULL;
+	}
+	cf_free(tdata->cdt_bin_specs);
+	tdata->cdt_bin_specs = NULL;
+}
+
+
+/******************************************************************************
  * Main worker thread loop
  *****************************************************************************/
 
@@ -1733,6 +2149,9 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			break;
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete(tdata, cdata, coord, stage);
+			break;
+		case WORKLOAD_TYPE_CDT:
+			random_cdt(tdata, cdata, coord, stage);
 			break;
 	}
 }
@@ -1786,6 +2205,9 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
 			break;
+		case WORKLOAD_TYPE_CDT:
+			random_cdt_async(tdata, cdata, coord, stage, &adata_q);
+			break;
 	}
 
 	// wait for all the async calls to finish
@@ -1834,15 +2256,19 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 				(1000000.f * n_threads) / stage->tps);
 	}
 
-	if (!stage->random) {
+	if (stage->workload.type == WORKLOAD_TYPE_CDT) {
+		_init_cdt_stage(cdata, tdata, stage);
+	}
+	else if (!stage->random) {
 
 		if (workload_contains_writes(&stage->workload)) {
 			if (stage->workload.write_all_pct != 0) {
 				uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
 				as_record_init(&tdata->fixed_full_record, n_bins);
-				obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_full_record,
-						tdata->random, cdata->bin_name, NULL, 0,
-						cdata->compression_ratio);
+				obj_spec_populate_bins_named(&stage->obj_spec,
+						&tdata->fixed_full_record, tdata->random,
+						(const as_bin_name*) stage->bin_names, NULL, 0,
+						cdata->compression_ratio, NULL);
 
 				tdata->fixed_full_record.ttl = stage->ttl;
 			}
@@ -1850,9 +2276,10 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 				uint32_t n_bins = stage->n_write_bins;
 
 				as_record_init(&tdata->fixed_partial_record, n_bins);
-				obj_spec_populate_bins(&stage->obj_spec, &tdata->fixed_partial_record,
-						tdata->random, cdata->bin_name, stage->write_bins, n_bins,
-						cdata->compression_ratio);
+				obj_spec_populate_bins_named(&stage->obj_spec,
+						&tdata->fixed_partial_record, tdata->random,
+						(const as_bin_name*) stage->bin_names, stage->write_bins,
+						n_bins, cdata->compression_ratio, NULL);
 
 				tdata->fixed_partial_record.ttl = stage->ttl;
 			}
@@ -1872,9 +2299,8 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 			as_record_init(&tdata->fixed_delete_record, n_bins);
 
 			for (uint32_t i = 0; i < n_bins; i++) {
-				as_bin_name bin_name;
-				gen_bin_name(bin_name, cdata->bin_name, i);
-				as_record_set_nil(&tdata->fixed_delete_record, bin_name);
+				as_record_set_nil(&tdata->fixed_delete_record,
+						stage->bin_names[i]);
 			}
 		}
 		if (stage->workload.type == WORKLOAD_TYPE_D &&
@@ -1886,9 +2312,8 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 			FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
 					&stage->obj_spec, iter, idx, __bin_spec) {
 
-				as_bin_name bin_name;
-				gen_bin_name(bin_name, cdata->bin_name, idx);
-				as_record_set_nil(&tdata->fixed_delete_record, bin_name);
+				as_record_set_nil(&tdata->fixed_delete_record,
+						stage->bin_names[idx]);
 			}
 			END_FOR_EACH_WRITE_BIN(stage->write_bins, stage->n_write_bins,
 					iter, idx);
@@ -1901,7 +2326,10 @@ terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 {
 	dyn_throttle_free(&tdata->dyn_throttle);
 
-	if (!stage->random) {
+	if (stage->workload.type == WORKLOAD_TYPE_CDT) {
+		_terminate_cdt_stage(tdata);
+	}
+	else if (!stage->random) {
 		if (stage->workload.write_all_pct != 0) {
 			as_record_destroy(&tdata->fixed_full_record);
 		}

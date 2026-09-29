@@ -303,6 +303,14 @@ $(DIR_LIBCYAML_BUILD)/libcyaml.a:
 run: build
 	./target/asbench -h $(AS_HOST) -p $(AS_PORT)
 
+.PHONY: synth-data
+synth-data:
+	python3 scripts/gen_synth_data.py
+
+.PHONY: synth-data-check
+synth-data-check:
+	python3 scripts/gen_synth_data.py --check
+
 .PHONY: test
 test: unit integration
 

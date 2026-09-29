@@ -39,8 +39,19 @@ typedef enum {
 	// random read/update/function (udf) workload
 	WORKLOAD_TYPE_RUF,
 	// random read/update/delete workload
-	WORKLOAD_TYPE_RUD
+	WORKLOAD_TYPE_RUD,
+	// random collection data type (list/map) operation workload
+	WORKLOAD_TYPE_CDT
 } workload_type_t;
+
+typedef enum {
+	// list append_items / map put_items, reads by index
+	CDT_MODE_PUT,
+	// map increment per generated entry, reads top-k by rank
+	CDT_MODE_INCR,
+	// as CDT_MODE_PUT, but map reads fetch one generated key
+	CDT_MODE_KEY
+} cdt_mode_t;
 
 #define WORKLOAD_RU_DEFAULT_PCT 50.f
 #define WORKLOAD_RR_DEFAULT_PCT 50.f
@@ -50,6 +61,10 @@ typedef enum {
 
 #define WORKLOAD_RUD_DEFAULT_READ_PCT 40.f
 #define WORKLOAD_RUD_DEFAULT_WRITE_PCT 40.f
+
+#define WORKLOAD_CDT_DEFAULT_READ_PCT 50.f
+#define WORKLOAD_CDT_DEFAULT_CAP 0
+#define WORKLOAD_CDT_DEFAULT_READ_K 10
 
 #define WORKLOAD_DEFAULT_READ_ALL_PCT 100.f
 #define WORKLOAD_DEFAULT_WRITE_ALL_PCT 100.f
@@ -80,6 +95,15 @@ typedef struct workload_s {
 	 */
 	float read_all_pct;
 	float write_all_pct;
+
+	/*
+	 * CDT workloads only: mode, the maximum number of elements kept in each
+	 * list/map bin after a write (0 = unbounded), and the number of elements
+	 * returned by a read
+	 */
+	cdt_mode_t cdt_mode;
+	uint32_t cdt_cap;
+	uint32_t cdt_read_k;
 } workload_t;
 
 
@@ -185,6 +209,9 @@ typedef struct stage_s {
 	uint32_t* write_bins;
 	uint32_t n_write_bins;
 
+	// resolved name of every bin in obj_spec, indexed by bin number
+	as_bin_name* bin_names;
+
 	as_udf_module_name udf_package_name;
 	as_udf_function_name udf_fn_name;
 	obj_spec_t udf_fn_args;
@@ -210,7 +237,8 @@ static inline bool workload_is_random(const workload_t* workload)
 	return workload->type == WORKLOAD_TYPE_RU ||
 		workload->type == WORKLOAD_TYPE_RR ||
 		workload->type == WORKLOAD_TYPE_RUF ||
-		workload->type == WORKLOAD_TYPE_RUD;
+		workload->type == WORKLOAD_TYPE_RUD ||
+		workload->type == WORKLOAD_TYPE_CDT;
 }
 
 static inline bool workload_contains_reads(const workload_t* workload)
@@ -218,7 +246,8 @@ static inline bool workload_contains_reads(const workload_t* workload)
 	return (workload->type == WORKLOAD_TYPE_RU && workload->read_pct != 0) ||
 		(workload->type == WORKLOAD_TYPE_RR && workload->read_pct != 0) ||
 		(workload->type == WORKLOAD_TYPE_RUF && workload->read_pct != 0) ||
-		(workload->type == WORKLOAD_TYPE_RUD && workload->read_pct != 0);
+		(workload->type == WORKLOAD_TYPE_RUD && workload->read_pct != 0) ||
+		(workload->type == WORKLOAD_TYPE_CDT && workload->read_pct != 0);
 }
 
 static inline bool workload_contains_writes(const workload_t* workload)
@@ -226,7 +255,8 @@ static inline bool workload_contains_writes(const workload_t* workload)
 	return (workload->type != WORKLOAD_TYPE_RU || workload->read_pct != 100) &&
 		(workload->type != WORKLOAD_TYPE_RR || workload->read_pct != 100) &&
 		(workload->type != WORKLOAD_TYPE_RUF || workload->write_pct != 0) &&
-		(workload->type != WORKLOAD_TYPE_RUD || workload->write_pct != 0);
+		(workload->type != WORKLOAD_TYPE_RUD || workload->write_pct != 0) &&
+		(workload->type != WORKLOAD_TYPE_CDT || workload->read_pct != 100);
 }
 
 static inline bool workload_contains_deletes(const workload_t* workload)
@@ -268,7 +298,8 @@ static inline bool workload_is_infinite(const workload_t* workload)
 	return workload->type == WORKLOAD_TYPE_RU ||
 		workload->type == WORKLOAD_TYPE_RR ||
 		workload->type == WORKLOAD_TYPE_RUF ||
-		workload->type == WORKLOAD_TYPE_RUD;
+		workload->type == WORKLOAD_TYPE_RUD ||
+		workload->type == WORKLOAD_TYPE_CDT;
 }
 
 static inline void fprint_stage(FILE* out_file, const stages_t* stages,

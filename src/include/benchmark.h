@@ -27,6 +27,9 @@
 #include <aerospike/as_event.h>
 #include <aerospike/as_password.h>
 #include <aerospike/as_policy.h>
+#include <aerospike/as_list_operations.h>
+#include <aerospike/as_map_operations.h>
+#include <aerospike/as_operations.h>
 #include <aerospike/as_random.h>
 #include <aerospike/as_record.h>
 #include <aerospike/as_udf.h>
@@ -67,6 +70,10 @@ typedef struct args_s {
 	int transaction_worker_threads;
 	bool enable_compression;
 	float compression_ratio;
+
+	bool seed_set;
+	uint64_t seed;
+	uint64_t gen_bench_iters;
 
 	int conn_timeout_ms;
 	int read_socket_timeout;
@@ -153,12 +160,16 @@ typedef struct clientdata_s {
 	bool latency;
 	bool debug;
 
+	bool seed_set;
+	uint64_t seed;
+
 } cdata_t;
 
 typedef struct threaddata_s {
 	cdata_t* cdata;
 	struct thr_coordinator_s* coord;
 	as_random* random;
+	as_random random_state;
 	dyn_throttle_t dyn_throttle;
 
 	// thread index: [0, n_threads)
@@ -182,6 +193,15 @@ typedef struct threaddata_s {
 	as_record fixed_partial_record;
 	as_record fixed_delete_record;
 	as_list* fixed_udf_fn_args;
+
+	// prebuilt CDT operations, NULL when they must be built per transaction
+	const struct bin_spec_s** cdt_bin_specs;
+	as_operations* cdt_read_ops;
+	as_operations* cdt_write_ops;
+	uint16_t cdt_n_read_ops;
+	uint16_t cdt_n_write_ops;
+	as_list_policy cdt_list_policy;
+	as_map_policy cdt_map_policy;
 
 	as_policies policies;
 } tdata_t;

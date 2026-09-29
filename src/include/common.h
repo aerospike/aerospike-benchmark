@@ -78,6 +78,26 @@ typedef uint64_t ptr_int_t;
 #define UNLIKELY(expr) __builtin_expect((expr), 0)
 
 /*
+ * safe printing to a fixed-size buffer, updating the size of the buffer. On
+ * truncation the cursor stops on the terminating NUL so the buffer is never
+ * overrun by later writes.
+ */
+#define sprint(out_str, str_size, ...) \
+	do { \
+		if ((str_size) > 0) { \
+			size_t __w = snprintf(*(out_str), str_size, __VA_ARGS__); \
+			if (__w < (str_size)) { \
+				*(out_str) += __w; \
+				(str_size) -= __w; \
+			} \
+			else { \
+				*(out_str) += (str_size) - 1; \
+				(str_size) = 1; \
+			} \
+		} \
+	} while (0)
+
+/*
  * returns a if a is positive or 0 if a is negative
  */
 static inline uint64_t ramp(uint64_t a)
@@ -136,6 +156,27 @@ void* memrchr(const void* s, int c, size_t n);
 
 #define UTC_STR_LEN 72
 const char* utc_time_str(time_t t);
+
+static inline uint64_t
+splitmix64(uint64_t* state)
+{
+	uint64_t z = (*state += 0x9E3779B97F4A7C15LU);
+	z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9LU;
+	z = (z ^ (z >> 27)) * 0x94D049BB133111EBLU;
+	return z ^ (z >> 31);
+}
+
+static inline void
+seed_as_random(as_random* random, uint64_t seed, uint64_t salt)
+{
+	uint64_t x = seed ^ (salt * 0xD1B54A32D192ED03LU);
+	random->seed0 = splitmix64(&x);
+	random->seed1 = splitmix64(&x);
+	if (UNLIKELY((random->seed0 | random->seed1) == 0)) {
+		random->seed1 = 1;
+	}
+	random->initialized = true;
+}
 
 /*
  * generate a random number within the range [0, max)
