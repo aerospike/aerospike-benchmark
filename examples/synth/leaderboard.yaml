@@ -1,0 +1,10 @@
+# Leaderboards: increment 5 player scores per write, keep the top 1000 by
+# score, read the top 10 by rank.
+# asbench -h 127.0.0.1 -n test -s boards --workload-stages examples/synth/leaderboard.yaml
+- stage: 1
+  desc: "leaderboards, 30% top-10 reads"
+  workload: CI,30,1000,10
+  duration: 60
+  key-start: 1
+  key-end: 10001
+  object-spec: 'scores={5*@username:@int(1,100)}'

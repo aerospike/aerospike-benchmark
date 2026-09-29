@@ -77,6 +77,12 @@ jobs:
     - name: Build asbench
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
+    - name: Test synthetic data generator script
+      run: python3 -m unittest scripts/test_gen_synth_data.py
+      working-directory: main
+    - name: Synthetic data generation benchmark
+      run: ./target/asbench --gen-bench 200000 -z 2 -o "id=@uuid, first=@first_name, email=@email, age=@int(18,90), loc=@geojson"
+      working-directory: main
     - name: Test
       run: make coverage-all EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main

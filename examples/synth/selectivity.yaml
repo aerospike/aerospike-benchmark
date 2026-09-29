@@ -1,0 +1,18 @@
+# Secondary index selectivity data, the asbench version of datasynth examples/maptest.json.
+# Each s*/i* bin has a fixed number of distinct values, so an equality query on one
+# value matches 1%, 10% or 100% of the records. After stage 1, for example in aql:
+#   CREATE INDEX s100_idx ON test.filtertest (s100) STRING
+#   SELECT * FROM test.filtertest WHERE s100 = '7'
+# asbench -h 127.0.0.1 -n test -s filtertest --workload-stages examples/synth/selectivity.yaml
+- stage: 1
+  desc: "load 1M records with 1%, 10% and 100% selectivity bins"
+  workload: I
+  key-start: 1
+  key-end: 1000001
+  object-spec: 's100=@fmt("#{int(0,99)}"), s10=@fmt("#{int(0,9)}"), s1="0", i100=@int(0,99), i10=@int(0,9), tier=@pick("gold":1,"silver":9,"bronze":90), attrs={"color":@color,"size":@pick("S","M","L","XL"),"weight":@double(0.1,50)}'
+- stage: 2
+  desc: "point reads and updates while indexes are queried, 95% reads"
+  workload: RU,95
+  duration: 60
+  key-start: 1
+  key-end: 1000001

@@ -1,0 +1,17 @@
+# Partial updates and bin projection: writes touch only the balance and
+# last_seen bins, reads fetch only the name and email bins.
+# asbench -h 127.0.0.1 -n test -s accounts --workload-stages examples/synth/partial_updates.yaml
+- stage: 1
+  desc: "load 1M accounts"
+  workload: I
+  key-start: 1
+  key-end: 1000001
+  object-spec: 'first=@first_name, last=@last_name, email=@email, balance=@double(0,10000), last_seen=@now, address=@fmt("#{street}, #{city}, #{state_abbr} #{zip}")'
+- stage: 2
+  desc: "update balance and last_seen only, read first, last and email only"
+  workload: RU,70
+  duration: 60
+  key-start: 1
+  key-end: 1000001
+  write-bins: 4,5
+  read-bins: 1,2,3

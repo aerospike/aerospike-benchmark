@@ -1,0 +1,10 @@
+# Session / attribute maps: put 3 attributes per write, cap at 50 keys, read
+# one attribute by key.
+# asbench -h 127.0.0.1 -n test -s sessions --workload-stages examples/synth/sessions.yaml
+- stage: 1
+  desc: "session attributes, 90% reads by key"
+  workload: CK,90,50
+  duration: 60
+  key-start: 1
+  key-end: 5000001
+  object-spec: 'attrs={3*@pick("theme","lang","tz","plan","region","last_page","cart","ab_group"):@word}'

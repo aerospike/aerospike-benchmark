@@ -1,0 +1,14 @@
+# Customer profiles: load 1M realistic records, then a read-heavy mix.
+# asbench -h 127.0.0.1 -n test -s customers --workload-stages examples/synth/customers.yaml
+- stage: 1
+  desc: "load 1M customer profiles"
+  workload: I
+  key-start: 1
+  key-end: 1000001
+  object-spec: 'id=@uuid, first=@first_name, last=@last_name, email=@email, phone=@phone, age=@int(18,90), street=@street, city=@city, state=@state_abbr, zip=@zip, since=@date("2015-01-01","2025-12-31"), tier=@pick("basic":80,"gold":15,"platinum":5)'
+- stage: 2
+  desc: "profile reads and updates, 80% reads"
+  workload: RU,80
+  duration: 60
+  key-start: 1
+  key-end: 1000001

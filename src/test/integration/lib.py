@@ -66,6 +66,7 @@ SESSION_ID = "asbench-it-%d" % PORT
 WORK_DIRECTORY = "work-%d" % PORT
 LUA_DIRECTORY = WORK_DIRECTORY + "/lua"
 CONTAINER_LABEL = "asbench-integration"
+CONTAINER_OWNER_LABEL = "asbench-integration-pid"
 SERVER_IMAGE = "aerospike/aerospike-server:6.0.0.8"
 CLUSTER_READY_TIMEOUT = 60
 STATE_DIRECTORIES = ["state-%d" % i for i in range(1, N_NODES+1)]
@@ -248,16 +249,29 @@ def get_file(path, base=None):
 		raise Exception('path %s is not in the directory %s' % (path, base))
 
 
+def _pid_alive(pid):
+	try:
+		os.kill(pid, 0)
+	except ProcessLookupError:
+		return False
+	except PermissionError:
+		return True
+	return True
+
+
 def _remove_stale_containers():
 	"""
 	Removes containers left behind by earlier test sessions that were killed
-	before they could clean up. Only stopped containers carrying this
-	harness's label are touched.
+	before they could clean up: stopped ones, and running ones whose owning
+	test process no longer exists. Containers of a live concurrent session and
+	containers without this harness's label are never touched.
 	"""
 	stale = DOCKER_CLIENT.containers.list(all=True,
 			filters={"label": CONTAINER_LABEL})
 	for container in stale:
-		if container.status != "running":
+		owner = container.labels.get(CONTAINER_OWNER_LABEL, "")
+		dead_owner = owner.isdigit() and not _pid_alive(int(owner))
+		if container.status != "running" or dead_owner:
 			print("Removing stale test container", container.name)
 			container.remove(force=True)
 
@@ -344,7 +358,8 @@ def _start_cluster():
 						for i in range(PORTS_PER_NODE)
 					},
 					volumes={ mount_dir: { 'bind': CONTAINER_DIR, 'mode': 'rw' } },
-					labels={ CONTAINER_LABEL: SESSION_ID },
+					labels={ CONTAINER_LABEL: SESSION_ID,
+						CONTAINER_OWNER_LABEL: str(os.getpid()) },
 					tty=True, detach=True, name='%s-%d' % (SESSION_ID, index))
 			NODES[index-1] = container
 			_check_container_running(container)

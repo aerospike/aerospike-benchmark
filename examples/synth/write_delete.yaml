@@ -1,0 +1,19 @@
+# Writes followed by deletes, the asbench version of datasynth examples/deletes.json.
+# asbench -h 127.0.0.1 -n test -s ntest --workload-stages examples/synth/write_delete.yaml
+- stage: 1
+  desc: "load 100k records"
+  workload: I
+  key-start: 1
+  key-end: 100001
+  object-spec: 'date=@date("2025-10-09","2026-05-29"), verbatim="This", range=@int(100,1000), pick=@pick("a","b","c","d"), map1={3*@ipv4:@first_name}'
+- stage: 2
+  desc: "40% reads, 40% updates, 20% deletes"
+  workload: RUD,40,40
+  duration: 60
+  key-start: 1
+  key-end: 100001
+- stage: 3
+  desc: "delete every remaining record"
+  workload: DB
+  key-start: 1
+  key-end: 100001

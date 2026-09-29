@@ -1,0 +1,14 @@
+# Every data type in one record, the asbench version of datasynth examples/alltypes.json.
+# asbench -h 127.0.0.1 -n test -s alltypes --workload-stages examples/synth/alltypes.yaml
+- stage: 1
+  desc: "load 100k records that use every generator and legacy type"
+  workload: I
+  key-start: 1
+  key-end: 100001
+  object-spec: 'date=@date("2025-10-09","2026-05-29"), verbatim="This", number_range=@int(100,1000), double=@double(0,100), number=@int(0,1000), number_string=@fmt("$#{int(100,1000)}"), pick=@pick("a","b","c","d"), full=@fmt("#{first_name} #{first_name} #{last_name}"), string=S8, blob=B64, lorem=@lorem(256), first=@first_name, last=@last_name, street=@street, city=@city, state=@state, zip=@zip, phone=@phone, ip=@ipv4, ipport=@fmt("#{ipv4}:#{int(1024,65535)}"), ipv6=@ipv6, mac=@mac, url=@url, geo=@geojson, zone=@geo_circle, uuid=@uuid, card=@credit_card, company=@company, job=@job_title, product=@product, color=@color, sentence=@sentence, seen=@now, list=[3*@date], map={3*@ipv4:@first_name}, delimited=@fmt("#{first_name}, #{first_name}, #{first_name}"), listmapslist=[3*{3*@ipv4:[3*@city]}]'
+- stage: 2
+  desc: "read and update everything, 90% reads"
+  workload: RU,90
+  duration: 60
+  key-start: 1
+  key-end: 100001
