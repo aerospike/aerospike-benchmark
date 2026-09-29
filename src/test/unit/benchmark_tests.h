@@ -12,4 +12,9 @@ Suite* hdr_histogram_log_suite(void);
 Suite* histogram_suite(void);
 Suite* obj_spec_suite(void);
 Suite* yaml_parse_suite(void);
+Suite* synth_data_suite(void);
+Suite* synth_gen_suite(void);
+Suite* workload_parse_suite(void);
+Suite* cdt_ops_suite(void);
+Suite* gen_bench_suite(void);
 

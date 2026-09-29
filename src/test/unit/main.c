@@ -45,6 +45,11 @@ main(void) {
 	srunner_add_suite(g_sr, histogram_suite());
 	srunner_add_suite(g_sr, obj_spec_suite());
 	srunner_add_suite(g_sr, yaml_parse_suite());
+	srunner_add_suite(g_sr, synth_data_suite());
+	srunner_add_suite(g_sr, synth_gen_suite());
+	srunner_add_suite(g_sr, workload_parse_suite());
+	srunner_add_suite(g_sr, cdt_ops_suite());
+	srunner_add_suite(g_sr, gen_bench_suite());
 
 	//srunner_set_fork_status(g_sr, CK_NOFORK);
 

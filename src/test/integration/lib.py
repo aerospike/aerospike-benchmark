@@ -1,6 +1,13 @@
 
 import codecs
+import datetime
+import ipaddress
+import json
 import os
+import random
+import re
+import socket
+import uuid
 import string
 import subprocess
 import sys
@@ -11,19 +18,56 @@ import shutil
 import signal
 import time
 
+# the number of server nodes to use
+N_NODES = 2
+
+# each node uses 4 consecutive ports (service, fabric, heartbeat, info), and
+# node i starts at PORT + 1000 * i
+PORTS_PER_NODE = 4
+NODE_PORT_STRIDE = 1000
+
+
+def _port_free(port):
+	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+		try:
+			s.bind(("0.0.0.0", port))
+		except OSError:
+			return False
+	return True
+
+
+def _pick_base_port():
+	"""
+	Picks a random base port such that every port of every cluster node is
+	free, so the tests never collide with an Aerospike server (or anything
+	else) already running on this machine.
+	"""
+	rng = random.SystemRandom()
+	for _ in range(200):
+		base = rng.randrange(10000, 60000, 10)
+		ports = [base + NODE_PORT_STRIDE * n + i for n in range(N_NODES)
+				for i in range(PORTS_PER_NODE)]
+		if all(_port_free(p) for p in ports):
+			return base
+	raise RuntimeError("could not find free ports for the test cluster")
+
+
 # the port to use for one of the cluster nodes
-PORT = 3000
+PORT = _pick_base_port()
 # the namespace to be used for the tests
 NAMESPACE = "test"
 # the set to be used for the tests
 SET = "test"
 CLIENT_ATTEMPTS = 20
 
-# the number of server nodes to use
-N_NODES = 2
-
-WORK_DIRECTORY = "work"
-LUA_DIRECTORY = "work/lua"
+# every test session gets its own work directory and container names (keyed by
+# its port range), so a session never reuses a path or name left by another one
+SESSION_ID = "asbench-it-%d" % PORT
+WORK_DIRECTORY = "work-%d" % PORT
+LUA_DIRECTORY = WORK_DIRECTORY + "/lua"
+CONTAINER_LABEL = "asbench-integration"
+SERVER_IMAGE = "aerospike/aerospike-server:6.0.0.8"
+CLUSTER_READY_TIMEOUT = 60
 STATE_DIRECTORIES = ["state-%d" % i for i in range(1, N_NODES+1)]
 UDF_DIRECTORIES = ["udf-%d" % i for i in range(1, N_NODES+1)]
 
@@ -55,9 +99,9 @@ RUNNING = False
 CONTAINER_DIR = "/opt/work"
 
 def graceful_exit(sig, frame):
-	signal.signal(signal.SIGINT, g_orig_int_handler)
+	signal.signal(sig, g_orig_handlers[sig])
 	stop()
-	os.kill(os.getpid(), signal.SIGINT)
+	os.kill(os.getpid(), sig)
 
 def safe_sleep(secs):
 	"""
@@ -204,104 +248,189 @@ def get_file(path, base=None):
 		raise Exception('path %s is not in the directory %s' % (path, base))
 
 
-def start(do_reset=True):
+def _remove_stale_containers():
+	"""
+	Removes containers left behind by earlier test sessions that were killed
+	before they could clean up. Only stopped containers carrying this
+	harness's label are touched.
+	"""
+	stale = DOCKER_CLIENT.containers.list(all=True,
+			filters={"label": CONTAINER_LABEL})
+	for container in stale:
+		if container.status != "running":
+			print("Removing stale test container", container.name)
+			container.remove(force=True)
+
+
+def _parse_info(response):
+	"""
+	Turns an info response ("cmd\tk1=v1;k2=v2") into a dict.
+	"""
+	if "\t" in response:
+		response = response.split("\t", 1)[1]
+	return dict(kv.split("=", 1) for kv in response.strip().split(";") if "=" in kv)
+
+
+def _cluster_state():
+	sizes = []
+	remaining = 0
+	for err, resp in CLIENT.info_all("statistics").values():
+		if err is None:
+			sizes.append(_parse_info(resp).get("cluster_size"))
+	for err, resp in CLIENT.info_all("namespace/" + NAMESPACE).values():
+		if err is None:
+			stats = _parse_info(resp)
+			remaining += int(stats.get("migrate_tx_partitions_remaining", 0))
+			remaining += int(stats.get("migrate_rx_partitions_remaining", 0))
+	return sizes, remaining
+
+
+def _wait_for_cluster():
+	"""
+	Blocks until every node reports a cluster of N_NODES and no partitions are
+	migrating, so tests never run against a half formed cluster.
+	"""
+	deadline = time.time() + CLUSTER_READY_TIMEOUT
+	state = None
+	while time.time() < deadline:
+		try:
+			state = _cluster_state()
+			sizes, remaining = state
+			if len(sizes) == N_NODES and all(s == str(N_NODES) for s in sizes) \
+					and remaining == 0:
+				return
+		except Exception as e:
+			state = e
+		safe_sleep(0.25)
+	raise RuntimeError("test cluster did not form within %ds (last state: %r)" %
+			(CLUSTER_READY_TIMEOUT, state))
+
+
+def _check_container_running(container):
+	container.reload()
+	if container.status != "running":
+		logs = container.logs().decode("utf-8", "replace")[-4000:]
+		raise RuntimeError("test container %s is %s:\n%s" % (container.name,
+			container.status, logs))
+
+
+def _start_cluster():
 	global CLIENT
 	global NODES
-	global RUNNING
 	global SERVER_IP
 
+	if USE_DOCKER_SERVERS:
+		print("Starting asd")
+		_remove_stale_containers()
+
+		init_work_dir()
+		init_state_dirs()
+
+		temp_file = absolute_path("aerospike.conf")
+		mount_dir = absolute_path(WORK_DIRECTORY)
+
+		first_base = PORT
+		for index in range(1, N_NODES + 1):
+			base = first_base + NODE_PORT_STRIDE * (index - 1)
+			conf_file = create_conf_file(temp_file, base,
+					None if index == 1 else (SERVER_IP, first_base),
+					index)
+			cmd = '/usr/bin/asd --foreground --config-file %s --instance %s' % (CONTAINER_DIR + '/' + get_file(conf_file, base=mount_dir), str(index - 1))
+			print('running in docker: %s' % cmd)
+			container = DOCKER_CLIENT.containers.run(SERVER_IMAGE,
+					command=cmd,
+					ports={
+						str(base + i) + '/tcp': str(base + i)
+						for i in range(PORTS_PER_NODE)
+					},
+					volumes={ mount_dir: { 'bind': CONTAINER_DIR, 'mode': 'rw' } },
+					labels={ CONTAINER_LABEL: SESSION_ID },
+					tty=True, detach=True, name='%s-%d' % (SESSION_ID, index))
+			NODES[index-1] = container
+			_check_container_running(container)
+			if index == 1:
+				SERVER_IP = container.attrs["NetworkSettings"]["Networks"]["bridge"]["IPAddress"]
+
+	print("Connecting client")
+	SERVER_IP = "127.0.0.1"
+	config = {
+		"hosts": [(SERVER_IP, PORT)],
+		"lua": { "user_path": absolute_path(LUA_DIRECTORY) }
+	}
+
+	for attempt in range(CLIENT_ATTEMPTS):
+		try:
+			CLIENT = aerospike.client(config).connect()
+			break
+		except Exception:
+			for node in NODES:
+				if node is not None:
+					_check_container_running(node)
+			if attempt < CLIENT_ATTEMPTS - 1:
+				safe_sleep(1)
+			else:
+				raise
+
+	print("Client connected, waiting for the cluster to form")
+	_wait_for_cluster()
+	print("Cluster ready")
+
+
+def start(do_reset=True):
+	global RUNNING
+
 	if not RUNNING:
+		try:
+			_start_cluster()
+		except BaseException:
+			_teardown()
+			raise
 		RUNNING = True
-
-		if USE_DOCKER_SERVERS:
-			print("Starting asd")
-
-			init_work_dir()
-			init_state_dirs()
-
-			temp_file = absolute_path("aerospike.conf")
-			mount_dir = absolute_path(WORK_DIRECTORY)
-
-			first_base = PORT
-			for index in range(1, 3):
-				base = first_base + 1000 * (index - 1)
-				conf_file = create_conf_file(temp_file, base,
-						None if index == 1 else (SERVER_IP, first_base),
-						index)
-				cmd = '/usr/bin/asd --foreground --config-file %s --instance %s' % (CONTAINER_DIR + '/' + get_file(conf_file, base=mount_dir), str(index - 1))
-				print('running in docker: %s' % cmd)
-				container = DOCKER_CLIENT.containers.run("aerospike/aerospike-server:6.0.0.8",
-						command=cmd,
-						ports={
-							str(base) + '/tcp': str(base),
-							str(base + 1) + '/tcp': str(base + 1),
-							str(base + 2) + '/tcp': str(base + 2),
-							str(base + 3) + '/tcp': str(base + 3)
-						},
-						volumes={ mount_dir: { 'bind': CONTAINER_DIR, 'mode': 'rw' } },
-						tty=True, detach=True, name='aerospike-%d' % (index))
-				NODES[index-1] = container
-				if index == 1:
-					container.reload()
-					SERVER_IP = container.attrs["NetworkSettings"]["Networks"]["bridge"]["IPAddress"]
-		else:
-			SERVER_IP = "127.0.0.1"
-
-		print("Connecting client")
-		SERVER_IP = "127.0.0.1"
-		config = {
-			"hosts": [(SERVER_IP, PORT)],
-			"lua": { "user_path": absolute_path(LUA_DIRECTORY) }
-		}
-
-		for attempt in range(CLIENT_ATTEMPTS):
-			try:
-				CLIENT = aerospike.client(config).connect()
-				break
-			except Exception:
-				if attempt < CLIENT_ATTEMPTS - 1:
-					safe_sleep(1)
-				else:
-					raise
-
-		print("Client connected")
 	else:
 		if do_reset:
 			# if the cluster is already up and running, reset it
 			reset()
 
 
-def stop():
+def _teardown():
+	"""
+	Disconnects the client, removes the containers and deletes the work
+	directory. Every step runs even if an earlier one fails.
+	"""
 	global CLIENT
-	global RUNNING
 	global NODES
+
+	if CLIENT is not None:
+		try:
+			CLIENT.close()
+		except Exception as e:
+			print("Failed to close client:", e)
+		CLIENT = None
+
+	for i in range(0, N_NODES):
+		if NODES[i] is not None:
+			try:
+				NODES[i].remove(force=True)
+			except Exception as e:
+				print("Failed to remove container:", e)
+			NODES[i] = None
+
+	try:
+		remove_state_dirs()
+		remove_work_dir()
+	except Exception as e:
+		print("Failed to remove work directory:", e)
+
+
+def stop():
+	global RUNNING
 
 	"""
 	Disconnects the client and stops the running asd process.
 	"""
 	if RUNNING:
-		print("resetting asd")
-		reset()
-
-		print("Disconnecting client")
-
-		if CLIENT is None:
-			print("No connected client")
-		else:
-			CLIENT.close()
-			CLIENT = None
-
-		print("Stopping asd")
-		for i in range(0, N_NODES):
-			if NODES[i] is not None:
-				NODES[i].stop()
-				NODES[i].remove()
-				NODES[i] = None
-
-		remove_state_dirs()
-		remove_work_dir()
-
 		RUNNING = False
+		_teardown()
 
 def reset():
 	global UDFS
@@ -354,9 +483,10 @@ def run_benchmark(args, ip=None, port=PORT, expect_success=True, do_reset=True):
 	else:
 		try:
 			subprocess.check_call(cmd, cwd=directory)
-			assert(False, "Process returned 0 exit code")
 		except subprocess.CalledProcessError:
 			pass
+		else:
+			assert False, "Process returned 0 exit code"
 
 def scan_records():
 	recs = []
@@ -453,6 +583,178 @@ def check_for_range(key_start, key_end, obj_checker=None):
 	check_recs_exist_in_range(key_start, key_end, obj_checker=obj_checker)
 
 
+# synthetic data (@generator) validation
+ASCII_RE = re.compile(r"^[\x20-\x7e]+$")
+USERNAME_RE = re.compile(r"^[a-z0-9._]+$")
+DOMAIN_RE = re.compile(r"^[a-z0-9]+\.[a-z]+$")
+
+def obj_spec_is_ascii_str(val, min_len=1, max_len=1024):
+	assert(type(val) is str)
+	assert(min_len <= len(val) <= max_len)
+	assert(ASCII_RE.match(val))
+
+def obj_spec_is_email(val):
+	obj_spec_is_ascii_str(val)
+	user, domain = val.split("@")
+	assert(USERNAME_RE.match(user))
+	assert("." in domain)
+
+def obj_spec_is_ipv4(val):
+	assert(type(val) is str)
+	ip = ipaddress.ip_address(val)
+	assert(ip.version == 4)
+
+def obj_spec_is_ipv6(val):
+	assert(type(val) is str)
+	ip = ipaddress.ip_address(val)
+	assert(ip.version == 6)
+
+def obj_spec_is_mac(val):
+	assert(re.match(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$", val))
+
+def obj_spec_is_uuid(val):
+	u = uuid.UUID(val)
+	assert(u.version == 4)
+	assert(str(u) == val)
+
+def obj_spec_is_zip(val):
+	assert(re.match(r"^[0-9]{5}$", val))
+
+def obj_spec_is_phone(val):
+	assert(re.match(r"^[2-9][0-9]{2}-[2-9][0-9]{2}-[0-9]{4}$", val))
+
+def obj_spec_is_state_abbr(val):
+	assert(re.match(r"^[A-Z]{2}$", val))
+
+def obj_spec_is_date(val, fmt="%Y-%m-%d"):
+	assert(type(val) is str)
+	datetime.datetime.strptime(val, fmt)
+
+def obj_spec_is_int_range(val, lo, hi):
+	assert(type(val) is int)
+	assert(lo <= val <= hi)
+
+def obj_spec_is_double_range(val, lo, hi):
+	assert(type(val) is float)
+	assert(lo <= val <= hi)
+
+def obj_spec_is_words(val, n):
+	obj_spec_is_ascii_str(val)
+	assert(len(val.split(" ")) == n)
+
+def obj_spec_in(val, options):
+	assert(val in options)
+
+def obj_spec_is_credit_card(val):
+	assert(re.match(r"^[0-9]{15,16}$", val))
+	digits = [int(c) for c in val]
+	total = 0
+	for i, d in enumerate(reversed(digits)):
+		if i % 2 == 1:
+			d *= 2
+			if d > 9:
+				d -= 9
+		total += d
+	assert(total % 10 == 0)
+
+def geojson_dict(val):
+	assert(isinstance(val, aerospike.GeoJSON))
+	return json.loads(val.dumps())
+
+def obj_spec_is_geojson_point(val, lat_min=24, lat_max=49, lon_min=-125,
+		lon_max=-66):
+	g = geojson_dict(val)
+	assert(g["type"] == "Point")
+	lon, lat = g["coordinates"]
+	assert(lat_min <= lat <= lat_max)
+	assert(lon_min <= lon <= lon_max)
+
+def obj_spec_is_geo_circle(val, r_min=100, r_max=5000):
+	g = geojson_dict(val)
+	assert(g["type"] == "AeroCircle")
+	(lon, lat), radius = g["coordinates"]
+	assert(r_min <= radius <= r_max)
+
+def normalize(val):
+	"""
+	Turns a record value into plain python data so records can be compared.
+	"""
+	if isinstance(val, aerospike.GeoJSON):
+		return ("geojson", val.dumps())
+	if isinstance(val, dict):
+		return {normalize_key(k): normalize(v) for k, v in val.items()}
+	if isinstance(val, list):
+		return [normalize(v) for v in val]
+	return val
+
+def normalize_key(key):
+	return key if not isinstance(key, (list, dict)) else repr(key)
+
+def get_records(key_start, key_end):
+	"""
+	Returns {key: bins} for every key in [key_start, key_end), with values
+	normalized for comparison.
+	"""
+	recs = {}
+	for key in range(key_start, key_end):
+		record = get_record(key)
+		assert(record is not None)
+		recs[key] = {name: normalize(v) for name, v in record[2].items()}
+	return recs
+
+def run_benchmark_output(args, ip=None, port=PORT, do_reset=True):
+	"""
+	Runs asbench like run_benchmark, returning (exit code, combined output).
+	"""
+	start(do_reset=do_reset)
+	directory = absolute_path("../../..")
+	if ip is None:
+		ip = SERVER_IP
+	cmd = ["test_target/asbench", "-h", f"{ip}:{port}", "-n", NAMESPACE, "-s",
+			SET] + args
+	print("executing:", ' '.join(cmd))
+	proc = subprocess.run(cmd, cwd=directory, stdout=subprocess.PIPE,
+			stderr=subprocess.STDOUT, text=True)
+	print(proc.stdout)
+	return proc.returncode, proc.stdout
+
+def create_index(kind, bin_name, index_name, index_type=None):
+	"""
+	Creates a secondary index and remembers it so reset() removes it.
+	kind is "geo" or "numeric"/"string" for scalar bins; pass index_type
+	(e.g. aerospike.INDEX_TYPE_LIST) for collection element indexes.
+	"""
+	if index_type is None:
+		if kind == "geo":
+			CLIENT.index_geo2dsphere_create(NAMESPACE, SET, bin_name, index_name)
+		elif kind == "string":
+			CLIENT.index_string_create(NAMESPACE, SET, bin_name, index_name)
+		else:
+			CLIENT.index_integer_create(NAMESPACE, SET, bin_name, index_name)
+	else:
+		datatype = {"geo": aerospike.INDEX_GEO2DSPHERE,
+				"string": aerospike.INDEX_STRING}.get(kind, aerospike.INDEX_NUMERIC)
+		CLIENT.index_list_create(NAMESPACE, SET, bin_name, datatype, index_name)
+	INDEXES.append(index_name)
+
+def query_keys(predicate, expected=None, attempts=20):
+	"""
+	Runs a secondary index query and returns the set of matching integer keys,
+	retrying while the index is still being built.
+	"""
+	keys = set()
+	for attempt in range(attempts):
+		keys = set()
+		q = CLIENT.query(NAMESPACE, SET)
+		q.where(predicate)
+		for (key, meta, bins) in q.results():
+			keys.add(key[2] if key[2] is not None else bytes(key[3]))
+		if expected is None or len(keys) >= expected:
+			break
+		safe_sleep(0.5)
+	return keys
+
+
 def stop_silent():
 	# silence stderr and stdout
 	stdout_tmp = sys.stdout
@@ -469,8 +771,9 @@ def stop_silent():
 		sys.stderr = stderr_tmp
 		raise
 
-g_orig_int_handler = signal.getsignal(signal.SIGINT)
-signal.signal(signal.SIGINT, graceful_exit)
+g_orig_handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+for _sig in g_orig_handlers:
+	signal.signal(_sig, graceful_exit)
 
 # shut down the aerospike cluster when the tests are over
 atexit.register(stop_silent)

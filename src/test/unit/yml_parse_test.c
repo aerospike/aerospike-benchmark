@@ -50,6 +50,12 @@ static void assert_workloads_eq(const stages_t* parsed,
 			ck_assert_float_eq(a->workload.read_pct, b->workload.read_pct);
 			ck_assert_float_eq(a->workload.write_pct, b->workload.write_pct);
 		}
+		if (a->workload.type == WORKLOAD_TYPE_CDT) {
+			ck_assert_float_eq(a->workload.read_pct, b->workload.read_pct);
+			ck_assert_int_eq(a->workload.cdt_mode, b->workload.cdt_mode);
+			ck_assert_uint_eq(a->workload.cdt_cap, b->workload.cdt_cap);
+			ck_assert_uint_eq(a->workload.cdt_read_k, b->workload.cdt_read_k);
+		}
 
 		char bufa[1024];
 		char bufb[1024];
@@ -1021,6 +1027,361 @@ DEFINE_TEST(test_write_bins,
 		});
 
 
+#define DEFINE_FAILING_TEST(test_name, file_contents) \
+START_TEST(test_name) \
+{ \
+	FILE* tmp = fopen(TMP_FILE_LOC "/test.yml", "w+"); \
+	ck_assert_ptr_ne(tmp, NULL); \
+	args_t args; \
+	_load_defaults(&args); \
+	fwrite(file_contents, 1, sizeof(file_contents) - 1, tmp); \
+	fclose(tmp); \
+	args.workload_stages_file = strdup(TMP_FILE_LOC "/test.yml"); \
+	ck_assert_int_ne(0, _load_defaults_post(&args)); \
+	_free_args(&args); \
+	remove(TMP_FILE_LOC "/test.yml"); \
+} \
+END_TEST
+
+
+DEFINE_TEST(test_gen_forces_random,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  object-spec: first=@first_name, age=@int(18,90)",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = true,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_I,
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"first=@first_name, age=@int(18,90)"
+		});
+
+DEFINE_UDF_TEST(test_gen_inherited_random,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: I\n"
+		"  object-spec: \"events=[2*{\\\"ts\\\":@timestamp,\\\"loc\\\":@geojson}]\"\n"
+		"- stage: 2\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RU,80",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = true,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_I,
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			}, {
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = true,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RU,
+					.read_pct = 80
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			2,
+			true
+		}),
+		((char*[]) {
+			"events=[2*{\"ts\":@timestamp,\"loc\":@geojson}]",
+			"events=[2*{\"ts\":@timestamp,\"loc\":@geojson}]"
+		}),
+		((char*[]) { "", "" }));
+
+DEFINE_TEST(test_gen_delete_not_random,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: DB\n"
+		"  object-spec: a=@email, b=@uuid",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_D,
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"a=@email, b=@uuid"
+		});
+
+DEFINE_TEST(test_gen_named_read_bins,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: RU\n"
+		"  object-spec: first=@first_name, S4, city=@city\n"
+		"  read-bins: 1,2,3",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = true,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RU,
+					.read_pct = 50
+				},
+				.read_bins = (char*[]) {
+					"first",
+					"testbin_2",
+					"city",
+					NULL
+				},
+				.n_read_bins = 3,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"first=@first_name, S4, city=@city"
+		});
+
+DEFINE_FAILING_TEST(test_gen_name_clash_fails,
+		"- stage: 1\n"
+		"  workload: I\n"
+		"  object-spec: I, testbin=S4");
+
+DEFINE_FAILING_TEST(test_gen_bad_generator_fails,
+		"- stage: 1\n"
+		"  workload: I\n"
+		"  object-spec: \"@int(9,1)\"");
+
+DEFINE_FAILING_TEST(test_gen_udf_args_named_fails,
+		"- stage: 1\n"
+		"  workload: RUF\n"
+		"  udf:\n"
+		"    module: m\n"
+		"    function: f\n"
+		"    args: \"a=I\"");
+
+DEFINE_TEST(test_cdt_default,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: C\n"
+		"  object-spec: \"[5*I1]\"",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_CDT,
+					.read_pct = 50,
+					.cdt_mode = CDT_MODE_PUT,
+					.cdt_cap = 0,
+					.cdt_read_k = 10
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"[5*I1]"
+		});
+
+DEFINE_TEST(test_cdt_incr,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: CI,50,100,5\n"
+		"  object-spec: \"scores={4*S2:I2}\"",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_CDT,
+					.read_pct = 50,
+					.cdt_mode = CDT_MODE_INCR,
+					.cdt_cap = 100,
+					.cdt_read_k = 5
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"scores={4*S2:I2}"
+		});
+
+DEFINE_TEST(test_cdt_key_generators,
+		"- stage: 1\n"
+		"  desc: \"test stage\"\n"
+		"  duration: 20\n"
+		"  workload: CK,90,50\n"
+		"  object-spec: \"attrs={3*@pick(\\\"theme\\\",\\\"lang\\\",\\\"tz\\\"):S8}\"",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "test stage",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = true,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_CDT,
+					.read_pct = 90,
+					.cdt_mode = CDT_MODE_KEY,
+					.cdt_cap = 50,
+					.cdt_read_k = 10
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"attrs={3*@pick(\"theme\",\"lang\",\"tz\"):S8}"
+		});
+
+DEFINE_FAILING_TEST(test_cdt_scalar_spec_fails,
+		"- stage: 1\n"
+		"  workload: C\n"
+		"  object-spec: I");
+
+DEFINE_FAILING_TEST(test_cdt_incr_string_values_fails,
+		"- stage: 1\n"
+		"  workload: CI\n"
+		"  object-spec: \"{3*S2:S2}\"");
+
+DEFINE_FAILING_TEST(test_cdt_incr_needs_map_fails,
+		"- stage: 1\n"
+		"  workload: CI\n"
+		"  object-spec: \"[3*I1]\"");
+
+DEFINE_FAILING_TEST(test_cdt_read_bins_fails,
+		"- stage: 1\n"
+		"  workload: C\n"
+		"  object-spec: \"[3*I1]\"\n"
+		"  read-bins: 1");
+
+DEFINE_FAILING_TEST(test_cdt_batch_fails,
+		"- stage: 1\n"
+		"  workload: C\n"
+		"  object-spec: \"[3*I1]\"\n"
+		"  batch-size: 5");
+
+DEFINE_FAILING_TEST(test_cdt_udf_fails,
+		"- stage: 1\n"
+		"  workload: C\n"
+		"  object-spec: \"[3*I1]\"\n"
+		"  udf:\n"
+		"    module: m\n"
+		"    function: f");
+
+
 Suite*
 yaml_parse_suite(void)
 {
@@ -1054,6 +1415,22 @@ yaml_parse_suite(void)
 	tcase_add_test(tc_simple, test_obj_spec);
 	tcase_add_test(tc_simple, test_read_bins);
 	tcase_add_test(tc_simple, test_write_bins);
+	tcase_add_test(tc_simple, test_gen_forces_random);
+	tcase_add_test(tc_simple, test_gen_inherited_random);
+	tcase_add_test(tc_simple, test_gen_delete_not_random);
+	tcase_add_test(tc_simple, test_gen_named_read_bins);
+	tcase_add_test(tc_simple, test_gen_name_clash_fails);
+	tcase_add_test(tc_simple, test_gen_bad_generator_fails);
+	tcase_add_test(tc_simple, test_gen_udf_args_named_fails);
+	tcase_add_test(tc_simple, test_cdt_default);
+	tcase_add_test(tc_simple, test_cdt_incr);
+	tcase_add_test(tc_simple, test_cdt_key_generators);
+	tcase_add_test(tc_simple, test_cdt_scalar_spec_fails);
+	tcase_add_test(tc_simple, test_cdt_incr_string_values_fails);
+	tcase_add_test(tc_simple, test_cdt_incr_needs_map_fails);
+	tcase_add_test(tc_simple, test_cdt_read_bins_fails);
+	tcase_add_test(tc_simple, test_cdt_batch_fails);
+	tcase_add_test(tc_simple, test_cdt_udf_fails);
 	suite_add_tcase(s, tc_simple);
 
 	return s;

@@ -1,0 +1,3 @@
+ignore:
+  - "src/main/synth_data_*.c"
+  - "src/include/synth_data_tables.h"

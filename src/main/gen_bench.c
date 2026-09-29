@@ -28,6 +28,10 @@
 #include <pthread.h>
 #include <stdio.h>
 
+#ifdef __APPLE__
+#include <pthread/qos.h>
+#endif
+
 #include <aerospike/as_msgpack.h>
 #include <aerospike/as_record.h>
 #include <aerospike/as_serializer.h>
@@ -190,6 +194,9 @@ LOCAL_HELPER void*
 _gen_worker(void* udata)
 {
 	gen_bench_job_t* job = (gen_bench_job_t*) udata;
+#ifdef __APPLE__
+	pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0);
+#endif
 	job->checksum = _gen_records(job->args, job->stage, job->n_records,
 			job->t_idx + 1);
 	return NULL;

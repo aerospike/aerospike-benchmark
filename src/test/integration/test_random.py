@@ -106,7 +106,7 @@ def test_random_read_replace_empty():
 	assert(n_recs == 100)
 
 def test_random_read_replace_empty_async():
-	lib.run_benchmark(["--duration", "1", "--workload", "RR", "--start-key", "0", "--keys", "100", "--async"])
+	lib.run_benchmark(["--duration", "3", "--workload", "RR", "--start-key", "0", "--keys", "100", "--async"])
 
 	n_recs = len(lib.scan_records())
 	# RR replace will create records that don't exist
