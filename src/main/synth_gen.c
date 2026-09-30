@@ -77,6 +77,7 @@
 
 #define INT_TEXT_MAX 20
 #define DOUBLE_TEXT_MAX 24
+#define FMT_DOUBLE_ABS_MAX 9e16
 
 #define GEOJSON_POINT_MAX 64
 #define GEOJSON_CIRCLE_MAX 96
@@ -1500,6 +1501,15 @@ _sg_parse_template(synth_spec_t* out, char* src, const char* tok_loc,
 			synth_spec_free(ref);
 			cf_free(ref);
 			*err_msg = "@fmt placeholders cannot be geo or nested @fmt generators";
+			*err_loc = tok_loc;
+			goto fail;
+		}
+		if (ref->kind == SYNTH_DOUBLE &&
+				(fabs(ref->drange.min) >= FMT_DOUBLE_ABS_MAX ||
+				 fabs(ref->drange.max) >= FMT_DOUBLE_ABS_MAX)) {
+			synth_spec_free(ref);
+			cf_free(ref);
+			*err_msg = "@fmt: #{double} bounds must be within +/-9e16";
 			*err_loc = tok_loc;
 			goto fail;
 		}

@@ -187,8 +187,8 @@ Arguments are integers, doubles or double-quoted strings. `@pick` also takes wei
 Notes:
 * `@date` and `@timestamp` bounds are epoch seconds or `"YYYY-MM-DD"` dates; both default to 2020-01-01 through 2029-12-31, and the default `@date` format is `%Y-%m-%d`.
 * `@lat`, `@lon`, `@geojson` and `@geo_circle` default to the continental US (latitude 24 to 49, longitude -125 to -66), matching the US city and state data. `@geo_circle` radii default to 100 to 5000 meters.
-* `@fmt` placeholders take any string, integer or double generator with its arguments, e.g. `@fmt("SKU-#{int(1000,9999)}")`. Quotes inside a template are escaped: `@fmt("#{pick(\"x\",\"y\")}")`. Doubles are printed with 2 decimals.
-* A generator used as a map key must produce strings or integers, and a map cannot ask for more unique keys than the generator can produce (`{60*@state:I}` is rejected because there are 50 states).
+* `@fmt` placeholders take any string, integer or double generator with its arguments, e.g. `@fmt("SKU-#{int(1000,9999)}")`. Quotes inside a template are escaped: `@fmt("#{pick(\"x\",\"y\")}")`. A `#{double(...)}` placeholder is rendered into the string with 2 decimals (`#{double(1,500)}` gives `316.98`), so its bounds must be within ±9e16.
+* A generator used as a map key must produce strings or integers. Map keys are drawn at random and a duplicate is redrawn until the map has all its entries, so a map cannot ask for more unique keys than the generator has distinct values (`{60*@state:I}` is rejected because there are 50 states).
 * An object spec that contains generators generates a new record for every write, as if `-R` were given.
 
 Worked examples:
@@ -211,14 +211,14 @@ With `--seed <n>`, every record written by insert and update workloads is a pure
 * a partial write with `--write-bins` produces exactly the values the full record would have in those bins;
 * a load can be verified later by regenerating it with the same seed.
 
-`@now` is the only generator that does not depend on the seed. CDT workloads draw values from a per-thread stream seeded by `--seed` and the thread number, so they are reproducible with `-z 1`. Without `--seed` each thread uses its own independently seeded random stream.
+`@now` is the only generator that does not depend on the seed. CDT workloads draw values from a per-thread stream seeded by `--seed` and the thread number, so they are reproducible with a single thread (`-z 1`). Without `--seed` each thread uses its own independently seeded random stream.
 
 ## GeoJSON
 
 `@geojson` and `@geo_circle` write native GeoJSON particles, not strings, so the bins can be indexed and queried directly. They also work inside lists and maps, which can be indexed with `LIST` or `MAPVALUES` geo indexes.
 
 ```sh
-target/asbench -n test -s devices -w I -k 100000 -o "loc=@geojson(37.70,37.80,-122.50,-122.40)"
+asbench -n test -s devices -w I -k 100000 -o "loc=@geojson(37.70,37.80,-122.50,-122.40)"
 ```
 
 ```
@@ -238,7 +238,12 @@ nearby = query.results()
 
 ## CDT workloads (`-w C`, `CI`, `CK`)
 
-CDT workloads exercise list and map operations on records instead of whole-record puts. For every top-level bin of the object spec, one `operate()` call per key does:
+CDT workloads exercise list and map operations on records instead of whole-record puts. There are three variants:
+* `C` (put): each write appends the generated list to list bins and puts the generated map into map bins.
+* `CI` (increment): like `C`, but map bins get one `map_increment` per generated entry, for counters and leaderboards.
+* `CK` (key): like `C`, but each map read fetches one generated key instead of a range, for session and attribute maps.
+
+For every top-level bin of the object spec, one `operate()` call per key does:
 
 | Bin | Write, `C` and `CK` | Write, `CI` | Read, `C` | Read, `CI` | Read, `CK` |
 |---|---|---|---|---|---|
@@ -250,30 +255,30 @@ CDT workloads exercise list and map operations on records instead of whole-recor
 -w C[I|K][,<read percent>[,<cap>[,<read count>]]]
 ```
 
-Defaults are 50% reads, `cap` 0 (no trimming) and a read count of 10. `CI` needs map values that are integers, constant doubles, or `@int`/`@double`/`@timestamp` generators, and increments at most 1000 map entries per write. Records are created by the first write, so a preload is optional; for `CI` skip the preload so maps are created value-ordered. Lists use the unordered policy (appends are O(1)), `C` and `CK` maps are key ordered, and `CI` maps are key-value ordered so rank operations stay cheap.
+Defaults are 50% reads, `cap` 0 (no trimming) and a read count of 10. `CI` needs map values that are integers, doubles, or `@int`/`@double`/`@timestamp` generators, and increments at most 1000 map entries per write. Records are created by the first write, so a preload is optional; for `CI` skip the preload so maps are created value-ordered. Lists use the unordered policy (appends are O(1)), `C` and `CK` maps are key ordered, and `CI` maps are key-value ordered so rank operations stay cheap.
 
-Without `@generators` and without `-R`, the write operations are built once per thread and reused for every transaction, which measures pure server-side CDT cost with no client allocation. With generators, a fresh payload is generated for every write. Batch sizes, `--read-bins` and `--write-bins` are not supported by CDT workloads. With `cap` 0, collections grow without bound and long runs eventually fail with record-too-big errors, so set a cap for long runs.
+Without `@generators` and without `-R`, the write operations are built once per thread and reused for every transaction, enabling higher asbench throughput. With generators, a fresh payload is generated for every write. Batch sizes, `--read-bins` and `--write-bins` are not supported by CDT workloads. With `cap` 0, collections grow without bound and long runs eventually fail with record-too-big errors, so set a cap for long runs.
 
-Showcase use cases:
+Examples:
 
 ```sh
 # activity feed: append one event per write, keep the last 100, read the last 10
-target/asbench -n test -s feed -k 1000000 -w C,80,100,10 -t 60 -z 16 \
+asbench -n test -s feed -k 1000000 -w C,80,100,10 -t 60 -z 16 \
   -o "events=[1*{\"ts\":@timestamp,\"type\":@pick(\"view\":70,\"click\":25,\"buy\":5),\"sku\":@product}], updated=@now"
 
 # time series per device: keep one day of minute samples, read the last hour
-target/asbench -n test -s metrics -k 200000 -w C,20,1440,60 -t 120 \
+asbench -n test -s metrics -k 200000 -w C,20,1440,60 -t 120 \
   -o "samples=[1*[@timestamp,@double(0,100)]], updated=@now"
 
 # session / attribute maps: put 3 attributes per write, cap at 50 keys, read one by key
-target/asbench -n test -s sessions -k 5000000 -w CK,90,50 -t 60 \
+asbench -n test -s sessions -k 5000000 -w CK,90,50 -t 60 \
   -o "attrs={3*@pick(\"theme\",\"lang\",\"tz\",\"plan\",\"region\",\"last_page\"):@word}"
 
 # leaderboards: increment 5 player scores per write, keep the top 1000, read the top 10
-target/asbench -n test -s boards -k 10000 -w CI,30,1000,10 -t 60 -o "scores={5*@username:@int(1,100)}"
+asbench -n test -s boards -k 10000 -w CI,30,1000,10 -t 60 -o "scores={5*@username:@int(1,100)}"
 
 # geo-tagged check-ins: a native GeoJSON point in every list element
-target/asbench -n test -s checkins -k 500000 -w C,50,200,20 -t 60 \
+asbench -n test -s checkins -k 500000 -w C,50,200,20 -t 60 \
   -o "visits=[1*{\"at\":@timestamp,\"loc\":@geojson,\"city\":@city}]"
 ```
 
@@ -282,7 +287,7 @@ target/asbench -n test -s checkins -k 500000 -w C,50,200,20 -t 60 \
 Ready to run workload stage files live in [examples/synth](examples/synth). Run any of them with:
 
 ```sh
-target/asbench -h 127.0.0.1 -n test --workload-stages examples/synth/<file>.yaml
+asbench -h 127.0.0.1 -n test --workload-stages examples/synth/<file>.yaml
 ```
 
 | File | Use case |
@@ -337,7 +342,7 @@ Generation is designed to stay far below network and server cost:
 The hidden `--gen-bench <n>` flag measures generation in-process, without a server. It generates `n` records from the first stage's object spec through the same code path writes use, then repeats with `-z` threads and reports the raw dictionary pick cost and the average msgpack payload size:
 
 ```sh
-target/asbench --gen-bench 3000000 -z 6 -o "id=@uuid, first=@first_name, last=@last_name, email=@email, age=@int(18,90)"
+asbench --gen-bench 3000000 -z 6 -o "id=@uuid, first=@first_name, last=@last_name, email=@email, age=@int(18,90)"
 ```
 
 Single thread results on an Apple M3 Pro, release build. Each record includes creating and destroying the `as_record`, which is about 60 ns of the numbers below.

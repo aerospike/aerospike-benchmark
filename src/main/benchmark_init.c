@@ -548,6 +548,7 @@ print_usage(const char* program)
 	printf("                (min/max are epoch seconds or \"YYYY-MM-DD\"; @now is epoch ms)\n");
 	printf("      Choice:   @pick(\"a\",\"b\") or weighted @pick(\"a\":90,\"b\":10)\n");
 	printf("      Template: @fmt(\"#{first_name}.#{last_name}@example.com\")\n");
+	printf("                (#{double} placeholders print 2 decimals, bounds within +/-9e16)\n");
 	printf("      A spec with generators generates a new record for every write (implies -R).\n");
 	printf("\n");
 	printf("   Bin names:\n");
@@ -620,9 +621,9 @@ print_usage(const char* program)
 	printf("   -w CK,90,50      : Same as C, but map reads fetch one generated key (session maps).\n");
 	printf("                      Defaults: read percent 50, cap 0 (no trim), read count 10.\n");
 	printf("                      The object spec needs at least one list or map bin. CI needs map\n");
-	printf("                      values that are integers or @int/@double/@timestamp generators.\n");
+	printf("                      values that are integers, doubles or @int/@double/@timestamp generators.\n");
 	printf("                      Without --random and @generators the write ops are built once and\n");
-	printf("                      reused, which measures pure server-side CDT cost.\n");
+	printf("                      reused, enabling higher asbench throughput.\n");
 	printf("\n");
 
 	printf("-z --threads <count> # Default: 16\n");

@@ -966,6 +966,7 @@ _cdt_value_numeric(const struct bin_spec_s* val)
 {
 	switch (val->type) {
 		case BIN_SPEC_TYPE_INT:
+		case BIN_SPEC_TYPE_DOUBLE:
 		case BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST:
 		case BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST:
 			return true;
@@ -1040,7 +1041,7 @@ _validate_cdt_stage(const stage_t* stage, const stage_def_t* stage_def,
 				if (w->cdt_mode == CDT_MODE_INCR) {
 					if (!_cdt_map_values_numeric(bin_spec)) {
 						fprintf(stderr, "Stage %u: CI workloads need map bins "
-								"whose values are integers or "
+								"whose values are integers, doubles or "
 								"@int/@double/@timestamp generators (bin %u)\n",
 								stage_num, i + 1);
 						return -1;

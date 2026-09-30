@@ -18,6 +18,7 @@ extern void _build_cdt_read_ops(tdata_t* tdata, const stage_t* stage,
 extern void _init_cdt_stage(const cdata_t* cdata, tdata_t* tdata,
 		const stage_t* stage);
 extern void _terminate_cdt_stage(tdata_t* tdata);
+extern bool _cdt_map_values_numeric(const struct bin_spec_s* bin_spec);
 
 
 typedef struct cdt_fixture_s {
@@ -160,6 +161,25 @@ START_TEST(map_increment_const_map)
 }
 END_TEST
 
+START_TEST(map_increment_random_doubles)
+{
+	cdt_fixture_t f;
+	as_operations ops;
+	_setup(&f, "{3*S4:D}", "CI,30,100,10", true);
+	ck_assert(_cdt_map_values_numeric(obj_spec_bin_spec(&f.stage.obj_spec, 0)));
+	ck_assert_uint_eq(f.tdata.cdt_n_write_ops, 4);
+	_build_writes(&f, &ops);
+	ck_assert_uint_eq(ops.binops.size, 4);
+	as_operations_destroy(&ops);
+	_teardown(&f);
+
+	struct obj_spec_s o;
+	ck_assert_int_eq(obj_spec_parse(&o, "{3*S4:S8}"), 0);
+	ck_assert(!_cdt_map_values_numeric(obj_spec_bin_spec(&o, 0)));
+	obj_spec_free(&o);
+}
+END_TEST
+
 START_TEST(map_read_by_key)
 {
 	cdt_fixture_t f;
@@ -266,6 +286,7 @@ cdt_ops_suite(void)
 	tcase_add_test(tc_ops, map_put_with_cap);
 	tcase_add_test(tc_ops, map_increment_per_entry);
 	tcase_add_test(tc_ops, map_increment_const_map);
+	tcase_add_test(tc_ops, map_increment_random_doubles);
 	tcase_add_test(tc_ops, map_read_by_key);
 	tcase_add_test(tc_ops, scalars_and_collections_mixed);
 	tcase_add_test(tc_ops, prebuilt_writes_without_random);

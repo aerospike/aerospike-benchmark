@@ -350,6 +350,26 @@ START_TEST(fmt_placeholder_error_msg)
 }
 END_TEST
 
+START_TEST(fmt_double_bounds_rejected)
+{
+	synth_spec_t spec;
+	const char* end;
+	const char* msg;
+	const char* loc;
+	ck_assert_int_ne(synth_parse("@fmt(\"#{double(0,1e18)}\")", &end, &spec,
+				&msg, &loc), 0);
+	ck_assert_str_eq(msg, "@fmt: #{double} bounds must be within +/-9e16");
+	ck_assert_int_ne(synth_parse("@fmt(\"#{double(-1e17,0)}\")", &end, &spec,
+				&msg, &loc), 0);
+	ck_assert_int_eq(synth_parse("@fmt(\"#{double(-8e16,8e16)}\")", &end,
+				&spec, &msg, &loc), 0);
+	synth_spec_free(&spec);
+	ck_assert_int_eq(synth_parse("@double(0,1e18)", &end, &spec, &msg, &loc),
+			0);
+	synth_spec_free(&spec);
+}
+END_TEST
+
 START_TEST(map_keys_unique_near_cardinality)
 {
 	struct obj_spec_s o;
@@ -478,6 +498,7 @@ synth_gen_suite(void)
 	tcase_add_test(tc_behavior, dictionary_words_zero_copy);
 	tcase_add_test(tc_behavior, cardinality);
 	tcase_add_test(tc_behavior, fmt_placeholder_error_msg);
+	tcase_add_test(tc_behavior, fmt_double_bounds_rejected);
 	tcase_add_test(tc_behavior, map_keys_unique_near_cardinality);
 	tcase_add_test(tc_behavior, geojson_is_geo_particle_in_collections);
 	tcase_add_test(tc_behavior, template_max_len_respected);
