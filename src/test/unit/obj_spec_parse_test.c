@@ -750,6 +750,11 @@ DEFINE_FAILING_TCASE(test_gen_date_bad_day,
 		"@date(\"2021-02-29\",\"2021-03-01\")", "invalid day");
 DEFINE_FAILING_TCASE(test_gen_date_one_arg, "@date(1)", "@date needs 0, 2 or 3 args");
 DEFINE_FAILING_TCASE(test_gen_date_empty_fmt, "@date(1,2,\"\")", "empty format");
+DEFINE_FAILING_TCASE(test_gen_date_year_range, "@date(0,999999999999)",
+		"year > 9999");
+DEFINE_FAILING_TCASE(test_gen_date_fmt_longest_names, "@date(0,1,\""
+		"123456789012345678901234567890123456789012345%A %B\")",
+		"64 chars on a Wednesday in September");
 DEFINE_FAILING_TCASE(test_gen_pick_empty, "@pick()", "@pick needs an option");
 DEFINE_FAILING_TCASE(test_gen_pick_zero_weight, "@pick(\"a\":0)", "weight must be > 0");
 DEFINE_FAILING_TCASE(test_gen_pick_mixed, "@pick(\"a\":5,\"b\")", "mixed weights");
@@ -1350,6 +1355,8 @@ obj_spec_suite(void)
 	tcase_add_ftest(tc_generators, test_gen_date_bad_day);
 	tcase_add_ftest(tc_generators, test_gen_date_one_arg);
 	tcase_add_ftest(tc_generators, test_gen_date_empty_fmt);
+	tcase_add_ftest(tc_generators, test_gen_date_year_range);
+	tcase_add_ftest(tc_generators, test_gen_date_fmt_longest_names);
 	tcase_add_ftest(tc_generators, test_gen_pick_empty);
 	tcase_add_ftest(tc_generators, test_gen_pick_zero_weight);
 	tcase_add_ftest(tc_generators, test_gen_pick_mixed);

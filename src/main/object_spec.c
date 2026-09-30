@@ -520,6 +520,7 @@ obj_spec_gen_bin_val(const obj_spec_t* obj_spec, uint32_t bin_idx,
 			compression_ratio);
 }
 
+#ifdef _TEST
 as_val*
 obj_spec_gen_map_key(const obj_spec_t* obj_spec, uint32_t bin_idx,
 		as_random* random)
@@ -532,6 +533,7 @@ obj_spec_gen_map_key(const obj_spec_t* obj_spec, uint32_t bin_idx,
 	}
 	return bin_spec_random_val(&bin_spec->map.kv_pairs[0].key, random, 1.f);
 }
+#endif /* _TEST */
 
 bool
 obj_spec_bin_name_compatible(const obj_spec_t* obj_spec, const char* bin_name)
@@ -554,6 +556,7 @@ obj_spec_bin_name_compatible(const obj_spec_t* obj_spec, const char* bin_name)
 	return true;
 }
 
+#ifdef _TEST
 int
 obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 		as_random* random, const char* bin_name, uint32_t* write_bins,
@@ -569,6 +572,7 @@ obj_spec_populate_bins(const struct obj_spec_s* obj_spec, as_record* rec,
 	cf_free(names);
 	return ret;
 }
+#endif /* _TEST */
 
 int
 obj_spec_populate_bins_named(const obj_spec_t* obj_spec, as_record* rec,

@@ -1793,7 +1793,7 @@ _cdt_count_write_ops(const stage_t* stage)
 				break;
 		}
 	}
-	return n > UINT16_MAX ? UINT16_MAX : (uint16_t) n;
+	return (uint16_t) n;
 }
 
 LOCAL_HELPER void

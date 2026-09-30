@@ -148,6 +148,7 @@ def test_geo_checkins_list():
 	("C", "I"),
 	("CI", "{3*S4:S4}"),
 	("CI", "[3*I1]"),
+	("CI", "{1001*@username:@int(1,9)}"),
 	("CK", "[3*I1]"),
 ])
 def test_cdt_rejects_spec(workload, spec):

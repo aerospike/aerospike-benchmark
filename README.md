@@ -250,7 +250,7 @@ CDT workloads exercise list and map operations on records instead of whole-recor
 -w C[I|K][,<read percent>[,<cap>[,<read count>]]]
 ```
 
-Defaults are 50% reads, `cap` 0 (no trimming) and a read count of 10. `CI` needs map values that are integers, constant doubles, or `@int`/`@double`/`@timestamp` generators. Records are created by the first write, so a preload is optional; for `CI` skip the preload so maps are created value-ordered. Lists use the unordered policy (appends are O(1)), `C` and `CK` maps are key ordered, and `CI` maps are key-value ordered so rank operations stay cheap.
+Defaults are 50% reads, `cap` 0 (no trimming) and a read count of 10. `CI` needs map values that are integers, constant doubles, or `@int`/`@double`/`@timestamp` generators, and increments at most 1000 map entries per write. Records are created by the first write, so a preload is optional; for `CI` skip the preload so maps are created value-ordered. Lists use the unordered policy (appends are O(1)), `C` and `CK` maps are key ordered, and `CI` maps are key-value ordered so rank operations stay cheap.
 
 Without `@generators` and without `-R`, the write operations are built once per thread and reused for every transaction, which measures pure server-side CDT cost with no client allocation. With generators, a fresh payload is generated for every write. Batch sizes, `--read-bins` and `--write-bins` are not supported by CDT workloads. With `cap` 0, collections grow without bound and long runs eventually fail with record-too-big errors, so set a cap for long runs.
 

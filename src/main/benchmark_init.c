@@ -584,6 +584,7 @@ print_usage(const char* program)
 	printf("   workloads is derived only from the seed, the record key and the object\n");
 	printf("   spec, so the same key gets the same bins regardless of thread count,\n");
 	printf("   batching or async mode. CDT workloads are reproducible with -z 1.\n");
+	printf("   @now values are not reproducible.\n");
 	printf("\n");
 
 	printf("-e --expiration-time # Default: 0, i.e. adopt the default TTL value from the namespace\n");
@@ -609,8 +610,9 @@ print_usage(const char* program)
 	printf("   -w C,80,100,10   : Random CDT (list/map) workload with 80%% reads. Each write appends the\n");
 	printf("                      generated list (list_append_items) or puts the generated map\n");
 	printf("                      (map_put_items) into every list/map bin of the object spec, then\n");
-	printf("                      trims each collection to its last 100 elements. Each read returns\n");
-	printf("                      the last 10 elements of every list/map bin. Scalar bins are written\n");
+	printf("                      trims each list to its last 100 elements and each map to its 100\n");
+	printf("                      largest keys. Each read returns the last 10 elements of every\n");
+	printf("                      list/map bin. Scalar bins are written\n");
 	printf("                      and read as usual, all in one operate() call per key.\n");
 	printf("   -w CI,30,1000,10 : Same, but map bins are incremented (map_increment) once per generated\n");
 	printf("                      entry, the cap keeps the 1000 entries with the highest values, and\n");

@@ -1027,6 +1027,7 @@ _validate_cdt_stage(const stage_t* stage, const stage_def_t* stage_def,
 	uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
 	uint32_t n_lists = 0;
 	uint32_t n_maps = 0;
+	uint64_t n_incr_entries = 0;
 
 	for (uint32_t i = 0; i < n_bins; i++) {
 		const struct bin_spec_s* bin_spec = obj_spec_bin_spec(&stage->obj_spec, i);
@@ -1036,17 +1037,29 @@ _validate_cdt_stage(const stage_t* stage, const stage_def_t* stage_def,
 				break;
 			case BIN_SPEC_TYPE_MAP:
 				n_maps++;
-				if (w->cdt_mode == CDT_MODE_INCR &&
-						!_cdt_map_values_numeric(bin_spec)) {
-					fprintf(stderr, "Stage %u: CI workloads need map bins whose "
-							"values are integers or @int/@double/@timestamp "
-							"generators (bin %u)\n", stage_num, i + 1);
-					return -1;
+				if (w->cdt_mode == CDT_MODE_INCR) {
+					if (!_cdt_map_values_numeric(bin_spec)) {
+						fprintf(stderr, "Stage %u: CI workloads need map bins "
+								"whose values are integers or "
+								"@int/@double/@timestamp generators (bin %u)\n",
+								stage_num, i + 1);
+						return -1;
+					}
+					n_incr_entries += (bin_spec->type & BIN_SPEC_TYPE_CONST) ?
+						as_map_size((as_map*) &bin_spec->const_map.val) :
+						bin_spec->map.length;
 				}
 				break;
 			default:
 				break;
 		}
+	}
+
+	if (n_incr_entries > WORKLOAD_CDT_MAX_INCR_ENTRIES) {
+		fprintf(stderr, "Stage %u: CI workloads can increment at most %d map "
+				"entries per write, but the object spec has %" PRIu64 "\n",
+				stage_num, WORKLOAD_CDT_MAX_INCR_ENTRIES, n_incr_entries);
+		return -1;
 	}
 
 	if (n_lists + n_maps == 0) {

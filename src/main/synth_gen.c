@@ -749,6 +749,9 @@ synth_spec_cardinality(const synth_spec_t* spec)
 			return sat_mul((uint64_t) SYNTH_DICT_LAST_NAME.n + SYNTH_DICT_NOUN.n,
 					SYNTH_DICT_TLD.n);
 		case SYNTH_DATE: {
+			if (spec->date.fmt != NULL) {
+				return UINT64_MAX;
+			}
 			int64_t d0 = floor_div(spec->date.min, 86400);
 			int64_t d1 = floor_div(spec->date.max, 86400);
 			return (uint64_t) (d1 - d0) + 1;
@@ -1478,8 +1481,10 @@ _sg_parse_template(synth_spec_t* out, char* src, const char* tok_loc,
 		const char* sub_loc;
 		if (_sg_synth_parse_body(p + 2, &end, ref, true, &sub_msg, &sub_loc) != 0) {
 			cf_free(ref);
+			char sub_buf[sizeof(g_err_buf)];
+			snprintf(sub_buf, sizeof(sub_buf), "%s", sub_msg);
 			snprintf(g_err_buf, sizeof(g_err_buf), "@fmt placeholder: %s",
-					sub_msg);
+					sub_buf);
 			*err_msg = g_err_buf;
 			*err_loc = tok_loc;
 			goto fail;
@@ -1757,6 +1762,13 @@ _sg_init_kind(synth_spec_t* out, as_vector* argv, const char* tok_loc,
 					*err_loc = args[0].loc;
 					return -1;
 				}
+				// 0000-01-01T00:00:00Z .. 9999-12-31T23:59:59Z
+				if (out->date.min < -62167219200LL ||
+						out->date.max > 253402300799LL) {
+					*err_msg = "@date: range must be within years 0000-9999";
+					*err_loc = args[0].loc;
+					return -1;
+				}
 			}
 			if (n_args == 3) {
 				if (args[2].type != ARG_STR || args[2].s[0] == '\0') {
@@ -1766,7 +1778,7 @@ _sg_init_kind(synth_spec_t* out, as_vector* argv, const char* tok_loc,
 				}
 				char buf[DATE_BUF_LEN];
 				struct tm tm;
-				time_t t = 1735689599;
+				time_t t = 1758758399;
 				gmtime_r(&t, &tm);
 				if (strftime(buf, sizeof(buf), args[2].s, &tm) == 0) {
 					*err_msg = "@date format produces empty or too long "

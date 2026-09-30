@@ -140,8 +140,11 @@ run_benchmark(args_t* args)
 				ret = -1;
 				goto cleanup3;
 			}
-			obj_spec_resolve_bin_names(&stage->obj_spec, data.bin_name,
-					stage->bin_names);
+			if (obj_spec_resolve_bin_names(&stage->obj_spec, data.bin_name,
+					stage->bin_names) != 0) {
+				ret = -1;
+				goto cleanup3;
+			}
 		}
 	}
 

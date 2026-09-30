@@ -326,7 +326,7 @@ START_TEST(cardinality)
 	struct obj_spec_s o;
 	ck_assert_int_eq(obj_spec_parse(&o, "@state, @int(1,10), @now, "
 				"@pick(\"a\",\"b\",\"c\"), @uuid, @date(0,863999), "
-				"@fmt(\"#{state_abbr}-#{int(0,9)}\")"), 0);
+				"@fmt(\"#{state_abbr}-#{int(0,9)}\"), @date(0,863999,\"%H\")"), 0);
 	ck_assert_uint_eq(synth_spec_cardinality(&obj_spec_bin_spec(&o, 0)->gen), 50);
 	ck_assert_uint_eq(synth_spec_cardinality(&obj_spec_bin_spec(&o, 1)->gen), 10);
 	ck_assert_uint_eq(synth_spec_cardinality(&obj_spec_bin_spec(&o, 2)->gen), 1);
@@ -334,7 +334,19 @@ START_TEST(cardinality)
 	ck_assert_uint_eq(synth_spec_cardinality(&obj_spec_bin_spec(&o, 4)->gen), UINT64_MAX);
 	ck_assert_uint_eq(synth_spec_cardinality(&obj_spec_bin_spec(&o, 5)->gen), 10);
 	ck_assert_uint_eq(synth_spec_cardinality(&obj_spec_bin_spec(&o, 6)->gen), 500);
+	ck_assert_uint_eq(synth_spec_cardinality(&obj_spec_bin_spec(&o, 7)->gen), UINT64_MAX);
 	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(fmt_placeholder_error_msg)
+{
+	synth_spec_t spec;
+	const char* end;
+	const char* msg;
+	const char* loc;
+	ck_assert_int_ne(synth_parse("@fmt(\"#{nope}\")", &end, &spec, &msg, &loc), 0);
+	ck_assert_str_eq(msg, "@fmt placeholder: Unknown generator \"@nope\"");
 }
 END_TEST
 
@@ -465,6 +477,7 @@ synth_gen_suite(void)
 	tcase_add_test(tc_behavior, date_fast_path_matches_strftime);
 	tcase_add_test(tc_behavior, dictionary_words_zero_copy);
 	tcase_add_test(tc_behavior, cardinality);
+	tcase_add_test(tc_behavior, fmt_placeholder_error_msg);
 	tcase_add_test(tc_behavior, map_keys_unique_near_cardinality);
 	tcase_add_test(tc_behavior, geojson_is_geo_particle_in_collections);
 	tcase_add_test(tc_behavior, template_max_len_respected);

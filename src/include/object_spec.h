@@ -341,8 +341,10 @@ as_val* obj_spec_bin_spec_gen_val(const struct bin_spec_s* bin_spec,
 as_val* obj_spec_gen_bin_val(const obj_spec_t*, uint32_t bin_idx,
 		as_random* random, float compression_ratio);
 
+#ifdef _TEST
 as_val* obj_spec_gen_map_key(const obj_spec_t*, uint32_t bin_idx,
 		as_random* random);
+#endif /* _TEST */
 
 /*
  * returns true if the given bin name base is compatible with the obj_spec, i.e.
@@ -360,9 +362,11 @@ bool obj_spec_bin_name_compatible(const obj_spec_t*, const char* bin_name);
  * 	<bin_name_template>_3
  * 	...
  */
+#ifdef _TEST
 int obj_spec_populate_bins(const obj_spec_t*, as_record*, as_random*,
 		const char* bin_name_template, uint32_t* write_bins,
 		uint32_t n_write_bins, float compression_ratio);
+#endif /* _TEST */
 
 /*
  * with record_seed set, each bin gets its own stream seeded by (record_seed,
