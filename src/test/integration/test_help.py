@@ -54,7 +54,7 @@ def readme_commands():
 		joined = block.replace("\\\n", " ")
 		for line in joined.splitlines():
 			line = line.strip()
-			if line.startswith("target/asbench") and "--help" not in line and \
+			if re.match(r"(target/)?asbench ", line) and "--help" not in line and \
 					"--workload-stages" not in line:
 				cmds.append(shlex.split(line)[1:])
 			elif line.startswith("-o "):
