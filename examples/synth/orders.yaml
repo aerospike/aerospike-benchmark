@@ -1,0 +1,14 @@
+# E-commerce orders: each record holds a list of line-item maps.
+# asbench -h 127.0.0.1 -n test -s orders --workload-stages examples/synth/orders.yaml
+- stage: 1
+  desc: "load 500k orders with 3 line items each"
+  workload: I
+  key-start: 1
+  key-end: 500001
+  object-spec: 'order_id=@uuid, customer=@email, placed=@timestamp("2024-01-01","2025-12-31"), status=@pick("placed":10,"paid":30,"shipped":40,"delivered":20), items=[3*{"sku":@product,"qty":@int(1,9),"price":@double(1,500)}], ship_to=@fmt("#{street}, #{city}, #{state_abbr} #{zip}")'
+- stage: 2
+  desc: "order lookups and status updates, 90% reads"
+  workload: RU,90
+  duration: 60
+  key-start: 1
+  key-end: 500001

@@ -1,0 +1,18 @@
+# Product catalog loaded and read with the batch APIs: 100 records per batch
+# write, 50 per batch read (e.g. rendering a category page).
+# asbench -h 127.0.0.1 -n test -s catalog --workload-stages examples/synth/batch_catalog.yaml
+- stage: 1
+  desc: "batch load 500k products, 100 per batch"
+  workload: I
+  batch-write-size: 100
+  key-start: 1
+  key-end: 500001
+  object-spec: 'sku=@fmt("SKU-#{int(100000,999999)}"), name=@product, color=@color, price=@double(1,2000), stock=@int(0,500), rating=@double(1,5), tags=[3*@word], updated=@now'
+- stage: 2
+  desc: "batch reads of 50 products, 90% reads"
+  workload: RU,90
+  duration: 60
+  batch-read-size: 50
+  batch-write-size: 10
+  key-start: 1
+  key-end: 500001

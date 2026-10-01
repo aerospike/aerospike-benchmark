@@ -318,11 +318,62 @@ START_TEST(ddl_20_digits)
 END_TEST
 
 
+START_TEST(splitmix64_reference_vectors)
+{
+	uint64_t state = 0;
+	ck_assert_uint_eq(splitmix64(&state), 0xE220A8397B1DCDAFLU);
+	ck_assert_uint_eq(splitmix64(&state), 0x6E789E6AA1B965F4LU);
+	ck_assert_uint_eq(splitmix64(&state), 0x06C45D188009454FLU);
+}
+END_TEST
+
+START_TEST(seed_as_random_deterministic)
+{
+	as_random a, b;
+	seed_as_random(&a, 42, 7);
+	seed_as_random(&b, 42, 7);
+	ck_assert(a.initialized);
+	for (uint32_t i = 0; i < 1000; i++) {
+		ck_assert_uint_eq(as_random_next_uint64(&a), as_random_next_uint64(&b));
+	}
+}
+END_TEST
+
+START_TEST(seed_as_random_salt_and_seed_differ)
+{
+	as_random base, other_salt, other_seed;
+	seed_as_random(&base, 42, 7);
+	seed_as_random(&other_salt, 42, 8);
+	seed_as_random(&other_seed, 43, 7);
+
+	uint32_t same_salt = 0, same_seed = 0;
+	for (uint32_t i = 0; i < 64; i++) {
+		uint64_t v = as_random_next_uint64(&base);
+		same_salt += v == as_random_next_uint64(&other_salt);
+		same_seed += v == as_random_next_uint64(&other_seed);
+	}
+	ck_assert_uint_eq(same_salt, 0);
+	ck_assert_uint_eq(same_seed, 0);
+}
+END_TEST
+
+START_TEST(seed_as_random_nonzero_state)
+{
+	for (uint64_t seed = 0; seed < 4096; seed++) {
+		as_random r;
+		seed_as_random(&r, seed, seed * 31);
+		ck_assert((r.seed0 | r.seed1) != 0);
+	}
+}
+END_TEST
+
+
 Suite*
 common_suite(void)
 {
 	Suite* s;
 	TCase* tc_dec_display_len;
+	TCase* tc_seeding;
 
 	s = suite_create("Common");
 
@@ -350,6 +401,13 @@ common_suite(void)
 	tcase_add_test(tc_dec_display_len, ddl_19_digits);
 	tcase_add_test(tc_dec_display_len, ddl_20_digits);
 	suite_add_tcase(s, tc_dec_display_len);
+
+	tc_seeding = tcase_create("Seeding");
+	tcase_add_test(tc_seeding, splitmix64_reference_vectors);
+	tcase_add_test(tc_seeding, seed_as_random_deterministic);
+	tcase_add_test(tc_seeding, seed_as_random_salt_and_seed_differ);
+	tcase_add_test(tc_seeding, seed_as_random_nonzero_state);
+	suite_add_tcase(s, tc_seeding);
 
 	return s;
 }

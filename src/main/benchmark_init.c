@@ -26,7 +26,9 @@
 
 #include <benchmark.h>
 #include <common.h>
+#include <gen_bench.h>
 
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -111,7 +113,9 @@ typedef enum {
 	BENCH_OPT_OUTPUT_PERIOD,
 	BENCH_OPT_HDR_HIST,
 	BENCH_OPT_RACK_ID,
-	BENCH_OPT_SEND_KEY
+	BENCH_OPT_SEND_KEY,
+	BENCH_OPT_SEED,
+	BENCH_OPT_GEN_BENCH
 } benchmark_opt;
 
 static struct option long_options[] = {
@@ -140,6 +144,8 @@ static struct option long_options[] = {
 	{"ufv",                   required_argument, 0, BENCH_OPT_UDF_FUNCTION_VALUES},
 	{"object-spec",           required_argument, 0, 'o'},
 	{"random",                no_argument,       0, 'R'},
+	{"seed",                  required_argument, 0, BENCH_OPT_SEED},
+	{"gen-bench",             required_argument, 0, BENCH_OPT_GEN_BENCH},
 	{"expiration-time",       required_argument, 0, 'e'},
 	{"duration",              required_argument, 0, 't'},
 	{"workload",              required_argument, 0, 'w'},
@@ -275,11 +281,14 @@ benchmark_init(int argc, char* argv[])
 
 	int ret = set_args(argc, argv, &args);
 
-	if (ret == 0) {
-		ret = _load_defaults_post(&args);
+	if (ret == 0 && _load_defaults_post(&args) != 0) {
+		ret = 1;
 	}
 
-	if (ret == 0) {
+	if (ret == 0 && args.gen_bench_iters > 0) {
+		ret = run_gen_bench(&args);
+	}
+	else if (ret == 0) {
 		print_args(&args);
 		ret = run_benchmark(&args);
 	}
@@ -488,7 +497,7 @@ print_usage(const char* program)
 
 	printf("-o --object-spec describes a comma-separated bin specification\n");
 	printf("   Scalar bins:\n");
-	printf("      b | I<bytes> | B<size> | S<length> | D | <const> # Default: I\n");
+	printf("      b | I<bytes> | B<size> | S<length> | D | <const> | @<generator> # Default: I\n");
 	printf("\n");
 	printf("      b) Generate a random boolean bin or value\n");
 	printf("      I) Generate an integer bin or value in a specific byte range\n");
@@ -525,8 +534,32 @@ print_usage(const char* program)
 	printf("         {5*S1:I1} - ex {\"a\":1, \"b\":2, \"d\":4, \"z\":26, \"e\":5}\n");
 	printf("         {2*S1:[3*I,1],1*I1:S1} - ex {\"a\": [1,2,3], \"b\": [6,7,8], 10: \"x\"}\n");
 	printf("\n");
+	printf("   Generators (realistic synthetic values, usable anywhere a scalar is):\n");
+	printf("      Person:   @first_name @last_name @full_name @username @email @phone\n");
+	printf("      Address:  @street @city @state @state_abbr @zip @country @country_code\n");
+	printf("      Geo:      @lat[(min,max)] @lon[(min,max)] @geojson[(lat_min,lat_max,lon_min,lon_max)]\n");
+	printf("                @geo_circle[(r_min_m,r_max_m[,lat_min,lat_max,lon_min,lon_max])]\n");
+	printf("                (GeoJSON values are native geo particles, default area: continental US)\n");
+	printf("      Business: @company @job_title @product @color @credit_card\n");
+	printf("      Internet: @ipv4 @ipv6 @mac @domain @url @uuid\n");
+	printf("      Text:     @word @words[(n)] @sentence @lorem[(n_chars)]\n");
+	printf("      Numbers:  @int(min,max) @double(min,max)\n");
+	printf("      Time:     @date[(min,max[,\"strftime format\"])] @timestamp[(min,max)] @now\n");
+	printf("                (min/max are epoch seconds or \"YYYY-MM-DD\"; @now is epoch ms)\n");
+	printf("      Choice:   @pick(\"a\",\"b\") or weighted @pick(\"a\":90,\"b\":10)\n");
+	printf("      Template: @fmt(\"#{first_name}.#{last_name}@example.com\")\n");
+	printf("                (#{double} placeholders print 2 decimals, bounds within +/-9e16)\n");
+	printf("      A spec with generators generates a new record for every write (implies -R).\n");
+	printf("\n");
+	printf("   Bin names:\n");
+	printf("      Any top-level bin can be named with <name>=, e.g. first=@first_name.\n");
+	printf("      Names are at most 15 characters and unique; unnamed bins keep the\n");
+	printf("      <bin>, <bin>_2, ... names. Repeated bins get _2, _3, ... suffixes.\n");
+	printf("\n");
 	printf("   Example:\n");
 	printf("      -o \"I2, S12, [3*I1]\" => b1: 478; b2: \"a09dfwu3ji2r\"; b3: [12, 45, 209])\n");
+	printf("      -o \"first=@first_name, email=@email, age=@int(18,90), tags=[3*@word]\"\n");
+	printf("      -o \"orders=[3*{\\\"sku\\\":@product,\\\"qty\\\":@int(1,9)}], loc=@geojson\"\n");
 	printf("      -o \"123, \\\"test string\\\", [true, 3.14]\" => const, always same value\n");
 	printf("\n");
 
@@ -544,6 +577,15 @@ print_usage(const char* program)
 
 	printf("-R --random          # Default: static fixed bin values\n");
 	printf("   Use dynamically generated random bin values instead of default static fixed bin values.\n");
+	printf("   Implied when the object spec contains generators (@...) or when --seed is set.\n");
+	printf("\n");
+
+	printf("   --seed <n>        # Default: none (non-reproducible random data)\n");
+	printf("   Make generated data reproducible. Each record written by insert/update\n");
+	printf("   workloads is derived only from the seed, the record key and the object\n");
+	printf("   spec, so the same key gets the same bins regardless of thread count,\n");
+	printf("   batching or async mode. CDT workloads are reproducible with -z 1.\n");
+	printf("   @now values are not reproducible.\n");
 	printf("\n");
 
 	printf("-e --expiration-time # Default: 0, i.e. adopt the default TTL value from the namespace\n");
@@ -552,11 +594,12 @@ print_usage(const char* program)
 	printf("   0 (adopt default TTL value from namespace) and >0 (the TTL of the record in seconds).\n");
 	printf("\n");
 
-	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RR, RUF, RUD), 0 for finite (I, DB)\n");
+	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RR, RUF, RUD, C, CI, CK), 0 for finite (I, DB)\n");
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
 	printf("\n");
 
-	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB  # Default: RU,50\n");
+	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB |\n");
+	printf("              C[I|K][,<read percent>[,<cap>[,<read count>]]]  # Default: RU,50\n");
 	printf("   Desired workload.\n");
 	printf("   -w I         : Linear 'insert' workload, initializing each key in the key range.\n");
 	printf("   -w RU,80     : Random read/update workload with 80%% reads and 20%% writes.\n");
@@ -565,6 +608,22 @@ print_usage(const char* program)
 	printf("                  Note: -ufn and -upn are required in this mode.\n");
 	printf("   -w DB        : Bin delete workload.\n");
 	printf("   -w RUD,20,40 : Random read/update/delete workload with 20%% reads, 40%% writes, and 60%% deletes.\n");
+	printf("   -w C,80,100,10   : Random CDT (list/map) workload with 80%% reads. Each write appends the\n");
+	printf("                      generated list (list_append_items) or puts the generated map\n");
+	printf("                      (map_put_items) into every list/map bin of the object spec, then\n");
+	printf("                      trims each list to its last 100 elements and each map to its 100\n");
+	printf("                      largest keys. Each read returns the last 10 elements of every\n");
+	printf("                      list/map bin. Scalar bins are written\n");
+	printf("                      and read as usual, all in one operate() call per key.\n");
+	printf("   -w CI,30,1000,10 : Same, but map bins are incremented (map_increment) once per generated\n");
+	printf("                      entry, the cap keeps the 1000 entries with the highest values, and\n");
+	printf("                      reads return the top 10 by rank (counters, leaderboards).\n");
+	printf("   -w CK,90,50      : Same as C, but map reads fetch one generated key (session maps).\n");
+	printf("                      Defaults: read percent 50, cap 0 (no trim), read count 10.\n");
+	printf("                      The object spec needs at least one list or map bin. CI needs map\n");
+	printf("                      values that are integers, doubles or @int/@double/@timestamp generators.\n");
+	printf("                      Without --random and @generators the write ops are built once and\n");
+	printf("                      reused, enabling higher asbench throughput.\n");
 	printf("\n");
 
 	printf("-z --threads <count> # Default: 16\n");
@@ -578,7 +637,7 @@ print_usage(const char* program)
 
 	printf("   --batch-size <size> # Default: 1\n");
 	printf("   Enable batch mode with number of records to process in each batch call.\n");
-	printf("   Batch mode is valid only for I, RU, RR, RUF, and RUD workloads. Batch mode is disabled by default.\n");
+	printf("   Batch mode is valid only for I, RU, RR, RUF, and RUD workloads (not C, CI, CK). Batch mode is disabled by default.\n");
 	printf("\n");
 
 	printf("   --batch-read-size <size> # Default: 1\n");
@@ -865,7 +924,7 @@ print_args(args_t* args)
 	printf("start-key:              %" PRIu64 "\n", args->start_key);
 	printf("keys/records:           %" PRIu64 "\n", args->keys);
 
-	char buf[1024];
+	char buf[4096];
 	snprint_obj_spec(&args->obj_spec, buf, sizeof(buf));
 	printf("object spec:            %s\n", buf);
 
@@ -875,6 +934,12 @@ print_args(args_t* args)
 
 	printf("enable compression:     %s\n", boolstring(args->enable_compression));
 	printf("compression ratio:      %f\n", args->compression_ratio);
+	if (args->seed_set) {
+		printf("seed:                   %" PRIu64 "\n", args->seed);
+	}
+	else {
+		printf("seed:                   (none)\n");
+	}
 	printf("connect timeout:        %d ms\n", args->conn_timeout_ms);
 	printf("read socket timeout:    %d ms\n", args->read_socket_timeout);
 	printf("write socket timeout:   %d ms\n", args->write_socket_timeout);
@@ -1377,9 +1442,8 @@ set_args(int argc, char * const* argv, args_t* args)
 			case 'o': {
 				// free the default obj_spec before making a new one
 				obj_spec_free(&args->obj_spec);
-				int ret = obj_spec_parse(&args->obj_spec, optarg);
-				if (ret != 0) {
-					return ret;
+				if (obj_spec_parse(&args->obj_spec, optarg) != 0) {
+					return 1;
 				}
 				break;
 			}
@@ -1744,6 +1808,32 @@ set_args(int argc, char * const* argv, args_t* args)
 				args->key = AS_POLICY_KEY_SEND;
 				break;
 
+			case BENCH_OPT_SEED: {
+				char* endptr;
+				errno = 0;
+				args->seed = strtoull(optarg, &endptr, 0);
+				if (*optarg == '\0' || *endptr != '\0' || errno != 0) {
+					fprintf(stderr, "Invalid seed \"%s\", expected an unsigned "
+							"64-bit integer\n", optarg);
+					return 1;
+				}
+				args->seed_set = true;
+				break;
+			}
+
+			case BENCH_OPT_GEN_BENCH: {
+				char* endptr;
+				errno = 0;
+				args->gen_bench_iters = strtoull(optarg, &endptr, 10);
+				if (*optarg == '\0' || *endptr != '\0' || errno != 0 ||
+						args->gen_bench_iters == 0) {
+					fprintf(stderr, "Invalid gen-bench record count \"%s\"\n",
+							optarg);
+					return 1;
+				}
+				break;
+			}
+
 			case TLS_OPT_ENABLE:
 				args->tls.enable = true;
 				break;
@@ -1873,6 +1963,9 @@ _load_defaults(args_t* args)
 	args->transaction_worker_threads = 16;
 	args->enable_compression = false;
 	args->compression_ratio = 1.f;
+	args->seed_set = false;
+	args->seed = 0;
+	args->gen_bench_iters = 0;
 	args->conn_timeout_ms = 1000;
 	args->read_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;
 	args->write_socket_timeout = AS_POLICY_SOCKET_TIMEOUT_DEFAULT;

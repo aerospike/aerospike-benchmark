@@ -5,7 +5,9 @@
 //
 
 #include <assert.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <aerospike/as_sleep.h>
 #include <cyaml/cyaml.h>
@@ -129,6 +131,11 @@ static const cyaml_config_t config = {
  */
 LOCAL_HELPER int
 _parse_workload_distr(const char* pct_str, as_vector* pct_vec);
+
+LOCAL_HELPER int _parse_cdt_workload(workload_t* workload,
+		const char* workload_str);
+LOCAL_HELPER int _validate_cdt_stage(const stage_t* stage,
+		const stage_def_t* stage_def, uint32_t stage_num);
 
 /*
  * reads and parses bins_str, a comma-separated list of bin numbers
@@ -321,6 +328,11 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->type = WORKLOAD_TYPE_D;
 		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
+	else if (workload_str[0] == 'C') {
+		if (_parse_cdt_workload(workload, workload_str) != 0) {
+			return -1;
+		}
+	}
 	else {
 		fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
 		return -1;
@@ -355,6 +367,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		stage->async = stage_def->async;
 		stage->random = stage_def->random;
 		stage->ttl = stage_def->ttl;
+		stage->bin_names = NULL;
 
 		if (stage_def->key_start == -1LU) {
 			// if key_start wasn't specified, then inherit from the global context
@@ -460,6 +473,27 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			}
 		}
 
+		if (ret == 0) {
+			uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+			stage->bin_names = (as_bin_name*) cf_malloc(n_bins *
+					sizeof(as_bin_name));
+			if (obj_spec_resolve_bin_names(&stage->obj_spec, args->bin_name,
+						stage->bin_names) != 0) {
+				fprintf(stderr, "Stage %d: bin names must be unique\n", i + 1);
+				ret = -1;
+			}
+		}
+
+		if (ret == 0 && !stage->random &&
+				stage->workload.type != WORKLOAD_TYPE_D &&
+				(obj_spec_has_generators(&stage->obj_spec) || args->seed_set)) {
+			stage->random = true;
+			if (obj_spec_has_generators(&stage->obj_spec)) {
+				printf("Stage %d: the object spec uses @generators, so every "
+						"write generates a new record (random: true)\n", i + 1);
+			}
+		}
+
 		char* bins_str;
 		if (stage_def->read_bins_str != NULL) {
 			bins_str = stage_def->read_bins_str;
@@ -521,6 +555,10 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			stage->n_write_bins = 0;
 		}
 
+		if (ret == 0 && stage->workload.type == WORKLOAD_TYPE_CDT) {
+			ret = _validate_cdt_stage(stage, stage_def, i + 1);
+		}
+
 		if (workload_contains_udfs(&stage->workload)) {
 			if (stage_def->udf_spec.udf_fn_name == NULL) {
 				fprintf(stderr, "Must provide a UDF function name\n");
@@ -549,6 +587,11 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 #pragma GCC diagnostic pop
 
 				ret = obj_spec_parse(&stage->udf_fn_args, args_str);
+				if (ret == 0 && obj_spec_has_bin_names(&stage->udf_fn_args)) {
+					fprintf(stderr, "Stage %d: UDF arguments cannot have bin "
+							"names\n", i + 1);
+					ret = -1;
+				}
 			}
 		}
 		else {
@@ -603,6 +646,7 @@ void free_workload_config(stages_t* stages)
 			obj_spec_free(&stage->obj_spec);
 			_free_bins_selection(stage->read_bins);
 			cf_free(stage->write_bins);
+			cf_free(stage->bin_names);
 
 			if (workload_contains_udfs(&stage->workload)) {
 				obj_spec_free(&stage->udf_fn_args);
@@ -683,10 +727,11 @@ void stages_print(const stages_t* stages)
 		"RR",
 		"DB",
 		"RUF",
-		"RUD"
+		"RUD",
+		"C"
 	};
 
-	char obj_spec_buf[512];
+	char obj_spec_buf[4096];
 	for (uint32_t i = 0; i < stages->n_stages; i++) {
 		const stage_t* stage = &stages->stages[i];
 
@@ -721,6 +766,12 @@ void stages_print(const stages_t* stages)
 			printf(",%g%%,%g%%,%g%%,%g%%\n", stage->workload.read_pct,
 					stage->workload.write_pct, stage->workload.read_all_pct,
 					stage->workload.write_all_pct);
+		}
+		else if (stage->workload.type == WORKLOAD_TYPE_CDT) {
+			const char* mode = stage->workload.cdt_mode == CDT_MODE_INCR ? "I" :
+				(stage->workload.cdt_mode == CDT_MODE_KEY ? "K" : "");
+			printf("%s,%g%%,cap=%u,k=%u\n", mode, stage->workload.read_pct,
+					stage->workload.cdt_cap, stage->workload.cdt_read_k);
 		}
 		else {
 			printf("\n");
@@ -820,6 +871,220 @@ _parse_workload_distr(const char* pct_str, as_vector* pct_vec)
 	return 0;
 }
 
+LOCAL_HELPER int
+_parse_cdt_workload(workload_t* workload, const char* workload_str)
+{
+	const char* p = workload_str + 1;
+	cdt_mode_t mode = CDT_MODE_PUT;
+	float read_pct = WORKLOAD_CDT_DEFAULT_READ_PCT;
+	uint64_t cap = WORKLOAD_CDT_DEFAULT_CAP;
+	uint64_t k = WORKLOAD_CDT_DEFAULT_READ_K;
+
+	if (*p == 'I') {
+		mode = CDT_MODE_INCR;
+		p++;
+	}
+	else if (*p == 'K') {
+		mode = CDT_MODE_KEY;
+		p++;
+	}
+
+	if (*p == ',') {
+		p++;
+		for (uint32_t n_vals = 0; ; n_vals++) {
+			char* end;
+
+			if (n_vals >= 3) {
+				fprintf(stderr, "Expected 1-3 values to follow %.*s, but found "
+						"more in \"%s\"\n", (int) (strchr(workload_str, ',') -
+							workload_str), workload_str, workload_str);
+				return -1;
+			}
+
+			if (n_vals == 0) {
+				errno = 0;
+				double v = strtod(p, &end);
+				if (end == p || (*end != ',' && *end != '\0')) {
+					fprintf(stderr, "Invalid read percentage in CDT workload "
+							"\"%s\"\n", workload_str);
+					return -1;
+				}
+				if (v < 0 || v > 100) {
+					fprintf(stderr, "Percentage value \"%f\" must be between 0 "
+							"and 100\n", v);
+					return -1;
+				}
+				read_pct = (float) v;
+			}
+			else {
+				errno = 0;
+				unsigned long long v = strtoull(p, &end, 10);
+				if (*p < '0' || *p > '9' || end == p || errno != 0 ||
+						(*end != ',' && *end != '\0') || v > UINT32_MAX) {
+					fprintf(stderr, "CDT workload %s must be a non-negative "
+							"integer in \"%s\"\n", n_vals == 1 ? "cap" :
+							"read count", workload_str);
+					return -1;
+				}
+				if (n_vals == 1) {
+					cap = v;
+				}
+				else {
+					if (v == 0) {
+						fprintf(stderr, "CDT read count must be >= 1\n");
+						return -1;
+					}
+					k = v;
+				}
+			}
+
+			p = end;
+			if (*p == '\0') {
+				break;
+			}
+			p++;
+		}
+	}
+	else if (*p != '\0') {
+		fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+		return -1;
+	}
+
+	workload->type = WORKLOAD_TYPE_CDT;
+	workload->read_pct = read_pct;
+	workload->write_pct = 100 - read_pct;
+	workload->read_all_pct = WORKLOAD_UNSET_PCT;
+	workload->write_all_pct = WORKLOAD_UNSET_PCT;
+	workload->cdt_mode = mode;
+	workload->cdt_cap = (uint32_t) cap;
+	workload->cdt_read_k = (uint32_t) k;
+	return 0;
+}
+
+LOCAL_HELPER bool
+_cdt_value_numeric(const struct bin_spec_s* val)
+{
+	switch (val->type) {
+		case BIN_SPEC_TYPE_INT:
+		case BIN_SPEC_TYPE_DOUBLE:
+		case BIN_SPEC_TYPE_INT | BIN_SPEC_TYPE_CONST:
+		case BIN_SPEC_TYPE_DOUBLE | BIN_SPEC_TYPE_CONST:
+			return true;
+		case BIN_SPEC_TYPE_GEN:
+			return val->gen.out_type == SYNTH_OUT_INT ||
+				val->gen.out_type == SYNTH_OUT_DOUBLE;
+		default:
+			return false;
+	}
+}
+
+LOCAL_HELPER bool
+_cdt_const_value_numeric(const as_val* key, const as_val* value, void* udata)
+{
+	bool* ok = (bool*) udata;
+	if (value->type != AS_INTEGER && value->type != AS_DOUBLE) {
+		*ok = false;
+		return false;
+	}
+	return true;
+}
+
+LOCAL_HELPER bool
+_cdt_map_values_numeric(const struct bin_spec_s* bin_spec)
+{
+	if (bin_spec->type & BIN_SPEC_TYPE_CONST) {
+		bool ok = true;
+		as_map_foreach((const as_map*) &bin_spec->const_map.val,
+				_cdt_const_value_numeric, &ok);
+		return ok;
+	}
+	for (uint32_t i = 0; i < bin_spec->map.n_entries; i++) {
+		if (!_cdt_value_numeric(&bin_spec->map.kv_pairs[i].val)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+LOCAL_HELPER int
+_validate_cdt_stage(const stage_t* stage, const stage_def_t* stage_def,
+		uint32_t stage_num)
+{
+	const workload_t* w = &stage->workload;
+
+	if (stage_def->read_bins_str != NULL || stage_def->write_bins_str != NULL) {
+		fprintf(stderr, "Stage %u: read-bins/write-bins are not supported by "
+				"CDT workloads\n", stage_num);
+		return -1;
+	}
+
+	if (stage->batch_read_size > 1 || stage->batch_write_size > 1 ||
+			stage->batch_delete_size > 1) {
+		fprintf(stderr, "Stage %u: batch sizes are not supported by CDT "
+				"workloads\n", stage_num);
+		return -1;
+	}
+
+	uint32_t n_bins = obj_spec_n_bins(&stage->obj_spec);
+	uint32_t n_lists = 0;
+	uint32_t n_maps = 0;
+	uint64_t n_incr_entries = 0;
+
+	for (uint32_t i = 0; i < n_bins; i++) {
+		const struct bin_spec_s* bin_spec = obj_spec_bin_spec(&stage->obj_spec, i);
+		switch (bin_spec->type & BIN_SPEC_TYPE_MASK) {
+			case BIN_SPEC_TYPE_LIST:
+				n_lists++;
+				break;
+			case BIN_SPEC_TYPE_MAP:
+				n_maps++;
+				if (w->cdt_mode == CDT_MODE_INCR) {
+					if (!_cdt_map_values_numeric(bin_spec)) {
+						fprintf(stderr, "Stage %u: CI workloads need map bins "
+								"whose values are integers, doubles or "
+								"@int/@double/@timestamp generators (bin %u)\n",
+								stage_num, i + 1);
+						return -1;
+					}
+					n_incr_entries += (bin_spec->type & BIN_SPEC_TYPE_CONST) ?
+						as_map_size((as_map*) &bin_spec->const_map.val) :
+						bin_spec->map.length;
+				}
+				break;
+			default:
+				break;
+		}
+	}
+
+	if (n_incr_entries > WORKLOAD_CDT_MAX_INCR_ENTRIES) {
+		fprintf(stderr, "Stage %u: CI workloads can increment at most %d map "
+				"entries per write, but the object spec has %" PRIu64 "\n",
+				stage_num, WORKLOAD_CDT_MAX_INCR_ENTRIES, n_incr_entries);
+		return -1;
+	}
+
+	if (n_lists + n_maps == 0) {
+		fprintf(stderr, "Stage %u: CDT workloads need at least one list or map "
+				"bin in the object spec\n", stage_num);
+		return -1;
+	}
+
+	if (w->cdt_mode != CDT_MODE_PUT && n_maps == 0) {
+		fprintf(stderr, "Stage %u: C%s workloads need at least one map bin in "
+				"the object spec\n", stage_num,
+				w->cdt_mode == CDT_MODE_INCR ? "I" : "K");
+		return -1;
+	}
+
+	if (w->cdt_cap != 0 && w->cdt_read_k > w->cdt_cap) {
+		fprintf(stderr, "Warning: stage %u: CDT read count %u is larger than "
+				"the cap %u, reads return at most %u elements\n", stage_num,
+				w->cdt_read_k, w->cdt_cap, w->cdt_cap);
+	}
+
+	return 0;
+}
+
 LOCAL_HELPER void*
 _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
 		const char* stage_bin_name, uint32_t* n_bins_ptr, uint8_t mode)
@@ -877,7 +1142,7 @@ _parse_bins_selection(const char* bins_str, const obj_spec_t* obj_spec,
 			// form bin name
 			char** bin_name = (char**) as_vector_reserve(&bins);
 			*bin_name = (char*) cf_malloc(sizeof(as_bin_name));
-			gen_bin_name(*bin_name, stage_bin_name, bin_num - 1);
+			obj_spec_bin_name(obj_spec, bin_num - 1, stage_bin_name, *bin_name);
 		}
 		else {
 			uint32_t* bin_idx = (uint32_t*) as_vector_reserve(&bins);

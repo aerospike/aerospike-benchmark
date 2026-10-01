@@ -1,0 +1,17 @@
+# IoT devices with native GeoJSON locations. After stage 1, create a geo index
+# and query it, e.g. in aql:
+#   CREATE INDEX loc_idx ON test.devices (loc) GEO2DSPHERE
+#   SELECT * FROM test.devices WHERE loc WITHIN CAST('{"type":"AeroCircle","coordinates":[[-122.45,37.75],5000]}' AS GEOJSON)
+# asbench -h 127.0.0.1 -n test -s devices --workload-stages examples/synth/iot_geo.yaml
+- stage: 1
+  desc: "load 200k devices in the San Francisco area"
+  workload: I
+  key-start: 1
+  key-end: 200001
+  object-spec: 'device=@uuid, mac=@mac, ip=@ipv4, model=@pick("t100","t200","t300"), loc=@geojson(37.70,37.80,-122.50,-122.40), zone=@geo_circle(50,500,37.70,37.80,-122.50,-122.40), battery=@int(0,100), seen=@now'
+- stage: 2
+  desc: "device heartbeats, 50% reads"
+  workload: RU,50
+  duration: 60
+  key-start: 1
+  key-end: 200001

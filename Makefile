@@ -303,6 +303,24 @@ $(DIR_LIBCYAML_BUILD)/libcyaml.a:
 run: build
 	./target/asbench -h $(AS_HOST) -p $(AS_PORT)
 
+PYTHON3 ?= $(shell command -v python3 2>/dev/null)
+
+.PHONY: check-python3
+check-python3:
+	@if [ -z "$(PYTHON3)" ]; then \
+		echo "python3 is required for this target but was not found in PATH." >&2; \
+		echo "Install Python 3, or pass PYTHON3=/path/to/python3." >&2; \
+		exit 1; \
+	fi
+
+.PHONY: synth-data
+synth-data: check-python3
+	$(PYTHON3) scripts/gen_synth_data.py
+
+.PHONY: synth-data-check
+synth-data-check: check-python3
+	$(PYTHON3) scripts/gen_synth_data.py --check
+
 .PHONY: test
 test: unit integration
 
@@ -354,8 +372,8 @@ test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECT
 
 # integration testing
 .PHONY: integration
-integration: test_target/asbench
-	@./integration_tests.sh $(DIR_ENV)
+integration: check-python3 test_target/asbench
+	@PYTHON3="$(PYTHON3)" ./integration_tests.sh $(DIR_ENV)
 
 # Summary requires the lcov tool to be installed
 .PHONY: coverage-unit

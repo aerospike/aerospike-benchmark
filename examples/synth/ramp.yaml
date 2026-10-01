@@ -1,0 +1,31 @@
+# Capacity planning ramp: the same customer workload at increasing throughput
+# limits, with a short pause between steps. Compare latency per stage.
+# asbench -h 127.0.0.1 -n test -s ramp --latency --workload-stages examples/synth/ramp.yaml
+- stage: 1
+  desc: "load 1M customers"
+  workload: I
+  key-start: 1
+  key-end: 1000001
+  object-spec: 'id=@uuid, first=@first_name, last=@last_name, email=@email, age=@int(18,90), city=@city, loc=@geojson'
+- stage: 2
+  desc: "1k tps"
+  workload: RU,80
+  tps: 1000
+  duration: 30
+  key-start: 1
+  key-end: 1000001
+- stage: 3
+  desc: "10k tps"
+  workload: RU,80
+  tps: 10000
+  duration: 30
+  pause: 2
+  key-start: 1
+  key-end: 1000001
+- stage: 4
+  desc: "unthrottled"
+  workload: RU,80
+  duration: 30
+  pause: 2
+  key-start: 1
+  key-end: 1000001

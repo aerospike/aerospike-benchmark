@@ -76,6 +76,8 @@ run_benchmark(args_t* args)
 	data.latency = args->latency;
 	data.debug = args->debug;
 	data.async_max_commands = args->async_max_commands;
+	data.seed_set = args->seed_set;
+	data.seed = args->seed;
 	
 	atomic_init(&data.read_hit_count, 0);
 	atomic_init(&data.read_miss_count, 0);
@@ -126,10 +128,23 @@ run_benchmark(args_t* args)
 	}
 
 	for (uint32_t i = 0; i < data.stages.n_stages && ret == 0; i++) {
-		if (!obj_spec_bin_name_compatible(&data.stages.stages[i].obj_spec,
-					data.bin_name)) {
+		stage_t* stage = &data.stages.stages[i];
+		if (!obj_spec_bin_name_compatible(&stage->obj_spec, data.bin_name)) {
 			ret = -1;
 			goto cleanup3;
+		}
+		if (single_bin) {
+			if (obj_spec_has_bin_names(&stage->obj_spec)) {
+				fprintf(stderr, "Stage %u: single bin namespace, but the "
+						"object spec names its bins\n", i + 1);
+				ret = -1;
+				goto cleanup3;
+			}
+			if (obj_spec_resolve_bin_names(&stage->obj_spec, data.bin_name,
+					stage->bin_names) != 0) {
+				ret = -1;
+				goto cleanup3;
+			}
 		}
 	}
 
@@ -318,7 +333,13 @@ init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 
 	tdata->cdata = cdata;
 	tdata->coord = coord;
-	tdata->random = as_random_instance();
+	if (args->seed_set) {
+		seed_as_random(&tdata->random_state, ~args->seed, t_idx);
+	}
+	else {
+		as_random_init(&tdata->random_state);
+	}
+	tdata->random = &tdata->random_state;
 	tdata->t_idx = t_idx;
 	// always start on the first stage
 	atomic_init(&tdata->stage_idx, 0);

@@ -35,6 +35,8 @@
 #include <aerospike/as_record.h>
 #include <aerospike/as_random.h>
 
+#include <synth_gen.h>
+
 
 //==========================================================
 // Typedefs & constants.
@@ -50,6 +52,7 @@
 #define BIN_SPEC_TYPE_DOUBLE 0x4
 #define BIN_SPEC_TYPE_LIST   0x5
 #define BIN_SPEC_TYPE_MAP    0x6
+#define BIN_SPEC_TYPE_GEN    0x7
 
 #define BIN_SPEC_TYPE_MASK 0x7
 
@@ -126,8 +129,7 @@ struct bin_spec_s {
 	 * one of the five main types of bins:
 	 * 	bool: a random boolean
 	 *	int: a random int, within certain bounds (described below)
-	 *	string: a string of fixed length, consisting of [a-z]{1,9}
-	 *			space-separated words
+	 *	string: a string of fixed length, consisting of [0-9a-z] characters
 	 *	bytes array: array of random bytes of data
 	 *	double: any 8-byte double floating point
 	 *	list: a list of bin_specs
@@ -222,6 +224,8 @@ struct bin_spec_s {
 			as_orderedmap val;
 		} const_map;
 
+		synth_spec_t gen;
+
 	};
 };
 
@@ -234,6 +238,9 @@ struct bin_spec_kv_pair_s {
 typedef struct obj_spec_s {
 	struct bin_spec_s* bin_specs;
 	uint32_t n_bin_specs;
+	// one entry per bin_specs element (not per bin), NULL if nothing is named
+	char** bin_names;
+	bool has_gen;
 	/*
      * when set to true, this is a valid obj_spec, when set to false, this
 	 * obj_spec has already been freed/is owned by another obj_spec
@@ -266,9 +273,14 @@ typedef struct obj_spec_s {
  *        I8 for 2^56 - 2^64-1
  *    B) Generate a bytes bin or value with an bytearray of random bytes
  *        B12 - generates a bytearray of 12 random bytes
- *    S) Generate a string bin or value made of space-separated a-z{1,9} words
- *        S16 - a string with a 16 character length. ex: "uir a mskd poiur"
+ *    S) Generate a string bin or value made of [0-9a-z] characters
+ *        S16 - a string with a 16 character length. ex: "uir9a2mskd4poiur"
  *    D) Generate a Double bin or value (8 byte)
+ *    @name[(args)]) Generate a synthetic value (see synth_gen.h), e.g.
+ *        @first_name, @email, @int(18,90), @pick("a":70,"b":30)
+ *
+ * Any top-level bin may be given an explicit name: name=<bin-type>, e.g.
+ *     first=@first_name,age=@int(18,90),tags=[3*@word]
  *
  * Collection bins:
  *     [] - a list
@@ -311,6 +323,29 @@ void obj_spec_shallow_copy(obj_spec_t* dst, const obj_spec_t* src);
  */
 uint32_t obj_spec_n_bins(const obj_spec_t*);
 
+bool obj_spec_has_generators(const obj_spec_t*);
+
+bool obj_spec_has_bin_names(const obj_spec_t*);
+
+void obj_spec_bin_name(const obj_spec_t*, uint32_t bin_idx, const char* base,
+		as_bin_name out);
+
+int obj_spec_resolve_bin_names(const obj_spec_t*, const char* base,
+		as_bin_name* out);
+
+const struct bin_spec_s* obj_spec_bin_spec(const obj_spec_t*, uint32_t bin_idx);
+
+as_val* obj_spec_bin_spec_gen_val(const struct bin_spec_s* bin_spec,
+		as_random* random, float compression_ratio);
+
+as_val* obj_spec_gen_bin_val(const obj_spec_t*, uint32_t bin_idx,
+		as_random* random, float compression_ratio);
+
+#ifdef _TEST
+as_val* obj_spec_gen_map_key(const obj_spec_t*, uint32_t bin_idx,
+		as_random* random);
+#endif /* _TEST */
+
 /*
  * returns true if the given bin name base is compatible with the obj_spec, i.e.
  * if no bin names will be too long given the number of bins in the obj_spec
@@ -327,9 +362,20 @@ bool obj_spec_bin_name_compatible(const obj_spec_t*, const char* bin_name);
  * 	<bin_name_template>_3
  * 	...
  */
+#ifdef _TEST
 int obj_spec_populate_bins(const obj_spec_t*, as_record*, as_random*,
 		const char* bin_name_template, uint32_t* write_bins,
 		uint32_t n_write_bins, float compression_ratio);
+#endif /* _TEST */
+
+/*
+ * with record_seed set, each bin gets its own stream seeded by (record_seed,
+ * bin index), so a bin's value does not depend on which other bins are written
+ */
+int obj_spec_populate_bins_named(const obj_spec_t*, as_record*, as_random*,
+		const as_bin_name* bin_names, uint32_t* write_bins,
+		uint32_t n_write_bins, float compression_ratio,
+		const uint64_t* record_seed);
 
 /*
  * instead of populating a record's bins, returns an as_list of the objects

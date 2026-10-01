@@ -1,0 +1,16 @@
+# Deeply nested JSON-like documents with a composite business id, the asbench
+# version of datasynth examples/simple.json, examples/example2.json and the nested
+# maps of examples/maptest.json.
+# asbench -h 127.0.0.1 -n test -s docs --workload-stages examples/synth/nested_documents.yaml
+- stage: 1
+  desc: "load 200k nested documents"
+  workload: I
+  key-start: 1
+  key-end: 200001
+  object-spec: 'cid=@fmt("c:#{int(100000000,999999999)}|a:#{company}"), profile={"name":{"first":@first_name,"last":@last_name},"address":{"street":@street,"city":@city,"state":@state_abbr,"zip":@zip}}, endpoints=[3*{"ip":@ipv4,"port":@int(1024,65535),"mac":@mac}], routes=[3*{3*@ipv4:[3*@city]}], tags=[5*@word]'
+- stage: 2
+  desc: "document reads and rewrites, 80% reads"
+  workload: RU,80
+  duration: 60
+  key-start: 1
+  key-end: 200001

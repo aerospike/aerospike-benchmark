@@ -1,0 +1,12 @@
+# Session cache with record TTL: sessions are replaced (RR) on login and expire
+# after 30 minutes, driven by async I/O for high concurrency.
+# asbench -h 127.0.0.1 -n test -s sessions --workload-stages examples/synth/session_cache.yaml
+- stage: 1
+  desc: "session cache, 95% reads, 5% replaces, 30 minute TTL, async"
+  workload: RR,95
+  duration: 60
+  async: true
+  expiration-time: 1800
+  key-start: 1
+  key-end: 2000001
+  object-spec: 'sid=@uuid, user=@username, ip=@ipv4, agent=@pick("chrome":65,"safari":20,"firefox":10,"edge":5), cart=[3*{"sku":@product,"qty":@int(1,3)}], started=@now'

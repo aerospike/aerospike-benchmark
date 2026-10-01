@@ -5,6 +5,8 @@
 #include <aerospike/as_msgpack.h>
 #include <cyaml/cyaml.h>
 
+#include <citrusleaf/cf_clock.h>
+
 #include <benchmark.h>
 #include <common.h>
 #include <object_spec.h>
@@ -219,8 +221,8 @@ _test_valid(const char* obj_spec_str,
 
 	for (uint32_t i = 0; i < as_list_size(list); i++) {
 		as_bin_name bin;
-		gen_bin_name(bin, "test",
-				(write_bins ? ((uint32_t*) write_bins)[i] : i));
+		obj_spec_bin_name(&o, (write_bins ? ((uint32_t*) write_bins)[i] : i),
+				"test", bin);
 		ck_assert(as_val_cmp(as_list_get(list, i),
 					(as_val*) as_record_get(&rec, bin)) == MSGPACK_COMPARE_EQUAL);
 	}
@@ -629,6 +631,300 @@ DEFINE_TCASE_DIFF(test_space_list, "[ I, D, S20 ]", "[I4,D,S20]");
 DEFINE_TCASE_DIFF(test_space_map, "{ S20 : B10 }", "{S20:B10}");
 
 
+/*
+ * Generator test cases
+ */
+DEFINE_TCASE(test_gen_first_name, "@first_name");
+DEFINE_TCASE(test_gen_last_name, "@last_name");
+DEFINE_TCASE(test_gen_full_name, "@full_name");
+DEFINE_TCASE(test_gen_username, "@username");
+DEFINE_TCASE(test_gen_email, "@email");
+DEFINE_TCASE(test_gen_phone, "@phone");
+DEFINE_TCASE(test_gen_street, "@street");
+DEFINE_TCASE(test_gen_city, "@city");
+DEFINE_TCASE(test_gen_state, "@state");
+DEFINE_TCASE(test_gen_state_abbr, "@state_abbr");
+DEFINE_TCASE(test_gen_zip, "@zip");
+DEFINE_TCASE(test_gen_country, "@country");
+DEFINE_TCASE(test_gen_country_code, "@country_code");
+DEFINE_TCASE(test_gen_lat, "@lat");
+DEFINE_TCASE(test_gen_lat_range, "@lat(30,40.5)");
+DEFINE_TCASE(test_gen_lon, "@lon");
+DEFINE_TCASE(test_gen_lon_range, "@lon(-100.25,-90)");
+DEFINE_TCASE(test_gen_geojson, "@geojson");
+DEFINE_TCASE(test_gen_geojson_bbox, "@geojson(37.7,37.8,-122.5,-122.4)");
+DEFINE_TCASE(test_gen_geo_circle, "@geo_circle");
+DEFINE_TCASE(test_gen_geo_circle_r, "@geo_circle(50,500)");
+DEFINE_TCASE(test_gen_geo_circle_bbox, "@geo_circle(50,500,51.4,51.6,-0.3,0.1)");
+DEFINE_TCASE(test_gen_company, "@company");
+DEFINE_TCASE(test_gen_job_title, "@job_title");
+DEFINE_TCASE(test_gen_ipv4, "@ipv4");
+DEFINE_TCASE(test_gen_ipv6, "@ipv6");
+DEFINE_TCASE(test_gen_mac, "@mac");
+DEFINE_TCASE(test_gen_url, "@url");
+DEFINE_TCASE(test_gen_domain, "@domain");
+DEFINE_TCASE(test_gen_uuid, "@uuid");
+DEFINE_TCASE(test_gen_word, "@word");
+DEFINE_TCASE(test_gen_words, "@words");
+DEFINE_TCASE(test_gen_words_n, "@words(5)");
+DEFINE_TCASE(test_gen_sentence, "@sentence");
+DEFINE_TCASE(test_gen_lorem, "@lorem");
+DEFINE_TCASE(test_gen_lorem_n, "@lorem(20)");
+DEFINE_TCASE(test_gen_product, "@product");
+DEFINE_TCASE(test_gen_color, "@color");
+DEFINE_TCASE(test_gen_credit_card, "@credit_card");
+DEFINE_TCASE(test_gen_date, "@date");
+DEFINE_TCASE(test_gen_date_range, "@date(1577836800,1735689599)");
+DEFINE_TCASE(test_gen_date_fmt, "@date(1577836800,1735689599,\"%d/%m/%Y\")");
+DEFINE_TCASE(test_gen_timestamp, "@timestamp");
+DEFINE_TCASE(test_gen_timestamp_range, "@timestamp(1700000000,1800000000)");
+DEFINE_TCASE(test_gen_int, "@int(18,90)");
+DEFINE_TCASE(test_gen_int_neg, "@int(-5,5)");
+DEFINE_TCASE(test_gen_int_single, "@int(7,7)");
+DEFINE_TCASE(test_gen_double, "@double(0.5,2.5)");
+DEFINE_TCASE(test_gen_double_ints, "@double(-1,1)");
+DEFINE_TCASE(test_gen_pick, "@pick(\"a\",\"b\",\"c\")");
+DEFINE_TCASE(test_gen_pick_weighted, "@pick(\"a\":90,\"b\":10)");
+DEFINE_TCASE(test_gen_pick_escaped, "@pick(\"say \\\"hi\\\"\",\"tab\\there\")");
+DEFINE_TCASE(test_gen_fmt, "@fmt(\"#{first_name}.#{last_name}@example.com\")");
+DEFINE_TCASE(test_gen_fmt_int, "@fmt(\"SKU-#{int(1000,9999)}\")");
+DEFINE_TCASE(test_gen_fmt_double, "@fmt(\"$#{double(1,100)}\")");
+DEFINE_TCASE(test_gen_fmt_pick, "@fmt(\"#{pick(\\\"x\\\",\\\"y\\\")}-#{uuid}\")");
+DEFINE_TCASE(test_gen_fmt_literal, "@fmt(\"constant\")");
+
+DEFINE_TCASE_DIFF(test_gen_spacing, "@int( 18 , 90 )", "@int(18,90)");
+DEFINE_TCASE_DIFF(test_gen_empty_parens, "@first_name()", "@first_name");
+DEFINE_TCASE_DIFF(test_gen_date_strings, "@date(\"2020-01-01\",\"2024-12-31\")",
+		"@date(1577836800,1735689599)");
+DEFINE_TCASE_DIFF(test_gen_date_default_fmt,
+		"@date(1577836800,1735689599,\"%Y-%m-%d\")",
+		"@date(1577836800,1735689599)");
+DEFINE_TCASE_DIFF(test_gen_timestamp_strings,
+		"@timestamp(\"2024-01-01\",\"2024-01-31\")",
+		"@timestamp(1704067200,1706745599)");
+DEFINE_TCASE_DIFF(test_gen_double_suffix, "@double(0.1f,0.2)", "@double(0.1,0.2)");
+DEFINE_TCASE_DIFF(test_gen_circle_default_bbox,
+		"@geo_circle(50,500,24,49,-125,-66)", "@geo_circle(50,500)");
+DEFINE_TCASE_DIFF(test_gen_name_space, "first= @first_name", "first=@first_name");
+
+DEFINE_TCASE(test_gen_named, "first=@first_name, age=@int(18,90)");
+DEFINE_TCASE(test_gen_list, "[3*@word]");
+DEFINE_TCASE(test_gen_map, "{5*@word:@int(1,5)}");
+DEFINE_TCASE(test_gen_map_str_key, "{@state_abbr:@city}");
+DEFINE_TCASE(test_gen_map_int_key, "{10*@int(1,1000):@email}");
+DEFINE_TCASE(test_gen_mixed, "I4, @email, [3*@word]");
+DEFINE_TCASE(test_gen_mult, "2*@word");
+DEFINE_TCASE(test_gen_named_mult, "tags=3*@word");
+DEFINE_TCASE(test_gen_named_mixed, "a=I4, S8, c=D");
+DEFINE_TCASE(test_gen_named_max_len, "abcdefghijklmno=I4");
+DEFINE_TCASE(test_gen_customer,
+		"id=@uuid, first=@first_name, last=@last_name, email=@email, "
+		"age=@int(18,90), city=@city, state=@state_abbr, zip=@zip, "
+		"joined=@date(1420070400,1767225599)");
+DEFINE_TCASE(test_gen_orders,
+		"orders=[3*{\"sku\":@product,\"qty\":@int(1,9),\"price\":@double(1,500)}]");
+DEFINE_TCASE(test_gen_feed,
+		"events=[2*{\"ts\":@timestamp,\"type\":@pick(\"view\",\"click\",\"buy\"),\"loc\":@geojson}]");
+DEFINE_TCASE(test_gen_nested_geo, "{3*@city:[2*@geo_circle]}");
+DEFINE_TCASE_WRITE_BINS(test_gen_wb, "a=@first_name, I4, c=@email, @uuid",
+		((uint32_t[]) { 0, 2, 3 }), 3);
+DEFINE_TCASE_WRITE_BINS(test_gen_wb_repeat, "tags=4*@word, n=@int(1,9)",
+		((uint32_t[]) { 1, 3, 4 }), 3);
+
+DEFINE_FAILING_TCASE(test_gen_unknown, "@nope", "unknown generator");
+DEFINE_FAILING_TCASE(test_gen_bare_at, "@", "missing generator name");
+DEFINE_FAILING_TCASE(test_gen_int_no_args, "@int", "@int needs 2 args");
+DEFINE_FAILING_TCASE(test_gen_int_one_arg, "@int(1)", "@int needs 2 args");
+DEFINE_FAILING_TCASE(test_gen_int_reversed, "@int(90,18)", "min > max");
+DEFINE_FAILING_TCASE(test_gen_int_double, "@int(1.5,2)", "@int needs integers");
+DEFINE_FAILING_TCASE(test_gen_int_unclosed, "@int(1,2", "unclosed args");
+DEFINE_FAILING_TCASE(test_gen_int_bad_sep, "@int(1;2)", "bad separator");
+DEFINE_FAILING_TCASE(test_gen_words_zero, "@words(0)", "count must be >= 1");
+DEFINE_FAILING_TCASE(test_gen_words_neg, "@words(-1)", "count must be >= 1");
+DEFINE_FAILING_TCASE(test_gen_lorem_zero, "@lorem(0)", "length must be >= 1");
+DEFINE_FAILING_TCASE(test_gen_date_reversed,
+		"@date(\"2024-12-31\",\"2020-01-01\")", "min > max");
+DEFINE_FAILING_TCASE(test_gen_date_bad_month,
+		"@date(\"2020-13-01\",\"2021-01-01\")", "invalid month");
+DEFINE_FAILING_TCASE(test_gen_date_bad_day,
+		"@date(\"2021-02-29\",\"2021-03-01\")", "invalid day");
+DEFINE_FAILING_TCASE(test_gen_date_one_arg, "@date(1)", "@date needs 0, 2 or 3 args");
+DEFINE_FAILING_TCASE(test_gen_date_empty_fmt, "@date(1,2,\"\")", "empty format");
+DEFINE_FAILING_TCASE(test_gen_date_year_range, "@date(0,999999999999)",
+		"year > 9999");
+DEFINE_FAILING_TCASE(test_gen_date_fmt_longest_names, "@date(0,1,\""
+		"123456789012345678901234567890123456789012345%A %B\")",
+		"64 chars on a Wednesday in September");
+DEFINE_FAILING_TCASE(test_gen_pick_empty, "@pick()", "@pick needs an option");
+DEFINE_FAILING_TCASE(test_gen_pick_zero_weight, "@pick(\"a\":0)", "weight must be > 0");
+DEFINE_FAILING_TCASE(test_gen_pick_mixed, "@pick(\"a\":5,\"b\")", "mixed weights");
+DEFINE_FAILING_TCASE(test_gen_pick_ints, "@pick(1,2)", "@pick needs strings");
+DEFINE_FAILING_TCASE(test_gen_fmt_unknown, "@fmt(\"#{unknown}\")", "unknown placeholder");
+DEFINE_FAILING_TCASE(test_gen_fmt_geo, "@fmt(\"#{geojson}\")", "geo placeholder");
+DEFINE_FAILING_TCASE(test_gen_fmt_nested, "@fmt(\"#{fmt(\\\"x\\\")}\")", "nested @fmt");
+DEFINE_FAILING_TCASE(test_gen_fmt_unterminated, "@fmt(\"#{first_name\")", "unterminated");
+DEFINE_FAILING_TCASE(test_gen_fmt_not_string, "@fmt(1)", "template must be a string");
+DEFINE_FAILING_TCASE(test_gen_no_args_allowed, "@first_name(1)", "takes no arguments");
+DEFINE_FAILING_TCASE(test_gen_geojson_two_args, "@geojson(1,2)", "0 or 4 args");
+DEFINE_FAILING_TCASE(test_gen_geojson_reversed, "@geojson(50,40,-1,1)", "min > max");
+DEFINE_FAILING_TCASE(test_gen_geojson_out_of_range, "@geojson(95,96,0,1)", "lat > 90");
+DEFINE_FAILING_TCASE(test_gen_circle_reversed, "@geo_circle(500,50)", "r_min > r_max");
+DEFINE_FAILING_TCASE(test_gen_lat_one_arg, "@lat(1)", "0 or 2 args");
+DEFINE_FAILING_TCASE(test_gen_double_string, "@double(\"a\",1)", "numeric args");
+DEFINE_FAILING_TCASE(test_gen_map_key_geo, "{@geojson:I}", "geo map key");
+DEFINE_FAILING_TCASE(test_gen_map_key_double, "{@lat:I}", "double map key");
+DEFINE_FAILING_TCASE(test_gen_map_key_double2, "{@double(1,2):I}", "double map key");
+DEFINE_FAILING_TCASE(test_gen_map_key_cardinality, "{60*@state:I}", "only 50 states");
+DEFINE_FAILING_TCASE(test_gen_map_key_now, "{2*@now:I}", "@now has 1 value");
+DEFINE_FAILING_TCASE(test_gen_name_too_long, "abcdefghijklmnop=@int(1,2)", "16 chars");
+DEFINE_FAILING_TCASE(test_gen_name_repeat_too_long, "abcdefghijklmn=2*I", "name_2 is 16 chars");
+DEFINE_FAILING_TCASE(test_gen_name_duplicate, "a=@int(1,2), a=@word", "duplicate name");
+DEFINE_FAILING_TCASE(test_gen_name_empty, "=@int(1,2)", "empty name");
+DEFINE_FAILING_TCASE(test_gen_name_in_list, "[a=I]", "nested name");
+DEFINE_FAILING_TCASE(test_gen_name_in_map, "{S4:a=I}", "nested name");
+
+START_TEST(test_gen_now)
+{
+	struct obj_spec_s o;
+	as_random random;
+	as_record rec;
+	char buf[16];
+
+	as_random_init(&random);
+	ck_assert_int_eq(obj_spec_parse(&o, "@now"), 0);
+	_dbg_sprint_obj_spec(&o, buf, sizeof(buf));
+	ck_assert_str_eq(buf, "@now");
+
+	int64_t t0 = (int64_t) cf_clock_getabsolute();
+	as_record_init(&rec, 1);
+	ck_assert_int_eq(obj_spec_populate_bins(&o, &rec, &random, "test", NULL, 0,
+				1.f), 0);
+	int64_t t1 = (int64_t) cf_clock_getabsolute();
+	int64_t v = as_record_get_int64(&rec, "test", -1);
+	ck_assert_int_ge(v, t0);
+	ck_assert_int_le(v, t1);
+	as_record_destroy(&rec);
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_gen_has_generators)
+{
+	struct obj_spec_s o;
+	ck_assert_int_eq(obj_spec_parse(&o, "I4, [S3, {S2:@word}]"), 0);
+	ck_assert(obj_spec_has_generators(&o));
+	ck_assert(!obj_spec_has_bin_names(&o));
+	obj_spec_free(&o);
+
+	ck_assert_int_eq(obj_spec_parse(&o, "I4, [S3, {S2:B4}], \"x\""), 0);
+	ck_assert(!obj_spec_has_generators(&o));
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_gen_resolve_names)
+{
+	struct obj_spec_s o;
+	as_bin_name names[6];
+	ck_assert_int_eq(obj_spec_parse(&o, "tags=3*@word, I, geo=@geojson, S2"), 0);
+	ck_assert(obj_spec_has_bin_names(&o));
+	ck_assert_int_eq(obj_spec_resolve_bin_names(&o, "x", names), 0);
+	ck_assert_str_eq(names[0], "tags");
+	ck_assert_str_eq(names[1], "tags_2");
+	ck_assert_str_eq(names[2], "tags_3");
+	ck_assert_str_eq(names[3], "x_4");
+	ck_assert_str_eq(names[4], "geo");
+	ck_assert_str_eq(names[5], "x_6");
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_gen_resolve_clash)
+{
+	struct obj_spec_s o;
+	as_bin_name names[3];
+	ck_assert_int_eq(obj_spec_parse(&o, "I, testbin=S4"), 0);
+	ck_assert_int_ne(obj_spec_resolve_bin_names(&o, "testbin", names), 0);
+	obj_spec_free(&o);
+
+	ck_assert_int_eq(obj_spec_parse(&o, "I, S4, testbin_2=I"), 0);
+	ck_assert_int_ne(obj_spec_resolve_bin_names(&o, "testbin", names), 0);
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_gen_bin_accessors)
+{
+	struct obj_spec_s o;
+	as_random random;
+	as_random_init(&random);
+	ck_assert_int_eq(obj_spec_parse(&o, "2*I1, {3*@word:@int(1,5)}, [@city]"), 0);
+	ck_assert_uint_eq(obj_spec_bin_spec(&o, 0)->type, BIN_SPEC_TYPE_INT);
+	ck_assert_uint_eq(obj_spec_bin_spec(&o, 1)->type, BIN_SPEC_TYPE_INT);
+	ck_assert_uint_eq(obj_spec_bin_spec(&o, 2)->type, BIN_SPEC_TYPE_MAP);
+	ck_assert_uint_eq(obj_spec_bin_spec(&o, 3)->type, BIN_SPEC_TYPE_LIST);
+
+	as_val* key = obj_spec_gen_map_key(&o, 2, &random);
+	ck_assert_ptr_ne(key, NULL);
+	ck_assert_int_eq(key->type, AS_STRING);
+	ck_assert(synth_check_val(&obj_spec_bin_spec(&o, 2)->map.kv_pairs[0].key.gen, key));
+	as_val_destroy(key);
+	ck_assert_ptr_eq(obj_spec_gen_map_key(&o, 3, &random), NULL);
+
+	as_val* map = obj_spec_gen_bin_val(&o, 2, &random, 1.f);
+	ck_assert_int_eq(map->type, AS_MAP);
+	ck_assert_uint_eq(as_map_size(as_map_fromval(map)), 3);
+	as_val_destroy(map);
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_gen_print_truncation)
+{
+	struct obj_spec_s o;
+	char buf[24];
+	memset(buf, 'Z', sizeof(buf));
+	ck_assert_int_eq(obj_spec_parse(&o,
+				"orders=[3*{\"sku\":@product,\"qty\":@int(1,9)}]"), 0);
+	snprint_obj_spec(&o, buf, 16);
+	ck_assert_uint_eq(strlen(buf), 15);
+	ck_assert_int_eq(buf[16], 'Z');
+	obj_spec_free(&o);
+}
+END_TEST
+
+START_TEST(test_gen_seeded_bins_independent)
+{
+	struct obj_spec_s o;
+	as_bin_name names[4];
+	as_random random;
+	as_record full, partial;
+	uint64_t seed = 12345;
+	uint32_t wb[] = { 1, 3 };
+
+	as_random_init(&random);
+	ck_assert_int_eq(obj_spec_parse(&o, "a=@email, b=@uuid, c=@int(1,1000000), d=[3*@word]"), 0);
+	ck_assert_int_eq(obj_spec_resolve_bin_names(&o, "x", names), 0);
+
+	as_record_init(&full, 4);
+	as_record_init(&partial, 2);
+	ck_assert_int_eq(obj_spec_populate_bins_named(&o, &full, &random,
+				(const as_bin_name*) names, NULL, 0, 1.f, &seed), 0);
+	ck_assert_int_eq(obj_spec_populate_bins_named(&o, &partial, &random,
+				(const as_bin_name*) names, wb, 2, 1.f, &seed), 0);
+
+	ck_assert(as_val_cmp((as_val*) as_record_get(&full, "b"),
+				(as_val*) as_record_get(&partial, "b")) == MSGPACK_COMPARE_EQUAL);
+	ck_assert(as_val_cmp((as_val*) as_record_get(&full, "d"),
+				(as_val*) as_record_get(&partial, "d")) == MSGPACK_COMPARE_EQUAL);
+
+	as_record_destroy(&full);
+	as_record_destroy(&partial);
+	obj_spec_free(&o);
+}
+END_TEST
+
+
 #define tcase_add_ptest(tcase, test_name) \
 	do { \
 		tcase_add_test(tcase, test_name ## _str_cmp); \
@@ -655,6 +951,7 @@ obj_spec_suite(void)
 	TCase* tc_write_bins;
 	TCase* tc_bin_names;
 	TCase* tc_spacing;
+	TCase* tc_generators;
 
 	s = suite_create("Object Spec");
 
@@ -958,6 +1255,143 @@ obj_spec_suite(void)
 	tcase_add_ptest(tc_spacing, test_space_list);
 	tcase_add_ptest(tc_spacing, test_space_map);
 	suite_add_tcase(s, tc_spacing);
+
+	tc_generators = tcase_create("Generators");
+	tcase_add_checked_fixture(tc_generators, simple_setup, simple_teardown);
+	tcase_add_ptest(tc_generators, test_gen_first_name);
+	tcase_add_ptest(tc_generators, test_gen_last_name);
+	tcase_add_ptest(tc_generators, test_gen_full_name);
+	tcase_add_ptest(tc_generators, test_gen_username);
+	tcase_add_ptest(tc_generators, test_gen_email);
+	tcase_add_ptest(tc_generators, test_gen_phone);
+	tcase_add_ptest(tc_generators, test_gen_street);
+	tcase_add_ptest(tc_generators, test_gen_city);
+	tcase_add_ptest(tc_generators, test_gen_state);
+	tcase_add_ptest(tc_generators, test_gen_state_abbr);
+	tcase_add_ptest(tc_generators, test_gen_zip);
+	tcase_add_ptest(tc_generators, test_gen_country);
+	tcase_add_ptest(tc_generators, test_gen_country_code);
+	tcase_add_ptest(tc_generators, test_gen_lat);
+	tcase_add_ptest(tc_generators, test_gen_lat_range);
+	tcase_add_ptest(tc_generators, test_gen_lon);
+	tcase_add_ptest(tc_generators, test_gen_lon_range);
+	tcase_add_ptest(tc_generators, test_gen_geojson);
+	tcase_add_ptest(tc_generators, test_gen_geojson_bbox);
+	tcase_add_ptest(tc_generators, test_gen_geo_circle);
+	tcase_add_ptest(tc_generators, test_gen_geo_circle_r);
+	tcase_add_ptest(tc_generators, test_gen_geo_circle_bbox);
+	tcase_add_ptest(tc_generators, test_gen_company);
+	tcase_add_ptest(tc_generators, test_gen_job_title);
+	tcase_add_ptest(tc_generators, test_gen_ipv4);
+	tcase_add_ptest(tc_generators, test_gen_ipv6);
+	tcase_add_ptest(tc_generators, test_gen_mac);
+	tcase_add_ptest(tc_generators, test_gen_url);
+	tcase_add_ptest(tc_generators, test_gen_domain);
+	tcase_add_ptest(tc_generators, test_gen_uuid);
+	tcase_add_ptest(tc_generators, test_gen_word);
+	tcase_add_ptest(tc_generators, test_gen_words);
+	tcase_add_ptest(tc_generators, test_gen_words_n);
+	tcase_add_ptest(tc_generators, test_gen_sentence);
+	tcase_add_ptest(tc_generators, test_gen_lorem);
+	tcase_add_ptest(tc_generators, test_gen_lorem_n);
+	tcase_add_ptest(tc_generators, test_gen_product);
+	tcase_add_ptest(tc_generators, test_gen_color);
+	tcase_add_ptest(tc_generators, test_gen_credit_card);
+	tcase_add_ptest(tc_generators, test_gen_date);
+	tcase_add_ptest(tc_generators, test_gen_date_range);
+	tcase_add_ptest(tc_generators, test_gen_date_fmt);
+	tcase_add_ptest(tc_generators, test_gen_timestamp);
+	tcase_add_ptest(tc_generators, test_gen_timestamp_range);
+	tcase_add_ptest(tc_generators, test_gen_int);
+	tcase_add_ptest(tc_generators, test_gen_int_neg);
+	tcase_add_ptest(tc_generators, test_gen_int_single);
+	tcase_add_ptest(tc_generators, test_gen_double);
+	tcase_add_ptest(tc_generators, test_gen_double_ints);
+	tcase_add_ptest(tc_generators, test_gen_pick);
+	tcase_add_ptest(tc_generators, test_gen_pick_weighted);
+	tcase_add_ptest(tc_generators, test_gen_pick_escaped);
+	tcase_add_ptest(tc_generators, test_gen_fmt);
+	tcase_add_ptest(tc_generators, test_gen_fmt_int);
+	tcase_add_ptest(tc_generators, test_gen_fmt_double);
+	tcase_add_ptest(tc_generators, test_gen_fmt_pick);
+	tcase_add_ptest(tc_generators, test_gen_fmt_literal);
+	tcase_add_ptest(tc_generators, test_gen_spacing);
+	tcase_add_ptest(tc_generators, test_gen_empty_parens);
+	tcase_add_ptest(tc_generators, test_gen_date_strings);
+	tcase_add_ptest(tc_generators, test_gen_date_default_fmt);
+	tcase_add_ptest(tc_generators, test_gen_timestamp_strings);
+	tcase_add_ptest(tc_generators, test_gen_double_suffix);
+	tcase_add_ptest(tc_generators, test_gen_circle_default_bbox);
+	tcase_add_ptest(tc_generators, test_gen_name_space);
+	tcase_add_ptest(tc_generators, test_gen_named);
+	tcase_add_ptest(tc_generators, test_gen_list);
+	tcase_add_ptest(tc_generators, test_gen_map);
+	tcase_add_ptest(tc_generators, test_gen_map_str_key);
+	tcase_add_ptest(tc_generators, test_gen_map_int_key);
+	tcase_add_ptest(tc_generators, test_gen_mixed);
+	tcase_add_ptest(tc_generators, test_gen_mult);
+	tcase_add_ptest(tc_generators, test_gen_named_mult);
+	tcase_add_ptest(tc_generators, test_gen_named_mixed);
+	tcase_add_ptest(tc_generators, test_gen_named_max_len);
+	tcase_add_ptest(tc_generators, test_gen_customer);
+	tcase_add_ptest(tc_generators, test_gen_orders);
+	tcase_add_ptest(tc_generators, test_gen_feed);
+	tcase_add_ptest(tc_generators, test_gen_nested_geo);
+	tcase_add_ptest(tc_generators, test_gen_wb);
+	tcase_add_ptest(tc_generators, test_gen_wb_repeat);
+	tcase_add_ftest(tc_generators, test_gen_unknown);
+	tcase_add_ftest(tc_generators, test_gen_bare_at);
+	tcase_add_ftest(tc_generators, test_gen_int_no_args);
+	tcase_add_ftest(tc_generators, test_gen_int_one_arg);
+	tcase_add_ftest(tc_generators, test_gen_int_reversed);
+	tcase_add_ftest(tc_generators, test_gen_int_double);
+	tcase_add_ftest(tc_generators, test_gen_int_unclosed);
+	tcase_add_ftest(tc_generators, test_gen_int_bad_sep);
+	tcase_add_ftest(tc_generators, test_gen_words_zero);
+	tcase_add_ftest(tc_generators, test_gen_words_neg);
+	tcase_add_ftest(tc_generators, test_gen_lorem_zero);
+	tcase_add_ftest(tc_generators, test_gen_date_reversed);
+	tcase_add_ftest(tc_generators, test_gen_date_bad_month);
+	tcase_add_ftest(tc_generators, test_gen_date_bad_day);
+	tcase_add_ftest(tc_generators, test_gen_date_one_arg);
+	tcase_add_ftest(tc_generators, test_gen_date_empty_fmt);
+	tcase_add_ftest(tc_generators, test_gen_date_year_range);
+	tcase_add_ftest(tc_generators, test_gen_date_fmt_longest_names);
+	tcase_add_ftest(tc_generators, test_gen_pick_empty);
+	tcase_add_ftest(tc_generators, test_gen_pick_zero_weight);
+	tcase_add_ftest(tc_generators, test_gen_pick_mixed);
+	tcase_add_ftest(tc_generators, test_gen_pick_ints);
+	tcase_add_ftest(tc_generators, test_gen_fmt_unknown);
+	tcase_add_ftest(tc_generators, test_gen_fmt_geo);
+	tcase_add_ftest(tc_generators, test_gen_fmt_nested);
+	tcase_add_ftest(tc_generators, test_gen_fmt_unterminated);
+	tcase_add_ftest(tc_generators, test_gen_fmt_not_string);
+	tcase_add_ftest(tc_generators, test_gen_no_args_allowed);
+	tcase_add_ftest(tc_generators, test_gen_geojson_two_args);
+	tcase_add_ftest(tc_generators, test_gen_geojson_reversed);
+	tcase_add_ftest(tc_generators, test_gen_geojson_out_of_range);
+	tcase_add_ftest(tc_generators, test_gen_circle_reversed);
+	tcase_add_ftest(tc_generators, test_gen_lat_one_arg);
+	tcase_add_ftest(tc_generators, test_gen_double_string);
+	tcase_add_ftest(tc_generators, test_gen_map_key_geo);
+	tcase_add_ftest(tc_generators, test_gen_map_key_double);
+	tcase_add_ftest(tc_generators, test_gen_map_key_double2);
+	tcase_add_ftest(tc_generators, test_gen_map_key_cardinality);
+	tcase_add_ftest(tc_generators, test_gen_map_key_now);
+	tcase_add_ftest(tc_generators, test_gen_name_too_long);
+	tcase_add_ftest(tc_generators, test_gen_name_repeat_too_long);
+	tcase_add_ftest(tc_generators, test_gen_name_duplicate);
+	tcase_add_ftest(tc_generators, test_gen_name_empty);
+	tcase_add_ftest(tc_generators, test_gen_name_in_list);
+	tcase_add_ftest(tc_generators, test_gen_name_in_map);
+	tcase_add_test(tc_generators, test_gen_now);
+	tcase_add_test(tc_generators, test_gen_has_generators);
+	tcase_add_test(tc_generators, test_gen_resolve_names);
+	tcase_add_test(tc_generators, test_gen_resolve_clash);
+	tcase_add_test(tc_generators, test_gen_bin_accessors);
+	tcase_add_test(tc_generators, test_gen_print_truncation);
+	tcase_add_test(tc_generators, test_gen_seeded_bins_independent);
+	suite_add_tcase(s, tc_generators);
 
 	return s;
 }

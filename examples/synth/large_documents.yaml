@@ -1,0 +1,20 @@
+# 1 KB documents, the asbench version of datasynth examples/transformer.json.
+# asbench -h 127.0.0.1 -n test -s frodo --workload-stages examples/synth/large_documents.yaml
+- stage: 1
+  desc: "load 1M records with a 1 KB text payload"
+  workload: I
+  key-start: 1
+  key-end: 1000001
+  object-spec: 'payload=@lorem(1024), partner=@pick("1212121212","3434343434","5656565656"), created=@now'
+- stage: 2
+  desc: "read-heavy mix, 95% reads"
+  workload: RU,95
+  duration: 60
+  key-start: 1
+  key-end: 1000001
+- stage: 3
+  desc: "80% reads, 10% updates, 10% deletes"
+  workload: RUD,80,10
+  duration: 30
+  key-start: 1
+  key-end: 1000001

@@ -23,6 +23,7 @@ jobs:
     - name: Install event libs
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get update
           sudo apt-get install -y libevent-dev libev-dev libuv1-dev libyaml-dev
         elif [ "$RUNNER_OS" == "macOS" ]; then
           brew update
@@ -77,6 +78,12 @@ jobs:
     - name: Build asbench
       run: make EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
+    - name: Test synthetic data generator script
+      run: python3 -m unittest scripts/test_gen_synth_data.py
+      working-directory: main
+    - name: Synthetic data generation benchmark
+      run: ./target/asbench --gen-bench 200000 -z 2 -o "id=@uuid, first=@first_name, email=@email, age=@int(18,90), loc=@geojson"
+      working-directory: main
     - name: Test
       run: make coverage-all EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
@@ -85,9 +92,11 @@ jobs:
         rm -rf client
         rm -rf main/target
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # v3.1.6
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
-        verbose: false
-        directory: main/test_target
         files: main/test_target/aerospike-benchmark-all.info
+        disable_search: true
+        flags: ${{ matrix.ev-lib }}
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
 

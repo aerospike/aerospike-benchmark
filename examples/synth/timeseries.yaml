@@ -1,0 +1,9 @@
+# Per-device time series: keep one day of minute samples, read the last hour.
+# asbench -h 127.0.0.1 -n test -s metrics --workload-stages examples/synth/timeseries.yaml
+- stage: 1
+  desc: "time series, 20% reads of the last 60 samples"
+  workload: C,20,1440,60
+  duration: 120
+  key-start: 1
+  key-end: 200001
+  object-spec: 'samples=[1*[@timestamp,@double(0,100)]], updated=@now'

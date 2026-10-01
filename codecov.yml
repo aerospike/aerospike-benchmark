@@ -1,0 +1,25 @@
+codecov:
+  notify:
+    after_n_builds: 3
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  after_n_builds: 3
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+
+ignore:
+  - "src/main/synth_data_*.c"
+  - "src/include/synth_data_tables.h"
