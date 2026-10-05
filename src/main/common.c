@@ -668,6 +668,11 @@ static bool
 password_secret(const sa_args_t* sa, const char* option, const char* path,
 		char** ptr)
 {
+	if (sa == NULL) {
+		fprintf(stderr, "%s: no secret agent settings for %s\n", option, path);
+		return false;
+	}
+
 	sa_cfg cfg;
 
 	sa_cfg_init(&cfg);

@@ -238,7 +238,8 @@ typedef struct sa_args_s {
  *                  if first_line is true, everything before the first \r or \n
  *                  (how --tls-keyfile-password has always read its file)
  * secrets:<PATH>   the secret at secrets:<PATH>, fetched from the Secret Agent
- *                  described by sa
+ *                  described by sa, which may be NULL only when no value uses
+ *                  secrets:
  * anything else    the value itself
  *
  * the value is used as given. A --tls-keyfile-password value, whether given on

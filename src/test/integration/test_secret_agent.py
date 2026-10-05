@@ -43,6 +43,8 @@ SECRETS = {
 	"trailing_newline": SECRET + "\n",
 	"with_nul": "ab\0xyzzy",
 	"empty": "",
+	"max_len": "m" * 63,
+	"too_long": "L" * 64,
 }
 
 
@@ -313,6 +315,14 @@ def test_agent_unreachable(opt, args):
 	assert("secret-agent: ERR: connect failed: " in out), out
 	assert("(Connection refused)" in out), out
 	assert(CONNECT_FAILED not in out), out
+
+
+def test_password_not_fetched_without_user():
+	rc, out = run(["-P", "secrets:asbench:pw", "--sa-port", closed_port()])
+
+	assert("--password:" not in out), out
+	assert("secret-agent:" not in out), out
+	assert(CONNECT_FAILED in out), out
 
 
 @pytest.mark.parametrize("sa_args", [
@@ -665,6 +675,23 @@ def test_login_uses_secret_over_tls(agent):
 	assert(lib.capture_login(["-U", "admin", "-Psecrets:asbench:pw",
 		"--sa-address", "localhost:" + agent.tls_port, "--sa-cafile",
 		agent.cert]) == lib.literal_login(SECRET))
+
+
+def test_login_uses_63_byte_secret(agent):
+	assert(lib.capture_login(["-U", "admin", "-P", "secrets:asbench:max_len",
+		"--sa-port", agent.port]) == lib.literal_login("m" * 63))
+
+
+def test_64_byte_secret_fails(agent):
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:too_long",
+		"--sa-port", agent.port])
+
+	assert(rc != 0)
+	assert("--password: value from secrets:asbench:too_long is longer than 63 "
+			"bytes\n" in out), out
+	assert("L" * 64 not in out), out
+	assert(b64("L" * 64)[:8] not in out), out
+	assert(CONNECT_FAILED not in out), out
 
 
 def test_tls_keyfile_password(agent, files):
