@@ -825,7 +825,8 @@ HELP_PASSWORD = """\
      3) Base64 encoded string: 'b64:<BASE64>'
      4) File: 'file:<PATH>', the whole file less one trailing '\\n' or
         '\\r\\n'. PATH should name a regular file.
-     5) String: 'PASSWORD'
+     5) Aerospike Secret Agent: 'secrets:<resource>:<key>'
+     6) String: 'PASSWORD'
    Prefixes are case-sensitive. A base64 value may be line wrapped,
    and one trailing newline is dropped after decoding. A 'b64:' value
    on the command line is as visible as a literal password.
@@ -850,7 +851,8 @@ HELP_TLS_KEYFILE_PASSWORD = """\
      2) Base64 encoded environment variable: 'env-b64:<VAR>'
      3) Base64 encoded string: 'b64:<BASE64>'
      4) File: 'file:<PATH>', the first line of the file
-     5) String: 'PASSWORD'
+     5) Aerospike Secret Agent: 'secrets:<resource>:<key>'
+     6) String: 'PASSWORD'
    Prefixes are case-sensitive. A base64 value may be line wrapped,
    and one trailing newline is dropped after decoding.
    A password that itself begins with 'env:', 'env-b64:', 'b64:' or

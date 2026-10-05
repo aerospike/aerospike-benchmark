@@ -218,6 +218,16 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
 #define PASSWORD_WHITESPACE " \t\n\v\f\r"
 
 /*
+ * where to find the Aerospike Secret Agent for secrets: passwords
+ */
+typedef struct sa_args_s {
+	char* host;
+	char* port;
+	int timeout_ms;
+	char* cafile;
+} sa_args_t;
+
+/*
  * resolves the value given to a password option (named by option, which is
  * only used in error messages) into the password itself
  *
@@ -227,6 +237,8 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
  * file:<PATH>      the contents of <PATH>, minus one trailing line ending, or
  *                  if first_line is true, everything before the first \r or \n
  *                  (how --tls-keyfile-password has always read its file)
+ * secrets:<PATH>   the secret at secrets:<PATH>, fetched from the Secret Agent
+ *                  described by sa
  * anything else    the value itself
  *
  * the value is used as given. A --tls-keyfile-password value, whether given on
@@ -235,15 +247,16 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
  * What a source reads loses only the line endings described above.
  *
  * a missing variable name or path, an unset or empty variable, an unreadable
- * file, invalid base64, a NUL byte or an empty result is an error, and so is a
- * password longer than max_len bytes. A file: source reads at most
- * max_len + 3 bytes. Error messages never contain the password.
+ * file, invalid base64, a failed Secret Agent request, a NUL byte or an empty
+ * result is an error, and so is a password longer than max_len bytes. A file:
+ * source reads at most max_len + 3 bytes. Error messages never contain the
+ * password.
  *
  * returns true on success, false on failure. On success, *ptr must be freed by
  * the caller at some point
  */
-bool read_password(const char* option, const char* value, size_t max_len,
-		bool first_line, char** ptr);
+bool read_password(const sa_args_t* sa, const char* option, const char* value,
+		size_t max_len, bool first_line, char** ptr);
 
 bool password_has_source(const char* value);
 
