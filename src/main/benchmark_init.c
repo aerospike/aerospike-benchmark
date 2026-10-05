@@ -381,8 +381,15 @@ print_usage(const char* program)
 	printf("   User's password for Aerospike servers that require authentication.\n");
 	printf("   If -P is set, the actual password is optional. If the password is not given,\n");
 	printf("   the user will be prompted on the command line.\n");
-	printf("   If the password is given, it must be provided directly after -P with no\n");
-	printf("   intervening space (ie. -Pmypass).\n");
+	printf("   If the password is given, it can follow -P directly (ie. -Pmypass) or as\n");
+	printf("   the next argument (ie. -P mypass).\n");
+	printf("   It can be one of the following:\n");
+	printf("     1) Environment variable: 'env:<VAR>'\n");
+	printf("     2) Base64 encoded environment variable: 'env-b64:<VAR>'\n");
+	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
+	printf("     4) File: 'file:<PATH>'\n");
+	printf("     5) String: 'PASSWORD'\n");
+	printf("   A password typed at the prompt is used as is.\n");
 	printf("\n");
 
 	printf("   --services-alternate\n");
@@ -887,12 +894,15 @@ print_usage(const char* program)
 	printf("   --tls-keyfile-password=TLS_KEYFILE_PASSWORD\n");
 	printf("   Password to load protected tls-keyfile.\n");
 	printf("   It can be one of the following:\n");
-	printf("     1) Environment varaible: 'env:<VAR>'\n");
-	printf("     2) File: 'file:<PATH>'\n");
-	printf("     3) String: 'PASSWORD'\n");
+	printf("     1) Environment variable: 'env:<VAR>'\n");
+	printf("     2) Base64 encoded environment variable: 'env-b64:<VAR>'\n");
+	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
+	printf("     4) File: 'file:<PATH>'\n");
+	printf("     5) String: 'PASSWORD'\n");
 	printf("   Default: none\n");
 	printf("   User will be prompted on command line if --tls-keyfile-password\n");
-	printf("   specified and no password is given.\n");
+	printf("   specified and no password is given. A password typed at the prompt\n");
+	printf("   is used as is.\n");
 	printf("\n");
 
 	printf("   --tls-certfile <path>\n");
@@ -1295,6 +1305,7 @@ set_args(int argc, char * const* argv, args_t* args)
 {
 	int option_index = 0;
 	int c;
+	const char* password_arg = NULL;
 
 	while ((c = getopt_long_only(argc, argv, short_options, long_options,
 					&option_index)) != -1) {
@@ -1341,9 +1352,9 @@ set_args(int argc, char * const* argv, args_t* args)
 							argv[optind][0] != '\0' &&
 							argv[optind][0] != '-' ) {
 					// space separated argument value
-					as_strncpy(args->password, argv[optind], AS_PASSWORD_SIZE);
+					password_arg = argv[optind];
 				} else {
-					as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
+					password_arg = optarg != NULL ? optarg : "";
 				}
 				break;
 			case BENCH_OPT_CONNECT_TIMEOUT:
@@ -1881,6 +1892,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 
 			case TLS_OPT_KEY_FILE_PASSWORD:
+				cf_free(args->tls.keyfile_pw);
 				if (optarg == NULL) {
 					if (optind < argc &&
 							argv[optind] != NULL &&
@@ -1920,21 +1932,40 @@ set_args(int argc, char * const* argv, args_t* args)
 		}
 	}
 
-	if (args->tls.keyfile && args->tls.keyfile_pw) {
-		if (strcmp(args->tls.keyfile_pw, "") == 0) {
-			printf("keyfile pw: %s\n", args->tls.keyfile_pw);
-			args->tls.keyfile_pw = getpass("Enter TLS-Keyfile Password: ");
+	if (password_arg != NULL) {
+		if (password_arg[0] == '\0') {
+			as_password_acquire(args->password, NULL, AS_PASSWORD_SIZE);
 		}
+		else {
+			char* pw;
 
-		char* old_pass = args->tls.keyfile_pw;
-		if (!tls_read_password(old_pass, &args->tls.keyfile_pw)) {
+			if (!read_password("--password", password_arg, &pw)) {
+				return 1;
+			}
+
+			as_strncpy(args->password, pw, AS_PASSWORD_SIZE);
+			cf_free(pw);
+		}
+	}
+
+	if (args->tls.keyfile && args->tls.keyfile_pw) {
+		char* pw;
+
+		if (args->tls.keyfile_pw[0] == '\0') {
+			const char* typed = getpass("Enter TLS-Keyfile Password: ");
+			pw = strdup(typed != NULL ? typed : "");
+		}
+		else if (!read_password("--tls-keyfile-password", args->tls.keyfile_pw,
+					&pw)) {
 			return 1;
 		}
-		cf_free(old_pass);
+
+		cf_free(args->tls.keyfile_pw);
+		args->tls.keyfile_pw = pw;
 	}
 
 	if (args->user != NULL && args->password[0] == '\0') {
-		as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
+		as_password_acquire(args->password, NULL, AS_PASSWORD_SIZE);
 	}
 
 	return validate_args(args);

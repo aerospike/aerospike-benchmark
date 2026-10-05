@@ -24,11 +24,13 @@
 // Includes.
 //
 
+#include <errno.h>
 #include <string.h>
 #include <time.h>
 
 #include <aerospike/as_boolean.h>
 #include <aerospike/as_msgpack.h>
+#include <citrusleaf/cf_b64.h>
 
 #include "common.h"
 
@@ -222,17 +224,13 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_idx)
 }
 
 static bool
-password_env(const char *var, char **ptr)
+password_env(const char* option, const char* var, char** ptr)
 {
-	char *pw = getenv(var);
+	const char* pw = getenv(var);
 
-	if (pw == NULL) {
-		fprintf(stderr, "missing TLS key password environment variable %s\n", var);
-		return false;
-	}
-
-	if (pw[0] == 0) {
-		fprintf(stderr, "empty TLS key password environment variable %s\n", var);
+	if (pw == NULL || pw[0] == '\0') {
+		fprintf(stderr, "%s: environment variable %s is not set or empty\n",
+				option, var);
 		return false;
 	}
 
@@ -241,58 +239,153 @@ password_env(const char *var, char **ptr)
 }
 
 static bool
-password_file(const char *path, char **ptr)
+password_b64(const char* encoded, char** ptr)
 {
-	FILE *fh = fopen(path, "r");
+	size_t len = strlen(encoded);
+	char* pw = cf_malloc(len + 1);
+	uint32_t n = 0;
+	uint32_t size;
 
-	if (fh == NULL) {
-		fprintf(stderr, "missing TLS key password file %s\n", path);
-		return false;
-	}
-
-	char pw[5000];
-	char *res = fgets(pw, sizeof(pw), fh);
-
-	fclose(fh);
-
-	if (res == NULL) {
-		fprintf(stderr, "error while reading TLS key password file %s\n", path);
-		return false;
-	}
-
-	int32_t pw_len;
-
-	for (pw_len = 0; pw[pw_len] != 0; pw_len++) {
-		if (pw[pw_len] == '\n' || pw[pw_len] == '\r') {
-			break;
+	// line breaks are skipped, as Go's base64.StdEncoding does
+	for (size_t i = 0; i < len; i++) {
+		if (encoded[i] != '\r' && encoded[i] != '\n') {
+			pw[n++] = encoded[i];
 		}
 	}
 
-	if (pw_len == sizeof(pw) - 1) {
-		fprintf(stderr, "TLS key password in file %s too long\n", path);
+	if (!cf_b64_validate_and_decode_in_place((uint8_t*) pw, n, &size)) {
+		cf_free(pw);
 		return false;
 	}
 
-	pw[pw_len] = 0;
+	if (size != 0 && pw[size - 1] == '\n') {
+		size--;
+	}
 
-	if (pw_len == 0) {
-		fprintf(stderr, "empty TLS key password file %s\n", path);
+	pw[size] = '\0';
+	*ptr = pw;
+	return true;
+}
+
+static bool
+password_file(const char* option, const char* path, char** ptr)
+{
+	FILE* fh = fopen(path, "r");
+
+	if (fh == NULL) {
+		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
+				strerror(errno));
 		return false;
 	}
 
-	*ptr = strdup(pw);
+	size_t cap = 256;
+	size_t len = 0;
+	size_t n;
+	char* pw = cf_malloc(cap);
+
+	while ((n = fread(pw + len, 1, cap - len - 1, fh)) != 0) {
+		len += n;
+
+		if (len == cap - 1) {
+			cap *= 2;
+			pw = cf_realloc(pw, cap);
+		}
+	}
+
+	if (ferror(fh)) {
+		int err = errno;
+
+		fclose(fh);
+		cf_free(pw);
+		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
+				strerror(err));
+		return false;
+	}
+
+	fclose(fh);
+
+	if (len != 0 && pw[len - 1] == '\n') {
+		len--;
+
+		if (len != 0 && pw[len - 1] == '\r') {
+			len--;
+		}
+	}
+
+	pw[len] = '\0';
+
+	if (len == 0) {
+		fprintf(stderr, "%s: file %s is empty\n", option, path);
+		cf_free(pw);
+		return false;
+	}
+
+	*ptr = pw;
 	return true;
 }
 
 bool
-tls_read_password(char *value, char **ptr)
+read_password(const char* option, const char* value, char** ptr)
 {
+	char* pw;
+
 	if (strncmp(value, "env:", 4) == 0) {
-		return password_env(value + 4, ptr);
+		return password_env(option, value + 4, ptr);
+	}
+
+	if (strncmp(value, "env-b64:", 8) == 0) {
+		const char* var = value + 8;
+		char* encoded;
+
+		if (!password_env(option, var, &encoded)) {
+			return false;
+		}
+
+		bool ok = password_b64(encoded, &pw);
+
+		cf_free(encoded);
+
+		if (!ok) {
+			fprintf(stderr, "%s: invalid base64 in environment variable %s\n",
+					option, var);
+			return false;
+		}
+
+		if (pw[0] == '\0') {
+			fprintf(stderr, "%s: environment variable %s decodes to an empty "
+					"password\n", option, var);
+			cf_free(pw);
+			return false;
+		}
+
+		*ptr = pw;
+		return true;
+	}
+
+	if (strncmp(value, "b64:", 4) == 0) {
+		if (!password_b64(value + 4, &pw)) {
+			fprintf(stderr, "%s: invalid base64 in b64: value\n", option);
+			return false;
+		}
+
+		if (pw[0] == '\0') {
+			fprintf(stderr, "%s: b64: value decodes to an empty password\n",
+					option);
+			cf_free(pw);
+			return false;
+		}
+
+		*ptr = pw;
+		return true;
 	}
 
 	if (strncmp(value, "file:", 5) == 0) {
-		return password_file(value + 5, ptr);
+		return password_file(option, value + 5, ptr);
+	}
+
+	if (value[0] == '\0') {
+		fprintf(stderr, "%s: password is empty\n", option);
+		return false;
 	}
 
 	*ptr = strdup(value);
