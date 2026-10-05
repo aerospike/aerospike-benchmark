@@ -65,6 +65,34 @@ def test_tls_keyfile_password_env_unset():
 			"empty" % ENV_UNSET) in out), out
 
 
+def test_login_fixture_tells_passwords_apart():
+	assert(lib.literal_login(SECRET) != lib.literal_login("wrong"))
+
+
+def test_login_uses_env_password():
+	assert(lib.capture_login(["-U", "admin", "-P", "env:" + ENV_VAR],
+			env={ENV_VAR: SECRET}) == lib.literal_login(SECRET))
+
+
+def test_login_uses_env_password_wrong_value():
+	login = lib.capture_login(["-U", "admin", "-P", "env:" + ENV_VAR],
+			env={ENV_VAR: "wrong"})
+	assert(login == lib.literal_login("wrong"))
+	assert(login != lib.literal_login(SECRET))
+
+
+def test_login_uses_b64_password():
+	assert(lib.capture_login(["-U", "admin", "--password=b64:czNjcjN0LXB3"]) ==
+			lib.literal_login(SECRET))
+
+
+def test_login_uses_file_password(tmp_path):
+	path = tmp_path / "pw"
+	path.write_text(SECRET + "\n")
+	assert(lib.capture_login(["-U", "admin", "-Pfile:%s" % path]) ==
+			lib.literal_login(SECRET))
+
+
 def test_settings_dump_hides_password():
 	rc, out = run_no_server(["-U", "admin", "-P", "env:" + ENV_VAR, "-k", "1",
 		"-t", "1", "-d"], env={ENV_VAR: SECRET}, gen_bench=False)
