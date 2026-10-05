@@ -389,7 +389,9 @@ print_usage(const char* program)
 	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
 	printf("     4) File: 'file:<PATH>'\n");
 	printf("     5) String: 'PASSWORD'\n");
-	printf("   A password typed at the prompt is used as is.\n");
+	printf("   A value read from one of the sources 1-4 must be at most 63 bytes. The value\n");
+	printf("   is only read when --user is given. A password typed at the prompt is used\n");
+	printf("   as is.\n");
 	printf("\n");
 
 	printf("   --services-alternate\n");
@@ -1936,10 +1938,11 @@ set_args(int argc, char * const* argv, args_t* args)
 		if (password_arg[0] == '\0') {
 			as_password_acquire(args->password, NULL, AS_PASSWORD_SIZE);
 		}
-		else {
+		else if (args->user != NULL) {
 			char* pw;
 
-			if (!read_password("--password", password_arg, &pw)) {
+			if (!read_password("--password", password_arg, AS_PASSWORD_SIZE - 1,
+						&pw)) {
 				return 1;
 			}
 
@@ -1955,7 +1958,7 @@ set_args(int argc, char * const* argv, args_t* args)
 			const char* typed = getpass("Enter TLS-Keyfile Password: ");
 			pw = strdup(typed != NULL ? typed : "");
 		}
-		else if (!read_password("--tls-keyfile-password", args->tls.keyfile_pw,
+		else if (!read_password("--tls-keyfile-password", args->tls.keyfile_pw, 0,
 					&pw)) {
 			return 1;
 		}

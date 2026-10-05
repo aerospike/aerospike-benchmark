@@ -93,6 +93,53 @@ def test_login_uses_file_password(tmp_path):
 			lib.literal_login(SECRET))
 
 
+def test_password_not_read_without_user():
+	rc, out = run_no_server(["-P", "env:" + ENV_UNSET])
+	assert(rc == 0), out
+	assert("--password:" not in out), out
+	assert("Enter Password" not in out), out
+
+
+def test_bare_password_prompts_without_user():
+	rc, out = run_no_server(["-P"], stdin="typed\n")
+	assert(rc == 0), out
+	assert("Enter Password" in out), out
+
+
+def test_login_uses_63_byte_env_password():
+	value = "x" * 63
+	assert(lib.capture_login(["-U", "admin", "-P", "env:" + ENV_VAR],
+			env={ENV_VAR: value}) == lib.literal_login(value))
+
+
+def test_64_byte_env_password_fails():
+	rc, out = run_no_server(["-U", "admin", "-P", "env:" + ENV_VAR],
+			env={ENV_VAR: "y" * 64})
+	assert(rc != 0)
+	assert(("--password: value from environment variable %s is longer than 63 "
+			"bytes\n" % ENV_VAR) in out), out
+	assert("y" * 64 not in out)
+	assert("Enter Password" not in out)
+
+
+def test_login_uses_63_byte_file_password(tmp_path):
+	value = "x" * 63
+	path = tmp_path / "pw"
+	path.write_text(value + "\n")
+	assert(lib.capture_login(["-U", "admin", "-P", "file:%s" % path]) ==
+			lib.literal_login(value))
+
+
+def test_64_byte_file_password_fails(tmp_path):
+	path = tmp_path / "pw"
+	path.write_text("y" * 64 + "\n")
+	rc, out = run_no_server(["-U", "admin", "-P", "file:%s" % path])
+	assert(rc != 0)
+	assert(("--password: value from file %s is longer than 63 bytes\n" % path)
+			in out), out
+	assert("y" * 64 not in out)
+
+
 def test_settings_dump_hides_password():
 	rc, out = run_no_server(["-U", "admin", "-P", "env:" + ENV_VAR, "-k", "1",
 		"-t", "1", "-d"], env={ENV_VAR: SECRET}, gen_bench=False)

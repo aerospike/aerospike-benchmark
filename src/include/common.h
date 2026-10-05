@@ -216,12 +216,15 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
  * anything else    the value itself
  *
  * an unset or empty variable, an unreadable file, invalid base64 or an empty
- * result is an error. Error messages never contain the password.
+ * result is an error, and so is a value from one of the sources above that is
+ * longer than max_len bytes, unless max_len is 0. A literal value is not
+ * limited. Error messages never contain the password.
  *
  * returns true on success, false on failure. On success, *ptr must be freed by
  * the caller at some point
  */
-bool read_password(const char* option, const char* value, char** ptr);
+bool read_password(const char* option, const char* value, size_t max_len,
+		char** ptr);
 
 /*
  * parses a literal string, which must be surrounded by double quotes,

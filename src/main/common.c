@@ -325,19 +325,28 @@ password_file(const char* option, const char* path, char** ptr)
 }
 
 bool
-read_password(const char* option, const char* value, char** ptr)
+read_password(const char* option, const char* value, size_t max_len,
+		char** ptr)
 {
+	const char* from;
+	const char* name;
 	char* pw;
 
 	if (strncmp(value, "env:", 4) == 0) {
-		return password_env(option, value + 4, ptr);
-	}
+		from = "value from environment variable ";
+		name = value + 4;
 
-	if (strncmp(value, "env-b64:", 8) == 0) {
-		const char* var = value + 8;
+		if (!password_env(option, name, &pw)) {
+			return false;
+		}
+	}
+	else if (strncmp(value, "env-b64:", 8) == 0) {
 		char* encoded;
 
-		if (!password_env(option, var, &encoded)) {
+		from = "value from environment variable ";
+		name = value + 8;
+
+		if (!password_env(option, name, &encoded)) {
 			return false;
 		}
 
@@ -347,22 +356,21 @@ read_password(const char* option, const char* value, char** ptr)
 
 		if (!ok) {
 			fprintf(stderr, "%s: invalid base64 in environment variable %s\n",
-					option, var);
+					option, name);
 			return false;
 		}
 
 		if (pw[0] == '\0') {
 			fprintf(stderr, "%s: environment variable %s decodes to an empty "
-					"password\n", option, var);
+					"password\n", option, name);
 			cf_free(pw);
 			return false;
 		}
-
-		*ptr = pw;
-		return true;
 	}
+	else if (strncmp(value, "b64:", 4) == 0) {
+		from = "decoded b64: value";
+		name = "";
 
-	if (strncmp(value, "b64:", 4) == 0) {
 		if (!password_b64(value + 4, &pw)) {
 			fprintf(stderr, "%s: invalid base64 in b64: value\n", option);
 			return false;
@@ -374,21 +382,33 @@ read_password(const char* option, const char* value, char** ptr)
 			cf_free(pw);
 			return false;
 		}
+	}
+	else if (strncmp(value, "file:", 5) == 0) {
+		from = "value from file ";
+		name = value + 5;
 
-		*ptr = pw;
+		if (!password_file(option, name, &pw)) {
+			return false;
+		}
+	}
+	else {
+		if (value[0] == '\0') {
+			fprintf(stderr, "%s: password is empty\n", option);
+			return false;
+		}
+
+		*ptr = strdup(value);
 		return true;
 	}
 
-	if (strncmp(value, "file:", 5) == 0) {
-		return password_file(option, value + 5, ptr);
-	}
-
-	if (value[0] == '\0') {
-		fprintf(stderr, "%s: password is empty\n", option);
+	if (max_len != 0 && strlen(pw) > max_len) {
+		fprintf(stderr, "%s: %s%s is longer than %zu bytes\n", option, from, name,
+				max_len);
+		cf_free(pw);
 		return false;
 	}
 
-	*ptr = strdup(value);
+	*ptr = pw;
 	return true;
 }
 
