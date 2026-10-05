@@ -126,6 +126,25 @@ START_TEST(resolve_cafile_unreadable)
 }
 END_TEST
 
+START_TEST(resolve_without_agent_settings)
+{
+	char* pw = NULL;
+
+	capture_start();
+	ck_assert(!read_password(NULL, "--password", "secrets:asbench:pw", 0, &pw));
+	capture_end();
+	ck_assert_ptr_eq(pw, NULL);
+	ck_assert_str_eq(out_buf, "--password: no secret agent settings for "
+			"secrets:asbench:pw\n");
+
+	capture_start();
+	ck_assert(read_password(NULL, "--password", SECRET, 0, &pw));
+	capture_end();
+	ck_assert_str_eq(pw, SECRET);
+	cf_free(pw);
+}
+END_TEST
+
 START_TEST(resolve_bad_port)
 {
 	char* pw = NULL;
@@ -551,6 +570,7 @@ secret_agent_suite(void)
 	tcase_add_test(tc_resolve, resolve_prefix_case_sensitive);
 	tcase_add_test(tc_resolve, resolve_agent_unreachable);
 	tcase_add_test(tc_resolve, resolve_cafile_unreadable);
+	tcase_add_test(tc_resolve, resolve_without_agent_settings);
 	tcase_add_test(tc_resolve, resolve_bad_port);
 	suite_add_tcase(s, tc_resolve);
 

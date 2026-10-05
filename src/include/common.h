@@ -224,7 +224,8 @@ typedef struct sa_args_s {
  * b64:<VALUE>      the base64-decoded <VALUE>
  * file:<PATH>      the contents of <PATH>, minus one trailing line ending
  * secrets:<PATH>   the secret at secrets:<PATH>, fetched from the Secret Agent
- *                  described by sa
+ *                  described by sa, which may be NULL only when no value uses
+ *                  secrets:
  * anything else    the value itself
  *
  * an unset or empty variable, an unreadable file, invalid base64, a failed
