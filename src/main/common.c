@@ -56,7 +56,9 @@ static const sa_log_format_t SA_LOG_ALLOW[] = {
 	{"ERR: connect failed: %d, errno: %d", true},
 	{"ERR: response: %.*s", false},
 	{"ERR: SSL_connect failed: %s", false},
-	{"ERR: SSL_connect I/O error: %s", false}
+	{"ERR: SSL_connect I/O error: %s", false},
+	{"ERR: SSL_connect certificate verify failed: %s (%ld)", false},
+	{"ERR: unable to set TLS peer name: %s", false}
 };
 
 

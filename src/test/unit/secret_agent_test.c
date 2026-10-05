@@ -506,9 +506,15 @@ START_TEST(log_allowed_line_prints_args)
 	capture_start();
 	sa_log_cb("ERR: failed to lookup address: %s", "agent.example.com");
 	sa_log_cb("ERR: response: %.*s", 9, "not found in config");
+	sa_log_cb("ERR: SSL_connect certificate verify failed: %s (%ld)",
+			"IP address mismatch", 64L);
+	sa_log_cb("ERR: unable to set TLS peer name: %s", "agent.example.com");
 	capture_end();
 	ck_assert_str_eq(out_buf, "secret-agent: ERR: failed to lookup address: "
-			"agent.example.com\nsecret-agent: ERR: response: not found\n");
+			"agent.example.com\nsecret-agent: ERR: response: not found\n"
+			"secret-agent: ERR: SSL_connect certificate verify failed: IP address "
+			"mismatch (64)\nsecret-agent: ERR: unable to set TLS peer name: "
+			"agent.example.com\n");
 }
 END_TEST
 
@@ -531,12 +537,15 @@ START_TEST(log_unlisted_line_is_cut)
 	capture_start();
 	sa_log_cb("ERR: failed to parse response JSON line %d (%s)", 1,
 			"'[' or '{' expected near '" SECRET_B64 "'");
+	sa_log_cb("ERR: failed to parse response JSON line %d, column %d, "
+			"position %d", 1, 29, 29);
 	sa_log_cb("ERR: failed asking for secret - %s",
 			"{\"SecretKey\":\"" SECRET "\"}");
 	sa_log_cb("ERR: response: %s", SECRET);
 	sa_log_cb("ERR: failed reading secret header, errno: %d", 104);
 	capture_end();
 	ck_assert_str_eq(out_buf,
+			"secret-agent: ERR: failed to parse response JSON line\n"
 			"secret-agent: ERR: failed to parse response JSON line\n"
 			"secret-agent: ERR: failed asking for secret\n"
 			"secret-agent: ERR: response\n"
@@ -550,8 +559,10 @@ START_TEST(log_line_without_args)
 {
 	capture_start();
 	sa_log_cb("ERR: socket poll timed out");
+	sa_log_cb("ERR: connect timed out");
 	capture_end();
-	ck_assert_str_eq(out_buf, "secret-agent: ERR: socket poll timed out\n");
+	ck_assert_str_eq(out_buf, "secret-agent: ERR: socket poll timed out\n"
+			"secret-agent: ERR: connect timed out\n");
 }
 END_TEST
 
