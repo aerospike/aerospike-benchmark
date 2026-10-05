@@ -1,4 +1,5 @@
 import base64
+import errno
 import glob
 import json
 import os
@@ -111,13 +112,37 @@ def make_key(path, password):
 	os.chmod(path, 0o644)
 
 
-def make_cert(dir):
-	key = os.path.join(dir, "agent-key.pem")
-	cert = os.path.join(dir, "agent-cert.pem")
-	subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
-		"-keyout", key, "-out", cert, "-days", "2", "-subj", "/CN=localhost",
-		"-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], check=True,
-		capture_output=True)
+def openssl(*args):
+	subprocess.run(["openssl"] + list(args), check=True, capture_output=True)
+
+
+def make_ca(dir, name):
+	key = os.path.join(dir, name + "-key.pem")
+	cert = os.path.join(dir, name + ".pem")
+	openssl("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", key,
+		"-out", cert, "-days", "2", "-subj", "/CN=asbench test " + name)
+	return cert, key
+
+
+def make_cert(dir, name, ca, san):
+	"""
+	An agent certificate issued by ca whose only subject alternative name is
+	san. The subject CN is not a host name, so it never matches either.
+	"""
+	key = os.path.join(dir, name + "-key.pem")
+	csr = os.path.join(dir, name + ".csr")
+	cert = os.path.join(dir, name + ".pem")
+	ext = os.path.join(dir, name + ".ext")
+	write(ext, "basicConstraints=CA:FALSE\n"
+			"keyUsage=digitalSignature,keyEncipherment\n"
+			"extendedKeyUsage=serverAuth\n"
+			"subjectKeyIdentifier=hash\n"
+			"authorityKeyIdentifier=keyid,issuer\n"
+			"subjectAltName=" + san + "\n")
+	openssl("req", "-newkey", "rsa:2048", "-nodes", "-keyout", key, "-out", csr,
+		"-subj", "/CN=asbench test agent")
+	openssl("x509", "-req", "-in", csr, "-CA", ca[0], "-CAkey", ca[1],
+		"-CAcreateserial", "-out", cert, "-days", "2", "-extfile", ext)
 	os.chmod(key, 0o644)
 	return cert, key
 
@@ -172,6 +197,55 @@ def fake_agent():
 		lib.shutdown_listener(srv)
 
 
+def connect_pending(addr, port, socks):
+	"""
+	Starts a connect to addr:port and returns True if it is still pending after
+	200 ms. The socket is kept open in socks.
+	"""
+	s = socket.socket()
+	socks.append(s)
+	s.setblocking(False)
+	if s.connect_ex((addr, port)) not in (errno.EINPROGRESS, errno.EWOULDBLOCK):
+		return False
+	_, writable, _ = select.select([], [s], [], 0.2)
+	return not writable
+
+
+@pytest.fixture
+def blackhole():
+	"""
+	An address and port where a TCP connect never completes. Linux drops SYNs
+	once a listener's accept queue is full. macOS resets instead, but drops
+	SYNs to 127.0.0.2, which lo0 does not have.
+	"""
+	socks = []
+	listener = socket.socket()
+	socks.append(listener)
+	listener.bind(("127.0.0.1", 0))
+	listener.listen(1)
+	port = listener.getsockname()[1]
+	found = None
+
+	for _ in range(64):
+		if connect_pending("127.0.0.1", port, socks):
+			found = ("127.0.0.1", port)
+			break
+		if socks[-1].getsockopt(socket.SOL_SOCKET, socket.SO_ERROR) != 0:
+			break
+
+	for addr in ["127.0.0.2", "192.0.2.1"]:
+		if found is None and connect_pending(addr, 3005, socks):
+			found = (addr, 3005)
+
+	try:
+		if found is None:
+			pytest.skip("no address where a TCP connect stays pending")
+		yield found
+	finally:
+		for s in socks:
+			s.close()
+
+
 @pytest.fixture(scope="module")
 def files():
 	dir = tempfile.mkdtemp(prefix="asbench-sa-")
@@ -190,9 +264,9 @@ def files():
 	shutil.rmtree(dir, ignore_errors=True)
 
 
-def wait_for_agent(container, port, cafile, timeout=60):
+def wait_for_agent(container, port, tls, timeout=60):
 	# a bare TCP connect is not enough: Docker's port proxy accepts before the
-	# agent listens
+	# agent listens. Readiness only, so the certificate is not checked here.
 	body = json.dumps({"Resource": "asbench", "SecretKey": "probe"}).encode()
 	request = struct.pack(">II", AGENT_MAGIC, len(body)) + body
 	deadline = time.time() + timeout
@@ -201,9 +275,11 @@ def wait_for_agent(container, port, cafile, timeout=60):
 		try:
 			with socket.create_connection(("127.0.0.1", port), timeout=2) as raw:
 				conn = raw
-				if cafile:
-					ctx = ssl.create_default_context(cafile=cafile)
-					conn = ctx.wrap_socket(raw, server_hostname="localhost")
+				if tls:
+					ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+					ctx.check_hostname = False
+					ctx.verify_mode = ssl.CERT_NONE
+					conn = ctx.wrap_socket(raw)
 				conn.sendall(request)
 				header = conn.recv(8)
 				if len(header) == 8 and \
@@ -262,7 +338,7 @@ def start_agent(containers, dir, name, tls):
 					container.name)
 		time.sleep(0.2)
 
-	wait_for_agent(container, port, tls[0] if tls else None)
+	wait_for_agent(container, port, tls is not None)
 	return str(port)
 
 
@@ -279,7 +355,10 @@ def agent(files):
 				json.dumps({k: b64(v) for k, v in SECRETS.items()}))
 		write(os.path.join(files.dir, "other.json"),
 				json.dumps({"pw": b64("other")}))
-		cert, cert_key = make_cert(files.dir)
+		ca = make_ca(files.dir, "ca")
+		other_ca, _ = make_ca(files.dir, "other-ca")
+		dns_cert = make_cert(files.dir, "agent-dns", ca, "DNS:localhost")
+		ip_cert = make_cert(files.dir, "agent-ip", ca, "IP:127.0.0.1")
 
 		try:
 			lib.DOCKER_CLIENT.images.get("%s:%s" % (AGENT_IMAGE, AGENT_TAG))
@@ -288,9 +367,12 @@ def agent(files):
 					platform="linux/amd64")
 
 		port = start_agent(containers, files.dir, "tcp", None)
-		tls_port = start_agent(containers, files.dir, "tls", (cert, cert_key))
+		tls_port = start_agent(containers, files.dir, "tls-dns", dns_cert)
+		tls_ip_port = start_agent(containers, files.dir, "tls-ip", ip_cert)
 
-		yield types.SimpleNamespace(port=port, tls_port=tls_port, cert=cert)
+		yield types.SimpleNamespace(port=port, tls_port=tls_port,
+				tls_ip_port=tls_ip_port, ca=ca[0], other_ca=other_ca,
+				dns_cert=dns_cert[0])
 	finally:
 		for container in containers:
 			try:
@@ -420,6 +502,22 @@ def test_timeout(fake_agent, timeout_ms, at_least, under):
 		assert(elapsed < under), elapsed
 
 
+def test_connect_timeout(blackhole):
+	addr, port = blackhole
+
+	start = time.monotonic()
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
+		addr, "--sa-port", str(port), "--sa-timeout", "300"])
+	elapsed = time.monotonic() - start
+
+	assert(rc != 0)
+	assert("secret-agent: ERR: connect timed out\n" in out), out
+	assert("--password: secret agent request for secrets:asbench:pw failed: "
+			"timed out\n" in out), out
+	assert(CONNECT_FAILED not in out), out
+	assert(0.29 <= elapsed < 0.8), elapsed
+
+
 def test_malformed_response_is_not_echoed(fake_agent):
 	port = fake_agent(('{"SecretValue":"%s' % b64(SECRET)).encode())
 	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-port", port])
@@ -487,14 +585,15 @@ def test_help():
 		"   --sa-address <host>[:<port>]  # Default: 127.0.0.1:3005\n",
 		"   --sa-port <port>     # Default: 3005\n",
 		"   --sa-timeout <ms>    # Default: 1000\n",
-		"   the request and the TLS handshake but not the TCP connect or the name\n",
+		"   the TCP connect, the TLS handshake and the request, but not the name\n",
 		"   --sa-cafile <path>   # Default: none\n",
-		"   but the agent's certificate is not verified.\n",
+		"   the agent's certificate against this CA and the --sa-address host, whose\n",
+		"   name or IP address must be in the certificate.\n",
 	]:
 		assert(text in out), text
 	assert(out.count("5) Aerospike Secret Agent: "
 			"'secrets:<resource>:<key>'\n") == 2), out
-	assert("trusted" not in out)
+	assert("not verified" not in out)
 
 
 # the log filter
@@ -511,6 +610,9 @@ REVIEWED_LOG_ARGS = {
 	"ERR: response: %.*s": "(int)payload_len, payload_str",
 	"ERR: SSL_connect failed: %s": "errbuf",
 	"ERR: SSL_connect I/O error: %s": "errbuf",
+	"ERR: SSL_connect certificate verify failed: %s (%ld)":
+		"X509_verify_cert_error_string(rv), rv",
+	"ERR: unable to set TLS peer name: %s": "host",
 }
 
 
@@ -674,7 +776,13 @@ def test_login_uses_wrong_secret(agent):
 def test_login_uses_secret_over_tls(agent):
 	assert(lib.capture_login(["-U", "admin", "-Psecrets:asbench:pw",
 		"--sa-address", "localhost:" + agent.tls_port, "--sa-cafile",
-		agent.cert]) == lib.literal_login(SECRET))
+		agent.ca]) == lib.literal_login(SECRET))
+
+
+def test_login_uses_secret_over_tls_by_ip(agent):
+	assert(lib.capture_login(["-U", "admin", "-Psecrets:asbench:pw",
+		"--sa-address", "127.0.0.1:" + agent.tls_ip_port, "--sa-cafile",
+		agent.ca]) == lib.literal_login(SECRET))
 
 
 def test_login_uses_63_byte_secret(agent):
@@ -766,9 +874,50 @@ def test_password(agent, args):
 
 def test_tls_to_agent(agent):
 	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
-		"localhost", "--sa-port", agent.tls_port, "--sa-cafile", agent.cert])
+		"localhost", "--sa-port", agent.tls_port, "--sa-cafile", agent.ca])
 
 	assert_password_resolved(rc, out)
+
+
+def assert_verify_failed(out, reason):
+	assert("secret-agent: ERR: SSL_connect certificate verify failed: %s (" %
+			reason in out), out
+	assert("--password: secret agent request for secrets:asbench:pw failed: "
+			"connection or protocol error\n" in out), out
+	assert(CONNECT_FAILED not in out), out
+	assert_no_secret(out)
+
+
+def test_tls_unrelated_ca_fails(agent):
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
+		"localhost:" + agent.tls_port, "--sa-cafile", agent.other_ca])
+
+	assert(rc != 0)
+	assert_verify_failed(out, "unable to get local issuer certificate")
+
+
+def test_tls_agent_certificate_as_ca_fails(agent):
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
+		"localhost:" + agent.tls_port, "--sa-cafile", agent.dns_cert])
+
+	assert(rc != 0)
+	assert_verify_failed(out, "unable to get local issuer certificate")
+
+
+def test_tls_ip_not_in_certificate_fails(agent):
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
+		"127.0.0.1:" + agent.tls_port, "--sa-cafile", agent.ca])
+
+	assert(rc != 0)
+	assert_verify_failed(out, "IP address mismatch")
+
+
+def test_tls_hostname_not_in_certificate_fails(agent):
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
+		"localhost:" + agent.tls_ip_port, "--sa-cafile", agent.ca])
+
+	assert(rc != 0)
+	assert_verify_failed(out, "hostname mismatch")
 
 
 def test_tls_agent_without_cafile(agent):

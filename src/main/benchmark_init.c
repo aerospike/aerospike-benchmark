@@ -957,13 +957,14 @@ print_usage(const char* program)
 
 	printf("   --sa-timeout <ms>    # Default: 1000\n");
 	printf("   Timeout in milliseconds for Secret Agent requests, 1 or more. It bounds\n");
-	printf("   the request and the TLS handshake but not the TCP connect or the name\n");
+	printf("   the TCP connect, the TLS handshake and the request, but not the name\n");
 	printf("   lookup.\n");
 	printf("\n");
 
 	printf("   --sa-cafile <path>   # Default: none\n");
-	printf("   Path to a CA certificate file. Enables TLS encryption to the Secret Agent,\n");
-	printf("   but the agent's certificate is not verified.\n");
+	printf("   Path to a CA certificate file. Enables TLS to the Secret Agent and verifies\n");
+	printf("   the agent's certificate against this CA and the --sa-address host, whose\n");
+	printf("   name or IP address must be in the certificate.\n");
 	printf("\n");
 }
 
