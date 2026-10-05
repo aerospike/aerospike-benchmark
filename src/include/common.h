@@ -206,6 +206,16 @@ bool bin_name_too_large(size_t name_len, uint32_t n_bins);
 void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
 
 /*
+ * where to find the Aerospike Secret Agent for secrets: passwords
+ */
+typedef struct sa_args_s {
+	char* host;
+	char* port;
+	int timeout_ms;
+	char* cafile;
+} sa_args_t;
+
+/*
  * resolves the value given to a password option (named by option, which is
  * only used in error messages) into the password itself
  *
@@ -213,18 +223,21 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
  * env-b64:<NAME>   the base64-decoded value of the <NAME> environment variable
  * b64:<VALUE>      the base64-decoded <VALUE>
  * file:<PATH>      the contents of <PATH>, minus one trailing line ending
+ * secrets:<PATH>   the secret at secrets:<PATH>, fetched from the Secret Agent
+ *                  described by sa
  * anything else    the value itself
  *
- * an unset or empty variable, an unreadable file, invalid base64 or an empty
- * result is an error, and so is a value from one of the sources above that is
- * longer than max_len bytes, unless max_len is 0. A literal value is not
- * limited. Error messages never contain the password.
+ * an unset or empty variable, an unreadable file, invalid base64, a failed
+ * Secret Agent request or an empty result is an error, and so is a value from
+ * one of the sources above that is longer than max_len bytes, unless max_len
+ * is 0. A literal value is not limited. Error messages never contain the
+ * password.
  *
  * returns true on success, false on failure. On success, *ptr must be freed by
  * the caller at some point
  */
-bool read_password(const char* option, const char* value, size_t max_len,
-		char** ptr);
+bool read_password(const sa_args_t* sa, const char* option, const char* value,
+		size_t max_len, char** ptr);
 
 /*
  * parses a literal string, which must be surrounded by double quotes,

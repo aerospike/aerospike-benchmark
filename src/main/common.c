@@ -32,12 +32,36 @@
 #include <aerospike/as_msgpack.h>
 #include <citrusleaf/cf_b64.h>
 
+#include <sa_client.h>
+
 #include "common.h"
+
+
+//==========================================================
+// Typedefs & constants.
+//
+
+typedef struct sa_log_format_s {
+	const char* fmt;
+	bool add_strerror;
+} sa_log_format_t;
+
+// secret agent client log lines whose arguments are safe to print, checked
+// against the library sources by src/test/integration/test_secret_agent.py
+static const sa_log_format_t SA_LOG_ALLOW[] = {
+	{"ERR: failed to lookup address: %s", false},
+	{"ERR: connect failed: %d, errno: %d", true},
+	{"ERR: response: %.*s", false},
+	{"ERR: SSL_connect failed: %s", false},
+	{"ERR: SSL_connect I/O error: %s", false}
+};
 
 
 //==========================================================
 // Forward declarations.
 //
+
+LOCAL_HELPER void sa_log_cb(const char* fmt, ...);
 
 LOCAL_HELPER int as_bytes_cmp(as_bytes* b1, as_bytes* b2);
 LOCAL_HELPER int as_list_cmp_max(const as_list* list1, const as_list* list2,
@@ -267,28 +291,28 @@ password_b64(const char* encoded, char** ptr)
 	return true;
 }
 
-static bool
-password_file(const char* option, const char* path, char** ptr)
+static char*
+read_file(const char* option, const char* path, size_t* len_r)
 {
 	FILE* fh = fopen(path, "r");
 
 	if (fh == NULL) {
 		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
 				strerror(errno));
-		return false;
+		return NULL;
 	}
 
 	size_t cap = 256;
 	size_t len = 0;
 	size_t n;
-	char* pw = cf_malloc(cap);
+	char* buf = cf_malloc(cap);
 
-	while ((n = fread(pw + len, 1, cap - len - 1, fh)) != 0) {
+	while ((n = fread(buf + len, 1, cap - len - 1, fh)) != 0) {
 		len += n;
 
 		if (len == cap - 1) {
 			cap *= 2;
-			pw = cf_realloc(pw, cap);
+			buf = cf_realloc(buf, cap);
 		}
 	}
 
@@ -296,13 +320,28 @@ password_file(const char* option, const char* path, char** ptr)
 		int err = errno;
 
 		fclose(fh);
-		cf_free(pw);
+		cf_free(buf);
 		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
 				strerror(err));
-		return false;
+		return NULL;
 	}
 
 	fclose(fh);
+
+	buf[len] = '\0';
+	*len_r = len;
+	return buf;
+}
+
+static bool
+password_file(const char* option, const char* path, char** ptr)
+{
+	size_t len;
+	char* pw = read_file(option, path, &len);
+
+	if (pw == NULL) {
+		return false;
+	}
 
 	if (len != 0 && pw[len - 1] == '\n') {
 		len--;
@@ -324,9 +363,113 @@ password_file(const char* option, const char* path, char** ptr)
 	return true;
 }
 
-bool
-read_password(const char* option, const char* value, size_t max_len,
+LOCAL_HELPER void
+sa_log_cb(const char* fmt, ...)
+{
+	int err = errno;
+
+	for (size_t i = 0; i < sizeof(SA_LOG_ALLOW) / sizeof(SA_LOG_ALLOW[0]); i++) {
+		if (strcmp(fmt, SA_LOG_ALLOW[i].fmt) == 0) {
+			va_list ap;
+
+			va_start(ap, fmt);
+			fprintf(stderr, "secret-agent: ");
+			vfprintf(stderr, fmt, ap);
+			va_end(ap);
+
+			if (SA_LOG_ALLOW[i].add_strerror) {
+				fprintf(stderr, " (%s)", strerror(err));
+			}
+
+			fprintf(stderr, "\n");
+			return;
+		}
+	}
+
+	// any other line could echo request or response bytes: print up to the first '%'
+	size_t len = strcspn(fmt, "%");
+
+	while (len != 0 && strchr(" :,-(", fmt[len - 1]) != NULL) {
+		len--;
+	}
+
+	fprintf(stderr, "secret-agent: %.*s\n", (int) len, fmt);
+}
+
+static const char*
+sa_err_str(sa_err err)
+{
+	switch (err.code) {
+		case SA_FAILED_BAD_REQUEST:
+			return "bad request";
+		case SA_FAILED_BAD_CONFIG:
+			return "bad address or port";
+		case SA_FAILED_INTERNAL:
+			return "connection or protocol error";
+		case SA_FAILED_TIMEOUT:
+			return "timed out";
+		default:
+			return "unknown error";
+	}
+}
+
+static bool
+password_secret(const sa_args_t* sa, const char* option, const char* path,
 		char** ptr)
+{
+	sa_cfg cfg;
+
+	sa_cfg_init(&cfg);
+	cfg.addr = sa->host;
+	cfg.port = sa->port;
+	cfg.timeout = sa->timeout_ms;
+
+	if (sa->cafile != NULL) {
+		size_t ca_len;
+
+		cfg.tls.ca_string = read_file("--sa-cafile", sa->cafile, &ca_len);
+
+		if (cfg.tls.ca_string == NULL) {
+			return false;
+		}
+
+		cfg.tls.enabled = true;
+	}
+
+	sa_client client;
+
+	sa_client_init(&client, &cfg);
+	sa_set_log_function(sa_log_cb);
+
+	uint8_t* buf = NULL;
+	size_t len = 0;
+	sa_err err = sa_secret_get_bytes(&client, path, &buf, &len);
+
+	cf_free(cfg.tls.ca_string);
+
+	if (err.code != SA_OK) {
+		fprintf(stderr, "%s: secret agent request for %s failed: %s\n", option,
+				path, sa_err_str(err));
+		return false;
+	}
+
+	if (len == 0 || memchr(buf, '\0', len) != NULL) {
+		fprintf(stderr, "%s: secret agent returned %s for %s\n", option,
+				len == 0 ? "an empty value" : "a value containing a NUL byte",
+				path);
+		free(buf);
+		return false;
+	}
+
+	// the library leaves one spare byte past the value
+	buf[len] = '\0';
+	*ptr = (char*) buf;
+	return true;
+}
+
+bool
+read_password(const sa_args_t* sa, const char* option, const char* value,
+		size_t max_len, char** ptr)
 {
 	const char* from;
 	const char* name;
@@ -388,6 +531,14 @@ read_password(const char* option, const char* value, size_t max_len,
 		name = value + 5;
 
 		if (!password_file(option, name, &pw)) {
+			return false;
+		}
+	}
+	else if (strncmp(value, "secrets:", 8) == 0) {
+		from = "value from ";
+		name = value;
+
+		if (!password_secret(sa, option, value, &pw)) {
 			return false;
 		}
 	}
