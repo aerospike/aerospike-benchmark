@@ -359,6 +359,7 @@ init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 	p->read.replica = args->replica;
 	p->read.read_mode_ap = args->read_mode_ap;
 	p->read.read_mode_sc = args->read_mode_sc;
+	p->read.read_touch_ttl_percent = args->read_touch_ttl_percent;
 
 	p->write.base.socket_timeout = args->write_socket_timeout;
 	p->write.base.total_timeout = args->write_total_timeout;
@@ -391,6 +392,7 @@ init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 	p->operate.durable_delete = args->durable_deletes;
 	p->operate.read_mode_ap = args->read_mode_ap;
 	p->operate.read_mode_sc = args->read_mode_sc;
+	p->operate.read_touch_ttl_percent = args->read_touch_ttl_percent;
 
 	p->remove.base.socket_timeout = args->write_socket_timeout;
 	p->remove.base.total_timeout = args->write_total_timeout;
@@ -410,6 +412,7 @@ init_tdata(const args_t* args, cdata_t* cdata, thr_coord_t* coord,
 	p->batch.replica = args->replica;
 	p->batch.read_mode_ap = args->read_mode_ap;
 	p->batch.read_mode_sc = args->read_mode_sc;
+	p->batch.read_touch_ttl_percent = args->read_touch_ttl_percent;
 
 	p->info.timeout = 10000;
 
