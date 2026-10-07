@@ -113,10 +113,10 @@ typedef enum {
 	BENCH_OPT_OUTPUT_PERIOD,
 	BENCH_OPT_HDR_HIST,
 	BENCH_OPT_RACK_ID,
-	BENCH_OPT_READ_TOUCH_TTL_PCT,
 	BENCH_OPT_SEND_KEY,
 	BENCH_OPT_SEED,
-	BENCH_OPT_GEN_BENCH
+	BENCH_OPT_GEN_BENCH,
+	BENCH_OPT_READ_TOUCH_TTL_PCT
 } benchmark_opt;
 
 static struct option long_options[] = {
@@ -777,16 +777,15 @@ print_usage(const char* program)
 	printf("   Read mode for SC (strong consistency) namespaces.\n");
 	printf("\n");
 
-	printf("   --read-touch-ttl-percent <-1 to 100> # Default: 0\n");
-	printf("   Determine how record TTL (time to live) is affected on reads. When enabled,\n");
-	printf("   the server can efficiently operate as a read-based LRU cache where the least\n");
-	printf("   recently used records are expired. The value is expressed as a percentage of\n");
-	printf("   the TTL sent on the most recent write such that a read within this interval\n");
-	printf("   of the record's end of life will generate a touch.\n");
-	printf("   Values:\n");
-	printf("     -1 : Do not reset record TTL on reads.\n");
-	printf("      0 : Use server config default-read-touch-ttl-pct for the namespace/set (default).\n");
-	printf("   1-100: Reset record TTL on reads when within this percentage of the most recent write TTL.\n");
+	printf("   --read-touch-ttl-percent <percent> # Default: 0\n");
+	printf("   Reset a record's TTL on reads near its end of life, so the server can\n");
+	printf("   act as a read-based LRU cache. The value is a percentage of the most\n");
+	printf("   recent write TTL. For example, with a write TTL of 10 hours and 80, a\n");
+	printf("   read in the last 8 hours of the record's life resets the TTL to 10 hours.\n");
+	printf("   Applies to reads, batch reads and CDT reads. Requires server 7.1+.\n");
+	printf("     -1: Never reset the TTL on reads.\n");
+	printf("     0: Use the namespace/set default-read-touch-ttl-pct.\n");
+	printf("     1-100: Reset the TTL on reads within this percentage of the write TTL.\n");
 	printf("\n");
 
 	printf("-M --commit-level {all,master} # Default: all\n");
@@ -1229,12 +1228,6 @@ validate_args(args_t* args)
 
 	if (args->replica == AS_POLICY_REPLICA_PREFER_RACK && args->rack_id == -1) {
 		printf("With replica policy \"prefer-rack\", must specify a rack-id\n");
-		return 1;
-	}
-
-	if (args->read_touch_ttl_percent < -1 || args->read_touch_ttl_percent > 100) {
-		printf("Invalid read-touch-ttl-percent: %d  Valid values: [-1 to 100]\n",
-				args->read_touch_ttl_percent);
 		return 1;
 	}
 
@@ -1769,9 +1762,19 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				break;
 
-			case BENCH_OPT_READ_TOUCH_TTL_PCT:
-				args->read_touch_ttl_percent = atoi(optarg);
+			case BENCH_OPT_READ_TOUCH_TTL_PCT: {
+				char* endptr;
+				errno = 0;
+				long pct = strtol(optarg, &endptr, 10);
+				if (*optarg == '\0' || *endptr != '\0' || errno != 0 ||
+						pct < -1 || pct > 100) {
+					fprintf(stderr, "Invalid read-touch-ttl-percent \"%s\", "
+							"expected -1 to 100\n", optarg);
+					return 1;
+				}
+				args->read_touch_ttl_percent = (int) pct;
 				break;
+			}
 
 			case 'M':
 				if (strcmp(optarg, "all") == 0) {
