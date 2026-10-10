@@ -63,7 +63,7 @@ resolve_max(const char* option, const char* value, size_t max_len, char** pw)
 	ck_assert_ptr_ne(tmp, NULL);
 	dup2(fileno(tmp), STDERR_FILENO);
 
-	bool ok = read_password(option, value, max_len, pw);
+	bool ok = read_password(NULL, option, value, max_len, pw);
 
 	fflush(stderr);
 	dup2(saved, STDERR_FILENO);
@@ -112,7 +112,6 @@ END_TEST
 START_TEST(literal_unknown_prefix)
 {
 	assert_resolves("foo:bar", "foo:bar");
-	assert_resolves("secrets:resource:key", "secrets:resource:key");
 }
 END_TEST
 

@@ -39,6 +39,7 @@ main(void) {
 	srunner_add_suite(g_sr, setup_suite());
 	srunner_add_suite(g_sr, common_suite());
 	srunner_add_suite(g_sr, password_suite());
+	srunner_add_suite(g_sr, secret_agent_suite());
 	srunner_add_suite(g_sr, coordinator_suite());
 	srunner_add_suite(g_sr, dyn_throttle_suite());
 	srunner_add_suite(g_sr, hdr_histogram_suite());
