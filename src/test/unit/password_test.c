@@ -55,7 +55,8 @@ write_tmp_file(const char* contents, size_t len)
 }
 
 static bool
-resolve_max(const char* option, const char* value, size_t max_len, char** pw)
+resolve_opts(const char* option, const char* value, size_t max_len,
+		bool first_line, char** pw)
 {
 	fflush(stderr);
 	int saved = dup(STDERR_FILENO);
@@ -63,7 +64,7 @@ resolve_max(const char* option, const char* value, size_t max_len, char** pw)
 	ck_assert_ptr_ne(tmp, NULL);
 	dup2(fileno(tmp), STDERR_FILENO);
 
-	bool ok = read_password(option, value, max_len, pw);
+	bool ok = read_password(option, value, max_len, first_line, pw);
 
 	fflush(stderr);
 	dup2(saved, STDERR_FILENO);
@@ -75,6 +76,12 @@ resolve_max(const char* option, const char* value, size_t max_len, char** pw)
 	fclose(tmp);
 
 	return ok;
+}
+
+static bool
+resolve_max(const char* option, const char* value, size_t max_len, char** pw)
+{
+	return resolve_opts(option, value, max_len, false, pw);
 }
 
 static bool
@@ -327,7 +334,7 @@ END_TEST
 
 START_TEST(file_large)
 {
-	size_t len = 5000;
+	size_t len = 4999;
 	char* contents = malloc(len + 2);
 	memset(contents, 'x', len);
 	contents[len] = '\n';
@@ -339,6 +346,63 @@ START_TEST(file_large)
 	contents[len] = '\0';
 	assert_resolves(value, contents);
 	free(contents);
+}
+END_TEST
+
+START_TEST(file_too_large)
+{
+	size_t len = 5000;
+	char* contents = malloc(len + 1);
+	memset(contents, 'x', len);
+	contents[len] = '\n';
+	write_tmp_file(contents, len + 1);
+	free(contents);
+
+	char value[128];
+	char expected[256];
+	snprintf(value, sizeof(value), "file:%s", tmp_path);
+	snprintf(expected, sizeof(expected), "--password: value from file %s is "
+			"longer than 4999 bytes\n", tmp_path);
+	assert_fails("--password", value, expected);
+}
+END_TEST
+
+START_TEST(file_nul)
+{
+	write_tmp_file("\0" SECRET "\n", strlen(SECRET) + 2);
+	char value[128];
+	char expected[256];
+	snprintf(value, sizeof(value), "file:%s", tmp_path);
+	snprintf(expected, sizeof(expected), "--password: file %s contains a NUL "
+			"byte\n", tmp_path);
+	assert_fails("--password", value, expected);
+}
+END_TEST
+
+START_TEST(file_dev_zero)
+{
+	char* pw = NULL;
+	ck_assert(!resolve_max("--password", "file:/dev/zero", 63, &pw));
+	ck_assert_ptr_eq(pw, NULL);
+	ck_assert_str_eq(err_buf, "--password: file /dev/zero contains a NUL "
+			"byte\n");
+}
+END_TEST
+
+START_TEST(b64_nul)
+{
+	// b64:YQBi is "a\0b"
+	assert_fails("--password", "b64:YQBi", "--password: b64: value decodes to a "
+			"value containing a NUL byte\n");
+}
+END_TEST
+
+START_TEST(env_b64_nul)
+{
+	setenv(ENV_VAR, "YQBi", 1);
+	assert_fails("--tls-keyfile-password", "env-b64:" ENV_VAR,
+			"--tls-keyfile-password: environment variable " ENV_VAR " decodes "
+			"to a value containing a NUL byte\n");
 }
 END_TEST
 
@@ -423,8 +487,8 @@ START_TEST(max_len_env_b64)
 			"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eA==", 1);
 	ck_assert(!resolve_max("--password", "env-b64:" ENV_VAR, 63, &pw));
 	ck_assert_ptr_eq(pw, NULL);
-	ck_assert_str_eq(err_buf, "--password: value from environment variable "
-			ENV_VAR " is longer than 63 bytes\n");
+	ck_assert_str_eq(err_buf, "--password: decoded value from environment "
+			"variable " ENV_VAR " is longer than 63 bytes\n");
 }
 END_TEST
 
@@ -507,6 +571,109 @@ START_TEST(file_only_line_ending)
 }
 END_TEST
 
+static bool
+resolve_first_line(const char* contents, size_t len, char** pw)
+{
+	char value[128];
+
+	if (tmp_path[0] != '\0') {
+		unlink(tmp_path);
+	}
+
+	write_tmp_file(contents, len);
+	snprintf(value, sizeof(value), "file:%s", tmp_path);
+	return resolve_opts("--tls-keyfile-password", value, 0, true, pw);
+}
+
+static void
+assert_first_line(const char* contents, const char* expected)
+{
+	char* pw = NULL;
+	ck_assert(resolve_first_line(contents, strlen(contents), &pw));
+	ck_assert_str_eq(pw, expected);
+	ck_assert_str_eq(err_buf, "");
+	cf_free(pw);
+}
+
+static void
+assert_first_line_empty(const char* contents)
+{
+	char expected[256];
+	char* pw = NULL;
+	ck_assert(!resolve_first_line(contents, strlen(contents), &pw));
+	ck_assert_ptr_eq(pw, NULL);
+	snprintf(expected, sizeof(expected), "--tls-keyfile-password: %sfile %s is "
+			"empty\n", contents[0] == '\0' ? "" : "first line of ", tmp_path);
+	ck_assert_str_eq(err_buf, expected);
+}
+
+START_TEST(file_first_line)
+{
+	assert_first_line(SECRET, SECRET);
+	assert_first_line(SECRET "\n", SECRET);
+	assert_first_line(SECRET "\r\n", SECRET);
+	assert_first_line(SECRET "\n\n", SECRET);
+	assert_first_line(SECRET "\r", SECRET);
+	assert_first_line(SECRET "\nmore", SECRET);
+	assert_first_line(SECRET "\rmore\n", SECRET);
+	assert_first_line(SECRET "\r\n\r\n", SECRET);
+	assert_first_line(SECRET "\r\r\n", SECRET);
+}
+END_TEST
+
+START_TEST(file_first_line_empty)
+{
+	assert_first_line_empty("");
+	assert_first_line_empty("\n" SECRET);
+	assert_first_line_empty("\r\n" SECRET "\n");
+	assert_first_line_empty("\n\n");
+	assert_first_line_empty("\r");
+}
+END_TEST
+
+START_TEST(file_first_line_large)
+{
+	char* contents = repeat('x', 4999 + strlen("\nmore"));
+	char* pw = NULL;
+
+	memcpy(contents + 4999, "\nmore", strlen("\nmore"));
+	ck_assert(resolve_first_line(contents, strlen(contents), &pw));
+	contents[4999] = '\0';
+	ck_assert_str_eq(pw, contents);
+	cf_free(pw);
+	free(contents);
+}
+END_TEST
+
+START_TEST(file_first_line_too_large)
+{
+	char* contents = repeat('x', 5000 + strlen("\nmore"));
+	char expected[256];
+	char* pw = NULL;
+
+	memcpy(contents + 5000, "\nmore", strlen("\nmore"));
+	ck_assert(!resolve_first_line(contents, strlen(contents), &pw));
+	ck_assert_ptr_eq(pw, NULL);
+	snprintf(expected, sizeof(expected), "--tls-keyfile-password: value from "
+			"file %s is longer than 4999 bytes\n", tmp_path);
+	ck_assert_str_eq(err_buf, expected);
+	free(contents);
+}
+END_TEST
+
+START_TEST(file_first_line_nul)
+{
+	char expected[256];
+	char* pw = NULL;
+
+	ck_assert(!resolve_first_line(SECRET "\0\nmore", strlen(SECRET) + 6, &pw));
+	ck_assert_ptr_eq(pw, NULL);
+	snprintf(expected, sizeof(expected), "--tls-keyfile-password: file %s "
+			"contains a NUL byte\n", tmp_path);
+	ck_assert_str_eq(err_buf, expected);
+}
+END_TEST
+
 
 static int
 parse(args_t* args, int argc, char** argv)
@@ -565,6 +732,19 @@ START_TEST(cli_password_file)
 	char* argv[] = { "asbench", "-U", "admin", "--password", value };
 	ck_assert_int_eq(parse(&args, 5, argv), 0);
 	ck_assert_str_eq(args.password, SECRET);
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_password_file_not_first_line)
+{
+	write_tmp_file(SECRET "\nmore\n", strlen(SECRET "\nmore\n"));
+	char value[128];
+	snprintf(value, sizeof(value), "file:%s", tmp_path);
+	args_t args;
+	char* argv[] = { "asbench", "-U", "admin", "--password", value };
+	ck_assert_int_eq(parse(&args, 5, argv), 0);
+	ck_assert_str_eq(args.password, SECRET "\nmore");
 	free_parsed(&args);
 }
 END_TEST
@@ -708,6 +888,45 @@ START_TEST(cli_tls_keyfile_password_file_missing_fails)
 }
 END_TEST
 
+START_TEST(cli_tls_keyfile_password_file_first_line)
+{
+	write_tmp_file(SECRET "\r\n\r\nmore\n", strlen(SECRET "\r\n\r\nmore\n"));
+	char value[128];
+	snprintf(value, sizeof(value), "file:%s", tmp_path);
+	args_t args;
+	char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password", value };
+	ck_assert_int_eq(parse(&args, 5, argv), 0);
+	ck_assert_str_eq(args.tls.keyfile_pw, SECRET);
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_tls_keyfile_password_last_wins)
+{
+	args_t args;
+	char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password", "a", "--tls-keyfile-password",
+		"b64:czNjcjN0LXB3" };
+	ck_assert_int_eq(parse(&args, 7, argv), 0);
+	ck_assert_str_eq(args.tls.keyfile_pw, SECRET);
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_tls_keyfile_password_file_empty_first_line_fails)
+{
+	write_tmp_file("\n" SECRET "\n", strlen("\n" SECRET "\n"));
+	char value[128];
+	snprintf(value, sizeof(value), "file:%s", tmp_path);
+	args_t args;
+	char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password", value };
+	ck_assert_int_ne(parse(&args, 5, argv), 0);
+	free_parsed(&args);
+}
+END_TEST
+
 
 Suite*
 password_suite(void)
@@ -734,6 +953,7 @@ password_suite(void)
 	tcase_add_test(tc_resolve, env_b64_empty);
 	tcase_add_test(tc_resolve, env_b64_invalid);
 	tcase_add_test(tc_resolve, env_b64_decodes_empty);
+	tcase_add_test(tc_resolve, env_b64_nul);
 	tcase_add_test(tc_resolve, b64);
 	tcase_add_test(tc_resolve, b64_trailing_newline);
 	tcase_add_test(tc_resolve, b64_value_not_parsed_again);
@@ -743,17 +963,26 @@ password_suite(void)
 	tcase_add_test(tc_resolve, b64_line_breaks_skipped);
 	tcase_add_test(tc_resolve, b64_missing);
 	tcase_add_test(tc_resolve, b64_decodes_empty);
+	tcase_add_test(tc_resolve, b64_nul);
 	tcase_add_test(tc_resolve, file);
 	tcase_add_test(tc_resolve, file_no_line_ending);
 	tcase_add_test(tc_resolve, file_crlf);
 	tcase_add_test(tc_resolve, file_one_line_ending_removed);
 	tcase_add_test(tc_resolve, file_multi_line);
 	tcase_add_test(tc_resolve, file_large);
+	tcase_add_test(tc_resolve, file_too_large);
+	tcase_add_test(tc_resolve, file_nul);
+	tcase_add_test(tc_resolve, file_dev_zero);
 	tcase_add_test(tc_resolve, file_value_not_parsed_again);
 	tcase_add_test(tc_resolve, file_missing);
 	tcase_add_test(tc_resolve, file_is_directory);
 	tcase_add_test(tc_resolve, file_empty);
 	tcase_add_test(tc_resolve, file_only_line_ending);
+	tcase_add_test(tc_resolve, file_first_line);
+	tcase_add_test(tc_resolve, file_first_line_empty);
+	tcase_add_test(tc_resolve, file_first_line_large);
+	tcase_add_test(tc_resolve, file_first_line_too_large);
+	tcase_add_test(tc_resolve, file_first_line_nul);
 	tcase_add_test(tc_resolve, max_len_env);
 	tcase_add_test(tc_resolve, max_len_env_b64);
 	tcase_add_test(tc_resolve, max_len_b64);
@@ -768,6 +997,7 @@ password_suite(void)
 	tcase_add_test(tc_cli, cli_password_b64_attached);
 	tcase_add_test(tc_cli, cli_password_long_form);
 	tcase_add_test(tc_cli, cli_password_file);
+	tcase_add_test(tc_cli, cli_password_file_not_first_line);
 	tcase_add_test(tc_cli, cli_password_literal);
 	tcase_add_test(tc_cli, cli_password_env_unset_fails);
 	tcase_add_test(tc_cli, cli_password_resolved_once_last_wins);
@@ -780,6 +1010,9 @@ password_suite(void)
 	tcase_add_test(tc_cli, cli_tls_keyfile_password_b64);
 	tcase_add_test(tc_cli, cli_tls_keyfile_password_literal);
 	tcase_add_test(tc_cli, cli_tls_keyfile_password_file_missing_fails);
+	tcase_add_test(tc_cli, cli_tls_keyfile_password_file_first_line);
+	tcase_add_test(tc_cli, cli_tls_keyfile_password_last_wins);
+	tcase_add_test(tc_cli, cli_tls_keyfile_password_file_empty_first_line_fails);
 	suite_add_tcase(s, tc_cli);
 
 	return s;

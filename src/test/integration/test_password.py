@@ -1,5 +1,10 @@
+import base64
+import contextlib
 import os
 import subprocess
+import threading
+
+import pytest
 
 import lib
 
@@ -9,7 +14,7 @@ ENV_VAR = "ASBENCH_IT_PW"
 ENV_UNSET = "ASBENCH_IT_PW_UNSET"
 
 
-def run_no_server(args, env=None, stdin=None, gen_bench=True):
+def run_no_server(args, env=None, stdin=None, gen_bench=True, timeout=None):
 	full_env = {k: v for k, v in os.environ.items()
 			if k not in (ENV_VAR, ENV_UNSET)}
 	full_env.update(env or {})
@@ -18,8 +23,37 @@ def run_no_server(args, env=None, stdin=None, gen_bench=True):
 		cmd += ["--gen-bench", "1"]
 	proc = subprocess.run(cmd + args, cwd=ROOT, env=full_env,
 			input=stdin if stdin is not None else "", stdout=subprocess.PIPE,
-			stderr=subprocess.STDOUT, text=True)
+			stderr=subprocess.STDOUT, text=True, start_new_session=True,
+			timeout=timeout)
 	return proc.returncode, proc.stdout
+
+
+@contextlib.contextmanager
+def fifo(path, data, endless=False):
+	"""
+	Feeds data through a FIFO at path and holds the write end open until the
+	block exits.
+	"""
+	os.mkfifo(path)
+	done = threading.Event()
+
+	def write():
+		try:
+			with open(path, "wb", buffering=0) as f:
+				f.write(data)
+				while endless and not done.is_set():
+					f.write(data)
+				done.wait()
+		except BrokenPipeError:
+			pass
+
+	thread = threading.Thread(target=write, daemon=True)
+	thread.start()
+	try:
+		yield path
+	finally:
+		done.set()
+		thread.join(5)
 
 
 def test_password_env():
@@ -51,6 +85,31 @@ def test_password_file_missing():
 	assert("--password: cannot read file /nonexistent/asbench_pw" in out), out
 
 
+def test_password_file_nul_does_not_prompt(tmp_path):
+	path = tmp_path / "pw"
+	path.write_bytes(b"\0" + SECRET.encode() + b"\n")
+	rc, out = run_no_server(["-U", "admin", "-P", "file:%s" % path])
+	assert(rc != 0)
+	assert(("--password: file %s contains a NUL byte" % path) in out), out
+	assert("Enter Password" not in out), out
+
+
+def test_endless_password_file_is_rejected(tmp_path):
+	with fifo(str(tmp_path / "pw"), b"p" * 4096, endless=True) as path:
+		rc, out = run_no_server(["-U", "admin", "-P", "file:%s" % path],
+				timeout=10)
+	assert(rc != 0)
+	assert(("--password: value from file %s is longer than 63 bytes" % path)
+			in out), out
+
+
+def test_password_flag_then_help():
+	rc, out = run_no_server(["-P", "--help"], gen_bench=False)
+	assert(rc == 0), out
+	assert("Usage:" in out), out
+	assert("Enter Password" not in out), out
+
+
 def test_prompted_password_is_literal():
 	rc, out = run_no_server(["-U", "admin", "-P"], stdin="env:%s\n" % ENV_UNSET)
 	assert(rc == 0), out
@@ -63,6 +122,98 @@ def test_tls_keyfile_password_env_unset():
 	assert(rc != 0)
 	assert(("--tls-keyfile-password: environment variable %s is not set or "
 			"empty" % ENV_UNSET) in out), out
+
+
+def test_prompted_tls_keyfile_password_is_resolved():
+	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password"], stdin="env:%s\n" % ENV_UNSET)
+	assert(rc != 0)
+	assert("Enter TLS-Keyfile Password" in out), out
+	assert("keyfile pw:" not in out), out
+	assert(("--tls-keyfile-password: environment variable %s is not set or "
+			"empty" % ENV_UNSET) in out), out
+
+
+def encrypted_key(tmp_path, password):
+	path = tmp_path / "key.pem"
+	subprocess.run(["openssl", "genpkey", "-algorithm", "EC", "-pkeyopt",
+		"ec_paramgen_curve:P-256", "-aes-256-cbc", "-pass", "pass:" + password,
+		"-out", str(path)], check=True, stdout=subprocess.PIPE,
+		stderr=subprocess.STDOUT)
+	return path
+
+
+def run_tls_key(key, keyfile_password, stdin=None):
+	return run_no_server(["--tls-enable", "--tls-keyfile", str(key),
+		"--tls-keyfile-password", keyfile_password], stdin=stdin,
+		gen_bench=False)
+
+
+def test_tls_key_fixture_tells_passwords_apart(tmp_path):
+	key = encrypted_key(tmp_path, "pw")
+	rc, out = run_tls_key(key, "pw")
+	assert(rc != 0)
+	assert("Failed to connect" in out), out
+	assert("private key" not in out.lower()), out
+	rc, out = run_tls_key(key, "wrong")
+	assert(rc != 0)
+	assert("private key" in out.lower()), out
+
+
+@pytest.mark.parametrize("contents", [b"pw\n\n", b"pw\r", b"pw\nmore",
+		b"pw\r\n\r\n"])
+def test_tls_keyfile_password_file_first_line(tmp_path, contents):
+	key = encrypted_key(tmp_path, "pw")
+	path = tmp_path / "pw"
+	path.write_bytes(contents)
+	rc, out = run_tls_key(key, "file:%s" % path)
+	assert(rc != 0)
+	assert("Failed to connect" in out), out
+	assert("private key" not in out.lower()), out
+
+
+def test_tls_keyfile_password_file_empty_first_line(tmp_path):
+	key = encrypted_key(tmp_path, "pw")
+	path = tmp_path / "pw"
+	path.write_bytes(b"\npw\n")
+	rc, out = run_tls_key(key, "file:%s" % path)
+	assert(rc != 0)
+	assert(("--tls-keyfile-password: first line of file %s is empty" % path)
+			in out), out
+
+
+def test_tls_keyfile_password_file_stops_at_first_line(tmp_path):
+	key = encrypted_key(tmp_path, "pw")
+	with fifo(str(tmp_path / "pw"), b"pw\n") as path:
+		rc, out = run_no_server(["--tls-enable", "--tls-keyfile", str(key),
+			"--tls-keyfile-password", "file:%s" % path], gen_bench=False,
+			timeout=10)
+	assert(rc != 0)
+	assert("Failed to connect" in out), out
+	assert("private key" not in out.lower()), out
+
+
+def test_prompted_tls_keyfile_password_b64(tmp_path):
+	key = encrypted_key(tmp_path, "pw")
+	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", str(key),
+		"--tls-keyfile-password"], stdin="b64:%s\n" %
+		base64.b64encode(b"pw").decode(), gen_bench=False)
+	assert(rc != 0)
+	assert("Enter TLS-Keyfile Password" in out), out
+	assert("Failed to connect" in out), out
+	assert("private key" not in out.lower()), out
+
+
+def test_prompted_tls_keyfile_password_file(tmp_path):
+	key = encrypted_key(tmp_path, "pw")
+	path = tmp_path / "pw"
+	path.write_bytes(b"pw\nmore\n")
+	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", str(key),
+		"--tls-keyfile-password"], stdin="file:%s\n" % path, gen_bench=False)
+	assert(rc != 0)
+	assert("Enter TLS-Keyfile Password" in out), out
+	assert("Failed to connect" in out), out
+	assert("private key" not in out.lower()), out
 
 
 def test_login_fixture_tells_passwords_apart():
