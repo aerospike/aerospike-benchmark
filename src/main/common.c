@@ -34,6 +34,8 @@
 
 #include "common.h"
 
+#define PASSWORD_FILE_MAX_LEN 4999
+
 
 //==========================================================
 // Forward declarations.
@@ -235,14 +237,28 @@ password_env(const char* option, const char* var, char** ptr)
 	}
 
 	*ptr = strdup(pw);
+
+	if (*ptr == NULL) {
+		fprintf(stderr, "%s: out of memory reading environment variable %s\n",
+				option, var);
+		return false;
+	}
+
 	return true;
 }
 
 static bool
-password_b64(const char* encoded, char** ptr)
+password_b64(const char* option, const char* encoded, const char* what,
+		const char* name, char** ptr)
 {
 	size_t len = strlen(encoded);
 	char* pw = cf_malloc(len + 1);
+
+	if (pw == NULL) {
+		fprintf(stderr, "%s: out of memory decoding %s%s\n", option, what, name);
+		return false;
+	}
+
 	uint32_t n = 0;
 	uint32_t size;
 
@@ -254,6 +270,14 @@ password_b64(const char* encoded, char** ptr)
 	}
 
 	if (!cf_b64_validate_and_decode_in_place((uint8_t*) pw, n, &size)) {
+		fprintf(stderr, "%s: invalid base64 in %s%s\n", option, what, name);
+		cf_free(pw);
+		return false;
+	}
+
+	if (memchr(pw, '\0', size) != NULL) {
+		fprintf(stderr, "%s: %s%s decodes to a value containing a NUL byte\n",
+				option, what, name);
 		cf_free(pw);
 		return false;
 	}
@@ -263,12 +287,21 @@ password_b64(const char* encoded, char** ptr)
 	}
 
 	pw[size] = '\0';
+
+	if (size == 0) {
+		fprintf(stderr, "%s: %s%s decodes to an empty password\n", option, what,
+				name);
+		cf_free(pw);
+		return false;
+	}
+
 	*ptr = pw;
 	return true;
 }
 
 static bool
-password_file(const char* option, const char* path, char** ptr)
+password_file(const char* option, const char* path, size_t max_len,
+		bool first_line, char** ptr)
 {
 	FILE* fh = fopen(path, "r");
 
@@ -278,18 +311,26 @@ password_file(const char* option, const char* path, char** ptr)
 		return false;
 	}
 
-	size_t cap = 256;
+	// room for a trailing \r\n and one byte more, so an over-long value is
+	// caught without reading the rest of the file
+	size_t cap = max_len + 3;
+	char* pw = cf_malloc(cap + 1);
+
+	if (pw == NULL) {
+		fprintf(stderr, "%s: out of memory reading file %s\n", option, path);
+		fclose(fh);
+		return false;
+	}
+
 	size_t len = 0;
-	size_t n;
-	char* pw = cf_malloc(cap);
+	int c = EOF;
 
-	while ((n = fread(pw + len, 1, cap - len - 1, fh)) != 0) {
-		len += n;
-
-		if (len == cap - 1) {
-			cap *= 2;
-			pw = cf_realloc(pw, cap);
+	while (len < cap && (c = getc(fh)) != EOF && c != '\0') {
+		if (first_line && (c == '\n' || c == '\r')) {
+			break;
 		}
+
+		pw[len++] = (char) c;
 	}
 
 	if (ferror(fh)) {
@@ -304,6 +345,12 @@ password_file(const char* option, const char* path, char** ptr)
 
 	fclose(fh);
 
+	if (c == '\0') {
+		fprintf(stderr, "%s: file %s contains a NUL byte\n", option, path);
+		cf_free(pw);
+		return false;
+	}
+
 	if (len != 0 && pw[len - 1] == '\n') {
 		len--;
 
@@ -315,7 +362,8 @@ password_file(const char* option, const char* path, char** ptr)
 	pw[len] = '\0';
 
 	if (len == 0) {
-		fprintf(stderr, "%s: file %s is empty\n", option, path);
+		fprintf(stderr, "%s: %sfile %s is empty\n", option,
+				first_line && c != EOF ? "first line of " : "", path);
 		cf_free(pw);
 		return false;
 	}
@@ -326,7 +374,7 @@ password_file(const char* option, const char* path, char** ptr)
 
 bool
 read_password(const char* option, const char* value, size_t max_len,
-		char** ptr)
+		bool first_line, char** ptr)
 {
 	const char* from;
 	const char* name;
@@ -343,27 +391,19 @@ read_password(const char* option, const char* value, size_t max_len,
 	else if (strncmp(value, "env-b64:", 8) == 0) {
 		char* encoded;
 
-		from = "value from environment variable ";
+		from = "decoded value from environment variable ";
 		name = value + 8;
 
 		if (!password_env(option, name, &encoded)) {
 			return false;
 		}
 
-		bool ok = password_b64(encoded, &pw);
+		bool ok = password_b64(option, encoded, "environment variable ", name,
+				&pw);
 
 		cf_free(encoded);
 
 		if (!ok) {
-			fprintf(stderr, "%s: invalid base64 in environment variable %s\n",
-					option, name);
-			return false;
-		}
-
-		if (pw[0] == '\0') {
-			fprintf(stderr, "%s: environment variable %s decodes to an empty "
-					"password\n", option, name);
-			cf_free(pw);
 			return false;
 		}
 	}
@@ -371,15 +411,7 @@ read_password(const char* option, const char* value, size_t max_len,
 		from = "decoded b64: value";
 		name = "";
 
-		if (!password_b64(value + 4, &pw)) {
-			fprintf(stderr, "%s: invalid base64 in b64: value\n", option);
-			return false;
-		}
-
-		if (pw[0] == '\0') {
-			fprintf(stderr, "%s: b64: value decodes to an empty password\n",
-					option);
-			cf_free(pw);
+		if (!password_b64(option, value + 4, "b64: value", "", &pw)) {
 			return false;
 		}
 	}
@@ -387,7 +419,11 @@ read_password(const char* option, const char* value, size_t max_len,
 		from = "value from file ";
 		name = value + 5;
 
-		if (!password_file(option, name, &pw)) {
+		if (max_len == 0) {
+			max_len = PASSWORD_FILE_MAX_LEN;
+		}
+
+		if (!password_file(option, name, max_len, first_line, &pw)) {
 			return false;
 		}
 	}

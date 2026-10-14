@@ -387,7 +387,7 @@ print_usage(const char* program)
 	printf("     1) Environment variable: 'env:<VAR>'\n");
 	printf("     2) Base64 encoded environment variable: 'env-b64:<VAR>'\n");
 	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
-	printf("     4) File: 'file:<PATH>'\n");
+	printf("     4) File: 'file:<PATH>', the whole file less one trailing line ending\n");
 	printf("     5) String: 'PASSWORD'\n");
 	printf("   A value read from one of the sources 1-4 must be at most 63 bytes. The value\n");
 	printf("   is only read when --user is given. A password typed at the prompt is used\n");
@@ -899,12 +899,12 @@ print_usage(const char* program)
 	printf("     1) Environment variable: 'env:<VAR>'\n");
 	printf("     2) Base64 encoded environment variable: 'env-b64:<VAR>'\n");
 	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
-	printf("     4) File: 'file:<PATH>'\n");
+	printf("     4) File: 'file:<PATH>', the first line of the file, at most 4999 bytes\n");
 	printf("     5) String: 'PASSWORD'\n");
 	printf("   Default: none\n");
 	printf("   User will be prompted on command line if --tls-keyfile-password\n");
 	printf("   specified and no password is given. A password typed at the prompt\n");
-	printf("   is used as is.\n");
+	printf("   can also be one of the above.\n");
 	printf("\n");
 
 	printf("   --tls-certfile <path>\n");
@@ -1942,7 +1942,7 @@ set_args(int argc, char * const* argv, args_t* args)
 			char* pw;
 
 			if (!read_password("--password", password_arg, AS_PASSWORD_SIZE - 1,
-						&pw)) {
+						false, &pw)) {
 				return 1;
 			}
 
@@ -1952,14 +1952,17 @@ set_args(int argc, char * const* argv, args_t* args)
 	}
 
 	if (args->tls.keyfile && args->tls.keyfile_pw) {
+		const char* value = args->tls.keyfile_pw;
 		char* pw;
 
-		if (args->tls.keyfile_pw[0] == '\0') {
-			const char* typed = getpass("Enter TLS-Keyfile Password: ");
-			pw = strdup(typed != NULL ? typed : "");
+		if (value[0] == '\0') {
+			value = getpass("Enter TLS-Keyfile Password: ");
 		}
-		else if (!read_password("--tls-keyfile-password", args->tls.keyfile_pw, 0,
-					&pw)) {
+
+		if (value == NULL || value[0] == '\0') {
+			pw = strdup("");
+		}
+		else if (!read_password("--tls-keyfile-password", value, 0, true, &pw)) {
 			return 1;
 		}
 
