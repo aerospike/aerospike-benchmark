@@ -780,8 +780,9 @@ print_usage(const char* program)
 	printf("   --read-touch-ttl-percent <percent> # Default: 0\n");
 	printf("   Reset a record's TTL on reads near its end of life, so the server can\n");
 	printf("   act as a read-based LRU cache. The value is a percentage of the most\n");
-	printf("   recent write TTL. For example, with a write TTL of 10 hours and 80, a\n");
-	printf("   read in the last 8 hours of the record's life resets the TTL to 10 hours.\n");
+	printf("   recent write TTL. For example, with a write TTL of 10 hours and a value\n");
+	printf("   of 80, a read in the last 8 hours of the record's life resets the TTL to\n");
+	printf("   10 hours.\n");
 	printf("   Applies to reads, batch reads and CDT reads. Requires server 7.1+.\n");
 	printf("     -1: Never reset the TTL on reads.\n");
 	printf("     0: Use the namespace/set default-read-touch-ttl-pct.\n");
