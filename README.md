@@ -69,7 +69,7 @@ To view coverage data in the console, run
 make report
 ```
 
-The integration tests start a two node Aerospike cluster in Docker and need `python3`. Each test session picks a random free port range and its own work directory, waits until both nodes have joined and migrations are done, and removes its containers when it exits. A session that was killed is cleaned up by the next one, so the tests can run next to an Aerospike server already listening on port 3000.
+The integration tests start a two node Aerospike cluster in Docker and need `python3`. Each test session picks a random free port range and its own work directory, waits until both nodes have joined and migrations are done, and removes its containers when it exits. A session that was killed is cleaned up by the next one, so the tests can run next to an Aerospike server already listening on port 3000. The cluster runs Aerospike Enterprise 8.2, so set `FEATKEY_B64` to a base64 encoded feature key file before running them.
 
 The dictionary generator has its own tests:
 

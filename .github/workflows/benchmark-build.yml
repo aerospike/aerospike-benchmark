@@ -85,6 +85,8 @@ jobs:
       run: ./target/asbench --gen-bench 200000 -z 2 -o "id=@uuid, first=@first_name, email=@email, age=@int(18,90), loc=@geojson"
       working-directory: main
     - name: Test
+      env:
+        FEATKEY_B64: ${{ secrets.TEST_FEAT_KEY_B64 }}
       run: make coverage-all EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
     - name: clear temp directories
