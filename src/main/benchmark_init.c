@@ -263,6 +263,7 @@ LOCAL_HELPER void print_args(args_t* args);
 LOCAL_HELPER int validate_args(args_t* args);
 LOCAL_HELPER stage_def_t* get_or_init_stage(args_t* args);
 LOCAL_HELPER const char* camelcase_to_dash(const char* camel_str);
+LOCAL_HELPER bool prompt_password(args_t* args);
 LOCAL_HELPER int set_args(int argc, char * const* argv, args_t* args);
 LOCAL_HELPER void _load_defaults(args_t* args);
 LOCAL_HELPER int _load_defaults_post(args_t* args);
@@ -378,11 +379,25 @@ print_usage(const char* program)
 	printf("\n");
 
 	printf("-P[<password>] --password[=<password>]  # Default: empty\n");
-	printf("   User's password for Aerospike servers that require authentication.\n");
-	printf("   If -P is set, the actual password is optional. If the password is not given,\n");
-	printf("   the user will be prompted on the command line.\n");
-	printf("   If the password is given, it must be provided directly after -P with no\n");
-	printf("   intervening space (ie. -Pmypass).\n");
+	printf("   Password used to authenticate with cluster. Default: none\n");
+	printf("   It can be one of the following:\n");
+	printf("     1) Environment variable: 'env:<VAR>', used exactly as set\n");
+	printf("     2) Base64 encoded environment variable: 'env-b64:<VAR>'\n");
+	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
+	printf("     4) File: 'file:<PATH>', the whole file less one trailing '\\n' or\n");
+	printf("        '\\r\\n'. PATH should name a regular file.\n");
+	printf("     5) String: 'PASSWORD'\n");
+	printf("   Prefixes are case-sensitive. A base64 value may be line wrapped,\n");
+	printf("   and one trailing newline is dropped after decoding. A 'b64:' value\n");
+	printf("   on the command line is as visible as a literal password.\n");
+	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
+	printf("   'file:' must be given as 'b64:' or typed at the prompt.\n");
+	printf("   The password is read only when a user is set and the auth mode is\n");
+	printf("   not PKI. It must be at most 63 bytes.\n");
+	printf("   User will be prompted on command line if -P specified and no\n");
+	printf("   password is given. The typed password is used as is.\n");
+	printf("   If the password is given, it can follow -P directly (ie. -Pmypass) or as\n");
+	printf("   the next argument (ie. -P mypass).\n");
 	printf("\n");
 
 	printf("   --services-alternate\n");
@@ -887,12 +902,21 @@ print_usage(const char* program)
 	printf("   --tls-keyfile-password=TLS_KEYFILE_PASSWORD\n");
 	printf("   Password to load protected tls-keyfile.\n");
 	printf("   It can be one of the following:\n");
-	printf("     1) Environment varaible: 'env:<VAR>'\n");
-	printf("     2) File: 'file:<PATH>'\n");
-	printf("     3) String: 'PASSWORD'\n");
+	printf("     1) Environment variable: 'env:<VAR>', used exactly as set\n");
+	printf("     2) Base64 encoded environment variable: 'env-b64:<VAR>'\n");
+	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
+	printf("     4) File: 'file:<PATH>', the first line of the file\n");
+	printf("     5) String: 'PASSWORD'\n");
+	printf("   Prefixes are case-sensitive. A base64 value may be line wrapped,\n");
+	printf("   and one trailing newline is dropped after decoding.\n");
+	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
+	printf("   'file:' must be given as 'b64:'.\n");
+	printf("   The password is read only when a key file is set. It must be at\n");
+	printf("   most 1024 bytes.\n");
 	printf("   Default: none\n");
 	printf("   User will be prompted on command line if --tls-keyfile-password\n");
-	printf("   specified and no password is given.\n");
+	printf("   specified and no password is given. The typed password\n");
+	printf("   accepts the forms above.\n");
 	printf("\n");
 
 	printf("   --tls-certfile <path>\n");
@@ -1290,11 +1314,28 @@ camelcase_to_dash(const char* camel_str)
 	return tmp;
 }
 
+LOCAL_HELPER bool
+prompt_password(args_t* args)
+{
+	char pw[AS_PASSWORD_SIZE + 1];
+
+	as_password_acquire(pw, NULL, sizeof(pw));
+
+	if (args->user != NULL && args->auth_mode != AS_AUTH_PKI &&
+			!password_len_ok("--password", pw, AS_PASSWORD_SIZE - 1)) {
+		return false;
+	}
+
+	as_strncpy(args->password, pw, AS_PASSWORD_SIZE);
+	return true;
+}
+
 LOCAL_HELPER int
 set_args(int argc, char * const* argv, args_t* args)
 {
 	int option_index = 0;
 	int c;
+	const char* password_arg = NULL;
 
 	while ((c = getopt_long_only(argc, argv, short_options, long_options,
 					&option_index)) != -1) {
@@ -1341,9 +1382,9 @@ set_args(int argc, char * const* argv, args_t* args)
 							argv[optind][0] != '\0' &&
 							argv[optind][0] != '-' ) {
 					// space separated argument value
-					as_strncpy(args->password, argv[optind], AS_PASSWORD_SIZE);
+					password_arg = argv[optind];
 				} else {
-					as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
+					password_arg = optarg != NULL ? optarg : "";
 				}
 				break;
 			case BENCH_OPT_CONNECT_TIMEOUT:
@@ -1881,6 +1922,7 @@ set_args(int argc, char * const* argv, args_t* args)
 				break;
 
 			case TLS_OPT_KEY_FILE_PASSWORD:
+				cf_free(args->tls.keyfile_pw);
 				if (optarg == NULL) {
 					if (optind < argc &&
 							argv[optind] != NULL &&
@@ -1920,21 +1962,56 @@ set_args(int argc, char * const* argv, args_t* args)
 		}
 	}
 
-	if (args->tls.keyfile && args->tls.keyfile_pw) {
-		if (strcmp(args->tls.keyfile_pw, "") == 0) {
-			printf("keyfile pw: %s\n", args->tls.keyfile_pw);
-			args->tls.keyfile_pw = getpass("Enter TLS-Keyfile Password: ");
+	if (password_arg != NULL) {
+		if (password_arg[0] == '\0') {
+			if (!prompt_password(args)) {
+				return 1;
+			}
 		}
+		else if (args->auth_mode == AS_AUTH_PKI) {
+			as_strncpy(args->password, password_arg, AS_PASSWORD_SIZE);
+		}
+		else if (args->user != NULL) {
+			char* pw;
 
-		char* old_pass = args->tls.keyfile_pw;
-		if (!tls_read_password(old_pass, &args->tls.keyfile_pw)) {
-			return 1;
+			if (!read_password("--password", password_arg, AS_PASSWORD_SIZE - 1,
+						false, &pw)) {
+				return 1;
+			}
+
+			as_strncpy(args->password, pw, AS_PASSWORD_SIZE);
+			cf_free(pw);
 		}
-		cf_free(old_pass);
+		else if (args->gen_bench_iters == 0 &&
+				password_has_source(password_arg)) {
+			fprintf(stderr, "Warning: --password: ignored because no user is "
+					"set\n");
+		}
 	}
 
-	if (args->user != NULL && args->password[0] == '\0') {
-		as_password_acquire(args->password, optarg, AS_PASSWORD_SIZE);
+	if (args->tls.keyfile && args->tls.keyfile_pw) {
+		const char* value = args->tls.keyfile_pw;
+		char* pw;
+
+		if (value[0] == '\0') {
+			value = getpass("Enter TLS-Keyfile Password: ");
+		}
+
+		if (value == NULL || value[0] == '\0') {
+			pw = strdup("");
+		}
+		else if (!read_password("--tls-keyfile-password", value,
+					TLS_KEYFILE_PASSWORD_MAX_LEN, true, &pw)) {
+			return 1;
+		}
+
+		cf_free(args->tls.keyfile_pw);
+		args->tls.keyfile_pw = pw;
+	}
+
+	if (args->user != NULL && args->password[0] == '\0' &&
+			!prompt_password(args)) {
+		return 1;
 	}
 
 	return validate_args(args);
