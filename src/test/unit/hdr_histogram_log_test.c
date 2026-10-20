@@ -25,21 +25,17 @@
 #pragma warning(disable: 4996)
 #endif
 
-static long ns_to_ms(long ns)
-{
-	return (ns / 1000000) * 1000000;
-}
-
 static bool compare_timespec(hdr_timespec* a, hdr_timespec* b)
 {
 	char a_str[128];
 	char b_str[128];
 
-	long a_tv_msec = ns_to_ms(a->tv_nsec);
-	long b_tv_msec = ns_to_ms(b->tv_nsec);
+	int64_t diff_ns = ((int64_t) a->tv_sec - b->tv_sec) * 1000000000 +
+			(a->tv_nsec - b->tv_nsec);
 
-	/* Allow off by 1 millisecond due to parsing and rounding. */
-	if (a->tv_sec == b->tv_sec && labs(a_tv_msec - b_tv_msec) <= 1000000)
+	/* Allow off by 1 millisecond due to parsing and rounding, which can carry
+	 * into tv_sec when the time is within half a millisecond of the next second. */
+	if (llabs(diff_ns) <= 1000000)
 	{
 		return true;
 	}
@@ -58,10 +54,7 @@ static bool compare_timespec(hdr_timespec* a, hdr_timespec* b)
 #endif
 	}
 
-	if (a_tv_msec == b_tv_msec)
-	{
-		printf("%ld != %ld\n", a->tv_nsec, b->tv_nsec);
-	}
+	printf("%ld != %ld\n", a->tv_nsec, b->tv_nsec);
 
 	return false;
 }
