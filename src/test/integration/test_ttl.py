@@ -41,19 +41,37 @@ def read_with_touch(workload, pct):
 	assert(after.keys() == before.keys())
 	return before, after
 
-@pytest.mark.parametrize("workload", [
-	["--workload", "RU,100"],
-	["--workload", "RU,100", "--batch-read-size", "10"],
-	["--workload", "RU,100", "--async"],
-	["--workload", "C,100,0,5"],
-	["--workload", "C,100,0,5", "--async"],
-])
+SYNC_READS = ["--workload", "RU,100"]
+BATCH_READS = ["--workload", "RU,100", "--batch-read-size", "10"]
+ASYNC_READS = ["--workload", "RU,100", "--async"]
+CDT_READS = ["--workload", "C,100,0,5"]
+ASYNC_CDT_READS = ["--workload", "C,100,0,5", "--async"]
+
+def check_touched(before, after, touched):
+	for digest, ttl in before.items():
+		if touched:
+			assert(after[digest] > ttl), (ttl, after[digest])
+		else:
+			assert(after[digest] <= ttl), (ttl, after[digest])
+
+@pytest.mark.parametrize("workload", [SYNC_READS, BATCH_READS, ASYNC_READS,
+	CDT_READS, ASYNC_CDT_READS])
 def test_read_touch_ttl_percent_resets_ttl(workload):
 	before, after = read_with_touch(workload, "80")
-	for digest, ttl in before.items():
-		assert(after[digest] > ttl), (ttl, after[digest])
+	check_touched(before, after, True)
 
-def test_read_touch_ttl_percent_never():
-	before, after = read_with_touch(["--workload", "RU,100"], "-1")
-	for digest, ttl in before.items():
-		assert(after[digest] <= ttl), (ttl, after[digest])
+@pytest.fixture
+def namespace_touch_pct():
+	lib.start()
+	lib.set_namespace_config("default-read-touch-ttl-pct", 80)
+	try:
+		yield
+	finally:
+		lib.set_namespace_config("default-read-touch-ttl-pct", 0)
+
+@pytest.mark.parametrize("workload", [SYNC_READS, BATCH_READS, CDT_READS])
+@pytest.mark.parametrize("pct, touched", [("-1", False), ("0", True)])
+def test_read_touch_ttl_percent_namespace_default(namespace_touch_pct, workload,
+		pct, touched):
+	before, after = read_with_touch(workload, pct)
+	check_touched(before, after, touched)
