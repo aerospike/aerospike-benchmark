@@ -21,10 +21,16 @@
 #include <stdlib.h>
 #include <check.h>
 #include "benchmark.h"
+#include "coordinator.h"
 
 #define TEST_SUITE_NAME "Setup"
 args_t *args;
 cdata_t *data;
+
+extern void _load_defaults(args_t* args);
+extern void _free_args(args_t* args);
+extern tdata_t* init_tdata(const args_t* args, cdata_t* cdata,
+		thr_coord_t* coord, uint32_t t_idx);
 
 /**
  * Any setup code to run each test goes here
@@ -101,6 +107,35 @@ START_TEST(test_setup) {
 }
 END_TEST
 
+START_TEST(test_init_tdata_read_touch_ttl_percent) {
+	args_t a;
+	cdata_t c = { 0 };
+	_load_defaults(&a);
+
+	tdata_t* t = init_tdata(&a, &c, NULL, 0);
+	ck_assert_int_eq(t->policies.read.read_touch_ttl_percent, 0);
+	ck_assert_int_eq(t->policies.batch.read_touch_ttl_percent, 0);
+	ck_assert_int_eq(t->policies.operate.read_touch_ttl_percent, 0);
+	cf_free(t);
+
+	a.read_touch_ttl_percent = 80;
+	t = init_tdata(&a, &c, NULL, 0);
+	ck_assert_int_eq(t->policies.read.read_touch_ttl_percent, 80);
+	ck_assert_int_eq(t->policies.batch.read_touch_ttl_percent, 80);
+	ck_assert_int_eq(t->policies.operate.read_touch_ttl_percent, 80);
+	cf_free(t);
+
+	a.read_touch_ttl_percent = -1;
+	t = init_tdata(&a, &c, NULL, 0);
+	ck_assert_int_eq(t->policies.read.read_touch_ttl_percent, -1);
+	ck_assert_int_eq(t->policies.batch.read_touch_ttl_percent, -1);
+	ck_assert_int_eq(t->policies.operate.read_touch_ttl_percent, -1);
+	cf_free(t);
+
+	_free_args(&a);
+}
+END_TEST
+
 Suite*
 setup_suite(void) {
 	Suite* s;
@@ -111,7 +146,8 @@ setup_suite(void) {
 	/* Core test case */
 	tc_core = tcase_create("Core");
 	tcase_add_checked_fixture(tc_core, setup, teardown);
-	tcase_add_test(tc_core, test_setup);	
+	tcase_add_test(tc_core, test_setup);
+	tcase_add_test(tc_core, test_init_tdata_read_touch_ttl_percent);
 	suite_add_tcase(s, tc_core);
 
 	return s;
