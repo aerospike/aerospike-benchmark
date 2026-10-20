@@ -321,7 +321,13 @@ def test_prefix_without_name(label, value, message):
 @pytest.mark.parametrize("value,env,message", [
 	("env-b64:" + ENV_VAR, {ENV_VAR: "Cg=="},
 		"password from environment variable %s is empty" % ENV_VAR),
+	("env-b64:" + ENV_VAR, {ENV_VAR: "\r\n\n"},
+		"password from environment variable %s is empty" % ENV_VAR),
+	("env-b64:" + ENV_VAR, {ENV_VAR: ""},
+		"environment variable %s is not set or empty" % ENV_VAR),
 	("b64:Cg==", {}, "password from b64: value is empty"),
+	("b64:", {}, "password from b64: value is empty"),
+	("b64:\r\n\n", {}, "password from b64: value is empty"),
 	("file:{path}", {}, "password from file {path} is empty"),
 ])
 def test_empty_password(tmp_path, label, value, env, message):

@@ -258,7 +258,7 @@ password_b64(const char* option, const char* encoded, const char* what,
 	}
 
 	uint32_t n = 0;
-	uint32_t size;
+	uint32_t size = 0;
 
 	// line breaks are skipped, as Go's base64.StdEncoding does
 	for (size_t i = 0; i < len; i++) {
@@ -267,7 +267,8 @@ password_b64(const char* option, const char* encoded, const char* what,
 		}
 	}
 
-	if (!cf_b64_validate_and_decode_in_place((uint8_t*) pw, n, &size)) {
+	if (n != 0 && !cf_b64_validate_and_decode_in_place((uint8_t*) pw, n,
+				&size)) {
 		fprintf(stderr, "%s: invalid base64 in %s%s\n", option, what, name);
 		cf_free(pw);
 		return false;

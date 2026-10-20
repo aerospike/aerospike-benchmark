@@ -306,7 +306,30 @@ END_TEST
 START_TEST(b64_missing)
 {
 	assert_fails("--password", "b64:",
-			"--password: invalid base64 in b64: value\n");
+			"--password: password from b64: value is empty\n");
+	assert_fails("--tls-keyfile-password", "b64:",
+			"--tls-keyfile-password: password from b64: value is empty\n");
+}
+END_TEST
+
+START_TEST(b64_only_line_breaks)
+{
+	assert_fails("--password", "b64:\r\n\n",
+			"--password: password from b64: value is empty\n");
+	assert_fails("--tls-keyfile-password", "b64:\n",
+			"--tls-keyfile-password: password from b64: value is empty\n");
+}
+END_TEST
+
+START_TEST(env_b64_only_line_breaks)
+{
+	setenv(ENV_VAR, "\r\n\n", 1);
+	assert_fails("--password", "env-b64:" ENV_VAR, "--password: password from "
+			"environment variable " ENV_VAR " is empty\n");
+	setenv(ENV_VAR, "\n", 1);
+	assert_fails("--tls-keyfile-password", "env-b64:" ENV_VAR,
+			"--tls-keyfile-password: password from environment variable "
+			ENV_VAR " is empty\n");
 }
 END_TEST
 
@@ -1303,6 +1326,8 @@ password_suite(void)
 	tcase_add_test(tc_resolve, b64_invalid_padding);
 	tcase_add_test(tc_resolve, b64_line_breaks_skipped);
 	tcase_add_test(tc_resolve, b64_missing);
+	tcase_add_test(tc_resolve, b64_only_line_breaks);
+	tcase_add_test(tc_resolve, env_b64_only_line_breaks);
 	tcase_add_test(tc_resolve, b64_decodes_empty);
 	tcase_add_test(tc_resolve, b64_nul);
 	tcase_add_test(tc_resolve, file);
