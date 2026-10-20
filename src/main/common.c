@@ -34,8 +34,6 @@
 
 #include "common.h"
 
-#define PASSWORD_FILE_MAX_LEN 4999
-
 
 //==========================================================
 // Forward declarations.
@@ -289,8 +287,7 @@ password_b64(const char* option, const char* encoded, const char* what,
 	pw[size] = '\0';
 
 	if (size == 0) {
-		fprintf(stderr, "%s: %s%s decodes to an empty password\n", option, what,
-				name);
+		fprintf(stderr, "%s: password from %s%s is empty\n", option, what, name);
 		cf_free(pw);
 		return false;
 	}
@@ -333,9 +330,9 @@ password_file(const char* option, const char* path, size_t max_len,
 		pw[len++] = (char) c;
 	}
 
-	if (ferror(fh)) {
-		int err = errno;
+	int err = errno;
 
+	if (ferror(fh)) {
 		fclose(fh);
 		cf_free(pw);
 		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
@@ -362,13 +359,34 @@ password_file(const char* option, const char* path, size_t max_len,
 	pw[len] = '\0';
 
 	if (len == 0) {
-		fprintf(stderr, "%s: %sfile %s is empty\n", option,
+		fprintf(stderr, "%s: password from %sfile %s is empty\n", option,
 				first_line && c != EOF ? "first line of " : "", path);
 		cf_free(pw);
 		return false;
 	}
 
 	*ptr = pw;
+	return true;
+}
+
+bool
+password_has_source(const char* value)
+{
+	return strncmp(value, "env:", 4) == 0 ||
+		strncmp(value, "env-b64:", 8) == 0 ||
+		strncmp(value, "b64:", 4) == 0 ||
+		strncmp(value, "file:", 5) == 0;
+}
+
+bool
+password_len_ok(const char* option, const char* pw, size_t max_len)
+{
+	if (strlen(pw) > max_len) {
+		fprintf(stderr, "%s: password is longer than %zu bytes\n", option,
+				max_len);
+		return false;
+	}
+
 	return true;
 }
 
@@ -384,6 +402,11 @@ read_password(const char* option, const char* value, size_t max_len,
 		from = "value from environment variable ";
 		name = value + 4;
 
+		if (name[0] == '\0') {
+			fprintf(stderr, "%s: env: requires a variable name\n", option);
+			return false;
+		}
+
 		if (!password_env(option, name, &pw)) {
 			return false;
 		}
@@ -393,6 +416,11 @@ read_password(const char* option, const char* value, size_t max_len,
 
 		from = "decoded value from environment variable ";
 		name = value + 8;
+
+		if (name[0] == '\0') {
+			fprintf(stderr, "%s: env-b64: requires a variable name\n", option);
+			return false;
+		}
 
 		if (!password_env(option, name, &encoded)) {
 			return false;
@@ -419,8 +447,9 @@ read_password(const char* option, const char* value, size_t max_len,
 		from = "value from file ";
 		name = value + 5;
 
-		if (max_len == 0) {
-			max_len = PASSWORD_FILE_MAX_LEN;
+		if (name[0] == '\0') {
+			fprintf(stderr, "%s: file: requires a path\n", option);
+			return false;
 		}
 
 		if (!password_file(option, name, max_len, first_line, &pw)) {
@@ -433,11 +462,15 @@ read_password(const char* option, const char* value, size_t max_len,
 			return false;
 		}
 
+		if (!password_len_ok(option, value, max_len)) {
+			return false;
+		}
+
 		*ptr = strdup(value);
 		return true;
 	}
 
-	if (max_len != 0 && strlen(pw) > max_len) {
+	if (strlen(pw) > max_len) {
 		fprintf(stderr, "%s: %s%s is longer than %zu bytes\n", option, from, name,
 				max_len);
 		cf_free(pw);

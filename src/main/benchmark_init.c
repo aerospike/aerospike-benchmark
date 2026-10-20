@@ -263,6 +263,7 @@ LOCAL_HELPER void print_args(args_t* args);
 LOCAL_HELPER int validate_args(args_t* args);
 LOCAL_HELPER stage_def_t* get_or_init_stage(args_t* args);
 LOCAL_HELPER const char* camelcase_to_dash(const char* camel_str);
+LOCAL_HELPER bool prompt_password(args_t* args);
 LOCAL_HELPER int set_args(int argc, char * const* argv, args_t* args);
 LOCAL_HELPER void _load_defaults(args_t* args);
 LOCAL_HELPER int _load_defaults_post(args_t* args);
@@ -378,20 +379,25 @@ print_usage(const char* program)
 	printf("\n");
 
 	printf("-P[<password>] --password[=<password>]  # Default: empty\n");
-	printf("   User's password for Aerospike servers that require authentication.\n");
-	printf("   If -P is set, the actual password is optional. If the password is not given,\n");
-	printf("   the user will be prompted on the command line.\n");
-	printf("   If the password is given, it can follow -P directly (ie. -Pmypass) or as\n");
-	printf("   the next argument (ie. -P mypass).\n");
+	printf("   Password used to authenticate with cluster. Default: none\n");
 	printf("   It can be one of the following:\n");
-	printf("     1) Environment variable: 'env:<VAR>'\n");
+	printf("     1) Environment variable: 'env:<VAR>', used exactly as set\n");
 	printf("     2) Base64 encoded environment variable: 'env-b64:<VAR>'\n");
 	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
-	printf("     4) File: 'file:<PATH>', the whole file less one trailing line ending\n");
+	printf("     4) File: 'file:<PATH>', the whole file less one trailing '\\n' or\n");
+	printf("        '\\r\\n'. PATH should name a regular file.\n");
 	printf("     5) String: 'PASSWORD'\n");
-	printf("   A value read from one of the sources 1-4 must be at most 63 bytes. The value\n");
-	printf("   is only read when --user is given. A password typed at the prompt is used\n");
-	printf("   as is.\n");
+	printf("   Prefixes are case-sensitive. A base64 value may be line wrapped,\n");
+	printf("   and one trailing newline is dropped after decoding. A 'b64:' value\n");
+	printf("   on the command line is as visible as a literal password.\n");
+	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
+	printf("   'file:' must be given as 'b64:' or typed at the prompt.\n");
+	printf("   The password is read only when a user is set and the auth mode is\n");
+	printf("   not PKI. It must be at most 63 bytes.\n");
+	printf("   User will be prompted on command line if -P specified and no\n");
+	printf("   password is given. The typed password is used as is.\n");
+	printf("   If the password is given, it can follow -P directly (ie. -Pmypass) or as\n");
+	printf("   the next argument (ie. -P mypass).\n");
 	printf("\n");
 
 	printf("   --services-alternate\n");
@@ -896,15 +902,21 @@ print_usage(const char* program)
 	printf("   --tls-keyfile-password=TLS_KEYFILE_PASSWORD\n");
 	printf("   Password to load protected tls-keyfile.\n");
 	printf("   It can be one of the following:\n");
-	printf("     1) Environment variable: 'env:<VAR>'\n");
+	printf("     1) Environment variable: 'env:<VAR>', used exactly as set\n");
 	printf("     2) Base64 encoded environment variable: 'env-b64:<VAR>'\n");
 	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
-	printf("     4) File: 'file:<PATH>', the first line of the file, at most 4999 bytes\n");
+	printf("     4) File: 'file:<PATH>', the first line of the file\n");
 	printf("     5) String: 'PASSWORD'\n");
+	printf("   Prefixes are case-sensitive. A base64 value may be line wrapped,\n");
+	printf("   and one trailing newline is dropped after decoding.\n");
+	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
+	printf("   'file:' must be given as 'b64:'.\n");
+	printf("   The password is read only when a key file is set. It must be at\n");
+	printf("   most 1024 bytes.\n");
 	printf("   Default: none\n");
 	printf("   User will be prompted on command line if --tls-keyfile-password\n");
-	printf("   specified and no password is given. A password typed at the prompt\n");
-	printf("   can also be one of the above.\n");
+	printf("   specified and no password is given. The typed password\n");
+	printf("   accepts the forms above.\n");
 	printf("\n");
 
 	printf("   --tls-certfile <path>\n");
@@ -1300,6 +1312,22 @@ camelcase_to_dash(const char* camel_str)
 	}
 	tmp[j] = '\0';
 	return tmp;
+}
+
+LOCAL_HELPER bool
+prompt_password(args_t* args)
+{
+	char pw[AS_PASSWORD_SIZE + 1];
+
+	as_password_acquire(pw, NULL, sizeof(pw));
+
+	if (args->user != NULL && args->auth_mode != AS_AUTH_PKI &&
+			!password_len_ok("--password", pw, AS_PASSWORD_SIZE - 1)) {
+		return false;
+	}
+
+	as_strncpy(args->password, pw, AS_PASSWORD_SIZE);
+	return true;
 }
 
 LOCAL_HELPER int
@@ -1936,7 +1964,12 @@ set_args(int argc, char * const* argv, args_t* args)
 
 	if (password_arg != NULL) {
 		if (password_arg[0] == '\0') {
-			as_password_acquire(args->password, NULL, AS_PASSWORD_SIZE);
+			if (!prompt_password(args)) {
+				return 1;
+			}
+		}
+		else if (args->auth_mode == AS_AUTH_PKI) {
+			as_strncpy(args->password, password_arg, AS_PASSWORD_SIZE);
 		}
 		else if (args->user != NULL) {
 			char* pw;
@@ -1948,6 +1981,11 @@ set_args(int argc, char * const* argv, args_t* args)
 
 			as_strncpy(args->password, pw, AS_PASSWORD_SIZE);
 			cf_free(pw);
+		}
+		else if (args->gen_bench_iters == 0 &&
+				password_has_source(password_arg)) {
+			fprintf(stderr, "Warning: --password: ignored because no user is "
+					"set\n");
 		}
 	}
 
@@ -1962,7 +2000,8 @@ set_args(int argc, char * const* argv, args_t* args)
 		if (value == NULL || value[0] == '\0') {
 			pw = strdup("");
 		}
-		else if (!read_password("--tls-keyfile-password", value, 0, true, &pw)) {
+		else if (!read_password("--tls-keyfile-password", value,
+					TLS_KEYFILE_PASSWORD_MAX_LEN, true, &pw)) {
 			return 1;
 		}
 
@@ -1970,8 +2009,9 @@ set_args(int argc, char * const* argv, args_t* args)
 		args->tls.keyfile_pw = pw;
 	}
 
-	if (args->user != NULL && args->password[0] == '\0') {
-		as_password_acquire(args->password, NULL, AS_PASSWORD_SIZE);
+	if (args->user != NULL && args->password[0] == '\0' &&
+			!prompt_password(args)) {
+		return 1;
 	}
 
 	return validate_args(args);
