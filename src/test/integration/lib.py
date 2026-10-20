@@ -61,7 +61,7 @@ WORK_DIRECTORY = "work-%d" % PORT
 LUA_DIRECTORY = WORK_DIRECTORY + "/lua"
 CONTAINER_LABEL = "asbench-integration"
 CONTAINER_OWNER_LABEL = "asbench-integration-pid"
-SERVER_IMAGE = "aerospike/aerospike-server-enterprise:8.2.0.0"
+SERVER_IMAGE = "aerospike/aerospike-server:8.2.0.0"
 CLUSTER_READY_TIMEOUT = 60
 STATE_DIRECTORIES = ["state-%d" % i for i in range(1, N_NODES+1)]
 UDF_DIRECTORIES = ["udf-%d" % i for i in range(1, N_NODES+1)]
@@ -321,11 +321,6 @@ def _start_cluster():
 	global SERVER_IP
 
 	if USE_DOCKER_SERVERS:
-		feat_key = os.environ.get("FEATKEY_B64")
-		if not feat_key:
-			raise RuntimeError("Env var FEATKEY_B64 must be set with a base64 "
-					"encoded feature key file.")
-
 		print("Starting asd")
 		_remove_stale_containers()
 
@@ -350,7 +345,6 @@ def _start_cluster():
 						for i in range(PORTS_PER_NODE)
 					},
 					volumes={ mount_dir: { 'bind': CONTAINER_DIR, 'mode': 'rw' } },
-					environment={ 'FEATURES': feat_key },
 					labels={ CONTAINER_LABEL: SESSION_ID,
 						CONTAINER_OWNER_LABEL: str(os.getpid()) },
 					tty=True, detach=True, name='%s-%d' % (SESSION_ID, index))
@@ -570,6 +564,12 @@ def literal_login(password):
 	"""
 	return capture_login(["-U", "admin", "-P", password])
 
+
+def set_namespace_config(param, value):
+	cmd = "set-config:context=namespace;id=%s;%s=%s" % (NAMESPACE, param, value)
+	for err, resp in CLIENT.info_all(cmd).values():
+		assert(err is None), err
+		assert(resp.strip().endswith("ok")), resp
 
 def scan_records():
 	recs = []

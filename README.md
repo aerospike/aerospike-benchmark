@@ -69,7 +69,7 @@ To view coverage data in the console, run
 make report
 ```
 
-The integration tests start a two node Aerospike cluster in Docker and need `python3`. Each test session picks a random free port range and its own work directory, waits until both nodes have joined and migrations are done, and removes its containers when it exits. A session that was killed is cleaned up by the next one, so the tests can run next to an Aerospike server already listening on port 3000. The cluster runs Aerospike Enterprise 8.2, so set `FEATKEY_B64` to a base64 encoded feature key file before running them.
+The integration tests start a two node Aerospike cluster in Docker and need `python3`. Each test session picks a random free port range and its own work directory, waits until both nodes have joined and migrations are done, and removes its containers when it exits. A session that was killed is cleaned up by the next one, so the tests can run next to an Aerospike server already listening on port 3000.
 
 The dictionary generator has its own tests:
 
@@ -102,7 +102,7 @@ To:
 target/asbench -h 127.0.0.1 -p 3000 -n test -k 1000000 -o S50 -w RU,50 --async --asyncMaxCommands 50 --eventLoops 1
 ```
 
-To benchmark a read-based LRU cache, where a read in the last 80% of a record's 1 hour TTL resets it to 1 hour (server 7.1+):
+To benchmark a read-based LRU cache, where a read in the last 80% of a record's 1 hour TTL resets it to 1 hour (server 7.1+). The namespace needs a non-zero `nsup-period` (or `allow-ttl-without-nsup true`), otherwise the server rejects every write with a TTL:
 ```sh
 target/asbench -h 127.0.0.1 -n test -k 1000000 -w RU,90 -e 3600 --read-touch-ttl-percent 80
 ```
