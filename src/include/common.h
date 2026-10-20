@@ -206,15 +206,37 @@ bool bin_name_too_large(size_t name_len, uint32_t n_bins);
 void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
 
 /*
- * reads a password either from a file or an environment variable
+ * the longest TLS key file password the C client passes to OpenSSL
+ * (PEM_BUFSIZE)
+ */
+#define TLS_KEYFILE_PASSWORD_MAX_LEN 1024
+
+/*
+ * resolves the value given to a password option (named by option, which is
+ * only used in error messages) into the password itself
  *
- * if value is env:<NAME>, then the password is read from the <NAME> environment var
- * if value is file:<file_name>, then the password is read from <file_name>
+ * env:<NAME>       the value of the <NAME> environment variable
+ * env-b64:<NAME>   the base64-decoded value of the <NAME> environment variable
+ * b64:<VALUE>      the base64-decoded <VALUE>
+ * file:<PATH>      the contents of <PATH>, minus one trailing line ending, or
+ *                  if first_line is true, everything before the first \r or \n
+ *                  (how --tls-keyfile-password has always read its file)
+ * anything else    the value itself
+ *
+ * a missing variable name or path, an unset or empty variable, an unreadable
+ * file, invalid base64, a NUL byte or an empty result is an error, and so is a
+ * password longer than max_len bytes. A file: source reads at most
+ * max_len + 3 bytes. Error messages never contain the password.
  *
  * returns true on success, false on failure. On success, *ptr must be freed by
  * the caller at some point
  */
-bool tls_read_password(char *value, char **ptr);
+bool read_password(const char* option, const char* value, size_t max_len,
+		bool first_line, char** ptr);
+
+bool password_has_source(const char* value);
+
+bool password_len_ok(const char* option, const char* pw, size_t max_len);
 
 /*
  * parses a literal string, which must be surrounded by double quotes,

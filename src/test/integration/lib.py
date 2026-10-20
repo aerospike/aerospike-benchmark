@@ -1,6 +1,7 @@
 
 import codecs
 import datetime
+import functools
 import ipaddress
 import json
 import os
@@ -11,6 +12,7 @@ import uuid
 import string
 import subprocess
 import sys
+import threading
 import aerospike
 import docker
 import atexit
@@ -489,6 +491,85 @@ def run_benchmark(args, ip=None, port=PORT, expect_success=True, do_reset=True):
 			pass
 		else:
 			assert False, "Process returned 0 exit code"
+
+
+def _recv_exact(conn, size):
+	data = b""
+	while len(data) < size:
+		chunk = conn.recv(size - len(data))
+		if not chunk:
+			break
+		data += chunk
+	return data
+
+
+def shutdown_listener(srv):
+	"""
+	Closes a listening socket so that a thread blocked in accept() wakes up,
+	which close() alone does not do on Linux.
+	"""
+	try:
+		srv.shutdown(socket.SHUT_RDWR)
+	except OSError:
+		# macOS raises ENOTCONN for a listening socket
+		pass
+	srv.close()
+
+
+def capture_login(args, env=None, stdin=""):
+	"""
+	Runs asbench against a fake server that records what the client sends and
+	never answers, and returns the login request, which holds the credential.
+	"""
+	srv = socket.socket()
+	srv.bind(("127.0.0.1", 0))
+	srv.listen(8)
+	packets = []
+
+	def serve():
+		while True:
+			try:
+				conn, _ = srv.accept()
+			except OSError:
+				return
+			with conn:
+				conn.settimeout(5)
+				header = _recv_exact(conn, 8)
+				size = int.from_bytes(header, "big") & 0xFFFFFFFFFFFF
+				packets.append(header + _recv_exact(conn, size))
+
+	thread = threading.Thread(target=serve, daemon=True)
+	thread.start()
+
+	full_env = dict(os.environ)
+	full_env.update(env or {})
+	cmd = ["test_target/asbench", "-z", "1", "-h", "127.0.0.1", "-p",
+		str(srv.getsockname()[1])] + args
+	try:
+		proc = subprocess.run(cmd, cwd=absolute_path("../../.."), env=full_env,
+				input=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+				text=True, timeout=60)
+	finally:
+		shutdown_listener(srv)
+		thread.join(5)
+
+	assert proc.returncode != 0, proc.stdout
+	assert len(set(packets)) == 1, "expected one distinct login request, " \
+			"got %d:\n%s" % (len(set(packets)), proc.stdout)
+	# proto version 2, type 2 (admin)
+	assert packets[0][:2] == b"\x02\x02", packets[0][:8]
+	return packets[0]
+
+
+@functools.lru_cache(maxsize=None)
+def literal_login(password):
+	"""
+	The login request for a literal -P value, captured once and shared by the
+	tests that compare against it. password must not start with a source
+	prefix.
+	"""
+	return capture_login(["-U", "admin", "-P", password])
+
 
 def scan_records():
 	recs = []
