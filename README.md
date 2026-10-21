@@ -102,6 +102,11 @@ To:
 target/asbench -h 127.0.0.1 -p 3000 -n test -k 1000000 -o S50 -w RU,50 --async --asyncMaxCommands 50 --eventLoops 1
 ```
 
+To benchmark a read-based LRU cache, where a read in the last 80% of a record's 1 hour TTL resets it to 1 hour (server 7.1+). The namespace needs a non-zero `nsup-period` (or `allow-ttl-without-nsup true`), otherwise the server rejects every write with a TTL:
+```sh
+target/asbench -h 127.0.0.1 -n test -k 1000000 -w RU,90 -e 3600 --read-touch-ttl-percent 80
+```
+
 To insert 1,000,000 realistic customer records with named bins, reproducibly:
 ```sh
 target/asbench -h 127.0.0.1 -n test -s customers -w I -k 1000000 --seed 42 \

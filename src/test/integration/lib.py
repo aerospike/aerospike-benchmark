@@ -61,7 +61,7 @@ WORK_DIRECTORY = "work-%d" % PORT
 LUA_DIRECTORY = WORK_DIRECTORY + "/lua"
 CONTAINER_LABEL = "asbench-integration"
 CONTAINER_OWNER_LABEL = "asbench-integration-pid"
-SERVER_IMAGE = "aerospike/aerospike-server:6.0.0.8"
+SERVER_IMAGE = "aerospike/aerospike-server:8.2.0.0"
 CLUSTER_READY_TIMEOUT = 60
 STATE_DIRECTORIES = ["state-%d" % i for i in range(1, N_NODES+1)]
 UDF_DIRECTORIES = ["udf-%d" % i for i in range(1, N_NODES+1)]
@@ -564,6 +564,12 @@ def literal_login(password):
 	"""
 	return capture_login(["-U", "admin", "-P", password])
 
+
+def set_namespace_config(param, value):
+	cmd = "set-config:context=namespace;id=%s;%s=%s" % (NAMESPACE, param, value)
+	for err, resp in CLIENT.info_all(cmd).values():
+		assert(err is None), err
+		assert(resp.strip().endswith("ok")), resp
 
 def scan_records():
 	recs = []

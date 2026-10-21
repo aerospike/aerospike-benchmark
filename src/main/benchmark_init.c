@@ -115,7 +115,8 @@ typedef enum {
 	BENCH_OPT_RACK_ID,
 	BENCH_OPT_SEND_KEY,
 	BENCH_OPT_SEED,
-	BENCH_OPT_GEN_BENCH
+	BENCH_OPT_GEN_BENCH,
+	BENCH_OPT_READ_TOUCH_TTL_PCT
 } benchmark_opt;
 
 static struct option long_options[] = {
@@ -179,6 +180,7 @@ static struct option long_options[] = {
 	{"rack-id",               required_argument, 0, BENCH_OPT_RACK_ID},
 	{"read-mode-ap",          required_argument, 0, 'N'},
 	{"read-mode-sc",          required_argument, 0, 'B'},
+	{"read-touch-ttl-percent", required_argument, 0, BENCH_OPT_READ_TOUCH_TTL_PCT},
 	{"commit-level",          required_argument, 0, 'M'},
 	{"min-conns-per-node",    required_argument, 0, BENCH_OPT_MIN_CONNS_PER_NODE},
 	{"max-conns-per-node",    required_argument, 0, BENCH_OPT_MAX_CONNS_PER_NODE},
@@ -790,6 +792,18 @@ print_usage(const char* program)
 	printf("   Read mode for SC (strong consistency) namespaces.\n");
 	printf("\n");
 
+	printf("   --read-touch-ttl-percent <percent> # Default: 0\n");
+	printf("   Reset a record's TTL on reads near its end of life, so the server can\n");
+	printf("   act as a read-based LRU cache. The value is a percentage of the most\n");
+	printf("   recent write TTL. For example, with a write TTL of 10 hours and a value\n");
+	printf("   of 80, a read in the last 8 hours of the record's life resets the TTL to\n");
+	printf("   10 hours.\n");
+	printf("   Applies to reads, batch reads and CDT reads. Requires server 7.1+.\n");
+	printf("     -1: Never reset the TTL on reads.\n");
+	printf("     0: Use the namespace/set default-read-touch-ttl-pct.\n");
+	printf("     1-100: Reset the TTL on reads within this percentage of the write TTL.\n");
+	printf("\n");
+
 	printf("-M --commit-level {all,master} # Default: all\n");
 	printf("   Write commit guarantee level.\n");
 	printf("\n");
@@ -1060,6 +1074,7 @@ print_args(args_t* args)
 	}
 
 	printf("read mode SC:           %s\n", str);
+	printf("read touch ttl percent: %d\n", args->read_touch_ttl_percent);
 	printf("write commit level:     %s\n",
 			(AS_POLICY_COMMIT_LEVEL_ALL == args->write_commit_level ?
 			 "all" : "master"));
@@ -1789,6 +1804,20 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				break;
 
+			case BENCH_OPT_READ_TOUCH_TTL_PCT: {
+				char* endptr;
+				errno = 0;
+				long pct = strtol(optarg, &endptr, 10);
+				if (*optarg == '\0' || *endptr != '\0' || errno != 0 ||
+						pct < -1 || pct > 100) {
+					fprintf(stderr, "Invalid read-touch-ttl-percent \"%s\", "
+							"expected -1 to 100\n", optarg);
+					return 1;
+				}
+				args->read_touch_ttl_percent = (int) pct;
+				break;
+			}
+
 			case 'M':
 				if (strcmp(optarg, "all") == 0) {
 					args->write_commit_level = AS_POLICY_COMMIT_LEVEL_ALL;
@@ -2063,6 +2092,7 @@ _load_defaults(args_t* args)
 	args->rack_id = -1;
 	args->read_mode_ap = AS_POLICY_READ_MODE_AP_ONE;
 	args->read_mode_sc = AS_POLICY_READ_MODE_SC_SESSION;
+	args->read_touch_ttl_percent = 0;
 	args->write_commit_level = AS_POLICY_COMMIT_LEVEL_ALL;
 	args->durable_deletes = false;
 	args->min_conns_per_node = 0;

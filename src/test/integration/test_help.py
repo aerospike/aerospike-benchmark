@@ -39,8 +39,8 @@ def test_readme_lists_every_generator_in_help():
 
 def test_help_lists_seed_and_cdt():
 	text = help_text()
-	for token in ["--seed", "C[I|K]", "-w C,80,100,10", "-w CI,30,1000,10",
-			"-w CK,90,50", "Bin names:"]:
+	for token in ["--seed", "--read-touch-ttl-percent", "C[I|K]", "-w C,80,100,10",
+			"-w CI,30,1000,10", "-w CK,90,50", "Bin names:"]:
 		assert(token in text), token
 
 
@@ -87,3 +87,30 @@ def test_print_args_shows_seed():
 		"--seed", "99"])
 	assert(rc == 0)
 	assert("seed:                   99" in out)
+
+
+def run_without_server(args):
+	proc = subprocess.run(["test_target/asbench", "-h", "127.0.0.1:1",
+		"--gen-bench", "10", "-z", "1"] + args, cwd=ROOT,
+		stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+	return proc.returncode, proc.stdout
+
+
+@pytest.mark.parametrize("pct", ["-1", "0", "1", "100"])
+def test_read_touch_ttl_percent_valid(pct):
+	rc, out = run_without_server(["--read-touch-ttl-percent", pct])
+	assert(rc == 0), out
+
+
+@pytest.mark.parametrize("pct", ["-2", "101", "abc", "", "50x", "1.5"])
+def test_read_touch_ttl_percent_invalid(pct):
+	rc, out = run_without_server(["--read-touch-ttl-percent", pct])
+	assert(rc == 1), out
+	assert(f'Invalid read-touch-ttl-percent "{pct}", expected -1 to 100' in out), out
+
+
+def test_print_args_shows_read_touch_ttl_percent():
+	rc, out = lib.run_benchmark_output(["--workload", "I", "--keys", "1",
+		"--read-touch-ttl-percent", "-1"])
+	assert(rc == 0), out
+	assert("read touch ttl percent: -1" in out), out
