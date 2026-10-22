@@ -212,6 +212,12 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
 #define TLS_KEYFILE_PASSWORD_MAX_LEN 1024
 
 /*
+ * the whitespace password_trim removes, ASCII only since isspace() depends on
+ * the locale
+ */
+#define PASSWORD_WHITESPACE " \t\n\v\f\r"
+
+/*
  * resolves the value given to a password option (named by option, which is
  * only used in error messages) into the password itself
  *
@@ -222,6 +228,11 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
  *                  if first_line is true, everything before the first \r or \n
  *                  (how --tls-keyfile-password has always read its file)
  * anything else    the value itself
+ *
+ * the value is used as given. A --tls-keyfile-password value, whether given on
+ * the command line, typed or piped, has surrounding whitespace trimmed by the
+ * caller first; a --password value from the command line is never trimmed.
+ * What a source reads loses only the line endings described above.
  *
  * a missing variable name or path, an unset or empty variable, an unreadable
  * file, invalid base64, a NUL byte or an empty result is an error, and so is a
@@ -237,6 +248,21 @@ bool read_password(const char* option, const char* value, size_t max_len,
 bool password_has_source(const char* value);
 
 bool password_len_ok(const char* option, const char* pw, size_t max_len);
+
+/*
+ * removes surrounding PASSWORD_WHITESPACE from s in place, returning a pointer
+ * to its first kept byte
+ */
+char* password_trim(char* s);
+
+/*
+ * reads one line of a password piped on stdin into buf, which must hold
+ * max_len + 4 bytes, reading at most max_len + 3 bytes. A line that fills
+ * that bound without ending in \n was cut off and is returned as read, so the
+ * caller's max_len check rejects it; any other line is returned trimmed. EOF
+ * with nothing read returns ""
+ */
+char* read_piped_password(char* buf, size_t max_len);
 
 /*
  * parses a literal string, which must be surrounded by double quotes,

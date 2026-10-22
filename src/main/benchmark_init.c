@@ -397,7 +397,8 @@ print_usage(const char* program)
 	printf("   The password is read only when a user is set and the auth mode is\n");
 	printf("   not PKI. It must be at most 63 bytes.\n");
 	printf("   User will be prompted on command line if -P specified and no\n");
-	printf("   password is given. The typed password is used as is.\n");
+	printf("   password is given. The typed password is used as is. A password\n");
+	printf("   piped on stdin has surrounding whitespace trimmed.\n");
 	printf("   If the password is given, it can follow -P directly (ie. -Pmypass) or as\n");
 	printf("   the next argument (ie. -P mypass).\n");
 	printf("\n");
@@ -925,6 +926,7 @@ print_usage(const char* program)
 	printf("   and one trailing newline is dropped after decoding.\n");
 	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
 	printf("   'file:' must be given as 'b64:'.\n");
+	printf("   Surrounding whitespace is trimmed before the form is read.\n");
 	printf("   The password is read only when a key file is set. It must be at\n");
 	printf("   most 1024 bytes.\n");
 	printf("   Default: none\n");
@@ -1332,9 +1334,15 @@ camelcase_to_dash(const char* camel_str)
 LOCAL_HELPER bool
 prompt_password(args_t* args)
 {
-	char pw[AS_PASSWORD_SIZE + 1];
+	char line[AS_PASSWORD_SIZE + 3];
+	char* pw = line;
 
-	as_password_acquire(pw, NULL, sizeof(pw));
+	if (isatty(STDIN_FILENO)) {
+		as_password_acquire(line, NULL, AS_PASSWORD_SIZE + 1);
+	}
+	else {
+		pw = read_piped_password(line, AS_PASSWORD_SIZE - 1);
+	}
 
 	if (args->user != NULL && args->auth_mode != AS_AUTH_PKI &&
 			!password_len_ok("--password", pw, AS_PASSWORD_SIZE - 1)) {
@@ -2019,11 +2027,22 @@ set_args(int argc, char * const* argv, args_t* args)
 	}
 
 	if (args->tls.keyfile && args->tls.keyfile_pw) {
-		const char* value = args->tls.keyfile_pw;
+		char line[TLS_KEYFILE_PASSWORD_MAX_LEN + 4];
+		char* value = args->tls.keyfile_pw;
 		char* pw;
 
-		if (value[0] == '\0') {
+		if (value[0] != '\0') {
+			value = password_trim(value);
+		}
+		else if (isatty(STDIN_FILENO)) {
 			value = getpass("Enter TLS-Keyfile Password: ");
+
+			if (value != NULL) {
+				value = password_trim(value);
+			}
+		}
+		else {
+			value = read_piped_password(line, TLS_KEYFILE_PASSWORD_MAX_LEN);
 		}
 
 		if (value == NULL || value[0] == '\0') {
