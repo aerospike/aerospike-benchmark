@@ -15,6 +15,8 @@
 #define ENV_VAR "ASBENCH_TEST_PW"
 #define ENV_UNSET "ASBENCH_TEST_PW_UNSET"
 #define SECRET "s3cr3t-pw"
+#define KEYFILE_SECRET "kp-s3cr3t"
+#define NBSP "\xc2\xa0"
 
 extern int set_args(int argc, char * const* argv, args_t* args);
 extern void _load_defaults(args_t* args);
@@ -692,6 +694,24 @@ START_TEST(has_source)
 }
 END_TEST
 
+START_TEST(trim)
+{
+	char all[] = " \t\n\v\f\r" SECRET " \t\n\v\f\r";
+	char inner[] = " a b\tc ";
+	char blank[] = " \t\r\n";
+	char empty[] = "";
+	char nbsp[] = NBSP SECRET NBSP;
+	char latin1_nbsp[] = "\xa0" SECRET "\xa0";
+
+	ck_assert_str_eq(password_trim(all), SECRET);
+	ck_assert_str_eq(password_trim(inner), "a b\tc");
+	ck_assert_str_eq(password_trim(blank), "");
+	ck_assert_str_eq(password_trim(empty), "");
+	ck_assert_str_eq(password_trim(nbsp), NBSP SECRET NBSP);
+	ck_assert_str_eq(password_trim(latin1_nbsp), "\xa0" SECRET "\xa0");
+}
+END_TEST
+
 START_TEST(file_only_line_ending)
 {
 	write_tmp_file("\r\n", 2);
@@ -1069,6 +1089,70 @@ START_TEST(cli_typed_password_is_literal)
 }
 END_TEST
 
+START_TEST(cli_password_literal_not_trimmed)
+{
+	args_t args;
+	char* argv[] = { "asbench", "-U", "admin", "-P", " " SECRET " \t" };
+	ck_assert_int_eq(parse(&args, 5, argv), 0);
+	ck_assert_str_eq(args.password, " " SECRET " \t");
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_piped_password_trimmed)
+{
+	const char* piped[] = { " s3cr3t \r\n", " s3cr3t \n", "\t s3cr3t ",
+		"s3cr3t\r", "s3cr3t\nmore\n" };
+
+	for (size_t i = 0; i < sizeof(piped) / sizeof(piped[0]); i++) {
+		args_t args;
+		char* argv[] = { "asbench", "-U", "admin", "-P" };
+		ck_assert_int_eq(parse_typed(&args, 4, argv, piped[i]), 0);
+		ck_assert_str_eq(args.password, "s3cr3t");
+		ck_assert_str_eq(err_buf, "");
+		free_parsed(&args);
+		unlink(tmp_path);
+		tmp_path[0] = '\0';
+	}
+}
+END_TEST
+
+START_TEST(cli_piped_password_padded_is_literal)
+{
+	setenv(ENV_VAR, SECRET, 1);
+	args_t args;
+	char* argv[] = { "asbench", "-U", "admin", "-P" };
+	ck_assert_int_eq(parse_typed(&args, 4, argv, " env:" ENV_VAR " \n"), 0);
+	ck_assert_str_eq(args.password, "env:" ENV_VAR);
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_piped_password_eof_is_empty)
+{
+	args_t args;
+	char* argv[] = { "asbench", "-U", "admin", "-P" };
+	ck_assert_int_eq(parse_typed(&args, 4, argv, ""), 0);
+	ck_assert_str_eq(args.password, "");
+	ck_assert_str_eq(err_buf, "");
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_piped_password_cut_off_padded_fails)
+{
+	args_t args;
+	char* argv[] = { "asbench", "-U", "admin", "-P" };
+	char* typed = repeat('x', 110);
+
+	memset(typed, ' ', 10);
+	ck_assert_int_ne(parse_typed(&args, 4, argv, typed), 0);
+	ck_assert_str_eq(err_buf, "--password: password is longer than 63 bytes\n");
+	free_parsed(&args);
+	free(typed);
+}
+END_TEST
+
 START_TEST(cli_password_no_user_warns)
 {
 	const char* values[] = { "env:" ENV_UNSET, "env-b64:" ENV_UNSET,
@@ -1289,6 +1373,91 @@ START_TEST(cli_tls_keyfile_password_file_empty_first_line_fails)
 }
 END_TEST
 
+START_TEST(cli_tls_keyfile_password_padded_env)
+{
+	setenv(ENV_VAR, KEYFILE_SECRET, 1);
+	args_t args;
+	char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password", " env:" ENV_VAR " " };
+	ck_assert_int_eq(parse(&args, 5, argv), 0);
+	ck_assert_str_eq(args.tls.keyfile_pw, KEYFILE_SECRET);
+	free_parsed(&args);
+
+	setenv(ENV_VAR, " " KEYFILE_SECRET " ", 1);
+	ck_assert_int_eq(parse(&args, 5, argv), 0);
+	ck_assert_str_eq(args.tls.keyfile_pw, " " KEYFILE_SECRET " ");
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_tls_keyfile_password_padded_literal)
+{
+	args_t args;
+	char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password", "  " KEYFILE_SECRET " \t" };
+	ck_assert_int_eq(parse(&args, 5, argv), 0);
+	ck_assert_str_eq(args.tls.keyfile_pw, KEYFILE_SECRET);
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_tls_keyfile_password_nbsp_not_trimmed)
+{
+	args_t args;
+	char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password", NBSP KEYFILE_SECRET };
+	ck_assert_int_eq(parse(&args, 5, argv), 0);
+	ck_assert_str_eq(args.tls.keyfile_pw, NBSP KEYFILE_SECRET);
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_piped_tls_keyfile_password_trimmed)
+{
+	const char* piped[] = { " " KEYFILE_SECRET " \r\n",
+		" " KEYFILE_SECRET " \n", " " KEYFILE_SECRET " " };
+
+	for (size_t i = 0; i < sizeof(piped) / sizeof(piped[0]); i++) {
+		args_t args;
+		char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+			"--tls-keyfile-password" };
+		ck_assert_int_eq(parse_typed(&args, 4, argv, piped[i]), 0);
+		ck_assert_str_eq(args.tls.keyfile_pw, KEYFILE_SECRET);
+		free_parsed(&args);
+		unlink(tmp_path);
+		tmp_path[0] = '\0';
+	}
+}
+END_TEST
+
+START_TEST(cli_piped_tls_keyfile_password_padded_env)
+{
+	setenv(ENV_VAR, KEYFILE_SECRET, 1);
+	args_t args;
+	char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password" };
+	ck_assert_int_eq(parse_typed(&args, 4, argv, " env:" ENV_VAR " \n"), 0);
+	ck_assert_str_eq(args.tls.keyfile_pw, KEYFILE_SECRET);
+	free_parsed(&args);
+}
+END_TEST
+
+START_TEST(cli_piped_tls_keyfile_password_cut_off_padded_fails)
+{
+	args_t args;
+	char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password" };
+	char* typed = repeat('x', 10 + TLS_KEYFILE_PASSWORD_MAX_LEN + 100);
+
+	memset(typed, ' ', 10);
+	ck_assert_int_ne(parse_typed(&args, 4, argv, typed), 0);
+	ck_assert_str_eq(err_buf, "--tls-keyfile-password: password is longer "
+			"than 1024 bytes\n");
+	free_parsed(&args);
+	free(typed);
+}
+END_TEST
+
 
 Suite*
 password_suite(void)
@@ -1359,6 +1528,7 @@ password_suite(void)
 	tcase_add_test(tc_resolve, max_len_keyfile_literal);
 	tcase_add_test(tc_resolve, max_len_keyfile_env);
 	tcase_add_test(tc_resolve, has_source);
+	tcase_add_test(tc_resolve, trim);
 	suite_add_tcase(s, tc_resolve);
 
 	tc_cli = tcase_create("Command line");
@@ -1381,6 +1551,11 @@ password_suite(void)
 	tcase_add_test(tc_cli, cli_typed_password_too_long_fails);
 	tcase_add_test(tc_cli, cli_typed_password_without_flag_too_long_fails);
 	tcase_add_test(tc_cli, cli_typed_password_is_literal);
+	tcase_add_test(tc_cli, cli_password_literal_not_trimmed);
+	tcase_add_test(tc_cli, cli_piped_password_trimmed);
+	tcase_add_test(tc_cli, cli_piped_password_padded_is_literal);
+	tcase_add_test(tc_cli, cli_piped_password_eof_is_empty);
+	tcase_add_test(tc_cli, cli_piped_password_cut_off_padded_fails);
 	tcase_add_test(tc_cli, cli_password_no_user_warns);
 	tcase_add_test(tc_cli, cli_password_no_user_literal_no_warning);
 	tcase_add_test(tc_cli, cli_password_no_user_gen_bench_no_warning);
@@ -1397,6 +1572,12 @@ password_suite(void)
 	tcase_add_test(tc_cli, cli_tls_keyfile_password_file_first_line);
 	tcase_add_test(tc_cli, cli_tls_keyfile_password_last_wins);
 	tcase_add_test(tc_cli, cli_tls_keyfile_password_file_empty_first_line_fails);
+	tcase_add_test(tc_cli, cli_tls_keyfile_password_padded_env);
+	tcase_add_test(tc_cli, cli_tls_keyfile_password_padded_literal);
+	tcase_add_test(tc_cli, cli_tls_keyfile_password_nbsp_not_trimmed);
+	tcase_add_test(tc_cli, cli_piped_tls_keyfile_password_trimmed);
+	tcase_add_test(tc_cli, cli_piped_tls_keyfile_password_padded_env);
+	tcase_add_test(tc_cli, cli_piped_tls_keyfile_password_cut_off_padded_fails);
 	suite_add_tcase(s, tc_cli);
 
 	return s;

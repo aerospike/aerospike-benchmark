@@ -391,6 +391,40 @@ password_len_ok(const char* option, const char* pw, size_t max_len)
 	return true;
 }
 
+char*
+password_trim(char* s)
+{
+	s += strspn(s, PASSWORD_WHITESPACE);
+
+	size_t len = strlen(s);
+
+	while (len != 0 && strchr(PASSWORD_WHITESPACE, s[len - 1]) != NULL) {
+		len--;
+	}
+
+	s[len] = '\0';
+	return s;
+}
+
+char*
+read_piped_password(char* buf, size_t max_len)
+{
+	size_t size = max_len + 4;
+
+	if (fgets(buf, (int) size, stdin) == NULL) {
+		buf[0] = '\0';
+		return buf;
+	}
+
+	size_t len = strlen(buf);
+
+	if (len == size - 1 && buf[len - 1] != '\n') {
+		return buf;
+	}
+
+	return password_trim(buf);
+}
+
 bool
 read_password(const char* option, const char* value, size_t max_len,
 		bool first_line, char** ptr)

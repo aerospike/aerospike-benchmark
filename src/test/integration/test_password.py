@@ -2,7 +2,6 @@ import base64
 import contextlib
 import os
 import subprocess
-import sys
 import threading
 
 import pytest
@@ -114,7 +113,13 @@ def test_password_flag_then_help():
 def test_prompted_password_is_literal():
 	rc, out = run_no_server(["-U", "admin", "-P"], stdin="env:%s\n" % ENV_UNSET)
 	assert(rc == 0), out
-	assert("Enter Password" in out)
+	assert("Enter Password" not in out), out
+
+
+def test_piped_cut_off_padded_password_fails():
+	rc, out = run_no_server(["-U", "admin", "-P"], stdin=" " * 10 + "x" * 100)
+	assert(rc != 0)
+	assert("--password: password is longer than 63 bytes\n" in out), out
 
 
 def test_tls_keyfile_password_env_unset():
@@ -129,7 +134,7 @@ def test_prompted_tls_keyfile_password_is_resolved():
 	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", "key.pem",
 		"--tls-keyfile-password"], stdin="env:%s\n" % ENV_UNSET)
 	assert(rc != 0)
-	assert("Enter TLS-Keyfile Password" in out), out
+	assert("Enter TLS-Keyfile Password" not in out), out
 	assert("keyfile pw:" not in out), out
 	assert(("--tls-keyfile-password: environment variable %s is not set or "
 			"empty" % ENV_UNSET) in out), out
@@ -200,7 +205,7 @@ def test_prompted_tls_keyfile_password_b64(tmp_path):
 		"--tls-keyfile-password"], stdin="b64:%s\n" %
 		base64.b64encode(b"pw").decode(), gen_bench=False)
 	assert(rc != 0)
-	assert("Enter TLS-Keyfile Password" in out), out
+	assert("Enter TLS-Keyfile Password" not in out), out
 	assert("Failed to connect" in out), out
 	assert("private key" not in out.lower()), out
 
@@ -212,9 +217,62 @@ def test_prompted_tls_keyfile_password_file(tmp_path):
 	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", str(key),
 		"--tls-keyfile-password"], stdin="file:%s\n" % path, gen_bench=False)
 	assert(rc != 0)
-	assert("Enter TLS-Keyfile Password" in out), out
+	assert("Enter TLS-Keyfile Password" not in out), out
 	assert("Failed to connect" in out), out
 	assert("private key" not in out.lower()), out
+
+
+@pytest.mark.parametrize("piped", [" pw \r\n", " pw \n", "\t pw "])
+def test_piped_tls_keyfile_password_trimmed(tmp_path, piped):
+	key = encrypted_key(tmp_path, "pw")
+	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", str(key),
+		"--tls-keyfile-password"], stdin=piped, gen_bench=False)
+	assert(rc != 0)
+	assert("Failed to connect" in out), out
+	assert("private key" not in out.lower()), out
+
+
+def test_piped_tls_keyfile_password_padded_env(tmp_path):
+	key = encrypted_key(tmp_path, "pw")
+	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", str(key),
+		"--tls-keyfile-password"], stdin=" env:%s \n" % ENV_VAR,
+		env={ENV_VAR: "pw"}, gen_bench=False)
+	assert(rc != 0)
+	assert("Failed to connect" in out), out
+	assert("private key" not in out.lower()), out
+
+
+def test_piped_cut_off_padded_tls_keyfile_password_fails():
+	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password"], stdin=" " * 10 + "y" * 1100)
+	assert(rc != 0)
+	assert("--tls-keyfile-password: password is longer than 1024 bytes\n" in
+			out), out
+
+
+def test_tls_keyfile_password_padded_env(tmp_path):
+	key = encrypted_key(tmp_path, "pw")
+	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", str(key),
+		"--tls-keyfile-password", " env:%s " % ENV_VAR], env={ENV_VAR: "pw"},
+		gen_bench=False)
+	assert(rc != 0)
+	assert("Failed to connect" in out), out
+	assert("private key" not in out.lower()), out
+
+
+def test_tls_keyfile_password_padded_literal(tmp_path):
+	key = encrypted_key(tmp_path, "pw")
+	rc, out = run_tls_key(key, "  pw \t")
+	assert(rc != 0)
+	assert("Failed to connect" in out), out
+	assert("private key" not in out.lower()), out
+
+
+def test_tls_keyfile_password_nbsp_not_trimmed(tmp_path):
+	key = encrypted_key(tmp_path, "pw")
+	rc, out = run_tls_key(key, " pw")
+	assert(rc != 0)
+	assert("private key" in out.lower()), out
 
 
 def test_login_fixture_tells_passwords_apart():
@@ -255,7 +313,7 @@ def test_password_not_read_without_user():
 def test_bare_password_prompts_without_user():
 	rc, out = run_no_server(["-P"], stdin="typed\n")
 	assert(rc == 0), out
-	assert("Enter Password" in out), out
+	assert("Enter Password" not in out), out
 
 
 def test_login_uses_63_byte_env_password():
@@ -357,7 +415,7 @@ def test_64_byte_literal_password_fails():
 def test_64_byte_typed_password_fails():
 	rc, out = run_no_server(["-U", "admin", "-P"], stdin="y" * 64 + "\n")
 	assert(rc != 0)
-	assert("Enter Password" in out), out
+	assert("Enter Password" not in out), out
 	assert("--password: password is longer than 63 bytes\n" in out), out
 	assert("y" * 64 not in out)
 
@@ -365,7 +423,7 @@ def test_64_byte_typed_password_fails():
 def test_64_byte_typed_password_without_flag_fails():
 	rc, out = run_no_server(["-U", "admin"], stdin="y" * 100 + "\n")
 	assert(rc != 0)
-	assert("Enter Password" in out), out
+	assert("Enter Password" not in out), out
 	assert("--password: password is longer than 63 bytes\n" in out), out
 
 
@@ -389,6 +447,19 @@ def test_login_uses_typed_password_unparsed():
 	assert(login != lib.literal_login(SECRET))
 	assert(login == lib.capture_login(["-U", "admin", "-P",
 		"b64:" + base64.b64encode(typed.encode()).decode()]))
+
+
+def test_login_uses_piped_password_trimmed():
+	assert(lib.capture_login(["-U", "admin", "-P"],
+			stdin=" %s \r\n" % SECRET) == lib.literal_login(SECRET))
+
+
+def test_login_uses_command_line_password_untrimmed():
+	padded = " %s " % SECRET
+	login = lib.capture_login(["-U", "admin", "-P", padded])
+	assert(login != lib.literal_login(SECRET))
+	assert(login == lib.capture_login(["-U", "admin", "-P",
+		"b64:" + base64.b64encode(padded.encode()).decode()]))
 
 
 @pytest.mark.parametrize("value", ["env:" + ENV_UNSET, "env-b64:" + ENV_UNSET,
@@ -464,18 +535,16 @@ def test_prompted_tls_keyfile_password_env_over_1024_bytes_fails():
 		"--tls-keyfile-password"], stdin="env:%s\n" % ENV_VAR,
 		env={ENV_VAR: "y" * 1025})
 	assert(rc != 0)
-	assert("Enter TLS-Keyfile Password" in out), out
+	assert("Enter TLS-Keyfile Password" not in out), out
 	assert(("--tls-keyfile-password: value from environment variable %s is "
 			"longer than 1024 bytes\n" % ENV_VAR) in out), out
 
 
-@pytest.mark.skipif(sys.platform == "darwin",
-		reason="macOS getpass() keeps only the first 128 typed bytes")
 def test_prompted_tls_keyfile_password_over_1024_bytes_fails():
 	rc, out = run_no_server(["--tls-enable", "--tls-keyfile", "key.pem",
 		"--tls-keyfile-password"], stdin="y" * 1025 + "\n")
 	assert(rc != 0)
-	assert("Enter TLS-Keyfile Password" in out), out
+	assert("Enter TLS-Keyfile Password" not in out), out
 	assert("--tls-keyfile-password: password is longer than 1024 bytes\n" in
 			out), out
 
@@ -498,7 +567,8 @@ HELP_PASSWORD = """\
    The password is read only when a user is set and the auth mode is
    not PKI. It must be at most 63 bytes.
    User will be prompted on command line if -P specified and no
-   password is given. The typed password is used as is.
+   password is given. The typed password is used as is. A password
+   piped on stdin has surrounding whitespace trimmed.
    If the password is given, it can follow -P directly (ie. -Pmypass) or as
    the next argument (ie. -P mypass).
 
@@ -517,6 +587,7 @@ HELP_TLS_KEYFILE_PASSWORD = """\
    and one trailing newline is dropped after decoding.
    A password that itself begins with 'env:', 'env-b64:', 'b64:' or
    'file:' must be given as 'b64:'.
+   Surrounding whitespace is trimmed before the form is read.
    The password is read only when a key file is set. It must be at
    most 1024 bytes.
    Default: none
