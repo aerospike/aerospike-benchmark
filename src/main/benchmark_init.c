@@ -397,8 +397,9 @@ print_usage(const char* program)
 	printf("   The password is read only when a user is set and the auth mode is\n");
 	printf("   not PKI. It must be at most 63 bytes.\n");
 	printf("   User will be prompted on command line if -P specified and no\n");
-	printf("   password is given. The typed password is used as is. A password\n");
-	printf("   piped on stdin has surrounding whitespace trimmed.\n");
+	printf("   password is given. The typed password is used as is. When stdin is\n");
+	printf("   not a tty, the password is read from one line of stdin without a\n");
+	printf("   prompt and has surrounding whitespace trimmed.\n");
 	printf("   If the password is given, it can follow -P directly (ie. -Pmypass) or as\n");
 	printf("   the next argument (ie. -P mypass).\n");
 	printf("\n");
@@ -926,13 +927,15 @@ print_usage(const char* program)
 	printf("   and one trailing newline is dropped after decoding.\n");
 	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
 	printf("   'file:' must be given as 'b64:'.\n");
-	printf("   Surrounding whitespace is trimmed before the form is read.\n");
+	printf("   Surrounding whitespace is trimmed before the form is read. A\n");
+	printf("   password with surrounding whitespace must be given as 'b64:'.\n");
 	printf("   The password is read only when a key file is set. It must be at\n");
 	printf("   most 1024 bytes.\n");
 	printf("   Default: none\n");
 	printf("   User will be prompted on command line if --tls-keyfile-password\n");
 	printf("   specified and no password is given. The typed password\n");
-	printf("   accepts the forms above.\n");
+	printf("   accepts the forms above. When stdin is not a tty, the password is\n");
+	printf("   read from one line of stdin without a prompt.\n");
 	printf("\n");
 
 	printf("   --tls-certfile <path>\n");
@@ -1335,13 +1338,18 @@ LOCAL_HELPER bool
 prompt_password(args_t* args)
 {
 	char line[AS_PASSWORD_SIZE + 3];
-	char* pw = line;
+	char* pw;
 
 	if (isatty(STDIN_FILENO)) {
-		as_password_acquire(line, NULL, AS_PASSWORD_SIZE + 1);
+		pw = read_typed_password("--password", "Enter Password: ", line,
+				AS_PASSWORD_SIZE - 1, false);
 	}
 	else {
-		pw = read_piped_password(line, AS_PASSWORD_SIZE - 1);
+		pw = read_piped_password("--password", line, AS_PASSWORD_SIZE - 1);
+	}
+
+	if (pw == NULL) {
+		return false;
 	}
 
 	if (args->user != NULL && args->auth_mode != AS_AUTH_PKI &&
@@ -1999,13 +2007,8 @@ set_args(int argc, char * const* argv, args_t* args)
 		}
 	}
 
-	if (password_arg != NULL) {
-		if (password_arg[0] == '\0') {
-			if (!prompt_password(args)) {
-				return 1;
-			}
-		}
-		else if (args->auth_mode == AS_AUTH_PKI) {
+	if (password_arg != NULL && password_arg[0] != '\0') {
+		if (args->auth_mode == AS_AUTH_PKI) {
 			as_strncpy(args->password, password_arg, AS_PASSWORD_SIZE);
 		}
 		else if (args->user != NULL) {
@@ -2025,6 +2028,10 @@ set_args(int argc, char * const* argv, args_t* args)
 					"set\n");
 		}
 	}
+	else if ((password_arg != NULL || args->user != NULL) &&
+			!prompt_password(args)) {
+		return 1;
+	}
 
 	if (args->tls.keyfile && args->tls.keyfile_pw) {
 		char line[TLS_KEYFILE_PASSWORD_MAX_LEN + 4];
@@ -2035,17 +2042,20 @@ set_args(int argc, char * const* argv, args_t* args)
 			value = password_trim(value);
 		}
 		else if (isatty(STDIN_FILENO)) {
-			value = getpass("Enter TLS-Keyfile Password: ");
-
-			if (value != NULL) {
-				value = password_trim(value);
-			}
+			value = read_typed_password("--tls-keyfile-password",
+					"Enter TLS-Keyfile Password: ", line,
+					TLS_KEYFILE_PASSWORD_MAX_LEN, true);
 		}
 		else {
-			value = read_piped_password(line, TLS_KEYFILE_PASSWORD_MAX_LEN);
+			value = read_piped_password("--tls-keyfile-password", line,
+					TLS_KEYFILE_PASSWORD_MAX_LEN);
 		}
 
-		if (value == NULL || value[0] == '\0') {
+		if (value == NULL) {
+			return 1;
+		}
+
+		if (value[0] == '\0') {
 			pw = strdup("");
 		}
 		else if (!read_password("--tls-keyfile-password", value,
@@ -2055,11 +2065,6 @@ set_args(int argc, char * const* argv, args_t* args)
 
 		cf_free(args->tls.keyfile_pw);
 		args->tls.keyfile_pw = pw;
-	}
-
-	if (args->user != NULL && args->password[0] == '\0' &&
-			!prompt_password(args)) {
-		return 1;
 	}
 
 	return validate_args(args);

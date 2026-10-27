@@ -257,12 +257,24 @@ char* password_trim(char* s);
 
 /*
  * reads one line of a password piped on stdin into buf, which must hold
- * max_len + 4 bytes, reading at most max_len + 3 bytes. A line that fills
- * that bound without ending in \n was cut off and is returned as read, so the
- * caller's max_len check rejects it; any other line is returned trimmed. EOF
- * with nothing read returns ""
+ * max_len + 4 bytes, one byte at a time and at most max_len + 3 bytes, so the
+ * rest of stdin stays unread. A line that fills that bound is complete only if
+ * the input or the line ends right after it; otherwise it was cut off and is
+ * returned as read, so the caller's max_len check rejects it. Any other line
+ * is returned trimmed. EOF with nothing read returns "". A NUL byte is an
+ * error, reported for option, and returns NULL
  */
-char* read_piped_password(char* buf, size_t max_len);
+char* read_piped_password(const char* option, char* buf, size_t max_len);
+
+/*
+ * reads a password typed at a terminal on stdin like read_piped_password,
+ * after writing prompt to stderr, with echo turned off. A line that is not cut
+ * off is trimmed only if trim is set, and otherwise loses just its trailing
+ * newline. A signal that arrives meanwhile restores the terminal first and is
+ * then raised again, returning NULL if it does not end the process
+ */
+char* read_typed_password(const char* option, const char* prompt, char* buf,
+		size_t max_len, bool trim);
 
 /*
  * parses a literal string, which must be surrounded by double quotes,

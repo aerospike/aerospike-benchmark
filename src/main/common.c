@@ -25,8 +25,11 @@
 //
 
 #include <errno.h>
+#include <signal.h>
 #include <string.h>
+#include <termios.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <aerospike/as_boolean.h>
 #include <aerospike/as_msgpack.h>
@@ -406,23 +409,131 @@ password_trim(char* s)
 	return s;
 }
 
-char*
-read_piped_password(char* buf, size_t max_len)
+static volatile sig_atomic_t password_signal = 0;
+
+static void
+password_on_signal(int sig)
 {
-	size_t size = max_len + 4;
+	password_signal = sig;
+}
 
-	if (fgets(buf, (int) size, stdin) == NULL) {
-		buf[0] = '\0';
+static bool
+password_read_byte(char* c)
+{
+	while (true) {
+		ssize_t n = read(STDIN_FILENO, c, 1);
+
+		if (n == 1) {
+			return true;
+		}
+
+		if (n < 0 && errno == EINTR && password_signal == 0) {
+			continue;
+		}
+
+		return false;
+	}
+}
+
+static char*
+password_read_line(const char* option, const char* prompt, char* buf,
+		size_t max_len, bool trim)
+{
+	static const int signals[] = { SIGHUP, SIGINT, SIGQUIT, SIGTERM };
+	size_t n_signals = sizeof(signals) / sizeof(signals[0]);
+	struct sigaction saved_sa[sizeof(signals) / sizeof(signals[0])];
+	struct termios saved_term;
+	bool guarded = prompt != NULL && tcgetattr(STDIN_FILENO, &saved_term) == 0;
+	bool echo_off = false;
+
+	password_signal = 0;
+
+	if (prompt != NULL) {
+		fputs(prompt, stderr);
+	}
+
+	// while echo is off, a signal restores the terminal before it takes effect
+	if (guarded) {
+		struct sigaction sa = { .sa_handler = password_on_signal };
+		struct termios term = saved_term;
+
+		sigemptyset(&sa.sa_mask);
+
+		for (size_t i = 0; i < n_signals; i++) {
+			sigaction(signals[i], &sa, &saved_sa[i]);
+		}
+
+		term.c_lflag &= ~(tcflag_t) (ECHO | ECHONL);
+		echo_off = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term) == 0;
+	}
+
+	size_t cap = max_len + 3;
+	size_t len = 0;
+	char c;
+
+	// one byte at a time, so the rest of stdin stays unread
+	while (len < cap && password_read_byte(&c)) {
+		buf[len++] = c;
+
+		if (c == '\n') {
+			break;
+		}
+	}
+
+	// a line that fills the bound is complete only if the input or line ends
+	bool cut = len == cap && buf[len - 1] != '\n' && password_read_byte(&c) &&
+		c != '\n';
+
+	buf[len] = '\0';
+
+	if (echo_off) {
+		tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_term);
+		fputc('\n', stderr);
+	}
+
+	if (guarded) {
+		for (size_t i = 0; i < n_signals; i++) {
+			sigaction(signals[i], &saved_sa[i], NULL);
+		}
+
+		if (password_signal != 0) {
+			raise(password_signal);
+			return NULL;
+		}
+	}
+
+	if (memchr(buf, '\0', len) != NULL) {
+		fprintf(stderr, "%s: password from stdin contains a NUL byte\n", option);
+		return NULL;
+	}
+
+	// a cut-off line stays as read so the caller's max_len check rejects it
+	if (cut) {
 		return buf;
 	}
 
-	size_t len = strlen(buf);
-
-	if (len == size - 1 && buf[len - 1] != '\n') {
-		return buf;
+	if (trim) {
+		return password_trim(buf);
 	}
 
-	return password_trim(buf);
+	if (len != 0 && buf[len - 1] == '\n') {
+		buf[len - 1] = '\0';
+	}
+
+	return buf;
+}
+
+char*
+read_piped_password(const char* option, char* buf, size_t max_len)
+{
+	return password_read_line(option, NULL, buf, max_len, true);
+}
+
+char*
+read_typed_password(const char* option, const char* prompt, char* buf,
+		size_t max_len, bool trim)
+{
+	return password_read_line(option, prompt, buf, max_len, trim);
 }
 
 bool
