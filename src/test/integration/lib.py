@@ -5,8 +5,10 @@ import functools
 import ipaddress
 import json
 import os
+import pty
 import random
 import re
+import select
 import socket
 import uuid
 import string
@@ -510,10 +512,47 @@ def shutdown_listener(srv):
 	srv.close()
 
 
-def capture_login(args, env=None, stdin=""):
+def run_typed(args, typed, env=None):
+	"""
+	Runs asbench with a pty as its controlling terminal and stdin, types typed
+	and a newline once it prompts for a password, and returns its exit code
+	and output.
+	"""
+	full_env = dict(os.environ)
+	full_env.update(env or {})
+	root = absolute_path("../../..")
+	cmd = [os.path.join(root, "test_target/asbench")] + args
+	pid, fd = pty.fork()
+
+	if pid == 0:
+		os.chdir(root)
+		os.execve(cmd[0], cmd, full_env)
+
+	out = b""
+	sent = False
+
+	while select.select([fd], [], [], 10)[0]:
+		try:
+			chunk = os.read(fd, 1024)
+		except OSError:
+			break
+		if not chunk:
+			break
+		out += chunk
+		if not sent and b"Password: " in out:
+			os.write(fd, typed.encode() + b"\n")
+			sent = True
+
+	os.close(fd)
+	_, status = os.waitpid(pid, 0)
+	return os.waitstatus_to_exitcode(status), out.decode(errors="replace")
+
+
+def capture_login(args, env=None, stdin="", typed=None):
 	"""
 	Runs asbench against a fake server that records what the client sends and
 	never answers, and returns the login request, which holds the credential.
+	If typed is given, it is typed at a terminal instead of piped on stdin.
 	"""
 	srv = socket.socket()
 	srv.bind(("127.0.0.1", 0))
@@ -537,19 +576,23 @@ def capture_login(args, env=None, stdin=""):
 
 	full_env = dict(os.environ)
 	full_env.update(env or {})
-	cmd = ["test_target/asbench", "-z", "1", "-h", "127.0.0.1", "-p",
-		str(srv.getsockname()[1])] + args
+	args = ["-z", "1", "-h", "127.0.0.1", "-p", str(srv.getsockname()[1])] + args
 	try:
-		proc = subprocess.run(cmd, cwd=absolute_path("../../.."), env=full_env,
-				input=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-				text=True, timeout=60)
+		if typed is None:
+			proc = subprocess.run(["test_target/asbench"] + args,
+					cwd=absolute_path("../../.."), env=full_env, input=stdin,
+					stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+					timeout=60)
+			rc, out = proc.returncode, proc.stdout
+		else:
+			rc, out = run_typed(args, typed, env)
 	finally:
 		shutdown_listener(srv)
 		thread.join(5)
 
-	assert proc.returncode != 0, proc.stdout
+	assert rc != 0, out
 	assert len(set(packets)) == 1, "expected one distinct login request, " \
-			"got %d:\n%s" % (len(set(packets)), proc.stdout)
+			"got %d:\n%s" % (len(set(packets)), out)
 	# proto version 2, type 2 (admin)
 	assert packets[0][:2] == b"\x02\x02", packets[0][:8]
 	return packets[0]
