@@ -442,6 +442,7 @@ password_read_line(const char* option, const char* prompt, char* buf,
 	static const int signals[] = { SIGHUP, SIGINT, SIGQUIT, SIGTERM };
 	size_t n_signals = sizeof(signals) / sizeof(signals[0]);
 	struct sigaction saved_sa[sizeof(signals) / sizeof(signals[0])];
+	struct sigaction saved_tstp;
 	struct termios saved_term;
 	bool guarded = prompt != NULL && tcgetattr(STDIN_FILENO, &saved_term) == 0;
 	bool echo_off = false;
@@ -453,15 +454,24 @@ password_read_line(const char* option, const char* prompt, char* buf,
 	}
 
 	// while echo is off, a signal restores the terminal before it takes effect
+	// and Ctrl-Z cannot stop the read
 	if (guarded) {
 		struct sigaction sa = { .sa_handler = password_on_signal };
+		struct sigaction ign = { .sa_handler = SIG_IGN };
 		struct termios term = saved_term;
 
 		sigemptyset(&sa.sa_mask);
+		sigemptyset(&ign.sa_mask);
 
 		for (size_t i = 0; i < n_signals; i++) {
-			sigaction(signals[i], &sa, &saved_sa[i]);
+			sigaction(signals[i], NULL, &saved_sa[i]);
+
+			if (saved_sa[i].sa_handler != SIG_IGN) {
+				sigaction(signals[i], &sa, NULL);
+			}
 		}
+
+		sigaction(SIGTSTP, &ign, &saved_tstp);
 
 		term.c_lflag &= ~(tcflag_t) (ECHO | ECHONL);
 		echo_off = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term) == 0;
@@ -495,6 +505,8 @@ password_read_line(const char* option, const char* prompt, char* buf,
 		for (size_t i = 0; i < n_signals; i++) {
 			sigaction(signals[i], &saved_sa[i], NULL);
 		}
+
+		sigaction(SIGTSTP, &saved_tstp, NULL);
 
 		if (password_signal != 0) {
 			raise(password_signal);

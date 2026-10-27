@@ -463,6 +463,52 @@ def test_typed_tls_keyfile_password_is_trimmed_and_resolved(tmp_path):
 	assert("private key" not in out.lower()), out
 
 
+def typed_job_args(tmp_path, label):
+	return ["-h", "127.0.0.1:1", "-z", "1"] + typed_prompt_args(tmp_path, label)
+
+
+@pytest.mark.parametrize("label,prompt", [("--password", "Enter Password: "),
+		("--tls-keyfile-password", "Enter TLS-Keyfile Password: ")])
+def test_typed_password_prompts_on_stderr(tmp_path, label, prompt):
+	job = lib.run_job(typed_job_args(tmp_path, label), SECRET,
+			split_output=True)
+	assert(prompt in job.stderr), job.stderr
+	assert("Password" not in job.stdout), job.stdout
+	assert("Failed to connect" in job.stdout + job.stderr), job
+
+
+@pytest.mark.parametrize("label", ["--password", "--tls-keyfile-password"])
+def test_ctrl_c_at_typed_password_restores_echo(tmp_path, label):
+	job = lib.run_job(typed_job_args(tmp_path, label), keys=b"\x03")
+	assert(os.WIFSIGNALED(job.status) and
+			os.WTERMSIG(job.status) == signal.SIGINT), job
+	assert(job.echo_after), "asbench left echo off"
+
+
+@pytest.mark.parametrize("label", ["--password", "--tls-keyfile-password"])
+def test_ignored_ctrl_c_does_not_end_typed_password(tmp_path, label):
+	job = lib.run_job(typed_job_args(tmp_path, label), SECRET, keys=b"\x03",
+			ignore=[signal.SIGINT])
+	assert("Failed to connect" in job.out), job.out
+	assert("private key" not in job.out.lower()), job.out
+
+
+@pytest.mark.parametrize("label", ["--password", "--tls-keyfile-password"])
+def test_ctrl_z_does_not_stop_typed_password(tmp_path, label):
+	job = lib.run_job(typed_job_args(tmp_path, label), SECRET, keys=b"\x1a")
+	assert(not os.WIFSTOPPED(job.status)), "asbench stopped with echo off"
+	assert("Failed to connect" in job.out), job.out
+	assert("private key" not in job.out.lower()), job.out
+
+
+@pytest.mark.parametrize("label", ["--password", "--tls-keyfile-password"])
+def test_typed_password_in_background_stops_before_echo_off(tmp_path, label):
+	job = lib.run_job(typed_job_args(tmp_path, label), foreground=False)
+	assert(os.WIFSTOPPED(job.status) and
+			os.WSTOPSIG(job.status) == signal.SIGTTOU), job
+	assert(job.echo_after), "asbench turned echo off from the background"
+
+
 def test_login_fixture_tells_passwords_apart():
 	assert(lib.literal_login(SECRET) != lib.literal_login("wrong"))
 
@@ -654,6 +700,21 @@ def test_login_uses_typed_password_untrimmed():
 	padded = " %s " % SECRET
 	assert(lib.capture_login(["-U", "admin", "-P"], typed=padded) ==
 			lib.literal_login(padded))
+
+
+def test_login_uses_63_byte_typed_password():
+	value = "x" * 63
+	assert(lib.capture_login(["-U", "admin", "-P"], typed=value) ==
+			lib.literal_login(value))
+
+
+@pytest.mark.parametrize("length", [64, 200])
+def test_long_typed_password_fails(length):
+	rc, out = lib.run_typed(["-h", "127.0.0.1:1", "-z", "1", "-U", "admin",
+		"-P"], "y" * length)
+	assert(rc == 1), out
+	assert("--password: password is longer than 63 bytes" in out), out
+	assert("AddressSanitizer" not in out), out
 
 
 def test_piped_empty_password_is_read_once():

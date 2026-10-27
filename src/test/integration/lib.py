@@ -1,6 +1,7 @@
 
 import codecs
 import datetime
+import fcntl
 import functools
 import ipaddress
 import json
@@ -20,7 +21,9 @@ import docker
 import atexit
 import shutil
 import signal
+import termios
 import time
+import types
 
 # the number of server nodes to use
 N_NODES = 2
@@ -512,47 +515,134 @@ def shutdown_listener(srv):
 	srv.close()
 
 
-def run_typed(args, typed, env=None):
+def run_job(args, typed=None, env=None, keys=b"", ignore=(), foreground=True,
+		split_output=False):
 	"""
-	Runs asbench with a pty as its controlling terminal and stdin, types typed
-	and a newline once it prompts for a password, and returns its exit code
-	and output.
+	Runs asbench as a shell runs a job: in its own process group under a
+	session leader whose controlling terminal is a pty, in the foreground
+	unless foreground is False. The pty is asbench's stdin, and its stdout and
+	stderr unless split_output sends them to two pipes. Signals in ignore start
+	out ignored, as after trap '' in a shell. Once asbench turns echo off,
+	sends keys, then types typed and a newline. A job that stops is killed.
+	Returns asbench's wait status, what the pty showed, its stdout and stderr
+	when split, and whether echo is on after it ends.
 	"""
 	full_env = dict(os.environ)
 	full_env.update(env or {})
 	root = absolute_path("../../..")
 	cmd = [os.path.join(root, "test_target/asbench")] + args
-	pid, fd = pty.fork()
+	master, slave = pty.openpty()
+	status_r, status_w = os.pipe()
+	done_r, done_w = os.pipe()
+	out_r, out_w = os.pipe() if split_output else (None, slave)
+	err_r, err_w = os.pipe() if split_output else (None, slave)
+	leader = os.fork()
 
-	if pid == 0:
-		os.chdir(root)
-		os.execve(cmd[0], cmd, full_env)
-
-	out = b""
-	sent = False
-
-	while select.select([fd], [], [], 10)[0]:
+	if leader == 0:
 		try:
-			chunk = os.read(fd, 1024)
-		except OSError:
-			break
-		if not chunk:
-			break
-		out += chunk
-		if not sent and b"Password: " in out:
-			os.write(fd, typed.encode() + b"\n")
-			sent = True
+			os.close(done_w)
+			os.setsid()
+			fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
+			go_r, go_w = os.pipe()
+			job = os.fork()
+			if job == 0:
+				os.setpgid(0, 0)
+				os.read(go_r, 1)
+				for sig in ignore:
+					signal.signal(sig, signal.SIG_IGN)
+				os.dup2(slave, 0)
+				os.dup2(out_w, 1)
+				os.dup2(err_w, 2)
+				os.chdir(root)
+				os.execve(cmd[0], cmd, full_env)
+			for fd in {out_w, err_w} - {slave}:
+				os.close(fd)
+			os.setpgid(job, job)
+			if foreground:
+				os.tcsetpgrp(slave, job)
+			os.write(go_w, b"x")
+			_, status = os.waitpid(job, os.WUNTRACED)
+			if os.WIFSTOPPED(status):
+				os.kill(job, signal.SIGKILL)
+				os.waitpid(job, 0)
+			os.write(status_w, b"%d" % status)
+			# macOS revokes the terminal when its session leader exits
+			os.read(done_r, 1)
+		except BaseException as e:
+			os.write(status_w, repr(e).encode())
+		finally:
+			os._exit(0)
 
-	os.close(fd)
-	_, status = os.waitpid(pid, 0)
-	return os.waitstatus_to_exitcode(status), out.decode(errors="replace")
+	for fd in {status_w, done_r, out_w, err_w} - {slave}:
+		os.close(fd)
+
+	outputs = {fd: b"" for fd in (master, out_r, err_r) if fd is not None}
+	open_fds = set(outputs)
+	status = None
+	sent = False
+	deadline = time.time() + 60
+
+	try:
+		while status is None and time.time() < deadline:
+			for fd in select.select(list(open_fds) + [status_r], [], [], 0.05)[0]:
+				data = os.read(fd, 1024)
+				if fd == status_r:
+					assert data.isdigit(), \
+							"the job's session leader failed: %r" % data
+					status = int(data)
+				elif data:
+					outputs[fd] += data
+				else:
+					open_fds.discard(fd)
+			if foreground and status is None and not sent and \
+					not termios.tcgetattr(slave)[3] & termios.ECHO:
+				os.write(master, keys)
+				time.sleep(0.5 if keys else 0)
+				if typed is not None:
+					os.write(master, typed.encode() + b"\n")
+				sent = True
+
+		assert status is not None, "asbench did not finish"
+
+		while open_fds and select.select(list(open_fds), [], [], 0.2)[0]:
+			for fd in select.select(list(open_fds), [], [], 0)[0]:
+				data = os.read(fd, 1024)
+				if data:
+					outputs[fd] += data
+				else:
+					open_fds.discard(fd)
+
+		echo_after = bool(termios.tcgetattr(slave)[3] & termios.ECHO)
+	finally:
+		os.close(done_w)
+		if status is None:
+			os.kill(leader, signal.SIGKILL)
+		os.waitpid(leader, 0)
+		for fd in [master, slave, status_r] + [fd for fd in (out_r, err_r)
+				if fd is not None]:
+			os.close(fd)
+
+	text = {fd: data.decode(errors="replace") for fd, data in outputs.items()}
+	return types.SimpleNamespace(status=status, out=text[master],
+			stdout=text.get(out_r), stderr=text.get(err_r), echo_after=echo_after)
 
 
-def capture_login(args, env=None, stdin="", typed=None):
+def run_typed(args, typed, env=None, **job):
+	"""
+	Runs asbench as a foreground job at a terminal, types typed and a newline
+	once it prompts for a password, and returns its exit code and output. Any
+	other run_job option can be given.
+	"""
+	job = run_job(args, typed, env, **job)
+	return os.waitstatus_to_exitcode(job.status), job.out
+
+
+def capture_login(args, env=None, stdin="", typed=None, **job):
 	"""
 	Runs asbench against a fake server that records what the client sends and
 	never answers, and returns the login request, which holds the credential.
-	If typed is given, it is typed at a terminal instead of piped on stdin.
+	If typed is given, it is typed at a terminal instead of piped on stdin,
+	and any other run_job option can be given.
 	"""
 	srv = socket.socket()
 	srv.bind(("127.0.0.1", 0))
@@ -585,7 +675,7 @@ def capture_login(args, env=None, stdin="", typed=None):
 					timeout=60)
 			rc, out = proc.returncode, proc.stdout
 		else:
-			rc, out = run_typed(args, typed, env)
+			rc, out = run_typed(args, typed, env, **job)
 	finally:
 		shutdown_listener(srv)
 		thread.join(5)
