@@ -18,6 +18,9 @@
 #define SECRET "s3cr3t-pw"
 #define SECRET_B64 "czNjcjN0LXB3"
 #define MISSING_CA "/nonexistent/asbench_ca.pem"
+#define MISSING_OTHER_CA "/nonexistent/asbench_other_ca.pem"
+#define DEPRECATED_CAFILE \
+	"Argument --sa-cafile is deprecated. Use --sa-ca-file instead.\n"
 
 extern int set_args(int argc, char * const* argv, args_t* args);
 extern void _load_defaults(args_t* args);
@@ -384,8 +387,9 @@ START_TEST(cli_all_options)
 {
 	args_t args;
 	char* argv[] = { "asbench", "--sa-address", "[::1]:4000", "--sa-timeout",
-		"300", "--sa-cafile", "/path/to/ca.pem" };
-	ck_assert_int_eq(parse(&args, 7, argv), 0);
+		"300", "--sa-ca-file", "/path/to/ca.pem" };
+	int rv = parse(&args, 7, argv);
+	ck_assert_msg(rv == 0, "set_args returned %d: %s", rv, out_buf);
 	ck_assert_str_eq(args.sa.host, "::1");
 	ck_assert_str_eq(args.sa.port, "4000");
 	ck_assert_int_eq(args.sa.timeout_ms, 300);
@@ -435,9 +439,9 @@ START_TEST(cli_password_uses_later_sa_options)
 {
 	args_t args;
 	char* argv[] = { "asbench", "-U", "admin", "-P", "secrets:asbench:pw",
-		"--sa-port", closed_port, "--sa-cafile", MISSING_CA };
+		"--sa-port", closed_port, "--sa-ca-file", MISSING_CA };
 	ck_assert_int_ne(parse(&args, 9, argv), 0);
-	ck_assert_str_eq(out_buf, "--sa-cafile: cannot read file " MISSING_CA
+	ck_assert_str_eq(out_buf, "--sa-ca-file: cannot read file " MISSING_CA
 			": No such file or directory\n");
 	_free_args(&args);
 }
@@ -447,9 +451,9 @@ START_TEST(cli_tls_keyfile_password_uses_later_sa_options)
 {
 	args_t args;
 	char* argv[] = { "asbench", "--tls-keyfile-password=secrets:asbench:pw",
-		"--tls-keyfile", "key.pem", "--sa-cafile", MISSING_CA };
+		"--tls-keyfile", "key.pem", "--sa-ca-file", MISSING_CA };
 	ck_assert_int_ne(parse(&args, 6, argv), 0);
-	ck_assert_str_eq(out_buf, "--sa-cafile: cannot read file " MISSING_CA
+	ck_assert_str_eq(out_buf, "--sa-ca-file: cannot read file " MISSING_CA
 			": No such file or directory\n");
 	cf_free(args.tls.keyfile);
 	cf_free(args.tls.keyfile_pw);
@@ -460,9 +464,10 @@ END_TEST
 START_TEST(cli_sa_options_unused_without_secrets)
 {
 	args_t args;
-	char* argv[] = { "asbench", "-U", "admin", "-P", SECRET, "--sa-cafile",
+	char* argv[] = { "asbench", "-U", "admin", "-P", SECRET, "--sa-ca-file",
 		MISSING_CA, "--sa-port", closed_port };
-	ck_assert_int_eq(parse(&args, 9, argv), 0);
+	int rv = parse(&args, 9, argv);
+	ck_assert_msg(rv == 0, "set_args returned %d: %s", rv, out_buf);
 	ck_assert_str_eq(args.password, SECRET);
 	ck_assert_str_eq(out_buf, "");
 	_free_args(&args);
@@ -478,6 +483,12 @@ START_TEST(cli_bad_values)
 			"integer from 1 to 2147483647\n" },
 		{ "--sa-timeout", "2147483648", "--sa-timeout: invalid value "
 			"2147483648, expected an integer from 1 to 2147483647\n" },
+		{ "--sa-timeout", "+5", "--sa-timeout: invalid value +5, expected an "
+			"integer from 1 to 2147483647\n" },
+		{ "--sa-timeout", " 5", "--sa-timeout: invalid value  5, expected an "
+			"integer from 1 to 2147483647\n" },
+		{ "--sa-timeout", "\xef\xbc\x95", "--sa-timeout: invalid value "
+			"\xef\xbc\x95, expected an integer from 1 to 2147483647\n" },
 		{ "--sa-port", "65536", "--sa-port: invalid value 65536\n" },
 		{ "--sa-port", "http", "--sa-port: invalid value http\n" },
 		{ "--sa-address", "", "--sa-address: invalid value \n" },
@@ -497,6 +508,193 @@ START_TEST(cli_bad_values)
 		ck_assert_str_eq(out_buf, cases[i][2]);
 		_free_args(&args);
 	}
+}
+END_TEST
+
+START_TEST(cli_sa_ca_file)
+{
+	args_t args;
+	char* argv[] = { "asbench", "--sa-ca-file", "/path/to/ca.pem" };
+	int rv = parse(&args, 3, argv);
+	ck_assert_msg(rv == 0, "set_args returned %d: %s", rv, out_buf);
+	ck_assert_str_eq(args.sa.cafile, "/path/to/ca.pem");
+	ck_assert_str_eq(out_buf, "");
+	_free_args(&args);
+}
+END_TEST
+
+START_TEST(cli_sa_cafile_deprecated)
+{
+	args_t args;
+	char* argv[] = { "asbench", "--sa-cafile", "/path/to/ca.pem" };
+	ck_assert_int_eq(parse(&args, 3, argv), 0);
+	ck_assert_str_eq(args.sa.cafile, "/path/to/ca.pem");
+	ck_assert_msg(strstr(out_buf, DEPRECATED_CAFILE) != NULL,
+			"no deprecation warning in \"%s\"", out_buf);
+	_free_args(&args);
+}
+END_TEST
+
+START_TEST(cli_sa_ca_file_wins)
+{
+	char* argv[][5] = {
+		{ "asbench", "--sa-cafile", "a.pem", "--sa-ca-file", "b.pem" },
+		{ "asbench", "--sa-ca-file", "b.pem", "--sa-cafile", "a.pem" },
+	};
+
+	for (size_t i = 0; i < sizeof(argv) / sizeof(argv[0]); i++) {
+		args_t args;
+		int rv = parse(&args, 5, argv[i]);
+		ck_assert_msg(rv == 0, "set_args returned %d: %s", rv, out_buf);
+		ck_assert_str_eq(args.sa.cafile, "b.pem");
+		_free_args(&args);
+	}
+}
+END_TEST
+
+START_TEST(cli_sa_cafile_not_read_with_sa_ca_file)
+{
+	char* argv[][11] = {
+		{ "asbench", "-U", "admin", "-P", "secrets:asbench:pw", "--sa-port",
+			closed_port, "--sa-cafile", MISSING_OTHER_CA, "--sa-ca-file",
+			MISSING_CA },
+		{ "asbench", "-U", "admin", "-P", "secrets:asbench:pw", "--sa-port",
+			closed_port, "--sa-ca-file", MISSING_CA, "--sa-cafile",
+			MISSING_OTHER_CA },
+	};
+
+	for (size_t i = 0; i < sizeof(argv) / sizeof(argv[0]); i++) {
+		args_t args;
+		ck_assert_int_ne(parse(&args, 11, argv[i]), 0);
+		ck_assert_msg(strstr(out_buf, "--sa-ca-file: cannot read file "
+					MISSING_CA ": No such file or directory\n") != NULL,
+				"--sa-ca-file not read: %s", out_buf);
+		ck_assert_ptr_eq(strstr(out_buf, MISSING_OTHER_CA), NULL);
+		_free_args(&args);
+	}
+}
+END_TEST
+
+static void
+assert_cafile_rejected(const char* contents)
+{
+	args_t args;
+	char path[] = "/tmp/asbench_ca_XXXXXX";
+	char expected[128];
+	int fd = mkstemp(path);
+	ck_assert_int_ge(fd, 0);
+
+	ssize_t written = write(fd, contents, strlen(contents));
+	close(fd);
+	snprintf(expected, sizeof(expected),
+			"--sa-cafile: cannot load TLS CA file %s: ", path);
+
+	char* argv[] = { "asbench", "-U", "admin", "-P", "secrets:asbench:pw",
+		"--sa-port", closed_port, "--sa-cafile", path };
+	int rv = parse(&args, 9, argv);
+	unlink(path);
+	ck_assert_int_eq(written, (ssize_t) strlen(contents));
+	ck_assert_int_ne(rv, 0);
+	ck_assert_msg(strstr(out_buf, expected) != NULL,
+			"no CA file error naming the option in \"%s\"", out_buf);
+	ck_assert_ptr_eq(strstr(out_buf, "secret-agent: ERR: connect"), NULL);
+	_free_args(&args);
+}
+
+START_TEST(cli_empty_cafile_names_option)
+{
+	assert_cafile_rejected("");
+}
+END_TEST
+
+START_TEST(cli_cafile_not_pem_names_option)
+{
+	assert_cafile_rejected("not a certificate\n");
+}
+END_TEST
+
+static void
+assert_empty_ca_path_rejected(char* opt)
+{
+	args_t args;
+	char expected[32];
+
+	snprintf(expected, sizeof(expected), "%s: ", opt);
+
+	char* argv[] = { "asbench", "-U", "u", "-P", "secrets:a:b", "--sa-port",
+		closed_port, opt, "" };
+	ck_assert_int_ne(parse(&args, 9, argv), 0);
+	ck_assert_msg(strstr(out_buf, expected) != NULL,
+			"no error naming %s in \"%s\"", opt, out_buf);
+	ck_assert_ptr_eq(strstr(out_buf, "secret-agent: ERR: connect"), NULL);
+	_free_args(&args);
+}
+
+START_TEST(cli_empty_sa_ca_file_path_names_option)
+{
+	assert_empty_ca_path_rejected("--sa-ca-file");
+}
+END_TEST
+
+START_TEST(cli_empty_sa_cafile_path_names_option)
+{
+	assert_empty_ca_path_rejected("--sa-cafile");
+}
+END_TEST
+
+START_TEST(cli_password_secrets_without_user_warns)
+{
+	args_t args;
+	char* argv[] = { "asbench", "-P", "secrets:asbench:pw", "--sa-port",
+		closed_port };
+	ck_assert_int_eq(parse(&args, 5, argv), 0);
+	ck_assert_str_eq(args.password, "");
+	ck_assert_str_eq(out_buf,
+			"Warning: --password: ignored because no user is set\n");
+	_free_args(&args);
+}
+END_TEST
+
+START_TEST(cli_password_secrets_not_fetched_without_user)
+{
+	args_t args;
+	char* argv[] = { "asbench", "-P", "secrets:asbench:pw", "--sa-port",
+		closed_port };
+	ck_assert_int_eq(parse(&args, 5, argv), 0);
+	ck_assert_str_eq(args.password, "");
+	ck_assert_ptr_eq(strstr(out_buf, "secret"), NULL);
+	_free_args(&args);
+}
+END_TEST
+
+START_TEST(cli_user_not_fetched)
+{
+	args_t args;
+	char* argv[] = { "asbench", "-U", "secrets:asbench:user", "-P", SECRET,
+		"--sa-port", closed_port };
+	ck_assert_int_eq(parse(&args, 7, argv), 0);
+	ck_assert_str_eq(args.user, "secrets:asbench:user");
+	ck_assert_str_eq(args.password, SECRET);
+	ck_assert_str_eq(out_buf, "");
+	_free_args(&args);
+}
+END_TEST
+
+START_TEST(cli_password_pki_secrets_not_fetched)
+{
+	args_t args;
+	char* with_user[] = { "asbench", "--auth", "PKI", "-U", "admin", "-P",
+		"secrets:asbench:pw", "--sa-port", closed_port };
+	ck_assert_int_eq(parse(&args, 9, with_user), 0);
+	ck_assert_str_eq(args.password, "secrets:asbench:pw");
+	ck_assert_str_eq(out_buf, "");
+	_free_args(&args);
+
+	char* without_user[] = { "asbench", "--auth", "PKI", "-P",
+		"secrets:asbench:pw", "--sa-port", closed_port };
+	ck_assert_int_eq(parse(&args, 7, without_user), 0);
+	ck_assert_str_eq(out_buf, "");
+	_free_args(&args);
 }
 END_TEST
 
@@ -520,15 +718,20 @@ END_TEST
 
 START_TEST(log_connect_failed_adds_strerror)
 {
+	char* pw = NULL;
 	char expected[256];
-	snprintf(expected, sizeof(expected), "secret-agent: ERR: connect failed: "
-			"3, errno: %d (%s)\n", ECONNREFUSED, strerror(ECONNREFUSED));
+	snprintf(expected, sizeof(expected), ", errno: %d (%s)\n", ECONNREFUSED,
+			strerror(ECONNREFUSED));
 
-	capture_start();
-	errno = ECONNREFUSED;
-	sa_log_cb("ERR: connect failed: %d, errno: %d", 3, ECONNREFUSED);
-	capture_end();
-	ck_assert_str_eq(out_buf, expected);
+	ck_assert(!resolve("--password", "secrets:asbench:pw", &pw));
+
+	const char* line = strstr(out_buf, "secret-agent: ERR: connect failed");
+	ck_assert_msg(line != NULL, "no connect failed line in \"%s\"", out_buf);
+
+	const char* tail = strstr(line, expected);
+	ck_assert_msg(tail != NULL && tail + strlen(expected) - 1 ==
+			strchr(line, '\n'), "connect failed line without errno and its "
+			"reason in \"%s\"", out_buf);
 }
 END_TEST
 
@@ -617,9 +820,22 @@ secret_agent_suite(void)
 	tcase_add_test(tc_cli, cli_tls_keyfile_password_uses_later_sa_options);
 	tcase_add_test(tc_cli, cli_sa_options_unused_without_secrets);
 	tcase_add_test(tc_cli, cli_bad_values);
+	tcase_add_test(tc_cli, cli_sa_ca_file);
+	tcase_add_test(tc_cli, cli_sa_cafile_deprecated);
+	tcase_add_test(tc_cli, cli_sa_ca_file_wins);
+	tcase_add_test(tc_cli, cli_sa_cafile_not_read_with_sa_ca_file);
+	tcase_add_test(tc_cli, cli_empty_cafile_names_option);
+	tcase_add_test(tc_cli, cli_cafile_not_pem_names_option);
+	tcase_add_test(tc_cli, cli_empty_sa_ca_file_path_names_option);
+	tcase_add_test(tc_cli, cli_empty_sa_cafile_path_names_option);
+	tcase_add_test(tc_cli, cli_password_secrets_without_user_warns);
+	tcase_add_test(tc_cli, cli_password_secrets_not_fetched_without_user);
+	tcase_add_test(tc_cli, cli_user_not_fetched);
+	tcase_add_test(tc_cli, cli_password_pki_secrets_not_fetched);
 	suite_add_tcase(s, tc_cli);
 
 	tc_log = tcase_create("Log filter");
+	tcase_add_checked_fixture(tc_log, setup_agent, NULL);
 	tcase_add_test(tc_log, log_allowed_line_prints_args);
 	tcase_add_test(tc_log, log_connect_failed_adds_strerror);
 	tcase_add_test(tc_log, log_unlisted_line_is_cut);

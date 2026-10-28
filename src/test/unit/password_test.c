@@ -689,7 +689,7 @@ START_TEST(has_source)
 	ck_assert(password_has_source("env:"));
 	ck_assert(!password_has_source(SECRET));
 	ck_assert(!password_has_source("ENV:X"));
-	ck_assert(!password_has_source("secrets:resource:key"));
+	ck_assert(password_has_source("secrets:resource:key"));
 	ck_assert(!password_has_source(""));
 }
 END_TEST

@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import errno
 import glob
 import json
@@ -26,10 +27,15 @@ ASBENCH = os.path.join(ROOT, "test_target", "asbench")
 SECRET = "s3cr3t-pw"
 PARSED_LOOKING_SECRET = "env:ASBENCH_IT_NEVER_SET"
 PROMPTED = "secrets:asbench:pw"
+PIPED = "secrets:asbench:kp"
 UNREACHABLE = ["-z", "1", "-h", "127.0.0.1", "-p", "1"]
 CONNECT_FAILED = "ERROR Failed to connect\n"
 TLS_KEY_FAILED = re.compile(r"ERROR (Failed to decrypt private key|"
 		r"Private key password is invalid|PEM_read_bio_PrivateKey failed)")
+DEPRECATED_CAFILE = \
+		"Argument --sa-cafile is deprecated. Use --sa-ca-file instead.\n"
+NO_USER_WARNING = "Warning: --password: ignored because no user is set\n"
+ERROR_REPLY = json.dumps({"Error": "not found"}).encode()
 
 AGENT_IMAGE = "aerospike/aerospike-secret-agent"
 AGENT_TAG = "1.1.0"
@@ -53,19 +59,23 @@ def b64(value):
 	return base64.b64encode(value.encode()).decode()
 
 
+def secret_reply(value):
+	return json.dumps({"SecretValue": b64(value)}).encode()
+
+
 def closed_port():
 	with socket.socket() as s:
 		s.bind(("127.0.0.1", 0))
 		return str(s.getsockname()[1])
 
 
-def run(args, env=None, stdin=""):
+def run(args, env=None, stdin="", timeout=60):
 	full_env = dict(os.environ)
 	full_env.update(env or {})
 	proc = subprocess.run([ASBENCH] + UNREACHABLE + args, cwd=ROOT,
 			env=full_env, input=stdin, stdout=subprocess.PIPE,
 			stderr=subprocess.STDOUT, encoding="utf-8", errors="replace",
-			timeout=60)
+			timeout=timeout)
 	return proc.returncode, proc.stdout
 
 
@@ -164,14 +174,18 @@ def assert_password_resolved(rc, out):
 def fake_agent():
 	"""
 	Starts agents on loopback that answer one request with the given bytes, or
-	never answer when given None.
+	never answer when given None. length replaces the length in the reply
+	header and close ends the connection right after the reply. The request
+	body each agent got is kept in start.requests by port.
 	"""
 	servers = []
+	requests = {}
 
-	def start(response):
+	def start(response, length=None, close=False):
 		srv = socket.socket()
 		srv.bind(("127.0.0.1", 0))
 		srv.listen(1)
+		port = str(srv.getsockname()[1])
 		done = threading.Event()
 
 		def serve():
@@ -180,16 +194,21 @@ def fake_agent():
 			except OSError:
 				return
 			with conn:
-				conn.recv(4096)
+				header = lib._recv_exact(conn, 8)
+				if len(header) == 8:
+					requests[port] = lib._recv_exact(conn,
+							struct.unpack(">II", header)[1])
 				if response is not None:
-					conn.sendall(struct.pack(">II", AGENT_MAGIC, len(response)) +
-							response)
-				done.wait(10)
+					conn.sendall(struct.pack(">II", AGENT_MAGIC,
+						len(response) if length is None else length) + response)
+				if not close:
+					done.wait(10)
 
 		threading.Thread(target=serve, daemon=True).start()
 		servers.append((srv, done))
-		return str(srv.getsockname()[1])
+		return port
 
+	start.requests = requests
 	yield start
 
 	for srv, done in servers:
@@ -246,6 +265,56 @@ def blackhole():
 			s.close()
 
 
+@contextlib.contextmanager
+def endless_fifo(path):
+	"""
+	A FIFO at path that yields 64 KiB every 10 ms until the block exits.
+	"""
+	os.mkfifo(path)
+	done = threading.Event()
+
+	def write():
+		try:
+			with open(path, "wb", buffering=0) as f:
+				while not done.is_set():
+					f.write(b"A" * 65536)
+					time.sleep(0.01)
+		except OSError:
+			pass
+
+	thread = threading.Thread(target=write, daemon=True)
+	thread.start()
+	try:
+		yield path
+	finally:
+		done.set()
+		try:
+			os.close(os.open(path, os.O_RDONLY | os.O_NONBLOCK))
+		except OSError:
+			pass
+		thread.join(5)
+		os.unlink(path)
+
+
+def link_local_loopback():
+	"""
+	A socket bound to fe80::1 on the loopback interface, and the interface
+	name, or (None, None) when the loopback interface has no such address.
+	"""
+	for name in ["lo0", "lo"]:
+		try:
+			scope = socket.if_nametoindex(name)
+		except OSError:
+			continue
+		s = socket.socket(socket.AF_INET6)
+		try:
+			s.bind(("fe80::1", 0, 0, scope))
+			return s, name
+		except OSError:
+			s.close()
+	return None, None
+
+
 @pytest.fixture(scope="module")
 def files():
 	dir = tempfile.mkdtemp(prefix="asbench-sa-")
@@ -256,10 +325,12 @@ def files():
 	make_key(parsed_looking_key, PARSED_LOOKING_SECRET)
 	prompted_key = os.path.join(dir, "key-prompted.pem")
 	make_key(prompted_key, PROMPTED)
+	piped_key = os.path.join(dir, "key-piped.pem")
+	make_key(piped_key, PIPED)
 
 	yield types.SimpleNamespace(dir=dir, key=key,
 			parsed_looking_key=parsed_looking_key, prompted_key=prompted_key,
-			missing=os.path.join(dir, "missing.pem"))
+			piped_key=piped_key, missing=os.path.join(dir, "missing.pem"))
 
 	shutil.rmtree(dir, ignore_errors=True)
 
@@ -399,12 +470,142 @@ def test_agent_unreachable(opt, args):
 	assert(CONNECT_FAILED not in out), out
 
 
+def test_agent_unreachable_names_errno():
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-port",
+		closed_port()])
+	m = re.search(r"^secret-agent: ERR: connect failed\b.*, errno: (\d+) "
+			r"\((.*)\)$", out, re.M)
+
+	assert(rc == 1), out
+	assert(m), out
+	assert(int(m.group(1)) == errno.ECONNREFUSED), out
+	assert(m.group(2) == os.strerror(errno.ECONNREFUSED)), out
+
+
 def test_password_not_fetched_without_user():
 	rc, out = run(["-P", "secrets:asbench:pw", "--sa-port", closed_port()])
 
-	assert("--password:" not in out), out
+	assert(NO_USER_WARNING in out), out
 	assert("secret-agent:" not in out), out
+	assert("secret agent request" not in out), out
 	assert(CONNECT_FAILED in out), out
+
+
+def test_user_is_not_fetched():
+	login = lib.capture_login(["-U", "secrets:asbench:user", "-P", SECRET,
+		"--sa-port", closed_port()])
+	assert(login == lib.capture_login(["-U", "secrets:asbench:user",
+		"--password=b64:" + b64(SECRET), "--sa-port", closed_port()]))
+	assert(b"secrets:asbench:user" in login), login
+
+
+def test_pki_password_not_fetched():
+	rc, out = run(["--auth", "PKI", "-U", "admin", "-P", "secrets:asbench:pw",
+		"--sa-port", closed_port(), "--gen-bench", "1"])
+
+	assert(rc == 0), out
+	assert("secret-agent:" not in out), out
+	assert("--password:" not in out), out
+
+
+@pytest.mark.parametrize("path,resource,key", [
+	('secrets:nope","Resource":"asbench:pw', 'nope","Resource":"asbench', "pw"),
+	('secrets:asbench:pw"', "asbench", 'pw"'),
+	("secrets:asbench:p\\w", "asbench", "p\\w"),
+	('secrets:a\\"b:pw', 'a\\"b', "pw"),
+], ids=["quote_in_resource", "quote_in_key", "backslash_in_key",
+	"escaped_quote_in_resource"])
+def test_secret_path_is_escaped_in_request(fake_agent, path, resource, key):
+	port = fake_agent(ERROR_REPLY)
+	rc, out = run(["-U", "admin", "-P", path, "--sa-port", port])
+	body = fake_agent.requests.get(port)
+
+	assert(body is not None), out
+	try:
+		fields = json.loads(body, object_pairs_hook=lambda pairs: pairs)
+	except ValueError as e:
+		pytest.fail("request %r is not JSON: %s" % (body, e))
+	assert(sorted(fields) == [("Resource", resource), ("SecretKey", key)]), \
+			body
+	assert(rc == 1), out
+
+
+def test_truncated_reply_is_a_connection_error(fake_agent):
+	reply = secret_reply(SECRET)
+	port = fake_agent(reply, length=len(reply) + 50, close=True)
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-port", port])
+
+	assert("--password: secret agent request for secrets:asbench:pw failed: "
+			"connection or protocol error\n" in out), out
+	assert(rc == 1), out
+	assert(CONNECT_FAILED not in out), out
+	assert_no_secret(out)
+
+
+def test_fetched_tls_keyfile_password_1024_bytes(fake_agent, files):
+	port = fake_agent(secret_reply("k" * 1024))
+	rc, out = run(["--tls-enable", "--tls-keyfile", files.key,
+		"--tls-keyfile-password", "secrets:asbench:long", "--sa-port", port])
+
+	assert(rc != 0)
+	assert("--tls-keyfile-password:" not in out), out
+	assert(TLS_KEY_FAILED.search(out)), out
+	assert("k" * 1024 not in out), out
+
+
+def test_fetched_tls_keyfile_password_over_1024_bytes_fails(fake_agent, files):
+	port = fake_agent(secret_reply("k" * 1025))
+	rc, out = run(["--tls-enable", "--tls-keyfile", files.key,
+		"--tls-keyfile-password", "secrets:asbench:long", "--sa-port", port])
+
+	assert(rc == 1), out
+	assert("--tls-keyfile-password: value from secrets:asbench:long is longer "
+			"than 1024 bytes\n" in out), out
+	assert(not TLS_KEY_FAILED.search(out)), out
+	assert("k" * 1025 not in out), out
+	assert(b64("k" * 1025)[:16] not in out), out
+
+
+FAILURES = {
+	"unreachable": lambda agent, files: ["-U", "admin", "-P",
+		"secrets:asbench:pw", "--sa-port", closed_port()],
+	"no_answer": lambda agent, files: ["-U", "admin", "-P",
+		"secrets:asbench:pw", "--sa-port", agent(None), "--sa-timeout", "300"],
+	"malformed_reply": lambda agent, files: ["-U", "admin", "-P",
+		"secrets:asbench:pw", "--sa-port",
+		agent(('{"SecretValue":"%s' % b64(SECRET)).encode())],
+	"agent_error": lambda agent, files: ["-U", "admin", "-P",
+		"secrets:asbench:pw", "--sa-port", agent(ERROR_REPLY)],
+	"empty_value": lambda agent, files: ["-U", "admin", "-P",
+		"secrets:asbench:pw", "--sa-port",
+		agent(json.dumps({"SecretValue": ""}).encode())],
+	"too_long": lambda agent, files: ["-U", "admin", "-P",
+		"secrets:asbench:pw", "--sa-port", agent(secret_reply(SECRET * 8))],
+	"nul_byte": lambda agent, files: ["-U", "admin", "-P",
+		"secrets:asbench:pw", "--sa-port",
+		agent(secret_reply(SECRET + "\0" + SECRET))],
+	"missing_cafile": lambda agent, files: ["-U", "admin", "-P",
+		"secrets:asbench:pw", "--sa-port", closed_port(), "--sa-cafile",
+		files.missing],
+	"keyfile_unreachable": lambda agent, files: ["--tls-enable",
+		"--tls-keyfile", files.key, "--tls-keyfile-password",
+		"secrets:asbench:pw", "--sa-port", closed_port()],
+	"keyfile_too_long": lambda agent, files: ["--tls-enable", "--tls-keyfile",
+		files.key, "--tls-keyfile-password", "secrets:asbench:pw",
+		"--sa-port", agent(secret_reply(SECRET * 120))],
+	"keyfile_nul_byte": lambda agent, files: ["--tls-enable", "--tls-keyfile",
+		files.key, "--tls-keyfile-password", "secrets:asbench:pw",
+		"--sa-port", agent(secret_reply(SECRET + "\0" + SECRET))],
+}
+
+
+@pytest.mark.parametrize("case", sorted(FAILURES))
+def test_failure_exits_1_without_secret(fake_agent, files, case):
+	rc, out = run(FAILURES[case](fake_agent, files))
+
+	assert(rc == 1), out
+	assert(CONNECT_FAILED not in out), out
+	assert_no_secret(out)
 
 
 @pytest.mark.parametrize("sa_args", [
@@ -434,6 +635,12 @@ def test_address_forms_parse(sa_args):
 		"integer from 1 to 2147483647"),
 	("--sa-timeout", "2147483648", "--sa-timeout: invalid value 2147483648, "
 		"expected an integer from 1 to 2147483647"),
+	("--sa-timeout", "+5", "--sa-timeout: invalid value +5, expected an "
+		"integer from 1 to 2147483647"),
+	("--sa-timeout", " 5", "--sa-timeout: invalid value  5, expected an "
+		"integer from 1 to 2147483647"),
+	("--sa-timeout", "\uff15", "--sa-timeout: invalid value \uff15, expected "
+		"an integer from 1 to 2147483647"),
 	("--sa-port", "0", "--sa-port: invalid value 0"),
 	("--sa-port", "65536", "--sa-port: invalid value 65536"),
 	("--sa-port", "http", "--sa-port: invalid value http"),
@@ -544,8 +751,113 @@ def test_cafile_only_read_when_secrets_used(files):
 	rc, out = run(["-U", "admin", "-P", "literal", "--sa-cafile", files.missing])
 
 	assert(rc != 0)
-	assert("--sa-cafile" not in out), out
+	assert(files.missing not in out), out
 	assert(CONNECT_FAILED in out), out
+
+
+@pytest.mark.parametrize("opt", ["--sa-ca-file", "--sa-cafile"])
+@pytest.mark.parametrize("content", ["", "not a certificate\n"],
+		ids=["empty", "not_pem"])
+def test_unusable_cafile_names_option(files, opt, content):
+	path = os.path.join(files.dir, "unusable-%d.pem" % len(content))
+	write(path, content)
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", opt, path,
+		"--sa-port", closed_port()])
+
+	assert(rc == 1), out
+	assert("%s: cannot load TLS CA file %s: " % (opt, path) in out), out
+	assert("secret-agent: ERR: connect" not in out), out
+
+
+@pytest.mark.parametrize("opt", ["--sa-ca-file", "--sa-cafile"])
+def test_empty_ca_path_names_option(fake_agent, opt):
+	port = fake_agent(secret_reply(SECRET))
+	rc, out = run(["-U", "u", "-P", "secrets:a:b", "--sa-port", port, opt, ""])
+
+	assert(rc == 1), out
+	assert(re.search(r"^%s: " % re.escape(opt), out, re.M)), out
+	assert(port not in fake_agent.requests), out
+	assert_no_secret(out)
+
+
+def test_endless_cafile_is_rejected(files):
+	path = os.path.join(files.dir, "endless-ca.pem")
+
+	with endless_fifo(path):
+		try:
+			rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw",
+				"--sa-cafile", path, "--sa-port", closed_port()], timeout=15)
+		except subprocess.TimeoutExpired:
+			pytest.fail("--sa-cafile %s still being read after 15 s" % path)
+
+	assert(rc == 1), out
+	assert(re.search(r"^--sa-cafile: .*%s" % re.escape(path), out, re.M)), out
+
+
+@pytest.mark.parametrize("args", [
+	["--sa-ca-file", "{ca}"],
+	["--sa-ca-file={ca}"],
+], ids=["separate", "attached"])
+def test_sa_ca_file_parses(args):
+	rc, out = run(["-U", "admin", "-P", "literal"] +
+			[a.format(ca="/nonexistent/ca.pem") for a in args])
+
+	assert("unrecognized option" not in out), out
+	assert("--sa-ca-file" not in out), out
+	assert(CONNECT_FAILED in out), out
+
+
+@pytest.mark.parametrize("args", [
+	["--sa-cafile", "{other}", "--sa-ca-file", "{missing}"],
+	["--sa-ca-file", "{missing}", "--sa-cafile", "{other}"],
+], ids=["sa_ca_file_last", "sa_ca_file_first"])
+def test_sa_ca_file_beats_sa_cafile(files, args):
+	other = os.path.join(files.dir, "other-missing.pem")
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-port",
+		closed_port()] + [a.format(other=other, missing=files.missing)
+			for a in args])
+
+	assert(rc == 1), out
+	assert("--sa-ca-file: " in out and files.missing in out), out
+	assert(other not in out), out
+
+
+def test_tls_peer_name_without_ipv6_zone(files):
+	srv, ifname = link_local_loopback()
+	if srv is None:
+		pytest.skip("no fe80::1 on the loopback interface")
+
+	ca = make_ca(files.dir, "zone-ca")
+	cert = make_cert(files.dir, "agent-zone", ca, "IP:fe80::1")
+	ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+	ctx.load_cert_chain(cert[0], cert[1])
+	reply = secret_reply(SECRET)
+	srv.listen(1)
+
+	def serve():
+		try:
+			conn, _ = srv.accept()
+		except OSError:
+			return
+		try:
+			with ctx.wrap_socket(conn, server_side=True) as tls:
+				header = lib._recv_exact(tls, 8)
+				lib._recv_exact(tls, struct.unpack(">II", header)[1])
+				tls.sendall(struct.pack(">II", AGENT_MAGIC, len(reply)) + reply)
+		except (OSError, ssl.SSLError, struct.error):
+			pass
+
+	thread = threading.Thread(target=serve, daemon=True)
+	thread.start()
+	try:
+		rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
+			"fe80::1%" + ifname, "--sa-port", str(srv.getsockname()[1]),
+			"--sa-cafile", ca[0], "--sa-timeout", "5000"])
+	finally:
+		lib.shutdown_listener(srv)
+		thread.join(5)
+
+	assert_password_resolved(rc, out)
 
 
 def test_prompted_password_is_literal():
@@ -577,6 +889,19 @@ def test_prompted_tls_keyfile_password_is_literal(files):
 	assert(CONNECT_FAILED in out), out
 
 
+def test_piped_tls_keyfile_password_is_literal(fake_agent, files):
+	port = fake_agent(secret_reply(SECRET))
+	rc, out = run(["--tls-enable", "--tls-keyfile", files.piped_key,
+		"--tls-keyfile-password", "--sa-port", port], stdin=PIPED + "\n")
+
+	assert(port not in fake_agent.requests), out
+	assert("Enter TLS-Keyfile Password" not in out), out
+	assert("secret-agent:" not in out), out
+	assert("--tls-keyfile-password:" not in out), out
+	assert(not TLS_KEY_FAILED.search(out)), out
+	assert(CONNECT_FAILED in out), out
+
+
 def test_help():
 	rc, out = run(["--help"])
 
@@ -586,7 +911,7 @@ def test_help():
 		"   --sa-port <port>     # Default: 3005\n",
 		"   --sa-timeout <ms>    # Default: 1000\n",
 		"   the TCP connect, the TLS handshake and the request, but not the name\n",
-		"   --sa-cafile <path>   # Default: none\n",
+		"   --sa-ca-file <path>",
 		"   the agent's certificate against this CA and the --sa-address host, whose\n",
 		"   name or IP address must be in the certificate.\n",
 	]:
@@ -594,6 +919,7 @@ def test_help():
 	assert(out.count("5) Aerospike Secret Agent: "
 			"'secrets:<resource>:<key>'\n") == 2), out
 	assert("not verified" not in out)
+	assert("--sa-cafile" not in out), out
 
 
 # the log filter
@@ -783,6 +1109,63 @@ def test_login_uses_secret_over_tls_by_ip(agent):
 	assert(lib.capture_login(["-U", "admin", "-Psecrets:asbench:pw",
 		"--sa-address", "127.0.0.1:" + agent.tls_ip_port, "--sa-cafile",
 		agent.ca]) == lib.literal_login(SECRET))
+
+
+def test_login_uses_secret_over_tls_with_sa_ca_file(agent):
+	assert(lib.capture_login(["-U", "admin", "-Psecrets:asbench:pw",
+		"--sa-address", "localhost:" + agent.tls_port, "--sa-ca-file",
+		agent.ca]) == lib.literal_login(SECRET))
+
+
+def test_sa_cafile_is_deprecated(agent):
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
+		"localhost:" + agent.tls_port, "--sa-cafile", agent.ca])
+
+	assert(DEPRECATED_CAFILE in out), out
+	assert_password_resolved(rc, out)
+
+
+@pytest.mark.parametrize("args,verified", [
+	(["--sa-cafile", "{missing}", "--sa-ca-file", "{ca}"], True),
+	(["--sa-ca-file", "{ca}", "--sa-cafile", "{missing}"], True),
+	(["--sa-cafile", "{ca}", "--sa-ca-file", "{other_ca}"], False),
+	(["--sa-ca-file", "{other_ca}", "--sa-cafile", "{ca}"], False),
+], ids=["ca_last", "ca_first", "other_ca_last", "other_ca_first"])
+def test_sa_ca_file_wins_over_tls(agent, files, args, verified):
+	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
+		"localhost:" + agent.tls_port] + [a.format(missing=files.missing,
+			ca=agent.ca, other_ca=agent.other_ca) for a in args])
+
+	assert("unrecognized option" not in out), out
+	if verified:
+		assert_password_resolved(rc, out)
+	else:
+		assert(rc == 1), out
+		assert_verify_failed(out, "unable to get local issuer certificate")
+
+
+def test_quote_in_resource_does_not_fetch_another_secret(agent):
+	path = 'secrets:nope","Resource":"asbench:pw'
+	rc, out = run(["-U", "admin", "-P", path, "--sa-port", agent.port])
+
+	assert("--password: secret agent request for %s failed: bad request\n" %
+			path in out), out
+	assert(rc == 1), out
+	assert(CONNECT_FAILED not in out), out
+	assert_no_secret(out)
+
+
+def test_quote_in_key_fails_at_once(agent):
+	path = 'secrets:asbench:pw"'
+	start = time.monotonic()
+	rc, out = run(["-U", "admin", "-P", path, "--sa-port", agent.port,
+		"--sa-timeout", "5000"])
+	elapsed = time.monotonic() - start
+
+	assert("--password: secret agent request for %s failed: bad request\n" %
+			path in out), out
+	assert(rc == 1), out
+	assert(elapsed < 2.5), elapsed
 
 
 def test_login_uses_63_byte_secret(agent):
