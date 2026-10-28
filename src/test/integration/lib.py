@@ -1,12 +1,15 @@
 
 import codecs
 import datetime
+import fcntl
 import functools
 import ipaddress
 import json
 import os
+import pty
 import random
 import re
+import select
 import socket
 import uuid
 import string
@@ -18,7 +21,9 @@ import docker
 import atexit
 import shutil
 import signal
+import termios
 import time
+import types
 
 # the number of server nodes to use
 N_NODES = 2
@@ -510,10 +515,134 @@ def shutdown_listener(srv):
 	srv.close()
 
 
-def capture_login(args, env=None, stdin=""):
+def run_job(args, typed=None, env=None, keys=b"", ignore=(), foreground=True,
+		split_output=False):
+	"""
+	Runs asbench as a shell runs a job: in its own process group under a
+	session leader whose controlling terminal is a pty, in the foreground
+	unless foreground is False. The pty is asbench's stdin, and its stdout and
+	stderr unless split_output sends them to two pipes. Signals in ignore start
+	out ignored, as after trap '' in a shell. Once asbench turns echo off,
+	sends keys, then types typed and a newline. A job that stops is killed.
+	Returns asbench's wait status, what the pty showed, its stdout and stderr
+	when split, and whether echo is on after it ends.
+	"""
+	full_env = dict(os.environ)
+	full_env.update(env or {})
+	root = absolute_path("../../..")
+	cmd = [os.path.join(root, "test_target/asbench")] + args
+	master, slave = pty.openpty()
+	status_r, status_w = os.pipe()
+	done_r, done_w = os.pipe()
+	out_r, out_w = os.pipe() if split_output else (None, slave)
+	err_r, err_w = os.pipe() if split_output else (None, slave)
+	leader = os.fork()
+
+	if leader == 0:
+		try:
+			os.close(done_w)
+			os.setsid()
+			fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
+			go_r, go_w = os.pipe()
+			job = os.fork()
+			if job == 0:
+				os.setpgid(0, 0)
+				os.read(go_r, 1)
+				for sig in ignore:
+					signal.signal(sig, signal.SIG_IGN)
+				os.dup2(slave, 0)
+				os.dup2(out_w, 1)
+				os.dup2(err_w, 2)
+				os.chdir(root)
+				os.execve(cmd[0], cmd, full_env)
+			for fd in {out_w, err_w} - {slave}:
+				os.close(fd)
+			os.setpgid(job, job)
+			if foreground:
+				os.tcsetpgrp(slave, job)
+			os.write(go_w, b"x")
+			_, status = os.waitpid(job, os.WUNTRACED)
+			if os.WIFSTOPPED(status):
+				os.kill(job, signal.SIGKILL)
+				os.waitpid(job, 0)
+			os.write(status_w, b"%d" % status)
+			# macOS revokes the terminal when its session leader exits
+			os.read(done_r, 1)
+		except BaseException as e:
+			os.write(status_w, repr(e).encode())
+		finally:
+			os._exit(0)
+
+	for fd in {status_w, done_r, out_w, err_w} - {slave}:
+		os.close(fd)
+
+	outputs = {fd: b"" for fd in (master, out_r, err_r) if fd is not None}
+	open_fds = set(outputs)
+	status = None
+	sent = False
+	deadline = time.time() + 60
+
+	try:
+		while status is None and time.time() < deadline:
+			for fd in select.select(list(open_fds) + [status_r], [], [], 0.05)[0]:
+				data = os.read(fd, 1024)
+				if fd == status_r:
+					assert data.isdigit(), \
+							"the job's session leader failed: %r" % data
+					status = int(data)
+				elif data:
+					outputs[fd] += data
+				else:
+					open_fds.discard(fd)
+			if foreground and status is None and not sent and \
+					not termios.tcgetattr(slave)[3] & termios.ECHO:
+				os.write(master, keys)
+				time.sleep(0.5 if keys else 0)
+				if typed is not None:
+					os.write(master, typed.encode() + b"\n")
+				sent = True
+
+		assert status is not None, "asbench did not finish"
+
+		while open_fds and select.select(list(open_fds), [], [], 0.2)[0]:
+			for fd in select.select(list(open_fds), [], [], 0)[0]:
+				data = os.read(fd, 1024)
+				if data:
+					outputs[fd] += data
+				else:
+					open_fds.discard(fd)
+
+		echo_after = bool(termios.tcgetattr(slave)[3] & termios.ECHO)
+	finally:
+		os.close(done_w)
+		if status is None:
+			os.kill(leader, signal.SIGKILL)
+		os.waitpid(leader, 0)
+		for fd in [master, slave, status_r] + [fd for fd in (out_r, err_r)
+				if fd is not None]:
+			os.close(fd)
+
+	text = {fd: data.decode(errors="replace") for fd, data in outputs.items()}
+	return types.SimpleNamespace(status=status, out=text[master],
+			stdout=text.get(out_r), stderr=text.get(err_r), echo_after=echo_after)
+
+
+def run_typed(args, typed, env=None, **job):
+	"""
+	Runs asbench as a foreground job at a terminal, types typed and a newline
+	once it prompts for a password, and returns its exit code and output. Any
+	other run_job option can be given.
+	"""
+	job = run_job(args, typed, env, **job)
+	return os.waitstatus_to_exitcode(job.status), job.out
+
+
+def capture_login(args, env=None, stdin="", typed=None, **job):
 	"""
 	Runs asbench against a fake server that records what the client sends and
 	never answers, and returns the login request, which holds the credential.
+	If typed is given, it is typed at a terminal instead of piped on stdin,
+	and any other run_job option can be given.
 	"""
 	srv = socket.socket()
 	srv.bind(("127.0.0.1", 0))
@@ -537,19 +666,23 @@ def capture_login(args, env=None, stdin=""):
 
 	full_env = dict(os.environ)
 	full_env.update(env or {})
-	cmd = ["test_target/asbench", "-z", "1", "-h", "127.0.0.1", "-p",
-		str(srv.getsockname()[1])] + args
+	args = ["-z", "1", "-h", "127.0.0.1", "-p", str(srv.getsockname()[1])] + args
 	try:
-		proc = subprocess.run(cmd, cwd=absolute_path("../../.."), env=full_env,
-				input=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-				text=True, timeout=60)
+		if typed is None:
+			proc = subprocess.run(["test_target/asbench"] + args,
+					cwd=absolute_path("../../.."), env=full_env, input=stdin,
+					stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+					timeout=60)
+			rc, out = proc.returncode, proc.stdout
+		else:
+			rc, out = run_typed(args, typed, env, **job)
 	finally:
 		shutdown_listener(srv)
 		thread.join(5)
 
-	assert proc.returncode != 0, proc.stdout
+	assert rc != 0, out
 	assert len(set(packets)) == 1, "expected one distinct login request, " \
-			"got %d:\n%s" % (len(set(packets)), proc.stdout)
+			"got %d:\n%s" % (len(set(packets)), out)
 	# proto version 2, type 2 (admin)
 	assert packets[0][:2] == b"\x02\x02", packets[0][:8]
 	return packets[0]
