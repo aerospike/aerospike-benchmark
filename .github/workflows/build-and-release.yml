@@ -63,7 +63,7 @@
 #   on every publish (`release=true`) regardless of branch or `skip_tagging`,
 #   since the bundle is what enables JFrog promotion.
 
-name: Build and Release
+name: Build and Release testing
 permissions:
   contents: read
   id-token: write
