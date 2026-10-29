@@ -71,6 +71,8 @@ make report
 
 The integration tests start a two node Aerospike cluster in Docker and need `python3`. Each test session picks a random free port range and its own work directory, waits until both nodes have joined and migrations are done, and removes its containers when it exits. A session that was killed is cleaned up by the next one, so the tests can run next to an Aerospike server already listening on port 3000.
 
+The Secret Agent tests against a secured Enterprise server also need a feature key: `export FEATKEY=$(base64 < features.conf)`. Without it they are skipped, or fail when `CI` is set.
+
 The dictionary generator has its own tests:
 
 ```sh
