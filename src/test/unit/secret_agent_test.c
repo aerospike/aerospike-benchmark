@@ -82,6 +82,7 @@ setup_agent(void)
 	sa.port = closed_port;
 	sa.timeout_ms = 1000;
 	sa.cafile = NULL;
+	sa.cafile_opt = "--sa-cafile";
 	out_buf[0] = '\0';
 }
 
@@ -111,8 +112,8 @@ START_TEST(resolve_agent_unreachable)
 	char* pw = NULL;
 	ck_assert(!resolve("--tls-keyfile-password", "secrets:asbench:pw", &pw));
 	ck_assert_ptr_eq(pw, NULL);
-	ck_assert_ptr_eq(strstr(out_buf, "secret-agent: ERR: connect failed: "),
-			out_buf);
+	ck_assert_ptr_eq(strstr(out_buf,
+				"secret-agent: ERR: connect failed, errno: "), out_buf);
 	ck_assert_ptr_ne(strstr(out_buf, "\n--tls-keyfile-password: secret agent "
 				"request for secrets:asbench:pw failed: connection or protocol "
 				"error\n"), NULL);

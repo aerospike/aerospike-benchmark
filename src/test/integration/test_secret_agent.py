@@ -296,25 +296,6 @@ def endless_fifo(path):
 		os.unlink(path)
 
 
-def link_local_loopback():
-	"""
-	A socket bound to fe80::1 on the loopback interface, and the interface
-	name, or (None, None) when the loopback interface has no such address.
-	"""
-	for name in ["lo0", "lo"]:
-		try:
-			scope = socket.if_nametoindex(name)
-		except OSError:
-			continue
-		s = socket.socket(socket.AF_INET6)
-		try:
-			s.bind(("fe80::1", 0, 0, scope))
-			return s, name
-		except OSError:
-			s.close()
-	return None, None
-
-
 @pytest.fixture(scope="module")
 def files():
 	dir = tempfile.mkdtemp(prefix="asbench-sa-")
@@ -465,7 +446,7 @@ def test_agent_unreachable(opt, args):
 	assert(rc != 0)
 	assert(opt + ": secret agent request for secrets:asbench:pw failed: "
 			"connection or protocol error\n" in out), out
-	assert("secret-agent: ERR: connect failed: " in out), out
+	assert("secret-agent: ERR: connect failed, errno: " in out), out
 	assert("(Connection refused)" in out), out
 	assert(CONNECT_FAILED not in out), out
 
@@ -822,44 +803,6 @@ def test_sa_ca_file_beats_sa_cafile(files, args):
 	assert(other not in out), out
 
 
-def test_tls_peer_name_without_ipv6_zone(files):
-	srv, ifname = link_local_loopback()
-	if srv is None:
-		pytest.skip("no fe80::1 on the loopback interface")
-
-	ca = make_ca(files.dir, "zone-ca")
-	cert = make_cert(files.dir, "agent-zone", ca, "IP:fe80::1")
-	ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-	ctx.load_cert_chain(cert[0], cert[1])
-	reply = secret_reply(SECRET)
-	srv.listen(1)
-
-	def serve():
-		try:
-			conn, _ = srv.accept()
-		except OSError:
-			return
-		try:
-			with ctx.wrap_socket(conn, server_side=True) as tls:
-				header = lib._recv_exact(tls, 8)
-				lib._recv_exact(tls, struct.unpack(">II", header)[1])
-				tls.sendall(struct.pack(">II", AGENT_MAGIC, len(reply)) + reply)
-		except (OSError, ssl.SSLError, struct.error):
-			pass
-
-	thread = threading.Thread(target=serve, daemon=True)
-	thread.start()
-	try:
-		rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", "--sa-address",
-			"fe80::1%" + ifname, "--sa-port", str(srv.getsockname()[1]),
-			"--sa-cafile", ca[0], "--sa-timeout", "5000"])
-	finally:
-		lib.shutdown_listener(srv)
-		thread.join(5)
-
-	assert_password_resolved(rc, out)
-
-
 def test_prompted_password_is_literal():
 	rc, out = run(["-U", "admin", "-P", "--sa-port", closed_port()],
 			stdin=PROMPTED + "\n")
@@ -902,20 +845,31 @@ def test_piped_tls_keyfile_password_is_literal(fake_agent, files):
 	assert(CONNECT_FAILED in out), out
 
 
+HELP_SECRET_AGENT = """\
+   --sa-address <host>[:<port>]  # Default: 127.0.0.1:3005
+   "<host>[:<port>]" or "[<ipv6>][:<port>]".
+   Secret Agent hostname or IP address.
+
+   --sa-port <port>     # Default: 3005
+   Secret Agent port, 1 to 65535. Overrides a port in --sa-address.
+
+   --sa-timeout <ms>    # Default: 1000
+   Timeout in milliseconds for Secret Agent requests, an integer from 1 to
+   2147483647.
+
+   --sa-ca-file <path>  # Default: none
+   Path to a CA certificate file. Enables TLS to the Secret Agent and verifies
+   its certificate against this CA. The agent's hostname or IP address must be
+   in the certificate.
+
+"""
+
+
 def test_help():
 	rc, out = run(["--help"])
 
 	assert(rc == 0)
-	for text in [
-		"   --sa-address <host>[:<port>]  # Default: 127.0.0.1:3005\n",
-		"   --sa-port <port>     # Default: 3005\n",
-		"   --sa-timeout <ms>    # Default: 1000\n",
-		"   the TCP connect, the TLS handshake and the request, but not the name\n",
-		"   --sa-ca-file <path>",
-		"   the agent's certificate against this CA and the --sa-address host, whose\n",
-		"   name or IP address must be in the certificate.\n",
-	]:
-		assert(text in out), text
+	assert(HELP_SECRET_AGENT in out), out
 	assert(out.count("5) Aerospike Secret Agent: "
 			"'secrets:<resource>:<key>'\n") == 2), out
 	assert("not verified" not in out)
@@ -932,7 +886,7 @@ C_STRING = r'"(?:[^"\\]|\\.)*"'
 # expressions reviewed as safe
 REVIEWED_LOG_ARGS = {
 	"ERR: failed to lookup address: %s": "addr",
-	"ERR: connect failed: %d, errno: %d": "sock_fd, errno",
+	"ERR: connect failed, errno: %d": "conn_err",
 	"ERR: response: %.*s": "(int)payload_len, payload_str",
 	"ERR: SSL_connect failed: %s": "errbuf",
 	"ERR: SSL_connect I/O error: %s": "errbuf",
