@@ -35,6 +35,9 @@
 #include <aerospike/as_msgpack.h>
 #include <citrusleaf/cf_b64.h>
 
+#include <openssl/err.h>
+#include <openssl/pem.h>
+
 #include <sa_client.h>
 
 #include "common.h"
@@ -46,14 +49,15 @@
 
 typedef struct sa_log_format_s {
 	const char* fmt;
-	bool add_strerror;
+	bool errno_arg;
 } sa_log_format_t;
 
 // secret agent client log lines whose arguments are safe to print, checked
-// against the library sources by src/test/integration/test_secret_agent.py
+// against the library sources by src/test/integration/test_secret_agent.py.
+// errno_arg marks a line whose only argument is an errno.
 static const sa_log_format_t SA_LOG_ALLOW[] = {
 	{"ERR: failed to lookup address: %s", false},
-	{"ERR: connect failed: %d, errno: %d", true},
+	{"ERR: connect failed, errno: %d", true},
 	{"ERR: response: %.*s", false},
 	{"ERR: SSL_connect failed: %s", false},
 	{"ERR: SSL_connect I/O error: %s", false},
@@ -326,48 +330,6 @@ password_b64(const char* option, const char* encoded, const char* what,
 	return true;
 }
 
-static char*
-read_file(const char* option, const char* path, size_t* len_r)
-{
-	FILE* fh = fopen(path, "r");
-
-	if (fh == NULL) {
-		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
-				strerror(errno));
-		return NULL;
-	}
-
-	size_t cap = 256;
-	size_t len = 0;
-	size_t n;
-	char* buf = cf_malloc(cap);
-
-	while ((n = fread(buf + len, 1, cap - len - 1, fh)) != 0) {
-		len += n;
-
-		if (len == cap - 1) {
-			cap *= 2;
-			buf = cf_realloc(buf, cap);
-		}
-	}
-
-	if (ferror(fh)) {
-		int err = errno;
-
-		fclose(fh);
-		cf_free(buf);
-		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
-				strerror(err));
-		return NULL;
-	}
-
-	fclose(fh);
-
-	buf[len] = '\0';
-	*len_r = len;
-	return buf;
-}
-
 static bool
 password_file(const char* option, const char* path, size_t max_len,
 		bool first_line, char** ptr)
@@ -447,7 +409,8 @@ password_has_source(const char* value)
 	return strncmp(value, "env:", 4) == 0 ||
 		strncmp(value, "env-b64:", 8) == 0 ||
 		strncmp(value, "b64:", 4) == 0 ||
-		strncmp(value, "file:", 5) == 0;
+		strncmp(value, "file:", 5) == 0 ||
+		strncmp(value, "secrets:", 8) == 0;
 }
 
 bool
@@ -619,8 +582,6 @@ read_typed_password(const char* option, const char* prompt, char* buf,
 LOCAL_HELPER void
 sa_log_cb(const char* fmt, ...)
 {
-	int err = errno;
-
 	for (size_t i = 0; i < sizeof(SA_LOG_ALLOW) / sizeof(SA_LOG_ALLOW[0]); i++) {
 		if (strcmp(fmt, SA_LOG_ALLOW[i].fmt) == 0) {
 			va_list ap;
@@ -630,8 +591,10 @@ sa_log_cb(const char* fmt, ...)
 			vfprintf(stderr, fmt, ap);
 			va_end(ap);
 
-			if (SA_LOG_ALLOW[i].add_strerror) {
-				fprintf(stderr, " (%s)", strerror(err));
+			if (SA_LOG_ALLOW[i].errno_arg) {
+				va_start(ap, fmt);
+				fprintf(stderr, " (%s)", strerror(va_arg(ap, int)));
+				va_end(ap);
 			}
 
 			fprintf(stderr, "\n");
@@ -667,6 +630,67 @@ sa_err_str(sa_err err)
 }
 
 static bool
+sa_has_certificate(const char* pem)
+{
+	BIO* bio = BIO_new_mem_buf(pem, -1);
+	X509* cert = bio != NULL ? PEM_read_bio_X509(bio, NULL, NULL, NULL) : NULL;
+	bool found = cert != NULL;
+
+	X509_free(cert);
+	BIO_free(bio);
+	ERR_clear_error();
+	return found;
+}
+
+static char*
+sa_read_ca_file(const char* option, const char* path)
+{
+	if (path[0] == '\0') {
+		fprintf(stderr, "%s: requires a path\n", option);
+		return NULL;
+	}
+
+	FILE* fh = fopen(path, "r");
+
+	if (fh == NULL) {
+		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
+				strerror(errno));
+		return NULL;
+	}
+
+	char* buf = cf_malloc(SA_CA_FILE_MAX_SIZE + 2);
+	size_t len = fread(buf, 1, SA_CA_FILE_MAX_SIZE + 1, fh);
+
+	if (ferror(fh)) {
+		int err = errno;
+
+		fclose(fh);
+		cf_free(buf);
+		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
+				strerror(err));
+		return NULL;
+	}
+
+	fclose(fh);
+	buf[len] = '\0';
+
+	if (len > SA_CA_FILE_MAX_SIZE) {
+		fprintf(stderr, "%s: cannot load TLS CA file %s: file is larger than "
+				"%d bytes\n", option, path, SA_CA_FILE_MAX_SIZE);
+	}
+	else if (!sa_has_certificate(buf)) {
+		fprintf(stderr, "%s: cannot load TLS CA file %s: %s\n", option, path,
+				len == 0 ? "file is empty" : "no PEM certificate found");
+	}
+	else {
+		return buf;
+	}
+
+	cf_free(buf);
+	return NULL;
+}
+
+static bool
 password_secret(const sa_args_t* sa, const char* option, const char* path,
 		char** ptr)
 {
@@ -683,9 +707,7 @@ password_secret(const sa_args_t* sa, const char* option, const char* path,
 	cfg.timeout = sa->timeout_ms;
 
 	if (sa->cafile != NULL) {
-		size_t ca_len;
-
-		cfg.tls.ca_string = read_file("--sa-cafile", sa->cafile, &ca_len);
+		cfg.tls.ca_string = sa_read_ca_file(sa->cafile_opt, sa->cafile);
 
 		if (cfg.tls.ca_string == NULL) {
 			return false;

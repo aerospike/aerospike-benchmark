@@ -218,13 +218,20 @@ void gen_bin_name(as_bin_name name_buf, const char* bin_name, uint32_t bin_num);
 #define PASSWORD_WHITESPACE " \t\n\v\f\r"
 
 /*
- * where to find the Aerospike Secret Agent for secrets: passwords
+ * the largest Secret Agent CA file read, well above any CA bundle
+ */
+#define SA_CA_FILE_MAX_SIZE (1024 * 1024)
+
+/*
+ * where to find the Aerospike Secret Agent for secrets: passwords. cafile_opt
+ * names the option cafile came from, for messages
  */
 typedef struct sa_args_s {
 	char* host;
 	char* port;
 	int timeout_ms;
 	char* cafile;
+	const char* cafile_opt;
 } sa_args_t;
 
 /*
@@ -250,7 +257,8 @@ typedef struct sa_args_s {
  * a missing variable name or path, an unset or empty variable, an unreadable
  * file, invalid base64, a failed Secret Agent request, a NUL byte or an empty
  * result is an error, and so is a password longer than max_len bytes. A file:
- * source reads at most max_len + 3 bytes. Error messages never contain the
+ * source reads at most max_len + 3 bytes. A secrets: source checks sa's CA
+ * file, if any, before contacting the agent. Error messages never contain the
  * password.
  *
  * returns true on success, false on failure. On success, *ptr must be freed by

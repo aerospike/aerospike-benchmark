@@ -131,7 +131,8 @@ typedef enum {
 	SA_OPT_ADDRESS = 3000,
 	SA_OPT_PORT,
 	SA_OPT_TIMEOUT,
-	SA_OPT_CAFILE
+	SA_OPT_CAFILE,
+	SA_OPT_CA_FILE
 } sa_opt;
 
 static struct option long_options[] = {
@@ -226,6 +227,7 @@ static struct option long_options[] = {
 	{"sa-address",            required_argument, 0, SA_OPT_ADDRESS},
 	{"sa-port",               required_argument, 0, SA_OPT_PORT},
 	{"sa-timeout",            required_argument, 0, SA_OPT_TIMEOUT},
+	{"sa-ca-file",            required_argument, 0, SA_OPT_CA_FILE},
 	{"sa-cafile",             required_argument, 0, SA_OPT_CAFILE},
 
 	{"servicesAlternate",     no_argument,       0, WARN_MSG | BENCH_OPT_SERVICES_ALTERNATE},
@@ -418,10 +420,12 @@ print_usage(const char* program)
 	printf("   Prefixes are case-sensitive. A base64 value may be line wrapped,\n");
 	printf("   and one trailing newline is dropped after decoding. A 'b64:' value\n");
 	printf("   on the command line is as visible as a literal password.\n");
-	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
-	printf("   'file:' must be given as 'b64:' or typed at the prompt.\n");
+	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:',\n");
+	printf("   'file:' or 'secrets:' must be given as 'b64:' or typed at the\n");
+	printf("   prompt.\n");
 	printf("   The password is read only when a user is set and the auth mode is\n");
 	printf("   not PKI. It must be at most 63 bytes.\n");
+	printf("   A value fetched with 'secrets:' is used as-is.\n");
 	printf("   User will be prompted on command line if -P specified and no\n");
 	printf("   password is given. The typed password is used as is. When stdin is\n");
 	printf("   not a tty, the password is read from one line of stdin without a\n");
@@ -952,17 +956,18 @@ print_usage(const char* program)
 	printf("     6) String: 'PASSWORD'\n");
 	printf("   Prefixes are case-sensitive. A base64 value may be line wrapped,\n");
 	printf("   and one trailing newline is dropped after decoding.\n");
-	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
-	printf("   'file:' must be given as 'b64:'.\n");
+	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:',\n");
+	printf("   'file:' or 'secrets:' must be given as 'b64:'.\n");
 	printf("   Surrounding whitespace is trimmed before the form is read. A\n");
 	printf("   password with surrounding whitespace must be given as 'b64:'.\n");
 	printf("   The password is read only when a key file is set. It must be at\n");
 	printf("   most 1024 bytes.\n");
+	printf("   A value fetched with 'secrets:' is used as-is.\n");
 	printf("   Default: none\n");
 	printf("   User will be prompted on command line if --tls-keyfile-password\n");
 	printf("   specified and no password is given. The typed password\n");
-	printf("   accepts the forms above. When stdin is not a tty, the password is\n");
-	printf("   read from one line of stdin without a prompt.\n");
+	printf("   accepts the forms above except 'secrets:'. When stdin is not a\n");
+	printf("   tty, the password is read from one line of stdin without a prompt.\n");
 	printf("\n");
 
 	printf("   --tls-certfile <path>\n");
@@ -978,24 +983,23 @@ print_usage(const char* program)
 	printf("\n");
 
 	printf("   --sa-address <host>[:<port>]  # Default: 127.0.0.1:3005\n");
-	printf("   Aerospike Secret Agent used for 'secrets:<resource>:<key>' passwords.\n");
-	printf("   An IPv6 address can be given bare or in brackets ([<ipv6>]:<port>).\n");
+	printf("   \"<host>[:<port>]\" or \"[<ipv6>][:<port>]\".\n");
+	printf("   Secret Agent hostname or IP address.\n");
 	printf("\n");
 
 	printf("   --sa-port <port>     # Default: 3005\n");
-	printf("   Secret Agent port. Overrides a port given in --sa-address.\n");
+	printf("   Secret Agent port, 1 to 65535. Overrides a port in --sa-address.\n");
 	printf("\n");
 
 	printf("   --sa-timeout <ms>    # Default: 1000\n");
-	printf("   Timeout in milliseconds for Secret Agent requests, 1 or more. It bounds\n");
-	printf("   the TCP connect, the TLS handshake and the request, but not the name\n");
-	printf("   lookup.\n");
+	printf("   Timeout in milliseconds for Secret Agent requests, an integer from 1 to\n");
+	printf("   2147483647.\n");
 	printf("\n");
 
-	printf("   --sa-cafile <path>   # Default: none\n");
+	printf("   --sa-ca-file <path>  # Default: none\n");
 	printf("   Path to a CA certificate file. Enables TLS to the Secret Agent and verifies\n");
-	printf("   the agent's certificate against this CA and the --sa-address host, whose\n");
-	printf("   name or IP address must be in the certificate.\n");
+	printf("   its certificate against this CA. The agent's hostname or IP address must be\n");
+	printf("   in the certificate.\n");
 	printf("\n");
 }
 
@@ -1573,6 +1577,8 @@ set_args(int argc, char * const* argv, args_t* args)
 	const char* password_arg = NULL;
 	const char* sa_address = NULL;
 	const char* sa_port = NULL;
+	const char* sa_ca_file = NULL;
+	const char* sa_cafile = NULL;
 
 	while ((c = getopt_long_only(argc, argv, short_options, long_options,
 					&option_index)) != -1) {
@@ -2222,9 +2228,14 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				break;
 
+			case SA_OPT_CA_FILE:
+				sa_ca_file = optarg;
+				break;
+
 			case SA_OPT_CAFILE:
-				cf_free(args->sa.cafile);
-				args->sa.cafile = strdup(optarg);
+				fprintf(stderr, "Warning: Argument --sa-cafile is deprecated. Use "
+						"--sa-ca-file instead.\n");
+				sa_cafile = optarg;
 				break;
 
 			default:
@@ -2240,6 +2251,15 @@ set_args(int argc, char * const* argv, args_t* args)
 		fprintf(stderr, "--%s: invalid value %s\n", bad_sa_option,
 				strcmp(bad_sa_option, "sa-port") == 0 ? sa_port : sa_address);
 		return 1;
+	}
+
+	if (sa_ca_file != NULL) {
+		args->sa.cafile = strdup(sa_ca_file);
+		args->sa.cafile_opt = "--sa-ca-file";
+	}
+	else if (sa_cafile != NULL) {
+		args->sa.cafile = strdup(sa_cafile);
+		args->sa.cafile_opt = "--sa-cafile";
 	}
 
 	if (password_arg != NULL && password_arg[0] != '\0') {
@@ -2271,9 +2291,10 @@ set_args(int argc, char * const* argv, args_t* args)
 	if (args->tls.keyfile && args->tls.keyfile_pw) {
 		char line[TLS_KEYFILE_PASSWORD_MAX_LEN + 4];
 		char* value = args->tls.keyfile_pw;
+		bool prompted = value[0] == '\0';
 		char* pw;
 
-		if (value[0] != '\0') {
+		if (!prompted) {
 			value = password_trim(value);
 		}
 		else if (isatty(STDIN_FILENO)) {
@@ -2292,6 +2313,14 @@ set_args(int argc, char * const* argv, args_t* args)
 
 		if (value[0] == '\0') {
 			pw = strdup("");
+		}
+		else if (prompted && strncmp(value, "secrets:", 8) == 0) {
+			if (!password_len_ok("--tls-keyfile-password", value,
+						TLS_KEYFILE_PASSWORD_MAX_LEN)) {
+				return 1;
+			}
+
+			pw = strdup(value);
 		}
 		else if (!read_password(&args->sa, "--tls-keyfile-password", value,
 					TLS_KEYFILE_PASSWORD_MAX_LEN, true, &pw)) {
@@ -2368,6 +2397,7 @@ _load_defaults(args_t* args)
 	args->sa.port = strdup(SA_DEFAULT_PORT);
 	args->sa.timeout_ms = SA_DEFAULT_TIMEOUT_MS;
 	args->sa.cafile = NULL;
+	args->sa.cafile_opt = NULL;
 
 	double p1 = 50.,
 		   p2 = 90.,
