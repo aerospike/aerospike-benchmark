@@ -88,7 +88,7 @@ resolve_opts(const char* option, const char* value, size_t max_len,
 		bool first_line, char** pw)
 {
 	capture_start();
-	bool ok = read_password(option, value, max_len, first_line, pw);
+	bool ok = read_password(NULL, option, value, max_len, first_line, pw);
 	capture_end();
 	return ok;
 }
@@ -134,7 +134,6 @@ END_TEST
 START_TEST(literal_unknown_prefix)
 {
 	assert_resolves("foo:bar", "foo:bar");
-	assert_resolves("secrets:resource:key", "secrets:resource:key");
 }
 END_TEST
 
@@ -690,7 +689,7 @@ START_TEST(has_source)
 	ck_assert(password_has_source("env:"));
 	ck_assert(!password_has_source(SECRET));
 	ck_assert(!password_has_source("ENV:X"));
-	ck_assert(!password_has_source("secrets:resource:key"));
+	ck_assert(password_has_source("secrets:resource:key"));
 	ck_assert(!password_has_source(""));
 }
 END_TEST

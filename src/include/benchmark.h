@@ -35,6 +35,7 @@
 #include <aerospike/as_udf.h>
 
 #include <hdr_histogram/hdr_histogram.h>
+#include <common.h>
 #include <dynamic_throttle.h>
 #include <histogram.h>
 #include <object_spec.h>
@@ -108,6 +109,7 @@ typedef struct args_s {
 	as_config_tls tls;
 	char* tls_name;
 	as_auth_mode auth_mode;
+	sa_args_t sa;
 } args_t;
 
 typedef struct clientdata_s {
