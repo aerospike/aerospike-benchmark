@@ -608,50 +608,49 @@ def test_address_forms_parse(sa_args):
 			"connection or protocol error\n" in out), out
 
 
-@pytest.mark.parametrize("opt,value,expected", [
-	("--sa-timeout", "abc", "--sa-timeout: invalid value abc, expected an "
-		"integer from 1 to 2147483647"),
-	("--sa-timeout", "0", "--sa-timeout: invalid value 0, expected an integer "
-		"from 1 to 2147483647"),
-	("--sa-timeout", "-1", "--sa-timeout: invalid value -1, expected an "
-		"integer from 1 to 2147483647"),
-	("--sa-timeout", "2147483648", "--sa-timeout: invalid value 2147483648, "
-		"expected an integer from 1 to 2147483647"),
-	("--sa-timeout", "+5", "--sa-timeout: invalid value +5, expected an "
-		"integer from 1 to 2147483647"),
-	("--sa-timeout", " 5", "--sa-timeout: invalid value  5, expected an "
-		"integer from 1 to 2147483647"),
-	("--sa-timeout", "\uff15", "--sa-timeout: invalid value \uff15, expected "
-		"an integer from 1 to 2147483647"),
-	("--sa-port", "0", "--sa-port: invalid value 0"),
-	("--sa-port", "65536", "--sa-port: invalid value 65536"),
-	("--sa-port", "http", "--sa-port: invalid value http"),
-	("--sa-address", "", "--sa-address: invalid value "),
-	("--sa-address", ":3005", "--sa-address: invalid value :3005"),
-	("--sa-address", "host:", "--sa-address: invalid value host:"),
-	("--sa-address", "host:99999", "--sa-address: invalid value host:99999"),
-	("--sa-address", "[::1", "--sa-address: invalid value [::1"),
-	("--sa-address", "[]:3005", "--sa-address: invalid value []:3005"),
-	("--sa-address", "[::1]x", "--sa-address: invalid value [::1]x"),
-	("--sa-address", "host:3005:x", "--sa-address: invalid value host:3005:x"),
-	("--sa-address", "10.0.0.1:3005:1",
-		"--sa-address: invalid value 10.0.0.1:3005:1"),
-	("--sa-address", "1::2::3", "--sa-address: invalid value 1::2::3"),
-	("--sa-address", "1::2::3%lo0", "--sa-address: invalid value 1::2::3%lo0"),
-	("--sa-address", "fe80::1%", "--sa-address: invalid value fe80::1%"),
-	("--sa-address", "[host:3005:x]",
-		"--sa-address: invalid value [host:3005:x]"),
-	("--sa-address", "[host:3005:x]:3005",
-		"--sa-address: invalid value [host:3005:x]:3005"),
-	("--sa-address", "[a:b]", "--sa-address: invalid value [a:b]"),
-	("--sa-address", "[fe80::1%]:3005",
-		"--sa-address: invalid value [fe80::1%]:3005"),
+SA_EXPECTED = {
+	"--sa-timeout": "an integer from 1 to 2147483647",
+	"--sa-port": "an integer from 1 to 65535",
+	"--sa-address": "<host>[:<port>] or [<ipv6>][:<port>]",
+}
+
+
+@pytest.mark.parametrize("opt,value", [
+	("--sa-timeout", "abc"),
+	("--sa-timeout", "0"),
+	("--sa-timeout", "-1"),
+	("--sa-timeout", "2147483648"),
+	("--sa-timeout", "+5"),
+	("--sa-timeout", " 5"),
+	("--sa-timeout", "\uff15"),
+	("--sa-timeout", ""),
+	("--sa-port", "0"),
+	("--sa-port", "65536"),
+	("--sa-port", "http"),
+	("--sa-address", ""),
+	("--sa-address", ":3005"),
+	("--sa-address", "host:"),
+	("--sa-address", "host:99999"),
+	("--sa-address", "[::1"),
+	("--sa-address", "[]:3005"),
+	("--sa-address", "[::1]x"),
+	("--sa-address", "host:3005:x"),
+	("--sa-address", "10.0.0.1:3005:1"),
+	("--sa-address", "1::2::3"),
+	("--sa-address", "1::2::3%lo0"),
+	("--sa-address", "fe80::1%"),
+	("--sa-address", "[host:3005:x]"),
+	("--sa-address", "[host:3005:x]:3005"),
+	("--sa-address", "[a:b]"),
+	("--sa-address", "[fe80::1%]:3005"),
 ])
-def test_bad_option(opt, value, expected):
+def test_bad_option(opt, value):
 	rc, out = run(["-U", "admin", "-P", "secrets:asbench:pw", opt, value])
+	expected = '%s: invalid value "%s", expected %s\n' % (opt, value,
+			SA_EXPECTED[opt])
 
 	assert(rc != 0)
-	assert(expected + "\n" in out), out
+	assert(expected in out), out
 	assert("secret-agent:" not in out), out
 	assert(CONNECT_FAILED not in out), out
 
