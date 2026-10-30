@@ -452,8 +452,8 @@ START_TEST(cli_tls_keyfile_password_uses_later_sa_options)
 {
 	args_t args;
 	char* argv[] = { "asbench", "--tls-keyfile-password=secrets:asbench:pw",
-		"--tls-keyfile", "key.pem", "--sa-ca-file", MISSING_CA };
-	ck_assert_int_ne(parse(&args, 6, argv), 0);
+		"--tls-keyfile", "key.pem", "--sa-ca-file", MISSING_CA, "--tls-enable" };
+	ck_assert_int_ne(parse(&args, 7, argv), 0);
 	ck_assert_str_eq(out_buf, "--sa-ca-file: cannot read file " MISSING_CA
 			": No such file or directory\n");
 	cf_free(args.tls.keyfile);
@@ -477,28 +477,33 @@ END_TEST
 
 START_TEST(cli_bad_values)
 {
+#define TIMEOUT_EXPECTED ", expected an integer from 1 to 2147483647\n"
+#define PORT_EXPECTED ", expected an integer from 1 to 65535\n"
+#define ADDRESS_EXPECTED ", expected <host>[:<port>] or [<ipv6>][:<port>]\n"
 	const char* cases[][3] = {
-		{ "--sa-timeout", "0", "--sa-timeout: invalid value 0, expected an "
-			"integer from 1 to 2147483647\n" },
-		{ "--sa-timeout", "abc", "--sa-timeout: invalid value abc, expected an "
-			"integer from 1 to 2147483647\n" },
+		{ "--sa-timeout", "0", "--sa-timeout: invalid value \"0\"" TIMEOUT_EXPECTED },
+		{ "--sa-timeout", "", "--sa-timeout: invalid value \"\"" TIMEOUT_EXPECTED },
+		{ "--sa-timeout", "abc", "--sa-timeout: invalid value \"abc\""
+			TIMEOUT_EXPECTED },
 		{ "--sa-timeout", "2147483648", "--sa-timeout: invalid value "
-			"2147483648, expected an integer from 1 to 2147483647\n" },
-		{ "--sa-timeout", "+5", "--sa-timeout: invalid value +5, expected an "
-			"integer from 1 to 2147483647\n" },
-		{ "--sa-timeout", " 5", "--sa-timeout: invalid value  5, expected an "
-			"integer from 1 to 2147483647\n" },
+			"\"2147483648\"" TIMEOUT_EXPECTED },
+		{ "--sa-timeout", "+5", "--sa-timeout: invalid value \"+5\""
+			TIMEOUT_EXPECTED },
+		{ "--sa-timeout", " 5", "--sa-timeout: invalid value \" 5\""
+			TIMEOUT_EXPECTED },
 		{ "--sa-timeout", "\xef\xbc\x95", "--sa-timeout: invalid value "
-			"\xef\xbc\x95, expected an integer from 1 to 2147483647\n" },
-		{ "--sa-port", "65536", "--sa-port: invalid value 65536\n" },
-		{ "--sa-port", "http", "--sa-port: invalid value http\n" },
-		{ "--sa-address", "", "--sa-address: invalid value \n" },
-		{ "--sa-address", "[::1", "--sa-address: invalid value [::1\n" },
-		{ "--sa-address", "1::2::3", "--sa-address: invalid value 1::2::3\n" },
+			"\"\xef\xbc\x95\"" TIMEOUT_EXPECTED },
+		{ "--sa-port", "65536", "--sa-port: invalid value \"65536\"" PORT_EXPECTED },
+		{ "--sa-port", "http", "--sa-port: invalid value \"http\"" PORT_EXPECTED },
+		{ "--sa-address", "", "--sa-address: invalid value \"\"" ADDRESS_EXPECTED },
+		{ "--sa-address", "[::1", "--sa-address: invalid value \"[::1\""
+			ADDRESS_EXPECTED },
+		{ "--sa-address", "1::2::3", "--sa-address: invalid value \"1::2::3\""
+			ADDRESS_EXPECTED },
 		{ "--sa-address", "host:3005:x", "--sa-address: invalid value "
-			"host:3005:x\n" },
+			"\"host:3005:x\"" ADDRESS_EXPECTED },
 		{ "--sa-address", "[host:3005:x]", "--sa-address: invalid value "
-			"[host:3005:x]\n" },
+			"\"[host:3005:x]\"" ADDRESS_EXPECTED },
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
@@ -640,6 +645,105 @@ END_TEST
 START_TEST(cli_empty_sa_cafile_path_names_option)
 {
 	assert_empty_ca_path_rejected("--sa-cafile");
+}
+END_TEST
+
+START_TEST(cli_empty_ca_path_rejected_without_secrets)
+{
+	// As in asbackup, aql and asadm, on every run.
+	static char* const options[] = { "--sa-ca-file", "--sa-cafile" };
+
+	for (size_t i = 0; i < sizeof(options) / sizeof(options[0]); i++) {
+		args_t args;
+		char expected[128];
+		snprintf(expected, sizeof(expected), "%s: invalid value \"\", expected "
+				"a path to a CA certificate file\n", options[i]);
+
+		char* argv[] = { "asbench", options[i], "" };
+		ck_assert_int_ne(parse(&args, 3, argv), 0);
+		ck_assert_msg(strstr(out_buf, expected) != NULL, "\"%s\" not in \"%s\"",
+				expected, out_buf);
+		_free_args(&args);
+	}
+}
+END_TEST
+
+START_TEST(cli_empty_cafile_ignored_next_to_ca_file)
+{
+	// Only the option that wins is checked.
+	char* argv[][5] = {
+		{ "asbench", "--sa-ca-file", "b.pem", "--sa-cafile", "" },
+		{ "asbench", "--sa-cafile", "", "--sa-ca-file", "b.pem" },
+	};
+
+	for (size_t i = 0; i < sizeof(argv) / sizeof(argv[0]); i++) {
+		args_t args;
+		int rv = parse(&args, 5, argv[i]);
+		ck_assert_msg(rv == 0, "set_args returned %d: %s", rv, out_buf);
+		ck_assert_str_eq(args.sa.cafile, "b.pem");
+		_free_args(&args);
+	}
+}
+END_TEST
+
+START_TEST(cli_tls_keyfile_password_not_fetched_without_tls)
+{
+	// The key is never used without --tls-enable, so an agent outage must not
+	// fail the run.
+	args_t args;
+	char* argv[] = { "asbench", "--tls-keyfile", "key.pem",
+		"--tls-keyfile-password", "secrets:asbench:pw", "--sa-port", closed_port };
+	int rv = parse(&args, 7, argv);
+	ck_assert_msg(rv == 0, "set_args returned %d: %s", rv, out_buf);
+	ck_assert_ptr_eq(strstr(out_buf, "secret-agent"), NULL);
+	cf_free(args.tls.keyfile);
+	cf_free(args.tls.keyfile_pw);
+	_free_args(&args);
+}
+END_TEST
+
+START_TEST(cli_leftover_argument_rejected)
+{
+	// getopt stops at the first operand under POSIXLY_CORRECT or after "--", so
+	// any option after it, such as --sa-ca-file, would be dropped silently.
+	char* argv[][4] = {
+		{ "asbench", "stray", "--sa-ca-file", MISSING_CA },
+		{ "asbench", "--", "--sa-ca-file", MISSING_CA },
+	};
+	const char* expected[] = { "stray", "--sa-ca-file" };
+
+	for (size_t i = 0; i < sizeof(argv) / sizeof(argv[0]); i++) {
+		args_t args;
+		char message[128];
+		snprintf(message, sizeof(message), "Unexpected argument '%s'\n",
+				expected[i]);
+
+		ck_assert_int_ne(parse(&args, 4, argv[i]), 0);
+		ck_assert_msg(strstr(out_buf, message) != NULL, "\"%s\" not in \"%s\"",
+				message, out_buf);
+		_free_args(&args);
+	}
+}
+END_TEST
+
+START_TEST(cli_space_separated_password_is_consumed)
+{
+	args_t args;
+	char* argv[][5] = {
+		{ "asbench", "-U", "admin", "-P", SECRET },
+		{ "asbench", "--tls-keyfile", "key.pem", "--tls-keyfile-password", SECRET },
+	};
+
+	int rv = parse(&args, 5, argv[0]);
+	ck_assert_msg(rv == 0, "set_args returned %d: %s", rv, out_buf);
+	ck_assert_str_eq(args.password, SECRET);
+	_free_args(&args);
+
+	rv = parse(&args, 5, argv[1]);
+	ck_assert_msg(rv == 0, "set_args returned %d: %s", rv, out_buf);
+	cf_free(args.tls.keyfile);
+	cf_free(args.tls.keyfile_pw);
+	_free_args(&args);
 }
 END_TEST
 
@@ -829,6 +933,11 @@ secret_agent_suite(void)
 	tcase_add_test(tc_cli, cli_cafile_not_pem_names_option);
 	tcase_add_test(tc_cli, cli_empty_sa_ca_file_path_names_option);
 	tcase_add_test(tc_cli, cli_empty_sa_cafile_path_names_option);
+	tcase_add_test(tc_cli, cli_empty_ca_path_rejected_without_secrets);
+	tcase_add_test(tc_cli, cli_empty_cafile_ignored_next_to_ca_file);
+	tcase_add_test(tc_cli, cli_tls_keyfile_password_not_fetched_without_tls);
+	tcase_add_test(tc_cli, cli_leftover_argument_rejected);
+	tcase_add_test(tc_cli, cli_space_separated_password_is_consumed);
 	tcase_add_test(tc_cli, cli_password_secrets_without_user_warns);
 	tcase_add_test(tc_cli, cli_password_secrets_not_fetched_without_user);
 	tcase_add_test(tc_cli, cli_user_not_fetched);

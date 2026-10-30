@@ -20,6 +20,13 @@ def help_text():
 			stdout=subprocess.PIPE, text=True, check=True).stdout
 
 
+def test_help_says_sa_options_are_command_line_only():
+	# asbackup, aql and asadm read [secret-agent] from astools.conf; asbench does not.
+	text = " ".join(help_text().split())
+	assert("asbench reads no tools config file, so a [secret-agent] section in "
+			"astools.conf does not apply." in text)
+
+
 def readme_text():
 	with open(README) as f:
 		return f.read()
