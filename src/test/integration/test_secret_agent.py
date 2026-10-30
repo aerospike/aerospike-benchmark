@@ -329,6 +329,7 @@ def wait_for_agent(container, port, tls, timeout=60):
 				conn = raw
 				if tls:
 					ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+					ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 					ctx.check_hostname = False
 					ctx.verify_mode = ssl.CERT_NONE
 					conn = ctx.wrap_socket(raw)
