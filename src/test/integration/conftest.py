@@ -43,6 +43,12 @@ def b64(value):
 	return base64.b64encode(value.encode()).decode()
 
 
+def closed_port():
+	with socket.socket() as s:
+		s.bind(("127.0.0.1", 0))
+		return str(s.getsockname()[1])
+
+
 def write(path, content, mode=0o644):
 	with open(path, "w") as f:
 		f.write(content)
