@@ -982,6 +982,11 @@ print_usage(const char* program)
 	printf("   Set authentication mode when user/password is defined.\n");
 	printf("\n");
 
+	printf("   The --sa-* options are read only from the command line. asbench reads no\n");
+	printf("   tools config file, so a [secret-agent] section in astools.conf does not\n");
+	printf("   apply.\n");
+	printf("\n");
+
 	printf("   --sa-address <host>[:<port>]  # Default: 127.0.0.1:3005\n");
 	printf("   \"<host>[:<port>]\" or \"[<ipv6>][:<port>]\".\n");
 	printf("   Secret Agent hostname or IP address.\n");
@@ -1454,7 +1459,7 @@ sa_parse_port(const char* str, char** port)
 		return false;
 	}
 
-	char buf[8];
+	char buf[24];
 	snprintf(buf, sizeof(buf), "%ld", val);
 	*port = strdup(buf);
 	return true;
@@ -1625,7 +1630,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							argv[optind][0] != '\0' &&
 							argv[optind][0] != '-' ) {
 					// space separated argument value
-					password_arg = argv[optind];
+					password_arg = argv[optind++];
 				} else {
 					password_arg = optarg != NULL ? optarg : "";
 				}
@@ -2185,7 +2190,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							argv[optind] != NULL &&
 							argv[optind][0] != '\0' &&
 							argv[optind][0] != '-') {
-						args->tls.keyfile_pw = strdup(argv[optind]);
+						args->tls.keyfile_pw = strdup(argv[optind++]);
 					}
 					else {
 						// no password given
@@ -2222,7 +2227,7 @@ set_args(int argc, char * const* argv, args_t* args)
 
 			case SA_OPT_TIMEOUT:
 				if (!sa_parse_timeout(optarg, &args->sa.timeout_ms)) {
-					fprintf(stderr, "--sa-timeout: invalid value %s, expected an "
+					fprintf(stderr, "--sa-timeout: invalid value \"%s\", expected an "
 							"integer from 1 to %d\n", optarg, INT_MAX);
 					return 1;
 				}
@@ -2245,21 +2250,36 @@ set_args(int argc, char * const* argv, args_t* args)
 		}
 	}
 
-	const char* bad_sa_option = sa_apply(&args->sa, sa_address, sa_port);
-
-	if (bad_sa_option != NULL) {
-		fprintf(stderr, "--%s: invalid value %s\n", bad_sa_option,
-				strcmp(bad_sa_option, "sa-port") == 0 ? sa_port : sa_address);
+	// getopt stops at the first operand under POSIXLY_CORRECT or after "--", so
+	// options after it would otherwise be dropped silently.
+	if (optind < argc) {
+		fprintf(stderr, "Unexpected argument '%s'\n", argv[optind]);
 		return 1;
 	}
 
-	if (sa_ca_file != NULL) {
-		args->sa.cafile = strdup(sa_ca_file);
-		args->sa.cafile_opt = "--sa-ca-file";
+	const char* bad_sa_option = sa_apply(&args->sa, sa_address, sa_port);
+
+	if (bad_sa_option != NULL) {
+		bool bad_port = strcmp(bad_sa_option, "sa-port") == 0;
+
+		fprintf(stderr, "--%s: invalid value \"%s\", expected %s\n", bad_sa_option,
+				bad_port ? sa_port : sa_address, bad_port ?
+				"an integer from 1 to 65535" : "<host>[:<port>] or [<ipv6>][:<port>]");
+		return 1;
 	}
-	else if (sa_cafile != NULL) {
-		args->sa.cafile = strdup(sa_cafile);
-		args->sa.cafile_opt = "--sa-cafile";
+
+	const char* ca_file = sa_ca_file != NULL ? sa_ca_file : sa_cafile;
+	const char* ca_option = sa_ca_file != NULL ? "--sa-ca-file" : "--sa-cafile";
+
+	if (ca_file != NULL) {
+		if (ca_file[0] == '\0') {
+			fprintf(stderr, "%s: invalid value \"\", expected a path to a CA "
+					"certificate file\n", ca_option);
+			return 1;
+		}
+
+		args->sa.cafile = strdup(ca_file);
+		args->sa.cafile_opt = ca_option;
 	}
 
 	if (password_arg != NULL && password_arg[0] != '\0') {
@@ -2314,7 +2334,10 @@ set_args(int argc, char * const* argv, args_t* args)
 		if (value[0] == '\0') {
 			pw = strdup("");
 		}
-		else if (prompted && strncmp(value, "secrets:", 8) == 0) {
+		// A typed value is literal, and without --tls-enable the key is never
+		// used, so the agent is not asked for its password.
+		else if ((prompted || !args->tls.enable) &&
+				strncmp(value, "secrets:", 8) == 0) {
 			if (!password_len_ok("--tls-keyfile-password", value,
 						TLS_KEYFILE_PASSWORD_MAX_LEN)) {
 				return 1;
