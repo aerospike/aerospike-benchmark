@@ -88,7 +88,7 @@ jobs:
       run: make coverage-all EVENT_LIB=${{ matrix.ev-lib }}
       working-directory: main
       env:
-        FEATKEY: ${{ secrets.TEST_FEAT_KEY }}
+        FEATKEY: ${{ secrets.FEAT_KEY_B64 }}
     - name: clear temp directories
       run: |
         rm -rf client
