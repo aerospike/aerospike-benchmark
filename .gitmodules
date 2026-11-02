@@ -8,3 +8,9 @@
 [submodule "modules/libyaml"]
 	path = modules/libyaml
 	url = https://github.com/yaml/libyaml.git
+[submodule "modules/jansson"]
+	path = modules/jansson
+	url = https://github.com/aerospike/jansson.git
+[submodule "modules/secret-agent-client"]
+	path = modules/secret-agent-client
+	url = https://github.com/aerospike/secrets-client-c.git

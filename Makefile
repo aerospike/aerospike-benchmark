@@ -30,6 +30,16 @@ ifdef M1_HOME_BREW
   OPENSSL_PREFIX = /opt/homebrew/opt/openssl
 endif
 
+# OpenSSL headers from the same place as the libs linked below. Empty for the
+# default Linux build, which uses the system headers and libs.
+ifeq ($(OPENSSL_STATIC_PATH),)
+  ifeq ($(OS),Darwin)
+    OPENSSL_INCLUDE = $(OPENSSL_PREFIX)/include
+  endif
+else
+  OPENSSL_INCLUDE = $(abspath $(OPENSSL_STATIC_PATH)/../include)
+endif
+
 CMAKE3_CHECK := $(shell cmake3 --help > /dev/null 2>&1 || (echo "cmake3 not found"))
 CMAKE_CHECK := $(shell cmake --help > /dev/null 2>&1 || (echo "cmake not found"))
 
@@ -57,6 +67,13 @@ DIR_LIBCYAML_BUILD ?= $(ROOT)/modules/libcyaml/$(DIR_LIBCYAML_BUILD_REL)
 DIR_C_CLIENT ?= $(ROOT)/modules/c-client
 C_CLIENT_LIB := $(DIR_C_CLIENT)/target/$(PLATFORM)/lib/libaerospike.a
 
+DIR_JANSSON ?= $(ROOT)/modules/jansson
+DIR_JANSSON_BUILD := $(DIR_JANSSON)/build
+JANSSON_LIB := $(DIR_JANSSON_BUILD)/lib/libjansson.a
+
+DIR_SECRET_CLIENT ?= $(ROOT)/modules/secret-agent-client
+SECRET_CLIENT_LIB := $(DIR_SECRET_CLIENT)/target/$(PLATFORM)/lib/libsecret-agent-client-c.a
+
 DIR_INCLUDE =  $(ROOT)/src/include
 DIR_INCLUDE += $(ROOT)/modules
 DIR_INCLUDE += $(DIR_LIBYAML)/include
@@ -65,6 +82,8 @@ DIR_INCLUDE += $(DIR_C_CLIENT)/src/include
 DIR_INCLUDE += $(DIR_C_CLIENT)/modules/common/src/include
 DIR_INCLUDE += $(DIR_C_CLIENT)/modules/mod-lua/src/include
 DIR_INCLUDE += $(DIR_C_CLIENT)/modules/base/src/include
+DIR_INCLUDE += $(DIR_SECRET_CLIENT)/src/include
+DIR_INCLUDE += $(OPENSSL_INCLUDE)
 INCLUDES = $(DIR_INCLUDE:%=-I%) 
 
 DIR_ENV = $(ROOT)/env
@@ -250,6 +269,8 @@ clean:
 	$(MAKE) clean -C $(DIR_LIBCYAML)
 	if [ -d $(DIR_LIBYAML_BUILD) ]; then $(MAKE) clean -C $(DIR_LIBYAML_BUILD); fi
 	rm -rf $(DIR_LIBYAML_BUILD)
+	rm -rf $(DIR_JANSSON_BUILD)
+	$(MAKE) -C $(DIR_SECRET_CLIENT) clean
 	$(MAKE) -C $(DIR_C_CLIENT) clean
 
 target:
@@ -282,8 +303,20 @@ target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | target/lib
 $(C_CLIENT_LIB):
 	$(MAKE) -C $(DIR_C_CLIENT)
 
-target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(C_CLIENT_LIB) | target
-	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(C_CLIENT_LIB) $(BUILD_LDFLAGS) 
+$(DIR_JANSSON_BUILD):
+	mkdir $@
+
+$(JANSSON_LIB): | $(DIR_JANSSON_BUILD)
+	cd $(DIR_JANSSON_BUILD) && $(CMAKE) $(DIR_JANSSON) -DJANSSON_BUILD_SHARED_LIBS=OFF -DJANSSON_BUILD_DOCS=OFF -DJANSSON_EXAMPLES=OFF -DJANSSON_WITHOUT_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+	$(MAKE) -C $(DIR_JANSSON_BUILD) jansson
+
+# Static library only; its Makefile ignores our CFLAGS, so the include paths go in INC_PATH.
+$(SECRET_CLIENT_LIB): | $(JANSSON_LIB)
+	$(MAKE) -C $(DIR_SECRET_CLIENT) target/$(PLATFORM)/lib/libsecret-agent-client-c.a \
+		INC_PATH="src/include $(DIR_JANSSON_BUILD)/include $(OPENSSL_INCLUDE)"
+
+target/asbench: $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(C_CLIENT_LIB) $(SECRET_CLIENT_LIB) $(JANSSON_LIB) | target
+	$(CC) -o $@ $(MAIN_OBJECT) $(OBJECTS) $(HDR_OBJECTS) target/lib/libcyaml.a target/lib/libyaml.a $(C_CLIENT_LIB) $(SECRET_CLIENT_LIB) $(JANSSON_LIB) $(BUILD_LDFLAGS)
 
 -include $(wildcard $(MAIN_DEPENDENCIES))
 -include $(wildcard $(DEPENDENCIES))
@@ -355,8 +388,8 @@ test_target/obj/%.o: src/main/%.c | test_target/obj
 test_target/obj/hdr_histogram%.o: modules/hdr_histogram/%.c | test_target/obj/hdr_histogram
 	$(CC) $(TEST_CFLAGS) -fprofile-arcs -ftest-coverage -coverage -o $@ -c $< $(INCLUDES)
 
-test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) $(TEST_LDFLAGS)
+test_target/test: $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) $(SECRET_CLIENT_LIB) $(JANSSON_LIB) | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) $(SECRET_CLIENT_LIB) $(JANSSON_LIB) $(TEST_LDFLAGS)
 
 # build the benchmark executable with code coverage
 test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
@@ -365,8 +398,8 @@ test_target/lib/libyaml.a: $(DIR_LIBYAML_BUILD)/libyaml.a | test_target/lib
 test_target/lib/libcyaml.a: $(DIR_LIBCYAML_BUILD)/libcyaml.a | test_target/lib
 	cp $< $@
 
-test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) | test_target
-	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(TEST_HDR_OBJECTS) $(C_CLIENT_LIB) $(TEST_LDFLAGS)
+test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(C_CLIENT_LIB) $(SECRET_CLIENT_LIB) $(JANSSON_LIB) | test_target
+	$(CC) -fprofile-arcs -coverage -o $@ $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) test_target/lib/libcyaml.a test_target/lib/libyaml.a $(TEST_HDR_OBJECTS) $(C_CLIENT_LIB) $(SECRET_CLIENT_LIB) $(JANSSON_LIB) $(TEST_LDFLAGS)
 
 -include $(wildcard $(TEST_DEPENDENCIES))
 

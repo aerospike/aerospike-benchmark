@@ -35,12 +35,42 @@
 #include <aerospike/as_msgpack.h>
 #include <citrusleaf/cf_b64.h>
 
+#include <openssl/err.h>
+#include <openssl/pem.h>
+
+#include <sa_client.h>
+
 #include "common.h"
+
+
+//==========================================================
+// Typedefs & constants.
+//
+
+typedef struct sa_log_format_s {
+	const char* fmt;
+	bool errno_arg;
+} sa_log_format_t;
+
+// secret agent client log lines whose arguments are safe to print, checked
+// against the library sources by src/test/integration/test_secret_agent.py.
+// errno_arg marks a line whose only argument is an errno.
+static const sa_log_format_t SA_LOG_ALLOW[] = {
+	{"ERR: failed to lookup address: %s", false},
+	{"ERR: connect failed, errno: %d", true},
+	{"ERR: response: %.*s", false},
+	{"ERR: SSL_connect failed: %s", false},
+	{"ERR: SSL_connect I/O error: %s", false},
+	{"ERR: SSL_connect certificate verify failed: %s (%ld)", false},
+	{"ERR: unable to set TLS peer name: %s", false}
+};
 
 
 //==========================================================
 // Forward declarations.
 //
+
+LOCAL_HELPER void sa_log_cb(const char* fmt, ...);
 
 LOCAL_HELPER int as_bytes_cmp(as_bytes* b1, as_bytes* b2);
 LOCAL_HELPER int as_list_cmp_max(const as_list* list1, const as_list* list2,
@@ -379,7 +409,8 @@ password_has_source(const char* value)
 	return strncmp(value, "env:", 4) == 0 ||
 		strncmp(value, "env-b64:", 8) == 0 ||
 		strncmp(value, "b64:", 4) == 0 ||
-		strncmp(value, "file:", 5) == 0;
+		strncmp(value, "file:", 5) == 0 ||
+		strncmp(value, "secrets:", 8) == 0;
 }
 
 bool
@@ -548,9 +579,177 @@ read_typed_password(const char* option, const char* prompt, char* buf,
 	return password_read_line(option, prompt, buf, max_len, trim);
 }
 
+LOCAL_HELPER void
+sa_log_cb(const char* fmt, ...)
+{
+	for (size_t i = 0; i < sizeof(SA_LOG_ALLOW) / sizeof(SA_LOG_ALLOW[0]); i++) {
+		if (strcmp(fmt, SA_LOG_ALLOW[i].fmt) == 0) {
+			va_list ap;
+
+			va_start(ap, fmt);
+			fprintf(stderr, "secret-agent: ");
+			vfprintf(stderr, fmt, ap);
+			va_end(ap);
+
+			if (SA_LOG_ALLOW[i].errno_arg) {
+				va_start(ap, fmt);
+				fprintf(stderr, " (%s)", strerror(va_arg(ap, int)));
+				va_end(ap);
+			}
+
+			fprintf(stderr, "\n");
+			return;
+		}
+	}
+
+	// any other line could echo request or response bytes: print up to the first '%'
+	size_t len = strcspn(fmt, "%");
+
+	while (len != 0 && strchr(" :,-(", fmt[len - 1]) != NULL) {
+		len--;
+	}
+
+	fprintf(stderr, "secret-agent: %.*s\n", (int) len, fmt);
+}
+
+static const char*
+sa_err_str(sa_err err)
+{
+	switch (err.code) {
+		case SA_FAILED_BAD_REQUEST:
+			return "bad request";
+		case SA_FAILED_BAD_CONFIG:
+			return "bad address or port";
+		case SA_FAILED_INTERNAL:
+			return "connection or protocol error";
+		case SA_FAILED_TIMEOUT:
+			return "timed out";
+		default:
+			return "unknown error";
+	}
+}
+
+static bool
+sa_has_certificate(const char* pem)
+{
+	BIO* bio = BIO_new_mem_buf(pem, -1);
+	X509* cert = bio != NULL ? PEM_read_bio_X509(bio, NULL, NULL, NULL) : NULL;
+	bool found = cert != NULL;
+
+	X509_free(cert);
+	BIO_free(bio);
+	ERR_clear_error();
+	return found;
+}
+
+static char*
+sa_read_ca_file(const char* option, const char* path)
+{
+	if (path[0] == '\0') {
+		fprintf(stderr, "%s: requires a path\n", option);
+		return NULL;
+	}
+
+	FILE* fh = fopen(path, "r");
+
+	if (fh == NULL) {
+		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
+				strerror(errno));
+		return NULL;
+	}
+
+	char* buf = cf_malloc(SA_CA_FILE_MAX_SIZE + 2);
+	size_t len = fread(buf, 1, SA_CA_FILE_MAX_SIZE + 1, fh);
+
+	if (ferror(fh)) {
+		int err = errno;
+
+		fclose(fh);
+		cf_free(buf);
+		fprintf(stderr, "%s: cannot read file %s: %s\n", option, path,
+				strerror(err));
+		return NULL;
+	}
+
+	fclose(fh);
+	buf[len] = '\0';
+
+	if (len > SA_CA_FILE_MAX_SIZE) {
+		fprintf(stderr, "%s: cannot load TLS CA file %s: file is larger than "
+				"%d bytes\n", option, path, SA_CA_FILE_MAX_SIZE);
+	}
+	else if (!sa_has_certificate(buf)) {
+		fprintf(stderr, "%s: cannot load TLS CA file %s: %s\n", option, path,
+				len == 0 ? "file is empty" : "no PEM certificate found");
+	}
+	else {
+		return buf;
+	}
+
+	cf_free(buf);
+	return NULL;
+}
+
+static bool
+password_secret(const sa_args_t* sa, const char* option, const char* path,
+		char** ptr)
+{
+	if (sa == NULL) {
+		fprintf(stderr, "%s: no secret agent settings for %s\n", option, path);
+		return false;
+	}
+
+	sa_cfg cfg;
+
+	sa_cfg_init(&cfg);
+	cfg.addr = sa->host;
+	cfg.port = sa->port;
+	cfg.timeout = sa->timeout_ms;
+
+	if (sa->cafile != NULL) {
+		cfg.tls.ca_string = sa_read_ca_file(sa->cafile_opt, sa->cafile);
+
+		if (cfg.tls.ca_string == NULL) {
+			return false;
+		}
+
+		cfg.tls.enabled = true;
+	}
+
+	sa_client client;
+
+	sa_client_init(&client, &cfg);
+	sa_set_log_function(sa_log_cb);
+
+	uint8_t* buf = NULL;
+	size_t len = 0;
+	sa_err err = sa_secret_get_bytes(&client, path, &buf, &len);
+
+	cf_free(cfg.tls.ca_string);
+
+	if (err.code != SA_OK) {
+		fprintf(stderr, "%s: secret agent request for %s failed: %s\n", option,
+				path, sa_err_str(err));
+		return false;
+	}
+
+	if (len == 0 || memchr(buf, '\0', len) != NULL) {
+		fprintf(stderr, "%s: secret agent returned %s for %s\n", option,
+				len == 0 ? "an empty value" : "a value containing a NUL byte",
+				path);
+		free(buf);
+		return false;
+	}
+
+	// the library leaves one spare byte past the value
+	buf[len] = '\0';
+	*ptr = (char*) buf;
+	return true;
+}
+
 bool
-read_password(const char* option, const char* value, size_t max_len,
-		bool first_line, char** ptr)
+read_password(const sa_args_t* sa, const char* option, const char* value,
+		size_t max_len, bool first_line, char** ptr)
 {
 	const char* from;
 	const char* name;
@@ -611,6 +810,14 @@ read_password(const char* option, const char* value, size_t max_len,
 		}
 
 		if (!password_file(option, name, max_len, first_line, &pw)) {
+			return false;
+		}
+	}
+	else if (strncmp(value, "secrets:", 8) == 0) {
+		from = "value from ";
+		name = value;
+
+		if (!password_secret(sa, option, value, &pw)) {
 			return false;
 		}
 	}

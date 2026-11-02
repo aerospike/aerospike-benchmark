@@ -28,6 +28,7 @@
 #include <common.h>
 #include <gen_bench.h>
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -48,6 +49,10 @@
 static const char* short_options = "vVh:p:U:P::n:s:b:K:k:o:Re:t:w:z:g:T:dLSC:N:B:M:Y:Dac:W:";
 
 #define WARN_MSG 0x40000000
+
+#define SA_DEFAULT_HOST "127.0.0.1"
+#define SA_DEFAULT_PORT "3005"
+#define SA_DEFAULT_TIMEOUT_MS 1000
 
 // The C client's version string
 extern char *aerospike_client_version;
@@ -118,6 +123,17 @@ typedef enum {
 	BENCH_OPT_GEN_BENCH,
 	BENCH_OPT_READ_TOUCH_TTL_PCT
 } benchmark_opt;
+
+/*
+ * Identifies the Aerospike Secret Agent command line options.
+ */
+typedef enum {
+	SA_OPT_ADDRESS = 3000,
+	SA_OPT_PORT,
+	SA_OPT_TIMEOUT,
+	SA_OPT_CAFILE,
+	SA_OPT_CA_FILE
+} sa_opt;
 
 static struct option long_options[] = {
 	{"version",               no_argument,       0, 'V'},
@@ -208,6 +224,11 @@ static struct option long_options[] = {
 	{"tls-certfile",          required_argument, 0, TLS_OPT_CERT_FILE},
 	{"tls-login-only",        no_argument,       0, TLS_OPT_LOGIN_ONLY},
 	{"auth",                  required_argument, 0, TLS_OPT_AUTH},
+	{"sa-address",            required_argument, 0, SA_OPT_ADDRESS},
+	{"sa-port",               required_argument, 0, SA_OPT_PORT},
+	{"sa-timeout",            required_argument, 0, SA_OPT_TIMEOUT},
+	{"sa-ca-file",            required_argument, 0, SA_OPT_CA_FILE},
+	{"sa-cafile",             required_argument, 0, SA_OPT_CAFILE},
 
 	{"servicesAlternate",     no_argument,       0, WARN_MSG | BENCH_OPT_SERVICES_ALTERNATE},
 	{"startKey",              required_argument, 0, WARN_MSG | 'K'},
@@ -266,6 +287,12 @@ LOCAL_HELPER int validate_args(args_t* args);
 LOCAL_HELPER stage_def_t* get_or_init_stage(args_t* args);
 LOCAL_HELPER const char* camelcase_to_dash(const char* camel_str);
 LOCAL_HELPER bool prompt_password(args_t* args);
+LOCAL_HELPER bool sa_parse_timeout(const char* str, int* timeout_ms);
+LOCAL_HELPER bool sa_parse_port(const char* str, char** port);
+LOCAL_HELPER bool sa_parse_address(const char* address, char** host,
+		char** port);
+LOCAL_HELPER const char* sa_apply(sa_args_t* sa, const char* address,
+		const char* port);
 LOCAL_HELPER int set_args(int argc, char * const* argv, args_t* args);
 LOCAL_HELPER void _load_defaults(args_t* args);
 LOCAL_HELPER int _load_defaults_post(args_t* args);
@@ -388,14 +415,17 @@ print_usage(const char* program)
 	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
 	printf("     4) File: 'file:<PATH>', the whole file less one trailing '\\n' or\n");
 	printf("        '\\r\\n'. PATH should name a regular file.\n");
-	printf("     5) String: 'PASSWORD'\n");
+	printf("     5) Aerospike Secret Agent: 'secrets:<resource>:<key>'\n");
+	printf("     6) String: 'PASSWORD'\n");
 	printf("   Prefixes are case-sensitive. A base64 value may be line wrapped,\n");
 	printf("   and one trailing newline is dropped after decoding. A 'b64:' value\n");
 	printf("   on the command line is as visible as a literal password.\n");
-	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
-	printf("   'file:' must be given as 'b64:' or typed at the prompt.\n");
+	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:',\n");
+	printf("   'file:' or 'secrets:' must be given as 'b64:' or typed at the\n");
+	printf("   prompt.\n");
 	printf("   The password is read only when a user is set and the auth mode is\n");
 	printf("   not PKI. It must be at most 63 bytes.\n");
+	printf("   A value fetched with 'secrets:' is used as-is.\n");
 	printf("   User will be prompted on command line if -P specified and no\n");
 	printf("   password is given. The typed password is used as is. When stdin is\n");
 	printf("   not a tty, the password is read from one line of stdin without a\n");
@@ -922,20 +952,22 @@ print_usage(const char* program)
 	printf("     2) Base64 encoded environment variable: 'env-b64:<VAR>'\n");
 	printf("     3) Base64 encoded string: 'b64:<BASE64>'\n");
 	printf("     4) File: 'file:<PATH>', the first line of the file\n");
-	printf("     5) String: 'PASSWORD'\n");
+	printf("     5) Aerospike Secret Agent: 'secrets:<resource>:<key>'\n");
+	printf("     6) String: 'PASSWORD'\n");
 	printf("   Prefixes are case-sensitive. A base64 value may be line wrapped,\n");
 	printf("   and one trailing newline is dropped after decoding.\n");
-	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:' or\n");
-	printf("   'file:' must be given as 'b64:'.\n");
+	printf("   A password that itself begins with 'env:', 'env-b64:', 'b64:',\n");
+	printf("   'file:' or 'secrets:' must be given as 'b64:'.\n");
 	printf("   Surrounding whitespace is trimmed before the form is read. A\n");
 	printf("   password with surrounding whitespace must be given as 'b64:'.\n");
 	printf("   The password is read only when a key file is set. It must be at\n");
 	printf("   most 1024 bytes.\n");
+	printf("   A value fetched with 'secrets:' is used as-is.\n");
 	printf("   Default: none\n");
 	printf("   User will be prompted on command line if --tls-keyfile-password\n");
 	printf("   specified and no password is given. The typed password\n");
-	printf("   accepts the forms above. When stdin is not a tty, the password is\n");
-	printf("   read from one line of stdin without a prompt.\n");
+	printf("   accepts the forms above except 'secrets:'. When stdin is not a\n");
+	printf("   tty, the password is read from one line of stdin without a prompt.\n");
 	printf("\n");
 
 	printf("   --tls-certfile <path>\n");
@@ -948,6 +980,31 @@ print_usage(const char* program)
 
 	printf("   --auth {INTERNAL,EXTERNAL,EXTERNAL_SECURE,PKI} # Default: INTERNAL\n");
 	printf("   Set authentication mode when user/password is defined.\n");
+	printf("\n");
+
+	printf("   The --sa-* options are read only from the command line. asbench reads no\n");
+	printf("   tools config file, so a [secret-agent] section in astools.conf does not\n");
+	printf("   apply.\n");
+	printf("\n");
+
+	printf("   --sa-address <host>[:<port>]  # Default: 127.0.0.1:3005\n");
+	printf("   \"<host>[:<port>]\" or \"[<ipv6>][:<port>]\".\n");
+	printf("   Secret Agent hostname or IP address.\n");
+	printf("\n");
+
+	printf("   --sa-port <port>     # Default: 3005\n");
+	printf("   Secret Agent port, 1 to 65535. Overrides a port in --sa-address.\n");
+	printf("\n");
+
+	printf("   --sa-timeout <ms>    # Default: 1000\n");
+	printf("   Timeout in milliseconds for Secret Agent requests, an integer from 1 to\n");
+	printf("   2147483647.\n");
+	printf("\n");
+
+	printf("   --sa-ca-file <path>  # Default: none\n");
+	printf("   Path to a CA certificate file. Enables TLS to the Secret Agent and verifies\n");
+	printf("   its certificate against this CA. The agent's hostname or IP address must be\n");
+	printf("   in the certificate.\n");
 	printf("\n");
 }
 
@@ -1361,12 +1418,172 @@ prompt_password(args_t* args)
 	return true;
 }
 
+static bool
+sa_parse_number(const char* str, long max, long* val)
+{
+	if (str[0] < '0' || str[0] > '9') {
+		return false;
+	}
+
+	char* end;
+	errno = 0;
+	long v = strtol(str, &end, 10);
+
+	if (errno != 0 || *end != '\0' || v > max) {
+		return false;
+	}
+
+	*val = v;
+	return true;
+}
+
+LOCAL_HELPER bool
+sa_parse_timeout(const char* str, int* timeout_ms)
+{
+	long val;
+
+	if (!sa_parse_number(str, INT_MAX, &val) || val == 0) {
+		return false;
+	}
+
+	*timeout_ms = (int) val;
+	return true;
+}
+
+LOCAL_HELPER bool
+sa_parse_port(const char* str, char** port)
+{
+	long val;
+
+	if (!sa_parse_number(str, 65535, &val) || val == 0) {
+		return false;
+	}
+
+	char buf[24];
+	snprintf(buf, sizeof(buf), "%ld", val);
+	*port = strdup(buf);
+	return true;
+}
+
+// glibc's inet_pton rejects a %scope suffix, so only the address is checked
+static bool
+sa_valid_ipv6(const char* start, const char* end)
+{
+	const char* scope = memchr(start, '%', end - start);
+	char buf[INET6_ADDRSTRLEN];
+	struct in6_addr addr;
+
+	if (scope == end - 1) {
+		return false;
+	}
+
+	if (scope != NULL) {
+		end = scope;
+	}
+
+	if ((size_t) (end - start) >= sizeof(buf)) {
+		return false;
+	}
+
+	memcpy(buf, start, end - start);
+	buf[end - start] = '\0';
+	return inet_pton(AF_INET6, buf, &addr) == 1;
+}
+
+// bracketed, or unbracketed with more than one colon, must be an IPv6 address
+LOCAL_HELPER bool
+sa_parse_address(const char* address, char** host, char** port)
+{
+	const char* start = address;
+	const char* end;
+	const char* port_str = NULL;
+
+	if (address[0] == '[') {
+		start = address + 1;
+		end = strchr(start, ']');
+
+		if (end == NULL || (end[1] != '\0' && end[1] != ':') ||
+				!sa_valid_ipv6(start, end)) {
+			return false;
+		}
+
+		if (end[1] == ':') {
+			port_str = end + 2;
+		}
+	}
+	else {
+		const char* colon = strchr(address, ':');
+		end = address + strlen(address);
+
+		if (colon != NULL && strchr(colon + 1, ':') == NULL) {
+			end = colon;
+			port_str = colon + 1;
+		}
+		else if (colon != NULL && !sa_valid_ipv6(address, end)) {
+			return false;
+		}
+	}
+
+	if (end == start) {
+		return false;
+	}
+
+	if (port_str != NULL && !sa_parse_port(port_str, port)) {
+		return false;
+	}
+
+	*host = strndup(start, end - start);
+	return true;
+}
+
+// an explicit port wins over one in the address; returns the bad option or NULL
+LOCAL_HELPER const char*
+sa_apply(sa_args_t* sa, const char* address, const char* port)
+{
+	char* new_host = NULL;
+	char* addr_port = NULL;
+	char* new_port = NULL;
+
+	if (address != NULL && !sa_parse_address(address, &new_host, &addr_port)) {
+		return "sa-address";
+	}
+
+	if (port != NULL && !sa_parse_port(port, &new_port)) {
+		cf_free(new_host);
+		cf_free(addr_port);
+		return "sa-port";
+	}
+
+	if (new_host != NULL) {
+		cf_free(sa->host);
+		sa->host = new_host;
+	}
+
+	if (new_port != NULL) {
+		cf_free(addr_port);
+	}
+	else {
+		new_port = addr_port;
+	}
+
+	if (new_port != NULL) {
+		cf_free(sa->port);
+		sa->port = new_port;
+	}
+
+	return NULL;
+}
+
 LOCAL_HELPER int
 set_args(int argc, char * const* argv, args_t* args)
 {
 	int option_index = 0;
 	int c;
 	const char* password_arg = NULL;
+	const char* sa_address = NULL;
+	const char* sa_port = NULL;
+	const char* sa_ca_file = NULL;
+	const char* sa_cafile = NULL;
 
 	while ((c = getopt_long_only(argc, argv, short_options, long_options,
 					&option_index)) != -1) {
@@ -1413,7 +1630,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							argv[optind][0] != '\0' &&
 							argv[optind][0] != '-' ) {
 					// space separated argument value
-					password_arg = argv[optind];
+					password_arg = argv[optind++];
 				} else {
 					password_arg = optarg != NULL ? optarg : "";
 				}
@@ -1973,7 +2190,7 @@ set_args(int argc, char * const* argv, args_t* args)
 							argv[optind] != NULL &&
 							argv[optind][0] != '\0' &&
 							argv[optind][0] != '-') {
-						args->tls.keyfile_pw = strdup(argv[optind]);
+						args->tls.keyfile_pw = strdup(argv[optind++]);
 					}
 					else {
 						// no password given
@@ -2000,11 +2217,69 @@ set_args(int argc, char * const* argv, args_t* args)
 				}
 				break;
 
+			case SA_OPT_ADDRESS:
+				sa_address = optarg;
+				break;
+
+			case SA_OPT_PORT:
+				sa_port = optarg;
+				break;
+
+			case SA_OPT_TIMEOUT:
+				if (!sa_parse_timeout(optarg, &args->sa.timeout_ms)) {
+					fprintf(stderr, "--sa-timeout: invalid value \"%s\", expected an "
+							"integer from 1 to %d\n", optarg, INT_MAX);
+					return 1;
+				}
+				break;
+
+			case SA_OPT_CA_FILE:
+				sa_ca_file = optarg;
+				break;
+
+			case SA_OPT_CAFILE:
+				fprintf(stderr, "Warning: Argument --sa-cafile is deprecated. Use "
+						"--sa-ca-file instead.\n");
+				sa_cafile = optarg;
+				break;
+
 			default:
 				fprintf(stderr, "Unknown parameter '%c'\n", c);
 			case '?':
 				return 1;
 		}
+	}
+
+	// getopt stops at the first operand under POSIXLY_CORRECT or after "--", so
+	// options after it would otherwise be dropped silently.
+	if (optind < argc) {
+		fprintf(stderr, "Unexpected argument '%s'\n", argv[optind]);
+		return 1;
+	}
+
+	const char* bad_sa_option = sa_apply(&args->sa, sa_address, sa_port);
+
+	if (bad_sa_option != NULL) {
+		bool bad_port = strcmp(bad_sa_option, "sa-port") == 0;
+
+		fprintf(stderr, "--%s: invalid value \"%s\", expected %s\n", bad_sa_option,
+				bad_port ? sa_port : sa_address, bad_port ?
+				"an integer from 1 to 65535" : "<host>[:<port>] or [<ipv6>][:<port>]");
+		return 1;
+	}
+
+	const char* ca_file = sa_ca_file != NULL ? sa_ca_file : sa_cafile;
+	const char* ca_option = sa_ca_file != NULL ? "--sa-ca-file" : "--sa-cafile";
+
+	if (ca_file != NULL) {
+		if (ca_file[0] == '\0') {
+			fprintf(stderr, "%s: invalid value \"\", expected a path to a CA "
+					"certificate file\n", ca_option);
+			return 1;
+		}
+
+		args->sa.cafile = strdup(ca_file);
+		args->sa.cafile_opt = ca_option;
 	}
 
 	if (password_arg != NULL && password_arg[0] != '\0') {
@@ -2014,8 +2289,8 @@ set_args(int argc, char * const* argv, args_t* args)
 		else if (args->user != NULL) {
 			char* pw;
 
-			if (!read_password("--password", password_arg, AS_PASSWORD_SIZE - 1,
-						false, &pw)) {
+			if (!read_password(&args->sa, "--password", password_arg,
+						AS_PASSWORD_SIZE - 1, false, &pw)) {
 				return 1;
 			}
 
@@ -2036,9 +2311,10 @@ set_args(int argc, char * const* argv, args_t* args)
 	if (args->tls.keyfile && args->tls.keyfile_pw) {
 		char line[TLS_KEYFILE_PASSWORD_MAX_LEN + 4];
 		char* value = args->tls.keyfile_pw;
+		bool prompted = value[0] == '\0';
 		char* pw;
 
-		if (value[0] != '\0') {
+		if (!prompted) {
 			value = password_trim(value);
 		}
 		else if (isatty(STDIN_FILENO)) {
@@ -2058,7 +2334,18 @@ set_args(int argc, char * const* argv, args_t* args)
 		if (value[0] == '\0') {
 			pw = strdup("");
 		}
-		else if (!read_password("--tls-keyfile-password", value,
+		// A typed value is literal, and without --tls-enable the key is never
+		// used, so the agent is not asked for its password.
+		else if ((prompted || !args->tls.enable) &&
+				strncmp(value, "secrets:", 8) == 0) {
+			if (!password_len_ok("--tls-keyfile-password", value,
+						TLS_KEYFILE_PASSWORD_MAX_LEN)) {
+				return 1;
+			}
+
+			pw = strdup(value);
+		}
+		else if (!read_password(&args->sa, "--tls-keyfile-password", value,
 					TLS_KEYFILE_PASSWORD_MAX_LEN, true, &pw)) {
 			return 1;
 		}
@@ -2129,6 +2416,11 @@ _load_defaults(args_t* args)
 	memset(&args->tls, 0, sizeof(as_config_tls));
 	args->tls_name = NULL;
 	args->auth_mode = AS_AUTH_INTERNAL;
+	args->sa.host = strdup(SA_DEFAULT_HOST);
+	args->sa.port = strdup(SA_DEFAULT_PORT);
+	args->sa.timeout_ms = SA_DEFAULT_TIMEOUT_MS;
+	args->sa.cafile = NULL;
+	args->sa.cafile_opt = NULL;
 
 	double p1 = 50.,
 		   p2 = 90.,
@@ -2184,5 +2476,8 @@ _free_args(args_t* args)
 	as_vector_destroy(&args->latency_percentiles);
 	cf_free(args->tls_name);
 	cf_free(args->hosts);
+	cf_free(args->sa.host);
+	cf_free(args->sa.port);
+	cf_free(args->sa.cafile);
 }
 
