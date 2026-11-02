@@ -376,8 +376,8 @@ jobs:
         # unmarked legs still build and test, which is the point of the matrix.
         include:
           - { os: macos-15-intel, openssl-path: /usr/local/opt/openssl@3, ev-path: /usr/local, publish: true }
-          - { os: macos-14, openssl-path: /opt/homebrew/opt/openssl@3, ev-path: /opt/homebrew, publish: true }
-          - { os: macos-15, openssl-path: /opt/homebrew/opt/openssl@3, ev-path: /opt/homebrew }
+          - { os: macos-26-intel, openssl-path: /usr/local/opt/openssl@3, ev-path: /usr/local }
+          - { os: macos-15, openssl-path: /opt/homebrew/opt/openssl@3, ev-path: /opt/homebrew, publish: true }
           - { os: macos-26, openssl-path: /opt/homebrew/opt/openssl@3, ev-path: /opt/homebrew }
     runs-on: ${{ matrix.os }}
     env:
@@ -671,7 +671,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15-intel, macos-14, macos-15, macos-26]
+        os: [macos-15-intel, macos-26-intel, macos-15, macos-26]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
