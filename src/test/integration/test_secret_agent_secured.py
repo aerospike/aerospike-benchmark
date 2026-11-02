@@ -12,8 +12,8 @@ import aerospike
 import pytest
 
 import lib
-from conftest import (CONNECT_FAILED, PARSED_LOOKING_SECRET, SECRET,
-		assert_no_secret, write)
+from conftest import (AGENT_DIR, CONNECT_FAILED, PARSED_LOOKING_SECRET, SECRET,
+		assert_no_secret, b64, closed_port, write)
 
 ROOT = lib.absolute_path("../../..")
 ASBENCH = os.path.join(ROOT, "test_target", "asbench")
@@ -27,6 +27,8 @@ USERS = {
 	"sa_max_len": "m" * 63,
 	"sa_reference": REFERENCE,
 	"sa_env_looking": PARSED_LOOKING_SECRET,
+	"sa_missing_key": "secrets:asbench:absent",
+	"sa_missing_resource": "secrets:absent:pw",
 }
 
 READ_STATS = re.compile(r"\bread\(tps=\d+ \(hit=(\d+) miss=(\d+)\) "
@@ -46,19 +48,33 @@ def feature_key():
 	return key
 
 
+def cluster_stable(client):
+	keys = set()
+	for err, resp in client.info_all("cluster-stable:size=1").values():
+		value = (resp or "").split("\t", 1)[-1].strip()
+		keys.add(None if err or not value or value.upper().startswith("ERROR")
+				else value)
+	return len(keys) == 1 and None not in keys
+
+
 def connect_admin(port, container):
 	config = {"hosts": [("127.0.0.1", port)], "user": "admin",
 		"password": "admin"}
 	deadline = time.time() + SERVER_READY_TIMEOUT
+	client = None
 
 	while True:
 		try:
-			return aerospike.client(config).connect()
+			client = client or aerospike.client(config).connect()
+			if cluster_stable(client):
+				return client
 		except Exception:
 			lib._check_container_running(container)
 			if time.time() > deadline:
 				raise
-			time.sleep(0.5)
+		if time.time() > deadline:
+			raise RuntimeError("secured server on port %d is not stable" % port)
+		time.sleep(0.5)
 
 
 @pytest.fixture(scope="module")
@@ -186,10 +202,40 @@ def test_reference_is_not_sent(server, agent):
 	sa_reference's password is the reference itself, so only sending the
 	reference instead of the fetched value would log in.
 	"""
+	login_and_write(server, "sa_reference", ["-P", "b64:" + b64(REFERENCE)])
+
 	rc, out = run(server, "sa_reference", ["-w", "I", "-P", REFERENCE,
 		"--sa-port", agent.port])
 
 	assert_rejected(server, rc, out)
+
+
+@pytest.mark.parametrize("user,reachable,reason,detail", [
+	("sa_reference", False, "connection or protocol error",
+		"secret-agent: ERR: connect failed, errno: "),
+	("sa_missing_key", True, "bad request", "secret-agent: ERR: response: "
+		"absent not present in file %s/secrets.json\n" % AGENT_DIR),
+	("sa_missing_resource", True, "bad request", "secret-agent: ERR: "
+		"response: resource not found in config: absent\n"),
+], ids=["agent_unreachable", "missing_key", "missing_resource"])
+def test_failed_fetch_never_sends_reference(server, agent, user, reachable,
+		reason, detail):
+	"""
+	Each user's password is the reference itself, so falling back to sending
+	the reference after a failed fetch would log in.
+	"""
+	reference = USERS[user]
+	login_and_write(server, user, ["-P", "b64:" + b64(reference)])
+
+	rc, out = run(server, user, ["-w", "I", "-P", reference, "--sa-port",
+		agent.port if reachable else closed_port()])
+
+	assert(rc == 1), out
+	assert("--password: secret agent request for %s failed: %s\n" %
+			(reference, reason) in out), out
+	assert(detail in out), out
+	assert("AEROSPIKE_INVALID_CREDENTIAL" not in out), out
+	assert(CONNECT_FAILED not in out), out
 
 
 def test_fetched_value_is_not_resolved_again(server, agent, monkeypatch):

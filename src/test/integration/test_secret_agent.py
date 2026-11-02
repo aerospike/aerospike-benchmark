@@ -16,7 +16,7 @@ import pytest
 
 import lib
 from conftest import (AGENT_DIR, AGENT_MAGIC, CONNECT_FAILED, PIPED, PROMPTED,
-		SECRET, assert_no_secret, b64, write)
+		SECRET, assert_no_secret, b64, closed_port, write)
 
 ROOT = lib.absolute_path("../../..")
 ASBENCH = os.path.join(ROOT, "test_target", "asbench")
@@ -31,12 +31,6 @@ ERROR_REPLY = json.dumps({"Error": "not found"}).encode()
 
 def secret_reply(value):
 	return json.dumps({"SecretValue": b64(value)}).encode()
-
-
-def closed_port():
-	with socket.socket() as s:
-		s.bind(("127.0.0.1", 0))
-		return str(s.getsockname()[1])
 
 
 def run(args, env=None, stdin="", timeout=60):
