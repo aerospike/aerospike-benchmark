@@ -36,12 +36,12 @@ READ_STATS = re.compile(r"\bread\(tps=\d+ \(hit=(\d+) miss=(\d+)\) "
 
 
 def feature_key():
-	key = os.environ.get("FEATKEY", "")
+	key = "".join(os.environ.get("FEATKEY", "").split())
 
 	if not key:
 		if os.environ.get("CI"):
-			pytest.fail("FEATKEY must be set in CI to a base64 encoded "
-					"features.conf for the Enterprise server")
+			pytest.fail("FEATKEY must be set in CI: export FEATKEY=$(base64 < "
+					"features.conf)")
 		pytest.skip("FEATKEY is not set: export FEATKEY=$(base64 < "
 				"features.conf) to run the secured server tests")
 
@@ -140,19 +140,28 @@ def server():
 def run(server, user, args):
 	proc = subprocess.run([ASBENCH, "-h", "127.0.0.1:%d" % server.port, "-n",
 		lib.NAMESPACE, "-z", "1", "-k", "100", "-U", user] + args, cwd=ROOT,
-		stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8",
-		errors="replace", timeout=60)
+		stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+		stderr=subprocess.STDOUT, encoding="utf-8", errors="replace", timeout=60)
 	return proc.returncode, proc.stdout
 
 
+def new_set():
+	return "sa_" + uuid.uuid4().hex[:8]
+
+
+def records(server, set_name):
+	return len(server.client.query(lib.NAMESPACE, set_name).results())
+
+
 def login_and_write(server, user, args):
-	set_name = "sa_" + uuid.uuid4().hex[:8]
+	set_name = new_set()
 	rc, out = run(server, user, ["-s", set_name, "-w", "I"] + args)
 
 	assert(rc == 0), out
-	assert(len(server.client.query(lib.NAMESPACE, set_name).results()) == 100), \
-			out
+	assert(records(server, set_name) == 100), out
 	assert_no_secret(out)
+	assert(USERS[user] not in out), out
+	assert(b64(USERS[user]) not in out), out
 	return set_name
 
 
@@ -227,8 +236,9 @@ def test_failed_fetch_never_sends_reference(server, agent, user, reachable,
 	reference = USERS[user]
 	login_and_write(server, user, ["-P", "b64:" + b64(reference)])
 
-	rc, out = run(server, user, ["-w", "I", "-P", reference, "--sa-port",
-		agent.port if reachable else closed_port()])
+	set_name = new_set()
+	rc, out = run(server, user, ["-s", set_name, "-w", "I", "-P", reference,
+		"--sa-port", agent.port if reachable else closed_port()])
 
 	assert(rc == 1), out
 	assert("--password: secret agent request for %s failed: %s\n" %
@@ -236,6 +246,7 @@ def test_failed_fetch_never_sends_reference(server, agent, user, reachable,
 	assert(detail in out), out
 	assert("AEROSPIKE_INVALID_CREDENTIAL" not in out), out
 	assert(CONNECT_FAILED not in out), out
+	assert(records(server, set_name) == 0), out
 
 
 def test_fetched_value_is_not_resolved_again(server, agent, monkeypatch):

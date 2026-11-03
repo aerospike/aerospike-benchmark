@@ -426,11 +426,11 @@ coverage-integration: do-integration
 .PHONY: coverage-all
 coverage-all: | coverage-init
 	@$(MAKE) -C . unit
-	@$(MAKE) -C . integration
-	@echo
-	@lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark-all.info
-	@lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark-all.info
-	@lcov --summary test_target/aerospike-benchmark-all.info
+	@$(MAKE) -C . integration; rc=$$?; echo && \
+		lcov --no-external --capture --initial --directory test_target --output-file test_target/aerospike-benchmark-all.info && \
+		lcov --directory test_target --capture --quiet --output-file test_target/aerospike-benchmark-all.info && \
+		lcov --summary test_target/aerospike-benchmark-all.info && \
+		exit $$rc
 
 .PHONY: coverage-init
 coverage-init:
