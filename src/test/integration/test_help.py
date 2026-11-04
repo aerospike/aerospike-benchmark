@@ -89,6 +89,16 @@ def test_gen_bench_without_server():
 	assert("records/s" in proc.stdout)
 
 
+@pytest.mark.parametrize("count", ["-5", "-1", " 10", "+10", "0", "abc", "0x10",
+	"", "10x", "18446744073709551616"])
+def test_gen_bench_invalid_count(count):
+	proc = subprocess.run(["test_target/asbench", "-h", "127.0.0.1:1",
+		"--gen-bench", count, "-o", "I"], cwd=ROOT, stdout=subprocess.PIPE,
+		stderr=subprocess.STDOUT, text=True, timeout=10)
+	assert(proc.returncode == 1), proc.stdout
+	assert(f'Invalid gen-bench record count "{count}"' in proc.stdout), proc.stdout
+
+
 def test_print_args_shows_seed():
 	rc, out = lib.run_benchmark_output(["--workload", "I", "--keys", "1",
 		"--seed", "99"])

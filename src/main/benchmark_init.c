@@ -2130,8 +2130,8 @@ set_args(int argc, char * const* argv, args_t* args)
 				char* endptr;
 				errno = 0;
 				args->gen_bench_iters = strtoull(optarg, &endptr, 10);
-				if (*optarg == '\0' || *endptr != '\0' || errno != 0 ||
-						args->gen_bench_iters == 0) {
+				if (!isdigit((unsigned char) *optarg) || *endptr != '\0' ||
+						errno != 0 || args->gen_bench_iters == 0) {
 					fprintf(stderr, "Invalid gen-bench record count \"%s\"\n",
 							optarg);
 					return 1;
