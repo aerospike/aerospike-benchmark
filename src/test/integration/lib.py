@@ -101,6 +101,7 @@ CONTAINER_DIR = "/opt/work"
 def graceful_exit(sig, frame):
 	signal.signal(sig, g_orig_handlers[sig])
 	stop()
+	_remove_own_containers()
 	os.kill(os.getpid(), sig)
 
 def safe_sleep(secs):
@@ -273,6 +274,16 @@ def _remove_stale_containers():
 				work = absolute_path("work-" + session[len("asbench-it-"):])
 				if os.path.isdir(work):
 					shutil.rmtree(work, ignore_errors=True)
+
+
+def _remove_own_containers():
+	try:
+		owned = DOCKER_CLIENT.containers.list(all=True, filters={"label":
+				"%s=%d" % (CONTAINER_OWNER_LABEL, os.getpid())})
+		for container in owned:
+			container.remove(force=True)
+	except Exception as e:
+		print("Failed to remove test containers:", e)
 
 
 def _parse_info(response):
@@ -960,6 +971,7 @@ def stop_silent():
 	sys.stderr = null
 	try:
 		stop()
+		_remove_own_containers()
 		sys.stdout = stdout_tmp
 		sys.stderr = stderr_tmp
 	except:
