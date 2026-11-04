@@ -2115,8 +2115,9 @@ set_args(int argc, char * const* argv, args_t* args)
 			case BENCH_OPT_SEED: {
 				char* endptr;
 				errno = 0;
-				args->seed = strtoull(optarg, &endptr, 0);
-				if (*optarg == '\0' || *endptr != '\0' || errno != 0) {
+				args->seed = strtoull(optarg, &endptr, 10);
+				if (!isdigit((unsigned char) *optarg) || *endptr != '\0' ||
+						errno != 0) {
 					fprintf(stderr, "Invalid seed \"%s\", expected an unsigned "
 							"64-bit integer\n", optarg);
 					return 1;

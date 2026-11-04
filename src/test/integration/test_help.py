@@ -106,6 +106,23 @@ def test_print_args_shows_seed():
 	assert("seed:                   99" in out)
 
 
+@pytest.mark.parametrize("seed", ["-1", " 42", "+42", "0x10", "", "abc", "42x",
+	"1.5", "18446744073709551616"])
+def test_seed_invalid(seed):
+	rc, out = run_without_server(["--seed", seed])
+	assert(rc == 1), out
+	assert(f'Invalid seed "{seed}", expected an unsigned 64-bit integer' in out), out
+
+
+@pytest.mark.parametrize("seed,shown", [("0", "0"), ("42", "42"), ("010", "10"),
+	("18446744073709551615", "18446744073709551615")])
+def test_seed_valid_is_decimal(seed, shown):
+	rc, out = lib.run_benchmark_output(["--workload", "I", "--keys", "1",
+		"--seed", seed])
+	assert(rc == 0), out
+	assert(f"seed:                   {shown}\n" in out), out
+
+
 def run_without_server(args):
 	proc = subprocess.run(["test_target/asbench", "-h", "127.0.0.1:1",
 		"--gen-bench", "10", "-z", "1"] + args, cwd=ROOT,
