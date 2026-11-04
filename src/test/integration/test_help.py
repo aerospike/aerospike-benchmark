@@ -89,11 +89,38 @@ def test_gen_bench_without_server():
 	assert("records/s" in proc.stdout)
 
 
+@pytest.mark.parametrize("count", ["-5", "-1", " 10", "+10", "0", "abc", "0x10",
+	"", "10x", "18446744073709551616"])
+def test_gen_bench_invalid_count(count):
+	proc = subprocess.run(["test_target/asbench", "-h", "127.0.0.1:1",
+		"--gen-bench", count, "-o", "I"], cwd=ROOT, stdout=subprocess.PIPE,
+		stderr=subprocess.STDOUT, text=True, timeout=10)
+	assert(proc.returncode == 1), proc.stdout
+	assert(f'Invalid gen-bench record count "{count}"' in proc.stdout), proc.stdout
+
+
 def test_print_args_shows_seed():
 	rc, out = lib.run_benchmark_output(["--workload", "I", "--keys", "1",
 		"--seed", "99"])
 	assert(rc == 0)
 	assert("seed:                   99" in out)
+
+
+@pytest.mark.parametrize("seed", ["-1", " 42", "+42", "0x10", "", "abc", "42x",
+	"1.5", "18446744073709551616"])
+def test_seed_invalid(seed):
+	rc, out = run_without_server(["--seed", seed])
+	assert(rc == 1), out
+	assert(f'Invalid seed "{seed}", expected an unsigned 64-bit integer' in out), out
+
+
+@pytest.mark.parametrize("seed,shown", [("0", "0"), ("42", "42"), ("010", "10"),
+	("18446744073709551615", "18446744073709551615")])
+def test_seed_valid_is_decimal(seed, shown):
+	rc, out = lib.run_benchmark_output(["--workload", "I", "--keys", "1",
+		"--seed", seed])
+	assert(rc == 0), out
+	assert(f"seed:                   {shown}\n" in out), out
 
 
 def run_without_server(args):
