@@ -136,16 +136,23 @@ typedef struct clientdata_s {
 	_Atomic(uint64_t) udf_timeout_count;
 	_Atomic(uint64_t) udf_error_count;
 
+	_Atomic(uint64_t) touch_count;
+	_Atomic(uint64_t) touch_timeout_count;
+	_Atomic(uint64_t) touch_error_count;
+
 	FILE* hdr_comp_read_output;
 	FILE* hdr_text_read_output;
 	FILE* hdr_comp_write_output;
 	FILE* hdr_text_write_output;
 	FILE* hdr_comp_udf_output;
 	FILE* hdr_text_udf_output;
+	FILE* hdr_comp_touch_output;
+	FILE* hdr_text_touch_output;
 
 	struct hdr_histogram* read_hdr;
 	struct hdr_histogram* write_hdr;
 	struct hdr_histogram* udf_hdr;
+	struct hdr_histogram* touch_hdr;
 	as_vector latency_percentiles;
 
 	FILE* histogram_output;
@@ -153,6 +160,7 @@ typedef struct clientdata_s {
 	histogram_t read_histogram;
 	histogram_t write_histogram;
 	histogram_t udf_histogram;
+	histogram_t touch_histogram;
 
 	uint32_t tdata_count;
 

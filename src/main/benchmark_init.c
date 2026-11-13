@@ -644,11 +644,11 @@ print_usage(const char* program)
 	printf("   0 (adopt default TTL value from namespace) and >0 (the TTL of the record in seconds).\n");
 	printf("\n");
 
-	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RR, RUF, RUD, C, CI, CK), 0 for finite (I, DB)\n");
+	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RR, RUF, RUD, T, C, CI, CK), 0 for finite (I, DB)\n");
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
 	printf("\n");
 
-	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB |\n");
+	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB | T |\n");
 	printf("              C[I|K][,<read percent>[,<cap>[,<read count>]]]  # Default: RU,50\n");
 	printf("   Desired workload.\n");
 	printf("   -w I         : Linear 'insert' workload, initializing each key in the key range.\n");
@@ -658,6 +658,9 @@ print_usage(const char* program)
 	printf("                  Note: -ufn and -upn are required in this mode.\n");
 	printf("   -w DB        : Bin delete workload.\n");
 	printf("   -w RUD,20,40 : Random read/update/delete workload with 20%% reads, 40%% writes, and 60%% deletes.\n");
+	printf("   -w T         : Random touch workload that refreshes record TTLs over random keys.\n");
+	printf("                  Uses batch-write-size for synchronous batch operate calls.\n");
+	printf("                  Async mode requires batch-write-size 1.\n");
 	printf("   -w C,80,100,10   : Random CDT (list/map) workload with 80%% reads. Each write appends the\n");
 	printf("                      generated list (list_append_items) or puts the generated map\n");
 	printf("                      (map_put_items) into every list/map bin of the object spec, then\n");
@@ -687,7 +690,7 @@ print_usage(const char* program)
 
 	printf("   --batch-size <size> # Default: 1\n");
 	printf("   Enable batch mode with number of records to process in each batch call.\n");
-	printf("   Batch mode is valid only for I, RU, RR, RUF, and RUD workloads (not C, CI, CK). Batch mode is disabled by default.\n");
+	printf("   Batch mode is valid only for I, RU, RR, RUF, RUD, and T workloads (not C, CI, CK). Batch mode is disabled by default.\n");
 	printf("\n");
 
 	printf("   --batch-read-size <size> # Default: 1\n");
@@ -700,8 +703,8 @@ print_usage(const char* program)
 	printf("   --batch-write-size <size> # Default: 1\n");
 	printf("   Batch writes require Aerospike server 6.0 or newer.\n");
 	printf("   Enable batch write mode with number of records to process in each batch write call.\n");
-	printf("   Batch write mode uses batch operations for insert and update transactions.\n");
-	printf("   Batch write mode is valid only for I, RU, RUF, and RUD workloads. Batch write mode is disabled by default.\n");
+	printf("   Batch write mode uses batch operations for insert, update, and touch transactions.\n");
+	printf("   Batch write mode is valid only for I, RU, RUF, RUD, and T workloads. Batch write mode is disabled by default.\n");
 	printf("   batch-write-size takes precedence over batch-size.\n");
 	printf("\n");
 

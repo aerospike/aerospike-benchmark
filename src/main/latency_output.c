@@ -29,6 +29,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 	bool has_writes = stages_contain_writes(&cdata->stages);
 	bool has_reads = stages_contain_reads(&cdata->stages);
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
+	bool has_touch = stages_contain_touch(&cdata->stages);
 
 	cdata->histogram_period = args->histogram_period;
 
@@ -84,12 +85,24 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			histogram_set_name(&cdata->udf_histogram, "udf_hist");
 			histogram_print_info(&cdata->udf_histogram, cdata->histogram_output);
 		}
+
+		if (has_touch) {
+			histogram_init(&cdata->touch_histogram, 3, 100, (rangespec_t[]) {
+					{ .upper_bound = 4000,   .bucket_width = 100  },
+					{ .upper_bound = 64000,  .bucket_width = 1000 },
+					{ .upper_bound = 128000, .bucket_width = 4000 }
+					});
+			histogram_set_name(&cdata->touch_histogram, "touch_hist");
+			histogram_print_info(&cdata->touch_histogram,
+					cdata->histogram_output);
+		}
 	}
 
 	if (args->hdr_output) {
 		const static char write_output_prefix[] = "/write_";
 		const static char read_output_prefix[] = "/read_";
 		const static char udf_output_prefix[] = "/udf_";
+		const static char touch_output_prefix[] = "/touch_";
 		const static char compressed_output_suffix[] = ".hdrhist";
 		const static char text_output_suffix[] = ".txt";
 
@@ -212,6 +225,44 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			as_string_builder_destroy(&txt_udf_output_b);
 		}
 
+		if (has_touch) {
+			size_t touch_output_size =
+				prefix_len + (sizeof(touch_output_prefix) - 1) +
+				UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
+
+			as_string_builder cmp_touch_output_b;
+			as_string_builder txt_touch_output_b;
+			as_string_builder_inita(&cmp_touch_output_b, touch_output_size, false);
+			as_string_builder_inita(&txt_touch_output_b, touch_output_size, false);
+
+			as_string_builder_append(&cmp_touch_output_b, args->hdr_output);
+			as_string_builder_append(&cmp_touch_output_b, touch_output_prefix);
+			as_string_builder_append(&cmp_touch_output_b, utc_time);
+			as_string_builder_append(&txt_touch_output_b,
+					cmp_touch_output_b.data);
+
+			as_string_builder_append(&cmp_touch_output_b,
+					compressed_output_suffix);
+			as_string_builder_append(&txt_touch_output_b, text_output_suffix);
+
+			cdata->hdr_comp_touch_output = fopen(cmp_touch_output_b.data, "a");
+			if (!cdata->hdr_comp_touch_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_touch_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			cdata->hdr_text_touch_output = fopen(txt_touch_output_b.data, "a");
+			if (!cdata->hdr_text_touch_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						txt_touch_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			as_string_builder_destroy(&cmp_touch_output_b);
+			as_string_builder_destroy(&txt_touch_output_b);
+		}
+
 		hdr_gettime(start_timespec);
 	}
 
@@ -225,6 +276,9 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 		if (has_udfs) {
 			hdr_init(1, 1000000, 3, &cdata->udf_hdr);
 		}
+		if (has_touch) {
+			hdr_init(1, 1000000, 3, &cdata->touch_hdr);
+		}
 	}
 	return ret;
 }
@@ -235,6 +289,7 @@ free_histograms(cdata_t* cdata, args_t* args)
 	bool has_writes = stages_contain_writes(&cdata->stages);
 	bool has_reads = stages_contain_reads(&cdata->stages);
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
+	bool has_touch = stages_contain_touch(&cdata->stages);
 
 	if (args->latency) {
 		as_vector_destroy(&cdata->latency_percentiles);
@@ -249,6 +304,9 @@ free_histograms(cdata_t* cdata, args_t* args)
 		}
 		if (has_udfs) {
 			histogram_free(&cdata->udf_histogram);
+		}
+		if (has_touch) {
+			histogram_free(&cdata->touch_histogram);
 		}
 
 		if (args->histogram_output) {
@@ -283,6 +341,15 @@ free_histograms(cdata_t* cdata, args_t* args)
 				fclose(cdata->hdr_text_udf_output);
 			}
 		}
+
+		if (has_touch) {
+			if (cdata->hdr_comp_touch_output) {
+				fclose(cdata->hdr_comp_touch_output);
+			}
+			if (cdata->hdr_text_touch_output) {
+				fclose(cdata->hdr_text_touch_output);
+			}
+		}
 	}
 
 	if (args->latency || args->hdr_output) {
@@ -295,6 +362,9 @@ free_histograms(cdata_t* cdata, args_t* args)
 		if (has_udfs) {
 			hdr_close(cdata->udf_hdr);
 		}
+		if (has_touch) {
+			hdr_close(cdata->touch_hdr);
+		}
 	}
 }
 
@@ -305,6 +375,7 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 	bool has_writes = stages_contain_writes(&cdata->stages);
 	bool has_reads = stages_contain_reads(&cdata->stages);
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
+	bool has_touch = stages_contain_touch(&cdata->stages);
 
 	// now record summary HDR hist if enabled
 	if (args->hdr_output) {
@@ -348,6 +419,18 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 			hdr_percentiles_print(cdata->udf_hdr, cdata->hdr_text_udf_output,
 					ticks_per_half_distance, 1., CLASSIC);
 		}
+
+		if (has_touch) {
+			hdr_log_write_header(&writer, cdata->hdr_comp_touch_output,
+					utc_time, start_timespec);
+
+			hdr_log_write(&writer, cdata->hdr_comp_touch_output,
+					start_timespec, &end_timespec, cdata->touch_hdr);
+
+			hdr_percentiles_print(cdata->touch_hdr,
+					cdata->hdr_text_touch_output,
+					ticks_per_half_distance, 1., CLASSIC);
+		}
 	}
 }
 
@@ -362,10 +445,12 @@ periodic_output_worker(void* udata)
 	bool has_writes = stages_contain_writes(&cdata->stages);
 	bool has_reads = stages_contain_reads(&cdata->stages);
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
+	bool has_touch = stages_contain_touch(&cdata->stages);
 	uint64_t gen_count = 0;
 	histogram_t* write_histogram = &cdata->write_histogram;
 	histogram_t* read_histogram = &cdata->read_histogram;
 	histogram_t* udf_histogram = &cdata->udf_histogram;
+	histogram_t* touch_histogram = &cdata->touch_histogram;
 	FILE* histogram_output = cdata->histogram_output;
 
 	struct timespec wake_up;
@@ -429,6 +514,11 @@ periodic_output_worker(void* udata)
 		uint64_t udf_current = atomic_exchange(&cdata->udf_count, 0);
 		uint64_t udf_timeout_current = atomic_exchange(&cdata->udf_timeout_count, 0);
 		uint64_t udf_error_current = atomic_exchange(&cdata->udf_error_count, 0);
+		uint64_t touch_current = atomic_exchange(&cdata->touch_count, 0);
+		uint64_t touch_timeout_current =
+			atomic_exchange(&cdata->touch_timeout_count, 0);
+		uint64_t touch_error_current =
+			atomic_exchange(&cdata->touch_error_count, 0);
 
 		cdata->period_begin = time;
 
@@ -436,11 +526,14 @@ periodic_output_worker(void* udata)
 		uint64_t read_hit_tps = (uint64_t)((double)read_hit_current * 1000000 / elapsed + 0.5);
 		uint64_t read_miss_tps = (uint64_t)((double)read_miss_current * 1000000 / elapsed + 0.5);
 		uint64_t udf_tps = (uint64_t)((double)udf_current * 1000000 / elapsed + 0.5);
+		uint64_t touch_tps =
+			(uint64_t)((double)touch_current * 1000000 / elapsed + 0.5);
 
 		bool any_records = write_current + write_timeout_current +
 			write_error_current + read_hit_current + read_miss_current +
 			read_timeout_current + read_error_current + udf_current +
-			udf_timeout_current + udf_error_current != 0;
+			udf_timeout_current + udf_error_current + touch_current +
+			touch_timeout_current + touch_error_current != 0;
 		if (any_records) {
 			blog_info("");
 			if (has_writes) {
@@ -461,12 +554,19 @@ periodic_output_worker(void* udata)
 						udf_tps, udf_tps, 0lu,
 						udf_timeout_current, udf_error_current);
 			}
+			if (has_touch) {
+				printf("touch(tps=%" PRId64 " timeouts=%" PRId64
+						" errors=%" PRId64 ") ",
+						touch_tps, touch_timeout_current, touch_error_current);
+			}
 			printf("total(tps=%" PRId64 " (hit=%" PRId64 " miss=%" PRId64 ") "
 					"timeouts=%" PRId64 " errors=%" PRId64 ")\n",
-					write_tps + read_hit_tps + read_miss_tps + udf_tps,
-					write_tps + read_hit_tps + udf_tps, read_miss_tps,
-					write_timeout_current + read_timeout_current + udf_timeout_current,
-					write_error_current + read_error_current + udf_error_current);
+					write_tps + read_hit_tps + read_miss_tps + udf_tps + touch_tps,
+					write_tps + read_hit_tps + udf_tps + touch_tps, read_miss_tps,
+					write_timeout_current + read_timeout_current +
+						udf_timeout_current + touch_timeout_current,
+					write_error_current + read_error_current + udf_error_current +
+						touch_error_current);
 		}
 
 		++gen_count;
@@ -495,6 +595,11 @@ periodic_output_worker(void* udata)
 						print_hdr_percentiles(cdata->udf_hdr,  "udf",  elapsed_s,
 								&cdata->latency_percentiles, stdout);
 					}
+
+					if (has_touch) {
+						print_hdr_percentiles(cdata->touch_hdr, "touch", elapsed_s,
+								&cdata->latency_percentiles, stdout);
+					}
 				}
 				if (histogram_output != NULL) {
 					if (first_log_of_stage) {
@@ -514,6 +619,11 @@ periodic_output_worker(void* udata)
 
 					if (has_udfs) {
 						histogram_print_clear(udf_histogram, elapsed_hist,
+								histogram_output);
+					}
+
+					if (has_touch) {
+						histogram_print_clear(touch_histogram, elapsed_hist,
 								histogram_output);
 					}
 

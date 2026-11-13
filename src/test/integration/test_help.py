@@ -47,7 +47,7 @@ def test_readme_lists_every_generator_in_help():
 def test_help_lists_seed_and_cdt():
 	text = help_text()
 	for token in ["--seed", "--read-touch-ttl-percent", "C[I|K]", "-w C,80,100,10",
-			"-w CI,30,1000,10", "-w CK,90,50", "Bin names:"]:
+			"-w CI,30,1000,10", "-w CK,90,50", "-w T", "Bin names:"]:
 		assert(token in text), token
 
 

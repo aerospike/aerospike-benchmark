@@ -46,8 +46,12 @@ struct async_data_s {
 		read_op,
 		write_op,
 		delete_op,
-		udf_op
+		udf_op,
+		touch_op
 	} op;
+
+	// Touch operations must remain valid until the async callback completes.
+	as_operations touch_ops;
 };
 
 
@@ -63,6 +67,7 @@ LOCAL_HELPER uint32_t _random_fp(as_random*);
 LOCAL_HELPER void _record_read(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_write(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_udf(cdata_t* cdata, uint64_t dt_us);
+LOCAL_HELPER void _record_touch(cdata_t* cdata, uint64_t dt_us);
 
 // Read/Write singular/batch synchronous operations
 LOCAL_HELPER int _write_record_sync(tdata_t* tdata, cdata_t* cdata,
@@ -75,6 +80,12 @@ LOCAL_HELPER int _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* co
 		const stage_t* stage, as_key* key);
 LOCAL_HELPER int _batch_write_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_batch_records* records);
+LOCAL_HELPER bool _batch_touch_listener(const as_batch_result* results,
+		uint32_t n, void* udata);
+LOCAL_HELPER int _batch_touch_record_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, as_batch* batch, as_operations* ops);
+LOCAL_HELPER int _touch_record_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, as_key* key);
 
 // Read/Write singular/batch asynchronous operations
 LOCAL_HELPER int _write_record_async(as_key* key, as_record* rec,
@@ -87,6 +98,8 @@ LOCAL_HELPER int _apply_udf_async(as_key* key, struct async_data_s* adata,
 		tdata_t* tdata, cdata_t* cdata, const stage_t* stage);
 LOCAL_HELPER int _batch_write_record_async(as_batch_records* keys, struct async_data_s* adata,
 		tdata_t* tdata, cdata_t* cdata);
+LOCAL_HELPER int _touch_record_async(struct async_data_s* adata, tdata_t* tdata,
+		cdata_t* cdata, const stage_t* stage);
 
 // Thread worker helper methods
 LOCAL_HELPER void _calculate_subrange(uint64_t key_start, uint64_t key_end,
@@ -121,6 +134,8 @@ LOCAL_HELPER void random_udf(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void random_delete(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_touch(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
 
 // Synchronous workload methods
 LOCAL_HELPER void linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
@@ -133,6 +148,8 @@ LOCAL_HELPER void linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* co
 		const stage_t* stage);
 LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_touch_workload(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
 
 // Asynchronous workload helper methods
 LOCAL_HELPER void random_read_async(tdata_t* tdata, cdata_t* cdata,
@@ -143,12 +160,16 @@ LOCAL_HELPER void random_udf_async(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
 LOCAL_HELPER void random_delete_async(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
+LOCAL_HELPER void random_touch_async(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, struct async_data_s* adata);
 
 // Asynchronous workload methods
 LOCAL_HELPER void _async_listener(as_error* err, void* udata,
 		as_event_loop* event_loop);
 LOCAL_HELPER void _async_read_listener(as_error* err, as_record* rec, void* udata,
 		as_event_loop* event_loop);
+LOCAL_HELPER void _async_touch_operate_listener(as_error* err, as_record* rec,
+		void* udata, as_event_loop* event_loop);
 LOCAL_HELPER void _async_write_listener(as_error* err, void* udata,
 		as_event_loop* event_loop);
 LOCAL_HELPER void _async_batch_read_listener(as_error* err,
@@ -168,6 +189,8 @@ LOCAL_HELPER void linear_deletes_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 LOCAL_HELPER void random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata,
 	   thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
+LOCAL_HELPER void random_touch_workload_async(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, queue_t* adata_q);
 
 // Main worker thread helper methods
 LOCAL_HELPER void _set_stage_policies(tdata_t* tdata, stage_t* stage);
@@ -304,6 +327,19 @@ _record_udf(cdata_t* cdata, uint64_t dt_us)
 	cdata->udf_count++;
 }
 
+LOCAL_HELPER void
+_record_touch(cdata_t* cdata, uint64_t dt_us)
+{
+	if (cdata->latency) {
+		hdr_record_value_atomic(cdata->touch_hdr, dt_us);
+	}
+	if (cdata->histogram_output != NULL ||
+			cdata->hdr_comp_touch_output != NULL) {
+		histogram_incr(&cdata->touch_histogram, dt_us);
+	}
+	cdata->touch_count++;
+}
+
 
 /******************************************************************************
  * Read/Write singular/batch synchronous operations
@@ -374,6 +410,87 @@ _batch_write_record_sync(tdata_t* tdata, cdata_t* cdata,
 					"message=%s",
 					cdata->namespace, cdata->set, cdata->bin_name, status,
 					err.message);
+		}
+	}
+
+	throttle(tdata, coord);
+	return status;
+}
+
+LOCAL_HELPER bool
+_batch_touch_listener(const as_batch_result* results, uint32_t n, void* udata)
+{
+	(void) results;
+	(void) n;
+	(void) udata;
+	return true;
+}
+
+LOCAL_HELPER int
+_batch_touch_record_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, as_batch* batch, as_operations* ops)
+{
+	as_error err;
+	uint64_t start = cf_getus();
+	as_status status = aerospike_batch_operate(&cdata->client, &err,
+			&tdata->policies.batch, &tdata->policies.batch_write, batch, ops,
+			_batch_touch_listener, NULL);
+	uint64_t end = cf_getus();
+
+	if (status == AEROSPIKE_OK) {
+		_record_touch(cdata, end - start);
+	}
+	else if (status == AEROSPIKE_ERR_TIMEOUT) {
+		cdata->touch_timeout_count++;
+	}
+	else {
+		cdata->touch_error_count++;
+
+		if (cdata->debug) {
+			blog_error("Batch touch error: ns=%s set=%s code=%d message=%s",
+					cdata->namespace, cdata->set, status, err.message);
+		}
+	}
+
+	throttle(tdata, coord);
+	return status;
+}
+
+LOCAL_HELPER int
+_touch_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, as_key* key)
+{
+	as_error err;
+	as_record* rec = NULL;
+	as_operations ops;
+
+	as_operations_inita(&ops, 1);
+	as_operations_add_touch(&ops);
+	ops.ttl = (uint32_t) stage->ttl;
+
+	uint64_t start = cf_getus();
+	as_status status = aerospike_key_operate(&cdata->client, &err,
+			&tdata->policies.operate, key, &ops, &rec);
+	uint64_t end = cf_getus();
+
+	as_operations_destroy(&ops);
+	if (rec != NULL) {
+		as_record_destroy(rec);
+	}
+
+	if (status == AEROSPIKE_OK) {
+		_record_touch(cdata, end - start);
+	}
+	else if (status == AEROSPIKE_ERR_TIMEOUT) {
+		cdata->touch_timeout_count++;
+	}
+	else {
+		cdata->touch_error_count++;
+
+		if (cdata->debug) {
+			blog_error("Touch error: ns=%s set=%s key=%lld code=%d message=%s",
+					cdata->namespace, cdata->set,
+					(long long) key->value.integer.value, status, err.message);
 		}
 	}
 
@@ -648,6 +765,29 @@ _apply_udf_async(as_key* key, struct async_data_s* adata, tdata_t* tdata,
 	if (status != AEROSPIKE_OK) {
 		// if the async call failed for any reason, call the callback directly
 		_async_read_listener(&err, NULL, adata, adata->ev_loop);
+	}
+
+	return status;
+}
+
+LOCAL_HELPER int
+_touch_record_async(struct async_data_s* adata, tdata_t* tdata,
+		cdata_t* cdata, const stage_t* stage)
+{
+	as_error err;
+	adata->op = touch_op;
+
+	as_operations_init(&adata->touch_ops, 1);
+	as_operations_add_touch(&adata->touch_ops);
+	adata->touch_ops.ttl = (uint32_t) stage->ttl;
+
+	adata->start_time = cf_getus();
+	as_status status = aerospike_key_operate_async(&cdata->client, &err,
+			&tdata->policies.operate, &adata->key, &adata->touch_ops,
+			_async_touch_operate_listener, adata, adata->ev_loop, NULL);
+
+	if (status != AEROSPIKE_OK) {
+		_async_touch_operate_listener(&err, NULL, adata, adata->ev_loop);
 	}
 
 	return status;
@@ -1047,6 +1187,39 @@ random_delete(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 }
 
+LOCAL_HELPER void
+random_touch(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	if (stage->batch_write_size <= 1) {
+		as_key key;
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+		_gen_key(key_val, &key, cdata);
+
+		_touch_record_sync(tdata, cdata, coord, stage, &key);
+		as_key_destroy(&key);
+	}
+	else {
+		as_batch batch;
+		as_operations ops;
+
+		as_batch_inita(&batch, stage->batch_write_size);
+		for (uint32_t i = 0; i < stage->batch_write_size; i++) {
+			uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+			_gen_key(key_val, as_batch_keyat(&batch, i), cdata);
+		}
+
+		as_operations_inita(&ops, 1);
+		as_operations_add_touch(&ops);
+		ops.ttl = (uint32_t) stage->ttl;
+
+		_batch_touch_record_sync(tdata, cdata, coord, &batch, &ops);
+
+		as_operations_destroy(&ops);
+		as_batch_destroy(&batch);
+	}
+}
+
 
 /******************************************************************************
  * Synchronous workload methods
@@ -1246,6 +1419,17 @@ LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 	}
 }
 
+LOCAL_HELPER void
+random_touch_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	thr_coordinator_complete(coord);
+
+	while (tdata->do_work) {
+		random_touch(tdata, cdata, coord, stage);
+	}
+}
+
 /******************************************************************************
  * Asynchronous workload helper methods
  *****************************************************************************/
@@ -1352,6 +1536,16 @@ random_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 	}
 }
 
+LOCAL_HELPER void
+random_touch_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, struct async_data_s* adata)
+{
+	uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+	_gen_key(key_val, &adata->key, cdata);
+	_touch_record_async(adata, tdata, cdata, stage);
+	(void) coord;
+}
+
 
 /******************************************************************************
  * Asynchronous workload methods
@@ -1372,6 +1566,9 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 		else if (adata->op == udf_op) {
 			_record_udf(cdata, end - adata->start_time);
 		}
+		else if (adata->op == touch_op) {
+			_record_touch(cdata, end - adata->start_time);
+		}
 		else {
 			_record_write(cdata, end - adata->start_time);
 		}
@@ -1388,6 +1585,9 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			else if (adata->op == udf_op) {
 				cdata->udf_timeout_count++;
 			}
+			else if (adata->op == touch_op) {
+				cdata->touch_timeout_count++;
+			}
 			else {
 				cdata->write_timeout_count++;
 			}
@@ -1399,6 +1599,9 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 			else if (adata->op == udf_op) {
 				cdata->udf_error_count++;
 			}
+			else if (adata->op == touch_op) {
+				cdata->touch_error_count++;
+			}
 			else {
 				cdata->write_error_count++;
 			}
@@ -1408,7 +1611,8 @@ _async_listener(as_error* err, void* udata, as_event_loop* event_loop)
 					"Read",
 					"Write",
 					"Delete",
-					"UDF"
+					"UDF",
+					"Touch"
 				};
 				blog_error("%s error: ns=%s set=%s key=%d bin=%s code=%d "
 						   "message=%s",
@@ -1433,6 +1637,19 @@ _async_read_listener(as_error* err, as_record* rec, void* udata,
 		as_event_loop* event_loop)
 {
 	_async_listener(err, udata, event_loop);
+}
+
+LOCAL_HELPER void
+_async_touch_operate_listener(as_error* err, as_record* rec, void* udata,
+		as_event_loop* event_loop)
+{
+	struct async_data_s* adata = (struct async_data_s*) udata;
+
+	_async_listener(err, udata, event_loop);
+	if (rec != NULL) {
+		as_record_destroy(rec);
+	}
+	as_operations_destroy(&adata->touch_ops);
 }
 
 LOCAL_HELPER void
@@ -1731,6 +1948,29 @@ random_read_write_delete_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coor
 		else {
 			random_delete_async(tdata, cdata, coord, stage, adata);
 		}
+
+		uint64_t pause_for =
+			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
+		timespec_add_us(&wake_time, pause_for);
+		thr_coordinator_sleep(coord, &wake_time);
+	}
+}
+
+LOCAL_HELPER void
+random_touch_workload_async(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, queue_t* adata_q)
+{
+	thr_coordinator_complete(coord);
+
+	while (tdata->do_work) {
+		struct async_data_s* adata = queue_pop_wait(adata_q);
+
+		struct timespec wake_time;
+		clock_gettime(COORD_CLOCK, &wake_time);
+		uint64_t start_time = timespec_to_us(&wake_time);
+		adata->start_time = start_time;
+
+		random_touch_async(tdata, cdata, coord, stage, adata);
 
 		uint64_t pause_for =
 			dyn_throttle_pause_for(&tdata->dyn_throttle, start_time);
@@ -2148,6 +2388,9 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete(tdata, cdata, coord, stage);
 			break;
+		case WORKLOAD_TYPE_T:
+			random_touch_workload(tdata, cdata, coord, stage);
+			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt(tdata, cdata, coord, stage);
 			break;
@@ -2203,6 +2446,9 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
 			break;
+		case WORKLOAD_TYPE_T:
+			random_touch_workload_async(tdata, cdata, coord, stage, &adata_q);
+			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt_async(tdata, cdata, coord, stage, &adata_q);
 			break;
@@ -2233,6 +2479,8 @@ _set_stage_policies(tdata_t* tdata, stage_t* stage)
 	}
 
 	tdata->policies.apply.ttl = stage->ttl;
+	tdata->policies.operate.ttl = stage->workload.type == WORKLOAD_TYPE_T ?
+		(uint32_t) stage->ttl : 0;
 }
 
 LOCAL_HELPER void

@@ -17,3 +17,23 @@ def test_linear_write_start_key_async():
 	lib.run_benchmark(["--workload", "I", "--start-key", "1000", "--keys", "1000", "--async"])
 	lib.check_for_range(1000, 2000)
 
+def test_touch_workload_sync():
+	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100",
+			"--expiration-time", "60"])
+	lib.run_benchmark(["--duration", "1", "--workload", "T", "--start-key", "0",
+			"--keys", "100", "--expiration-time", "60"], do_reset=False)
+
+def test_touch_workload_batch_sync():
+	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100",
+			"--expiration-time", "60"])
+	lib.run_benchmark(["--duration", "1", "--workload", "T", "--start-key", "0",
+			"--keys", "100", "--expiration-time", "60",
+			"--batch-write-size", "10"], do_reset=False)
+
+def test_touch_workload_async():
+	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100",
+			"--expiration-time", "60"])
+	lib.run_benchmark(["--duration", "1", "--workload", "T", "--start-key", "0",
+			"--keys", "100", "--expiration-time", "60", "--async"],
+			do_reset=False)
+
