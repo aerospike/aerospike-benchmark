@@ -55,6 +55,7 @@ typedef struct args_s {
 	const char* user;
 	char password[AS_PASSWORD_SIZE];
 	const char* namespace;
+	const char* to_namespace;
 	const char* set;
 	char* bin_name;
 	uint64_t start_key;
@@ -114,6 +115,7 @@ typedef struct args_s {
 
 typedef struct clientdata_s {
 	const char* namespace;
+	const char* to_namespace;
 	const char* set;
 	const char* bin_name;
 	struct stages_s stages;

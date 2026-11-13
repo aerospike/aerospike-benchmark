@@ -52,6 +52,7 @@ main(void) {
 	srunner_add_suite(g_sr, workload_parse_suite());
 	srunner_add_suite(g_sr, cdt_ops_suite());
 	srunner_add_suite(g_sr, gen_bench_suite());
+	srunner_add_suite(g_sr, transaction_suite());
 
 	//srunner_set_fork_status(g_sr, CK_NOFORK);
 

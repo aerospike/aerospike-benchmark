@@ -83,6 +83,17 @@ START_TEST(cdt_reads_writes_flags)
 }
 END_TEST
 
+START_TEST(copy_workload)
+{
+	workload_t w;
+	ck_assert_int_eq(parse_workload_type(&w, "CP"), 0);
+	ck_assert_int_eq(w.type, WORKLOAD_TYPE_CP);
+	ck_assert(!workload_is_random(&w));
+	ck_assert(!workload_is_infinite(&w));
+	ck_assert_int_ne(parse_workload_type(&w, "CP,50"), 0);
+}
+END_TEST
+
 START_TEST(existing_workloads_unchanged)
 {
 	workload_t w;
@@ -133,6 +144,7 @@ workload_parse_suite(void)
 	tcase_add_test(tc_cdt, cdt_cap_overflow);
 	tcase_add_test(tc_cdt, cdt_garbage_after);
 	tcase_add_test(tc_cdt, cdt_reads_writes_flags);
+	tcase_add_test(tc_cdt, copy_workload);
 	tcase_add_test(tc_cdt, existing_workloads_unchanged);
 	suite_add_tcase(s, tc_cdt);
 

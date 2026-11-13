@@ -40,6 +40,8 @@ typedef enum {
 	WORKLOAD_TYPE_RUF,
 	// random read/update/delete workload
 	WORKLOAD_TYPE_RUD,
+	// linear cross-namespace copy workload
+	WORKLOAD_TYPE_CP,
 	// random collection data type (list/map) operation workload
 	WORKLOAD_TYPE_CDT
 } workload_type_t;
@@ -351,6 +353,11 @@ bool stages_contain_reads(const stages_t*);
  * returns true if any of the stages will perform UDF ops
  */
 bool stages_contain_udfs(const stages_t*);
+
+/*
+ * returns true if any of the stages will perform copy ops
+ */
+bool stages_contain_cp(const stages_t*);
 
 /*
  * generates a random key for the stage

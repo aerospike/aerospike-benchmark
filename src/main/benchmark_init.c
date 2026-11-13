@@ -99,6 +99,7 @@ typedef enum {
 	BENCH_OPT_UDF_FUNCTION_NAME,
 	BENCH_OPT_UDF_FUNCTION_VALUES,
 	BENCH_OPT_WORKLOAD_STAGES,
+	BENCH_OPT_TO_NAMESPACE,
 	BENCH_OPT_READ_BINS,
 	BENCH_OPT_WRITE_BINS,
 	BENCH_OPT_BATCH_SIZE,
@@ -150,6 +151,7 @@ static struct option long_options[] = {
 	{"error-rate-window",     required_argument, 0, BENCH_OPT_ERROR_RATE_WINDOW},
 	{"max-socket-idle",       required_argument, 0, BENCH_OPT_MAX_SOCKET_IDLE},
 	{"namespace",             required_argument, 0, 'n'},
+	{"to-namespace",          required_argument, 0, BENCH_OPT_TO_NAMESPACE},
 	{"set",                   required_argument, 0, 's'},
 	{"bin",                   required_argument, 0, 'b'},
 	{"start-key",             required_argument, 0, 'K'},
@@ -483,6 +485,10 @@ print_usage(const char* program)
 	printf("   Aerospike namespace.\n");
 	printf("\n");
 
+	printf("   --to-namespace <ns> # Default: none\n");
+	printf("   Destination namespace for the CP workload.\n");
+	printf("\n");
+
 	printf("-s --set <set name>   # Default: testset\n");
 	printf("   Aerospike set name.\n");
 	printf("\n");
@@ -644,11 +650,11 @@ print_usage(const char* program)
 	printf("   0 (adopt default TTL value from namespace) and >0 (the TTL of the record in seconds).\n");
 	printf("\n");
 
-	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RR, RUF, RUD, C, CI, CK), 0 for finite (I, DB)\n");
+	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RR, RUF, RUD, C, CI, CK), 0 for finite (I, DB, CP)\n");
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
 	printf("\n");
 
-	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB |\n");
+	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB | CP |\n");
 	printf("              C[I|K][,<read percent>[,<cap>[,<read count>]]]  # Default: RU,50\n");
 	printf("   Desired workload.\n");
 	printf("   -w I         : Linear 'insert' workload, initializing each key in the key range.\n");
@@ -658,6 +664,7 @@ print_usage(const char* program)
 	printf("                  Note: -ufn and -upn are required in this mode.\n");
 	printf("   -w DB        : Bin delete workload.\n");
 	printf("   -w RUD,20,40 : Random read/update/delete workload with 20%% reads, 40%% writes, and 60%% deletes.\n");
+	printf("   -w CP        : Copy records to --to-namespace using the same set and keys.\n");
 	printf("   -w C,80,100,10   : Random CDT (list/map) workload with 80%% reads. Each write appends the\n");
 	printf("                      generated list (list_append_items) or puts the generated map\n");
 	printf("                      (map_put_items) into every list/map bin of the object spec, then\n");
@@ -1021,6 +1028,8 @@ print_args(args_t* args)
 	printf("error rate window:      %d\n", args->error_rate_window);
 	printf("max socket idle:        %d secs\n", args->max_socket_idle);
 	printf("namespace:              %s\n", args->namespace);
+	printf("to namespace:           %s\n",
+			args->to_namespace == NULL ? "(none)" : args->to_namespace);
 	printf("set:                    %s\n", args->set);
 	printf("start-key:              %" PRIu64 "\n", args->start_key);
 	printf("keys/records:           %" PRIu64 "\n", args->keys);
@@ -1662,6 +1671,10 @@ set_args(int argc, char * const* argv, args_t* args)
 
 			case 'n':
 				args->namespace = optarg;
+				break;
+
+			case BENCH_OPT_TO_NAMESPACE:
+				args->to_namespace = optarg;
 				break;
 
 			case 's':
@@ -2372,6 +2385,7 @@ _load_defaults(args_t* args)
 	args->error_rate_window = 1;
 	args->max_socket_idle = 55;
 	args->namespace = "test";
+	args->to_namespace = NULL;
 	args->set = "testset";
 	args->bin_name = strdup("testbin");
 	args->start_key = 1;

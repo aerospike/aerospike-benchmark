@@ -328,6 +328,11 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->type = WORKLOAD_TYPE_D;
 		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
+	else if (strcmp(workload_str, "CP") == 0) {
+		workload->type = WORKLOAD_TYPE_CP;
+		workload->read_pct = 0.0;
+		workload->write_pct = 0.0;
+	}
 	else if (workload_str[0] == 'C') {
 		if (_parse_cdt_workload(workload, workload_str) != 0) {
 			return -1;
@@ -413,6 +418,25 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			ret = -1;
 		}
 
+		if (stage->workload.type == WORKLOAD_TYPE_CP && stage->async) {
+			fprintf(stderr, "Stage %d: CP workload is not supported in async "
+					"mode\n", i + 1);
+			ret = -1;
+		}
+
+		if (stage->workload.type == WORKLOAD_TYPE_CP && stage->random) {
+			fprintf(stderr, "Stage %d: CP workload does not support random "
+					"keys\n", i + 1);
+			ret = -1;
+		}
+
+		if (stage->workload.type == WORKLOAD_TYPE_CP &&
+				args->to_namespace == NULL) {
+			fprintf(stderr, "Stage %d: CP workload requires "
+					"--to-namespace\n", i + 1);
+			ret = -1;
+		}
+
 		if (stage->workload.type == WORKLOAD_TYPE_D && stage->random) {
 			fprintf(stderr,
 					"Stage %d is a delete workload, so you cannot have random "
@@ -486,6 +510,7 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 
 		if (ret == 0 && !stage->random &&
 				stage->workload.type != WORKLOAD_TYPE_D &&
+				stage->workload.type != WORKLOAD_TYPE_CP &&
 				(obj_spec_has_generators(&stage->obj_spec) || args->seed_set)) {
 			stage->random = true;
 			if (obj_spec_has_generators(&stage->obj_spec)) {
@@ -701,6 +726,16 @@ bool stages_contain_udfs(const stages_t* stages)
 	return false;
 }
 
+bool stages_contain_cp(const stages_t* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (stages->stages[i].workload.type == WORKLOAD_TYPE_CP) {
+			return true;
+		}
+	}
+	return false;
+}
+
 uint64_t stage_gen_random_key(const stage_t* stage, as_random* random)
 {
 	return gen_rand_range_64(random, stage->key_end - stage->key_start) +
@@ -728,6 +763,7 @@ void stages_print(const stages_t* stages)
 		"DB",
 		"RUF",
 		"RUD",
+		"CP",
 		"C"
 	};
 

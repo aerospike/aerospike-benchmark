@@ -92,6 +92,8 @@ LOCAL_HELPER int _batch_write_record_async(as_batch_records* keys, struct async_
 LOCAL_HELPER void _calculate_subrange(uint64_t key_start, uint64_t key_end,
 		uint32_t t_idx, uint32_t n_threads, uint64_t* t_start, uint64_t* t_end);
 LOCAL_HELPER void _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata);
+LOCAL_HELPER void _gen_key_ns(uint64_t key_val, as_key* key,
+		const cdata_t* cdata, const char* namespace);
 LOCAL_HELPER as_record* _gen_record(uint64_t key_val, const cdata_t* cdata,
 		tdata_t* tdata, const stage_t* stage);
 LOCAL_HELPER as_record* _gen_nil_record(tdata_t* tdata);
@@ -131,6 +133,8 @@ LOCAL_HELPER void random_read_write_udf(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void linear_deletes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		const stage_t* stage);
+LOCAL_HELPER void linear_copy(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 
@@ -677,6 +681,13 @@ _gen_key(uint64_t key_val, as_key* key, const cdata_t* cdata)
 	as_key_init_int64(key, cdata->namespace, cdata->set, key_val);
 }
 
+LOCAL_HELPER void
+_gen_key_ns(uint64_t key_val, as_key* key, const cdata_t* cdata,
+		const char* namespace)
+{
+	as_key_init_int64(key, namespace, cdata->set, key_val);
+}
+
 /*
  * generates a record with given key following the obj_spec in cdata
  */
@@ -1105,6 +1116,109 @@ linear_writes(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 
 	// once we've written everything, there's nothing left to do, so tell
 	// coord we're done and exit
+	thr_coordinator_complete(coord);
+}
+
+LOCAL_HELPER void
+_build_copy_ops(as_operations* ops, const as_record* rec)
+{
+	as_operations_init(ops, rec->bins.size);
+	ops->ttl = rec->ttl;
+
+	for (uint32_t i = 0; i < rec->bins.size; i++) {
+		as_bin* bin = &rec->bins.entries[i];
+		as_operations_add_write(ops, bin->name, bin->valuep);
+		as_val_reserve(bin->valuep);
+	}
+}
+
+LOCAL_HELPER int
+_copy_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		uint64_t key_val)
+{
+	as_key src_key;
+	as_key dst_key;
+	as_record* rec = NULL;
+	as_error err;
+
+	_gen_key_ns(key_val, &src_key, cdata, cdata->namespace);
+
+	uint64_t start = cf_getus();
+	as_status status = aerospike_key_get(&cdata->client, &err,
+			&tdata->policies.read, &src_key, &rec);
+	uint64_t end = cf_getus();
+
+	if (status != AEROSPIKE_OK) {
+		if (status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+			cdata->read_miss_count++;
+		}
+		else if (status == AEROSPIKE_ERR_TIMEOUT) {
+			cdata->read_timeout_count++;
+		}
+		else {
+			cdata->read_error_count++;
+			if (cdata->debug) {
+				blog_error("CP read error: ns=%s set=%s key=%" PRIu64
+						" code=%d message=%s", cdata->namespace, cdata->set,
+						key_val, status, err.message);
+			}
+		}
+
+		as_record_destroy(rec);
+		as_key_destroy(&src_key);
+		throttle(tdata, coord);
+		return -1;
+	}
+
+	_record_read(cdata, end - start);
+	_gen_key_ns(key_val, &dst_key, cdata, cdata->to_namespace);
+
+	as_operations ops;
+	_build_copy_ops(&ops, rec);
+	as_record* result_rec = NULL;
+
+	start = cf_getus();
+	status = aerospike_key_operate(&cdata->client, &err,
+			&tdata->policies.operate, &dst_key, &ops, &result_rec);
+	end = cf_getus();
+
+	if (status == AEROSPIKE_OK) {
+		_record_write(cdata, end - start);
+	}
+	else if (status == AEROSPIKE_ERR_TIMEOUT) {
+		cdata->write_timeout_count++;
+	}
+	else {
+		cdata->write_error_count++;
+		if (cdata->debug) {
+			blog_error("CP write error: ns=%s set=%s key=%" PRIu64
+					" code=%d message=%s", cdata->to_namespace, cdata->set,
+					key_val, status, err.message);
+		}
+	}
+
+	as_operations_destroy(&ops);
+	as_record_destroy(result_rec);
+	as_record_destroy(rec);
+	as_key_destroy(&dst_key);
+	as_key_destroy(&src_key);
+	throttle(tdata, coord);
+	return status == AEROSPIKE_OK ? 0 : -1;
+}
+
+LOCAL_HELPER void
+linear_copy(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	uint64_t start_key;
+	uint64_t end_key;
+	_calculate_subrange(stage->key_start, stage->key_end, tdata->t_idx,
+			cdata->transaction_worker_threads, &start_key, &end_key);
+
+	for (uint64_t key = start_key; tdata->do_work && key < end_key; key++) {
+		_copy_record_sync(tdata, cdata, coord, key);
+	}
+
 	thr_coordinator_complete(coord);
 }
 
@@ -2148,6 +2262,9 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete(tdata, cdata, coord, stage);
 			break;
+		case WORKLOAD_TYPE_CP:
+			linear_copy(tdata, cdata, coord, stage);
+			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt(tdata, cdata, coord, stage);
 			break;
@@ -2203,6 +2320,9 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
 			break;
+		case WORKLOAD_TYPE_CP:
+			thr_coordinator_complete(coord);
+			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt_async(tdata, cdata, coord, stage, &adata_q);
 			break;
@@ -2257,7 +2377,7 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	if (stage->workload.type == WORKLOAD_TYPE_CDT) {
 		_init_cdt_stage(cdata, tdata, stage);
 	}
-	else if (!stage->random) {
+	else if (!stage->random && stage->workload.type != WORKLOAD_TYPE_CP) {
 
 		if (workload_contains_writes(&stage->workload)) {
 			if (stage->workload.write_all_pct != 0) {
@@ -2327,7 +2447,7 @@ terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	if (stage->workload.type == WORKLOAD_TYPE_CDT) {
 		_terminate_cdt_stage(tdata);
 	}
-	else if (!stage->random) {
+	else if (!stage->random && stage->workload.type != WORKLOAD_TYPE_CP) {
 		if (stage->workload.write_all_pct != 0) {
 			as_record_destroy(&tdata->fixed_full_record);
 		}

@@ -26,8 +26,9 @@ int
 initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 		hdr_timespec* start_timespec) {
 	int ret = 0;
-	bool has_writes = stages_contain_writes(&cdata->stages);
-	bool has_reads = stages_contain_reads(&cdata->stages);
+	bool has_cp = stages_contain_cp(&cdata->stages);
+	bool has_writes = stages_contain_writes(&cdata->stages) || has_cp;
+	bool has_reads = stages_contain_reads(&cdata->stages) || has_cp;
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
 
 	cdata->histogram_period = args->histogram_period;
@@ -232,8 +233,9 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 void
 free_histograms(cdata_t* cdata, args_t* args)
 {
-	bool has_writes = stages_contain_writes(&cdata->stages);
-	bool has_reads = stages_contain_reads(&cdata->stages);
+	bool has_cp = stages_contain_cp(&cdata->stages);
+	bool has_writes = stages_contain_writes(&cdata->stages) || has_cp;
+	bool has_reads = stages_contain_reads(&cdata->stages) || has_cp;
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
 
 	if (args->latency) {
@@ -302,8 +304,9 @@ void
 record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 		hdr_timespec* start_timespec) {
 	static const int32_t ticks_per_half_distance = 5;
-	bool has_writes = stages_contain_writes(&cdata->stages);
-	bool has_reads = stages_contain_reads(&cdata->stages);
+	bool has_cp = stages_contain_cp(&cdata->stages);
+	bool has_writes = stages_contain_writes(&cdata->stages) || has_cp;
+	bool has_reads = stages_contain_reads(&cdata->stages) || has_cp;
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
 
 	// now record summary HDR hist if enabled
@@ -359,8 +362,9 @@ periodic_output_worker(void* udata)
 	thr_coord_t* coord = tdata->coord;
 
 	bool latency = cdata->latency;
-	bool has_writes = stages_contain_writes(&cdata->stages);
-	bool has_reads = stages_contain_reads(&cdata->stages);
+	bool has_cp = stages_contain_cp(&cdata->stages);
+	bool has_writes = stages_contain_writes(&cdata->stages) || has_cp;
+	bool has_reads = stages_contain_reads(&cdata->stages) || has_cp;
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
 	uint64_t gen_count = 0;
 	histogram_t* write_histogram = &cdata->write_histogram;

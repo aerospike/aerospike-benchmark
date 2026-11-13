@@ -19,4 +19,5 @@ Suite* synth_gen_suite(void);
 Suite* workload_parse_suite(void);
 Suite* cdt_ops_suite(void);
 Suite* gen_bench_suite(void);
+Suite* transaction_suite(void);
 

@@ -69,6 +69,7 @@ run_benchmark(args_t* args)
 	cdata_t data;
 	memset(&data, 0, sizeof(cdata_t));
 	data.namespace = args->namespace;
+	data.to_namespace = args->to_namespace;
 	data.set = args->set;
 	data.transaction_worker_threads = args->transaction_worker_threads;
 	data.compression_ratio = args->compression_ratio;
