@@ -323,6 +323,11 @@ void obj_spec_shallow_copy(obj_spec_t* dst, const obj_spec_t* src);
  */
 uint32_t obj_spec_n_bins(const obj_spec_t*);
 
+/*
+ * Returns true when every top-level bin in the object spec is a byte array.
+ */
+bool obj_spec_is_bytes_only(const obj_spec_t*);
+
 bool obj_spec_has_generators(const obj_spec_t*);
 
 bool obj_spec_has_bin_names(const obj_spec_t*);

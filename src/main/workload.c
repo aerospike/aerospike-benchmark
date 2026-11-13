@@ -328,6 +328,13 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->type = WORKLOAD_TYPE_D;
 		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
+	else if (strcmp(workload_str, "RMW") == 0) {
+		workload->type = WORKLOAD_TYPE_RMW;
+		workload->read_pct = 0.f;
+		workload->write_pct = 0.f;
+		workload->read_all_pct = 0.f;
+		workload->write_all_pct = 0.f;
+	}
 	else if (workload_str[0] == 'C') {
 		if (_parse_cdt_workload(workload, workload_str) != 0) {
 			return -1;
@@ -417,6 +424,13 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			fprintf(stderr,
 					"Stage %d is a delete workload, so you cannot have random "
 					"records (set random to false)\n",
+					i + 1);
+			ret = -1;
+		}
+
+		if (stage->workload.type == WORKLOAD_TYPE_RMW && stage->async) {
+			fprintf(stderr,
+					"Stage %d: RMW workload does not support async mode\n",
 					i + 1);
 			ret = -1;
 		}
@@ -553,6 +567,25 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 		else {
 			stage->write_bins = NULL;
 			stage->n_write_bins = 0;
+		}
+
+		if (stage->workload.type == WORKLOAD_TYPE_RMW &&
+				!obj_spec_is_bytes_only(&stage->obj_spec)) {
+			fprintf(stderr,
+					"Stage %d: RMW workload requires a byte-array object spec "
+					"(e.g. --object-spec B200)\n",
+					i + 1);
+			ret = -1;
+		}
+
+		if (stage->workload.type == WORKLOAD_TYPE_RMW &&
+				(stage_def->read_bins_str != NULL ||
+				 stage_def->write_bins_str != NULL)) {
+			fprintf(stderr,
+					"Stage %d: RMW workload operates on the first bin only; "
+					"--read-bins and --write-bins are not supported\n",
+					i + 1);
+			ret = -1;
 		}
 
 		if (ret == 0 && stage->workload.type == WORKLOAD_TYPE_CDT) {
@@ -701,6 +734,16 @@ bool stages_contain_udfs(const stages_t* stages)
 	return false;
 }
 
+bool stages_contain_rmw(const stages_t* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (stages->stages[i].workload.type == WORKLOAD_TYPE_RMW) {
+			return true;
+		}
+	}
+	return false;
+}
+
 uint64_t stage_gen_random_key(const stage_t* stage, as_random* random)
 {
 	return gen_rand_range_64(random, stage->key_end - stage->key_start) +
@@ -728,6 +771,7 @@ void stages_print(const stages_t* stages)
 		"DB",
 		"RUF",
 		"RUD",
+		"RMW",
 		"C"
 	};
 

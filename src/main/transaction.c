@@ -63,6 +63,7 @@ LOCAL_HELPER uint32_t _random_fp(as_random*);
 LOCAL_HELPER void _record_read(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_write(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_udf(cdata_t* cdata, uint64_t dt_us);
+LOCAL_HELPER void _record_rmw(cdata_t* cdata, uint64_t dt_us);
 
 // Read/Write singular/batch synchronous operations
 LOCAL_HELPER int _write_record_sync(tdata_t* tdata, cdata_t* cdata,
@@ -75,6 +76,9 @@ LOCAL_HELPER int _apply_udf_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* co
 		const stage_t* stage, as_key* key);
 LOCAL_HELPER int _batch_write_record_sync(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, as_batch_records* records);
+LOCAL_HELPER int _rmw_record_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, as_key* key,
+		as_random* random);
 
 // Read/Write singular/batch asynchronous operations
 LOCAL_HELPER int _write_record_async(as_key* key, as_record* rec,
@@ -120,6 +124,8 @@ LOCAL_HELPER void random_write(tdata_t* tdata, cdata_t* cdata,
 LOCAL_HELPER void random_udf(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void random_delete(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_rmw_workload(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 
 // Synchronous workload methods
@@ -304,6 +310,18 @@ _record_udf(cdata_t* cdata, uint64_t dt_us)
 	cdata->udf_count++;
 }
 
+LOCAL_HELPER void
+_record_rmw(cdata_t* cdata, uint64_t dt_us)
+{
+	if (cdata->latency) {
+		hdr_record_value_atomic(cdata->rmw_hdr, dt_us);
+	}
+	if (cdata->histogram_output != NULL || cdata->hdr_comp_rmw_output != NULL) {
+		histogram_incr(&cdata->rmw_histogram, dt_us);
+	}
+	cdata->rmw_count++;
+}
+
 
 /******************************************************************************
  * Read/Write singular/batch synchronous operations
@@ -374,6 +392,92 @@ _batch_write_record_sync(tdata_t* tdata, cdata_t* cdata,
 					"message=%s",
 					cdata->namespace, cdata->set, cdata->bin_name, status,
 					err.message);
+		}
+	}
+
+	throttle(tdata, coord);
+	return status;
+}
+
+LOCAL_HELPER int
+_rmw_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, as_key* key, as_random* random)
+{
+	as_record* rec = NULL;
+	as_error err;
+	const char* bin_name = stage->bin_names[0];
+
+	uint64_t start = cf_getus();
+	as_status status = aerospike_key_get(&cdata->client, &err,
+			&tdata->policies.read, key, &rec);
+
+	if (status != AEROSPIKE_OK) {
+		if (status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+			cdata->read_miss_count++;
+		}
+		else if (status == AEROSPIKE_ERR_TIMEOUT) {
+			cdata->rmw_timeout_count++;
+		}
+		else {
+			cdata->rmw_error_count++;
+
+			if (cdata->debug) {
+				blog_error("RMW read error: ns=%s set=%s key=%lld bin=%s "
+						"code=%d message=%s",
+						cdata->namespace, cdata->set,
+						(long long) key->value.integer.value, bin_name,
+						status, err.message);
+			}
+		}
+
+		if (rec != NULL) {
+			as_record_destroy(rec);
+		}
+		throttle(tdata, coord);
+		return status;
+	}
+
+	as_bytes* bytes = as_record_get_bytes(rec, bin_name);
+	if (bytes == NULL || as_bytes_size(bytes) == 0) {
+		cdata->rmw_error_count++;
+		as_record_destroy(rec);
+		throttle(tdata, coord);
+		return AEROSPIKE_ERR_PARAM;
+	}
+
+	uint8_t* raw = as_bytes_get(bytes);
+	uint32_t len = as_bytes_size(bytes);
+	uint32_t byte_idx = as_random_next_uint32(random) % len;
+	uint8_t bit_mask = (uint8_t) (1u <<
+			(as_random_next_uint32(random) % 8));
+	raw[byte_idx] ^= bit_mask;
+
+	as_policy_write rmw_write_policy;
+	as_policy_write_copy(&tdata->policies.write, &rmw_write_policy);
+	rmw_write_policy.gen = AS_POLICY_GEN_EQ;
+
+	status = aerospike_key_put(&cdata->client, &err, &rmw_write_policy, key, rec);
+	uint64_t end = cf_getus();
+	as_record_destroy(rec);
+
+	if (status == AEROSPIKE_OK) {
+		_record_rmw(cdata, end - start);
+	}
+	else if (status == AEROSPIKE_ERR_RECORD_GENERATION) {
+		cdata->rmw_gen_error_count++;
+	}
+	else if (status == AEROSPIKE_ERR_TIMEOUT) {
+		cdata->rmw_timeout_count++;
+	}
+	else {
+		cdata->rmw_error_count++;
+
+		if (cdata->debug) {
+			blog_error("RMW write error: ns=%s set=%s key=%lld bin=%s "
+					"code=%d message=%s",
+					cdata->namespace, cdata->set,
+					(long long) key->value.integer.value, bin_name,
+					status, err.message);
 		}
 	}
 
@@ -1243,6 +1347,22 @@ LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 		else {
 			random_delete(tdata, cdata, coord, stage);
 		}
+	}
+}
+
+LOCAL_HELPER void
+random_rmw_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	thr_coordinator_complete(coord);
+
+	while (tdata->do_work) {
+		as_key key;
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+		_gen_key(key_val, &key, cdata);
+
+		_rmw_record_sync(tdata, cdata, coord, stage, &key, tdata->random);
+		as_key_destroy(&key);
 	}
 }
 
@@ -2148,6 +2268,9 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete(tdata, cdata, coord, stage);
 			break;
+		case WORKLOAD_TYPE_RMW:
+			random_rmw_workload(tdata, cdata, coord, stage);
+			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt(tdata, cdata, coord, stage);
 			break;
@@ -2202,6 +2325,10 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			break;
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
+			break;
+		case WORKLOAD_TYPE_RMW:
+			// Sync-only; stage validation rejects this combination.
+			thr_coordinator_complete(coord);
 			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt_async(tdata, cdata, coord, stage, &adata_q);

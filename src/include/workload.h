@@ -40,6 +40,8 @@ typedef enum {
 	WORKLOAD_TYPE_RUF,
 	// random read/update/delete workload
 	WORKLOAD_TYPE_RUD,
+	// random read-modify-write workload (byte arrays, first bin, gen-checked put)
+	WORKLOAD_TYPE_RMW,
 	// random collection data type (list/map) operation workload
 	WORKLOAD_TYPE_CDT
 } workload_type_t;
@@ -231,6 +233,7 @@ static inline bool workload_is_random(const workload_t* workload)
 		workload->type == WORKLOAD_TYPE_RR ||
 		workload->type == WORKLOAD_TYPE_RUF ||
 		workload->type == WORKLOAD_TYPE_RUD ||
+		workload->type == WORKLOAD_TYPE_RMW ||
 		workload->type == WORKLOAD_TYPE_CDT;
 }
 
@@ -245,6 +248,10 @@ static inline bool workload_contains_reads(const workload_t* workload)
 
 static inline bool workload_contains_writes(const workload_t* workload)
 {
+	if (workload->type == WORKLOAD_TYPE_RMW) {
+		return false;
+	}
+
 	return (workload->type != WORKLOAD_TYPE_RU || workload->read_pct != 100) &&
 		(workload->type != WORKLOAD_TYPE_RR || workload->read_pct != 100) &&
 		(workload->type != WORKLOAD_TYPE_RUF || workload->write_pct != 0) &&
@@ -292,6 +299,7 @@ static inline bool workload_is_infinite(const workload_t* workload)
 		workload->type == WORKLOAD_TYPE_RR ||
 		workload->type == WORKLOAD_TYPE_RUF ||
 		workload->type == WORKLOAD_TYPE_RUD ||
+		workload->type == WORKLOAD_TYPE_RMW ||
 		workload->type == WORKLOAD_TYPE_CDT;
 }
 
@@ -351,6 +359,11 @@ bool stages_contain_reads(const stages_t*);
  * returns true if any of the stages will perform UDF ops
  */
 bool stages_contain_udfs(const stages_t*);
+
+/*
+ * returns true if any stage runs the random read-modify-write workload
+ */
+bool stages_contain_rmw(const stages_t*);
 
 /*
  * generates a random key for the stage

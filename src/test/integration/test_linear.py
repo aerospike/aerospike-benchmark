@@ -17,3 +17,10 @@ def test_linear_write_start_key_async():
 	lib.run_benchmark(["--workload", "I", "--start-key", "1000", "--keys", "1000", "--async"])
 	lib.check_for_range(1000, 2000)
 
+def test_rmw_workload_sync():
+	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100",
+			"--object-spec", "payload=B200"])
+	lib.run_benchmark(["--duration", "1", "--workload", "RMW",
+			"--start-key", "0", "--keys", "100",
+			"--object-spec", "payload=B200"], do_reset=False)
+

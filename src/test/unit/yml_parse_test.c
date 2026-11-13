@@ -56,6 +56,14 @@ static void assert_workloads_eq(const stages_t* parsed,
 			ck_assert_uint_eq(a->workload.cdt_cap, b->workload.cdt_cap);
 			ck_assert_uint_eq(a->workload.cdt_read_k, b->workload.cdt_read_k);
 		}
+		if (a->workload.type == WORKLOAD_TYPE_RMW) {
+			ck_assert_float_eq(a->workload.read_pct, b->workload.read_pct);
+			ck_assert_float_eq(a->workload.write_pct, b->workload.write_pct);
+			ck_assert_float_eq(a->workload.read_all_pct,
+					b->workload.read_all_pct);
+			ck_assert_float_eq(a->workload.write_all_pct,
+					b->workload.write_all_pct);
+		}
 
 		char bufa[1024];
 		char bufb[1024];
@@ -827,6 +835,44 @@ DEFINE_TEST(test_workload_db,
 			"I4"
 		});
 
+DEFINE_TEST(test_workload_rmw,
+		"- stage: 1\n"
+		"  desc: \"rmw test\"\n"
+		"  duration: 20\n"
+		"  workload: RMW\n"
+		"  object-spec: payload=B200\n",
+		((stages_t) {
+			(stage_t[]) {{
+				.duration = 20,
+				.desc = "rmw test",
+				.tps = 0,
+				.ttl = 0,
+				.key_start = 1,
+				.key_end = 100001,
+				.pause = 0,
+				.batch_size = 1,
+				.batch_read_size = 1,
+				.batch_write_size = 1,
+				.batch_delete_size = 1,
+				.async = false,
+				.random = false,
+				.workload = (workload_t) {
+					.type = WORKLOAD_TYPE_RMW,
+					.read_pct = 0.f,
+					.write_pct = 0.f,
+					.read_all_pct = 0.f,
+					.write_all_pct = 0.f
+				},
+				.read_bins = NULL,
+				.write_bins = NULL
+			},},
+			1,
+			true
+		}),
+		(char*[]) {
+			"payload=B200"
+		});
+
 
 DEFINE_UDF_TEST(test_workload_rud_default,
 		"- stage: 1\n"
@@ -1412,6 +1458,7 @@ yaml_parse_suite(void)
 	tcase_add_test(tc_simple, test_workload_rud_default);
 	tcase_add_test(tc_simple, test_workload_rud_pct);
 	tcase_add_test(tc_simple, test_workload_db);
+	tcase_add_test(tc_simple, test_workload_rmw);
 	tcase_add_test(tc_simple, test_obj_spec);
 	tcase_add_test(tc_simple, test_read_bins);
 	tcase_add_test(tc_simple, test_write_bins);

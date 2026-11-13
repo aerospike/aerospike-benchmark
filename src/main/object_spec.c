@@ -433,6 +433,26 @@ obj_spec_n_bins(const struct obj_spec_s* obj_spec)
 }
 
 bool
+obj_spec_is_bytes_only(const obj_spec_t* obj_spec)
+{
+	uint32_t n_bins = obj_spec_n_bins(obj_spec);
+
+	if (n_bins == 0 || obj_spec->bin_specs == NULL) {
+		return false;
+	}
+
+	for (uint32_t i = 0; i < n_bins; i++) {
+		const struct bin_spec_s* bin_spec = obj_spec_bin_spec(obj_spec, i);
+
+		if ((bin_spec->type & BIN_SPEC_TYPE_MASK) != BIN_SPEC_TYPE_BYTES) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool
 obj_spec_has_generators(const obj_spec_t* obj_spec)
 {
 	return obj_spec->has_gen;
