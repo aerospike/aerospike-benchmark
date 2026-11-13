@@ -98,12 +98,30 @@ START_TEST(existing_workloads_unchanged)
 }
 END_TEST
 
+START_TEST(get_header_workload)
+{
+	workload_t w;
+	ck_assert_int_eq(parse_workload_type(&w, "GH"), 0);
+	ck_assert_int_eq(w.type, WORKLOAD_TYPE_GH);
+	ck_assert_float_eq(w.read_pct, 0);
+	ck_assert_float_eq(w.write_pct, 0);
+	ck_assert(workload_is_random(&w));
+	ck_assert(workload_is_infinite(&w));
+	ck_assert(!workload_contains_reads(&w));
+	ck_assert(!workload_contains_writes(&w));
+	ck_assert(!workload_contains_udfs(&w));
+	ck_assert(!workload_contains_deletes(&w));
+	ck_assert_int_ne(parse_workload_type(&w, "GH,"), 0);
+}
+END_TEST
+
 
 Suite*
 workload_parse_suite(void)
 {
 	Suite* s;
 	TCase* tc_cdt;
+	TCase* tc_gh;
 
 	s = suite_create("Workload Parse");
 
@@ -135,6 +153,11 @@ workload_parse_suite(void)
 	tcase_add_test(tc_cdt, cdt_reads_writes_flags);
 	tcase_add_test(tc_cdt, existing_workloads_unchanged);
 	suite_add_tcase(s, tc_cdt);
+
+	tc_gh = tcase_create("Get Header");
+	tcase_add_checked_fixture(tc_gh, simple_setup, simple_teardown);
+	tcase_add_test(tc_gh, get_header_workload);
+	suite_add_tcase(s, tc_gh);
 
 	return s;
 }

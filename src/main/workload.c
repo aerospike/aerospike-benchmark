@@ -328,6 +328,13 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->type = WORKLOAD_TYPE_D;
 		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
+	else if (strcmp(workload_str, "GH") == 0) {
+		workload->type = WORKLOAD_TYPE_GH;
+		workload->read_pct = 0.f;
+		workload->write_pct = 0.f;
+		workload->read_all_pct = 0.f;
+		workload->write_all_pct = 0.f;
+	}
 	else if (workload_str[0] == 'C') {
 		if (_parse_cdt_workload(workload, workload_str) != 0) {
 			return -1;
@@ -417,6 +424,13 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 			fprintf(stderr,
 					"Stage %d is a delete workload, so you cannot have random "
 					"records (set random to false)\n",
+					i + 1);
+			ret = -1;
+		}
+
+		if (stage->workload.type == WORKLOAD_TYPE_GH && stage->async) {
+			fprintf(stderr,
+					"Stage %d: GH workload does not support async mode\n",
 					i + 1);
 			ret = -1;
 		}
@@ -701,6 +715,16 @@ bool stages_contain_udfs(const stages_t* stages)
 	return false;
 }
 
+bool stages_contain_gh(const stages_t* stages)
+{
+	for (uint32_t i = 0; i < stages->n_stages; i++) {
+		if (stages->stages[i].workload.type == WORKLOAD_TYPE_GH) {
+			return true;
+		}
+	}
+	return false;
+}
+
 uint64_t stage_gen_random_key(const stage_t* stage, as_random* random)
 {
 	return gen_rand_range_64(random, stage->key_end - stage->key_start) +
@@ -728,6 +752,7 @@ void stages_print(const stages_t* stages)
 		"DB",
 		"RUF",
 		"RUD",
+		"GH",
 		"C"
 	};
 

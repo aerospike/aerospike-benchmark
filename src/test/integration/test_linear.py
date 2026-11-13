@@ -17,3 +17,8 @@ def test_linear_write_start_key_async():
 	lib.run_benchmark(["--workload", "I", "--start-key", "1000", "--keys", "1000", "--async"])
 	lib.check_for_range(1000, 2000)
 
+def test_get_header_workload_sync():
+	lib.run_benchmark(["--workload", "I", "--start-key", "0", "--keys", "100"])
+	lib.run_benchmark(["--duration", "1", "--workload", "GH",
+			"--start-key", "0", "--keys", "100"], do_reset=False)
+

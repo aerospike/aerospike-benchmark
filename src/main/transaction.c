@@ -63,6 +63,9 @@ LOCAL_HELPER uint32_t _random_fp(as_random*);
 LOCAL_HELPER void _record_read(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_write(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_udf(cdata_t* cdata, uint64_t dt_us);
+LOCAL_HELPER void _record_gh(cdata_t* cdata, uint64_t dt_us, bool hit);
+LOCAL_HELPER int _gh_record_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, as_key* key);
 
 // Read/Write singular/batch synchronous operations
 LOCAL_HELPER int _write_record_sync(tdata_t* tdata, cdata_t* cdata,
@@ -120,6 +123,8 @@ LOCAL_HELPER void random_write(tdata_t* tdata, cdata_t* cdata,
 LOCAL_HELPER void random_udf(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void random_delete(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_gh_workload(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 
 // Synchronous workload methods
@@ -302,6 +307,64 @@ _record_udf(cdata_t* cdata, uint64_t dt_us)
 		histogram_incr(&cdata->udf_histogram, dt_us);
 	}
 	cdata->udf_count++;
+}
+
+LOCAL_HELPER void
+_record_gh(cdata_t* cdata, uint64_t dt_us, bool hit)
+{
+	if (cdata->latency) {
+		hdr_record_value_atomic(cdata->gh_hdr, dt_us);
+	}
+	if (cdata->histogram_output != NULL || cdata->hdr_comp_gh_output != NULL) {
+		histogram_incr(&cdata->gh_histogram, dt_us);
+	}
+
+	if (hit) {
+		cdata->gh_hit_count++;
+	}
+	else {
+		cdata->gh_miss_count++;
+	}
+}
+
+LOCAL_HELPER int
+_gh_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		as_key* key)
+{
+	as_error err;
+	as_record* rec = NULL;
+
+	uint64_t start = cf_getus();
+	as_status status = aerospike_key_exists(&cdata->client, &err,
+			&tdata->policies.read, key, &rec);
+	uint64_t end = cf_getus();
+
+	if (rec != NULL) {
+		as_record_destroy(rec);
+	}
+
+	if (status == AEROSPIKE_OK) {
+		_record_gh(cdata, end - start, true);
+	}
+	else if (status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+		_record_gh(cdata, end - start, false);
+	}
+	else if (status == AEROSPIKE_ERR_TIMEOUT) {
+		cdata->gh_timeout_count++;
+	}
+	else {
+		cdata->gh_error_count++;
+
+		if (cdata->debug) {
+			blog_error("GH error: ns=%s set=%s key=%lld code=%d message=%s",
+					cdata->namespace, cdata->set,
+					(long long) key->value.integer.value,
+					status, err.message);
+		}
+	}
+
+	throttle(tdata, coord);
+	return status;
 }
 
 
@@ -1246,6 +1309,22 @@ LOCAL_HELPER void random_read_write_delete(tdata_t* tdata, cdata_t* cdata,
 	}
 }
 
+LOCAL_HELPER void
+random_gh_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	thr_coordinator_complete(coord);
+
+	while (tdata->do_work) {
+		as_key key;
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+		_gen_key(key_val, &key, cdata);
+
+		_gh_record_sync(tdata, cdata, coord, &key);
+		as_key_destroy(&key);
+	}
+}
+
 /******************************************************************************
  * Asynchronous workload helper methods
  *****************************************************************************/
@@ -2148,6 +2227,9 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete(tdata, cdata, coord, stage);
 			break;
+		case WORKLOAD_TYPE_GH:
+			random_gh_workload(tdata, cdata, coord, stage);
+			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt(tdata, cdata, coord, stage);
 			break;
@@ -2202,6 +2284,10 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 			break;
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
+			break;
+		case WORKLOAD_TYPE_GH:
+			// Sync-only; stage validation rejects this combination.
+			thr_coordinator_complete(coord);
 			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt_async(tdata, cdata, coord, stage, &adata_q);

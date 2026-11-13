@@ -89,6 +89,10 @@ run_benchmark(args_t* args)
 	atomic_init(&data.udf_count, 0);
 	atomic_init(&data.udf_timeout_count, 0);
 	atomic_init(&data.udf_error_count, 0);
+	atomic_init(&data.gh_hit_count, 0);
+	atomic_init(&data.gh_miss_count, 0);
+	atomic_init(&data.gh_timeout_count, 0);
+	atomic_init(&data.gh_error_count, 0);
 
 	time_t start_time;
 	hdr_timespec start_timespec;

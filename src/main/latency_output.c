@@ -29,6 +29,7 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 	bool has_writes = stages_contain_writes(&cdata->stages);
 	bool has_reads = stages_contain_reads(&cdata->stages);
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
+	bool has_gh = stages_contain_gh(&cdata->stages);
 
 	cdata->histogram_period = args->histogram_period;
 
@@ -84,12 +85,23 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			histogram_set_name(&cdata->udf_histogram, "udf_hist");
 			histogram_print_info(&cdata->udf_histogram, cdata->histogram_output);
 		}
+
+		if (has_gh) {
+			histogram_init(&cdata->gh_histogram, 3, 100, (rangespec_t[]) {
+					{ .upper_bound = 4000,   .bucket_width = 100  },
+					{ .upper_bound = 64000,  .bucket_width = 1000 },
+					{ .upper_bound = 128000, .bucket_width = 4000 }
+					});
+			histogram_set_name(&cdata->gh_histogram, "gh_hist");
+			histogram_print_info(&cdata->gh_histogram, cdata->histogram_output);
+		}
 	}
 
 	if (args->hdr_output) {
 		const static char write_output_prefix[] = "/write_";
 		const static char read_output_prefix[] = "/read_";
 		const static char udf_output_prefix[] = "/udf_";
+		const static char gh_output_prefix[] = "/gh_";
 		const static char compressed_output_suffix[] = ".hdrhist";
 		const static char text_output_suffix[] = ".txt";
 
@@ -212,6 +224,43 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 			as_string_builder_destroy(&txt_udf_output_b);
 		}
 
+		if (has_gh) {
+			size_t gh_output_size =
+				prefix_len + (sizeof(gh_output_prefix) - 1) +
+				UTC_STR_LEN + (sizeof(compressed_output_suffix) - 1) + 1;
+
+			as_string_builder cmp_gh_output_b;
+			as_string_builder txt_gh_output_b;
+			as_string_builder_inita(&cmp_gh_output_b, gh_output_size, false);
+			as_string_builder_inita(&txt_gh_output_b, gh_output_size, false);
+
+			as_string_builder_append(&cmp_gh_output_b, args->hdr_output);
+			as_string_builder_append(&cmp_gh_output_b, gh_output_prefix);
+			as_string_builder_append(&cmp_gh_output_b, utc_time);
+			as_string_builder_append(&txt_gh_output_b, cmp_gh_output_b.data);
+
+			as_string_builder_append(&cmp_gh_output_b,
+					compressed_output_suffix);
+			as_string_builder_append(&txt_gh_output_b, text_output_suffix);
+
+			cdata->hdr_comp_gh_output = fopen(cmp_gh_output_b.data, "a");
+			if (!cdata->hdr_comp_gh_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						cmp_gh_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			cdata->hdr_text_gh_output = fopen(txt_gh_output_b.data, "a");
+			if (!cdata->hdr_text_gh_output) {
+				fprintf(stderr, "Unable to open %s in append mode, reason: %s\n",
+						txt_gh_output_b.data, strerror(errno));
+				ret = -1;
+			}
+
+			as_string_builder_destroy(&cmp_gh_output_b);
+			as_string_builder_destroy(&txt_gh_output_b);
+		}
+
 		hdr_gettime(start_timespec);
 	}
 
@@ -225,6 +274,9 @@ initialize_histograms(cdata_t* cdata, args_t* args, time_t* start_time,
 		if (has_udfs) {
 			hdr_init(1, 1000000, 3, &cdata->udf_hdr);
 		}
+		if (has_gh) {
+			hdr_init(1, 1000000, 3, &cdata->gh_hdr);
+		}
 	}
 	return ret;
 }
@@ -235,6 +287,7 @@ free_histograms(cdata_t* cdata, args_t* args)
 	bool has_writes = stages_contain_writes(&cdata->stages);
 	bool has_reads = stages_contain_reads(&cdata->stages);
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
+	bool has_gh = stages_contain_gh(&cdata->stages);
 
 	if (args->latency) {
 		as_vector_destroy(&cdata->latency_percentiles);
@@ -249,6 +302,9 @@ free_histograms(cdata_t* cdata, args_t* args)
 		}
 		if (has_udfs) {
 			histogram_free(&cdata->udf_histogram);
+		}
+		if (has_gh) {
+			histogram_free(&cdata->gh_histogram);
 		}
 
 		if (args->histogram_output) {
@@ -283,6 +339,15 @@ free_histograms(cdata_t* cdata, args_t* args)
 				fclose(cdata->hdr_text_udf_output);
 			}
 		}
+
+		if (has_gh) {
+			if (cdata->hdr_comp_gh_output) {
+				fclose(cdata->hdr_comp_gh_output);
+			}
+			if (cdata->hdr_text_gh_output) {
+				fclose(cdata->hdr_text_gh_output);
+			}
+		}
 	}
 
 	if (args->latency || args->hdr_output) {
@@ -295,6 +360,9 @@ free_histograms(cdata_t* cdata, args_t* args)
 		if (has_udfs) {
 			hdr_close(cdata->udf_hdr);
 		}
+		if (has_gh) {
+			hdr_close(cdata->gh_hdr);
+		}
 	}
 }
 
@@ -305,6 +373,7 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 	bool has_writes = stages_contain_writes(&cdata->stages);
 	bool has_reads = stages_contain_reads(&cdata->stages);
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
+	bool has_gh = stages_contain_gh(&cdata->stages);
 
 	// now record summary HDR hist if enabled
 	if (args->hdr_output) {
@@ -348,6 +417,17 @@ record_summary_data(cdata_t* cdata, args_t* args, time_t start_time,
 			hdr_percentiles_print(cdata->udf_hdr, cdata->hdr_text_udf_output,
 					ticks_per_half_distance, 1., CLASSIC);
 		}
+
+		if (has_gh) {
+			hdr_log_write_header(&writer, cdata->hdr_comp_gh_output,
+					utc_time, start_timespec);
+
+			hdr_log_write(&writer, cdata->hdr_comp_gh_output,
+					start_timespec, &end_timespec, cdata->gh_hdr);
+
+			hdr_percentiles_print(cdata->gh_hdr, cdata->hdr_text_gh_output,
+					ticks_per_half_distance, 1., CLASSIC);
+		}
 	}
 }
 
@@ -362,10 +442,12 @@ periodic_output_worker(void* udata)
 	bool has_writes = stages_contain_writes(&cdata->stages);
 	bool has_reads = stages_contain_reads(&cdata->stages);
 	bool has_udfs = stages_contain_udfs(&cdata->stages);
+	bool has_gh = stages_contain_gh(&cdata->stages);
 	uint64_t gen_count = 0;
 	histogram_t* write_histogram = &cdata->write_histogram;
 	histogram_t* read_histogram = &cdata->read_histogram;
 	histogram_t* udf_histogram = &cdata->udf_histogram;
+	histogram_t* gh_histogram = &cdata->gh_histogram;
 	FILE* histogram_output = cdata->histogram_output;
 
 	struct timespec wake_up;
@@ -429,6 +511,11 @@ periodic_output_worker(void* udata)
 		uint64_t udf_current = atomic_exchange(&cdata->udf_count, 0);
 		uint64_t udf_timeout_current = atomic_exchange(&cdata->udf_timeout_count, 0);
 		uint64_t udf_error_current = atomic_exchange(&cdata->udf_error_count, 0);
+		uint64_t gh_hit_current = atomic_exchange(&cdata->gh_hit_count, 0);
+		uint64_t gh_miss_current = atomic_exchange(&cdata->gh_miss_count, 0);
+		uint64_t gh_timeout_current =
+			atomic_exchange(&cdata->gh_timeout_count, 0);
+		uint64_t gh_error_current = atomic_exchange(&cdata->gh_error_count, 0);
 
 		cdata->period_begin = time;
 
@@ -436,11 +523,16 @@ periodic_output_worker(void* udata)
 		uint64_t read_hit_tps = (uint64_t)((double)read_hit_current * 1000000 / elapsed + 0.5);
 		uint64_t read_miss_tps = (uint64_t)((double)read_miss_current * 1000000 / elapsed + 0.5);
 		uint64_t udf_tps = (uint64_t)((double)udf_current * 1000000 / elapsed + 0.5);
+		uint64_t gh_hit_tps =
+			(uint64_t)((double)gh_hit_current * 1000000 / elapsed + 0.5);
+		uint64_t gh_miss_tps =
+			(uint64_t)((double)gh_miss_current * 1000000 / elapsed + 0.5);
 
 		bool any_records = write_current + write_timeout_current +
 			write_error_current + read_hit_current + read_miss_current +
 			read_timeout_current + read_error_current + udf_current +
-			udf_timeout_current + udf_error_current != 0;
+			udf_timeout_current + udf_error_current + gh_hit_current +
+			gh_miss_current + gh_timeout_current + gh_error_current != 0;
 		if (any_records) {
 			blog_info("");
 			if (has_writes) {
@@ -461,12 +553,22 @@ periodic_output_worker(void* udata)
 						udf_tps, udf_tps, 0lu,
 						udf_timeout_current, udf_error_current);
 			}
+			if (has_gh) {
+				printf("gh(tps=%" PRId64 " (hit=%" PRId64 " miss=%" PRId64 ") "
+						"timeouts=%" PRId64 " errors=%" PRId64 ") ",
+						gh_hit_tps + gh_miss_tps, gh_hit_tps, gh_miss_tps,
+						gh_timeout_current, gh_error_current);
+			}
 			printf("total(tps=%" PRId64 " (hit=%" PRId64 " miss=%" PRId64 ") "
 					"timeouts=%" PRId64 " errors=%" PRId64 ")\n",
-					write_tps + read_hit_tps + read_miss_tps + udf_tps,
-					write_tps + read_hit_tps + udf_tps, read_miss_tps,
-					write_timeout_current + read_timeout_current + udf_timeout_current,
-					write_error_current + read_error_current + udf_error_current);
+					write_tps + read_hit_tps + read_miss_tps + udf_tps +
+						gh_hit_tps + gh_miss_tps,
+					write_tps + read_hit_tps + udf_tps + gh_hit_tps,
+					read_miss_tps + gh_miss_tps,
+					write_timeout_current + read_timeout_current +
+						udf_timeout_current + gh_timeout_current,
+					write_error_current + read_error_current + udf_error_current +
+						gh_error_current);
 		}
 
 		++gen_count;
@@ -495,6 +597,11 @@ periodic_output_worker(void* udata)
 						print_hdr_percentiles(cdata->udf_hdr,  "udf",  elapsed_s,
 								&cdata->latency_percentiles, stdout);
 					}
+
+					if (has_gh) {
+						print_hdr_percentiles(cdata->gh_hdr, "gh", elapsed_s,
+								&cdata->latency_percentiles, stdout);
+					}
 				}
 				if (histogram_output != NULL) {
 					if (first_log_of_stage) {
@@ -514,6 +621,11 @@ periodic_output_worker(void* udata)
 
 					if (has_udfs) {
 						histogram_print_clear(udf_histogram, elapsed_hist,
+								histogram_output);
+					}
+
+					if (has_gh) {
+						histogram_print_clear(gh_histogram, elapsed_hist,
 								histogram_output);
 					}
 

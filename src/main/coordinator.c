@@ -343,5 +343,9 @@ clear_cdata_counts(cdata_t* cdata)
 	cdata->udf_count = 0;
 	cdata->udf_timeout_count = 0;
 	cdata->udf_error_count = 0;
+	cdata->gh_hit_count = 0;
+	cdata->gh_miss_count = 0;
+	cdata->gh_timeout_count = 0;
+	cdata->gh_error_count = 0;
 }
 
