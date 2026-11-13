@@ -644,11 +644,11 @@ print_usage(const char* program)
 	printf("   0 (adopt default TTL value from namespace) and >0 (the TTL of the record in seconds).\n");
 	printf("\n");
 
-	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RR, RUF, RUD, C, CI, CK), 0 for finite (I, DB)\n");
+	printf("-t --duration <seconds> # Default: 10 for infinite workload (RU, RR, RUF, RUD, E, C, CI, CK), 0 for finite (I, DB)\n");
 	printf("    Specifies the minimum amount of time the benchmark will run for.\n");
 	printf("\n");
 
-	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB |\n");
+	printf("-w --workload I | RU,<read percent> | RR,<read percent> | RUF,<read percent>,<write percent> | RUD,<read percent>,<write percent> | DB | E,<read percent> |\n");
 	printf("              C[I|K][,<read percent>[,<cap>[,<read count>]]]  # Default: RU,50\n");
 	printf("   Desired workload.\n");
 	printf("   -w I         : Linear 'insert' workload, initializing each key in the key range.\n");
@@ -658,6 +658,8 @@ print_usage(const char* program)
 	printf("                  Note: -ufn and -upn are required in this mode.\n");
 	printf("   -w DB        : Bin delete workload.\n");
 	printf("   -w RUD,20,40 : Random read/update/delete workload with 20%% reads, 40%% writes, and 60%% deletes.\n");
+	printf("   -w E,80      : Random expression workload with 80%% computed reads and 20%% expression writes.\n");
+	printf("                  The first object-spec bin must be an integer. Synchronous only.\n");
 	printf("   -w C,80,100,10   : Random CDT (list/map) workload with 80%% reads. Each write appends the\n");
 	printf("                      generated list (list_append_items) or puts the generated map\n");
 	printf("                      (map_put_items) into every list/map bin of the object spec, then\n");

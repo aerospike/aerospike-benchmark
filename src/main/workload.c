@@ -328,6 +328,39 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->type = WORKLOAD_TYPE_D;
 		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
+	else if (strncmp(workload_str, "E", 1) == 0) {
+		float read_pct;
+
+		if (workload_str[1] == '\0') {
+			read_pct = WORKLOAD_E_DEFAULT_READ_PCT;
+		}
+		else if (workload_str[1] == ',') {
+			as_vector pct_vec;
+			as_vector_init(&pct_vec, sizeof(float), 1);
+			if (_parse_workload_distr(workload_str + 2, &pct_vec) < 0) {
+				as_vector_destroy(&pct_vec);
+				return -1;
+			}
+			if (pct_vec.size != 1) {
+				fprintf(stderr, "Expected 1 percentage to follow E, but "
+						"found %d\n", pct_vec.size);
+				as_vector_destroy(&pct_vec);
+				return -1;
+			}
+			read_pct = *(float*) as_vector_get(&pct_vec, 0);
+			as_vector_destroy(&pct_vec);
+		}
+		else {
+			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+			return -1;
+		}
+
+		workload->type = WORKLOAD_TYPE_E;
+		workload->read_pct = read_pct;
+		workload->write_pct = 100 - read_pct;
+		workload->read_all_pct = 0.f;
+		workload->write_all_pct = 0.f;
+	}
 	else if (workload_str[0] == 'C') {
 		if (_parse_cdt_workload(workload, workload_str) != 0) {
 			return -1;
@@ -410,6 +443,12 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 
 		if (parse_workload_type(&stage->workload, stage_def->workload_str)
 				!= 0) {
+			ret = -1;
+		}
+
+		if (stage->workload.type == WORKLOAD_TYPE_E && stage->async) {
+			fprintf(stderr, "Stage %d: E workload is not supported in async "
+					"mode\n", i + 1);
 			ret = -1;
 		}
 
@@ -557,6 +596,13 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 
 		if (ret == 0 && stage->workload.type == WORKLOAD_TYPE_CDT) {
 			ret = _validate_cdt_stage(stage, stage_def, i + 1);
+		}
+
+		if (ret == 0 && stage->workload.type == WORKLOAD_TYPE_E &&
+				!obj_spec_first_bin_is_int(&stage->obj_spec)) {
+			fprintf(stderr, "Stage %d: E workload requires an integer first "
+					"bin\n", i + 1);
+			ret = -1;
 		}
 
 		if (workload_contains_udfs(&stage->workload)) {
@@ -728,6 +774,7 @@ void stages_print(const stages_t* stages)
 		"DB",
 		"RUF",
 		"RUD",
+		"E",
 		"C"
 	};
 

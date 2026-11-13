@@ -25,6 +25,7 @@
 
 #include <aerospike/aerospike.h>
 #include <aerospike/as_event.h>
+#include <aerospike/as_exp.h>
 #include <aerospike/as_password.h>
 #include <aerospike/as_policy.h>
 #include <aerospike/as_list_operations.h>
@@ -204,6 +205,8 @@ typedef struct threaddata_s {
 	uint16_t cdt_n_write_ops;
 	as_list_policy cdt_list_policy;
 	as_map_policy cdt_map_policy;
+
+	as_exp* exp;
 
 	as_policies policies;
 } tdata_t;

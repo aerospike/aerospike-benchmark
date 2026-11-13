@@ -40,6 +40,8 @@ typedef enum {
 	WORKLOAD_TYPE_RUF,
 	// random read/update/delete workload
 	WORKLOAD_TYPE_RUD,
+	// random expression read/write workload
+	WORKLOAD_TYPE_E,
 	// random collection data type (list/map) operation workload
 	WORKLOAD_TYPE_CDT
 } workload_type_t;
@@ -52,6 +54,8 @@ typedef enum {
 
 #define WORKLOAD_RU_DEFAULT_PCT 50.f
 #define WORKLOAD_RR_DEFAULT_PCT 50.f
+
+#define WORKLOAD_E_DEFAULT_READ_PCT 50.f
 
 #define WORKLOAD_RUF_DEFAULT_READ_PCT 40.f
 #define WORKLOAD_RUF_DEFAULT_WRITE_PCT 40.f
@@ -231,6 +235,7 @@ static inline bool workload_is_random(const workload_t* workload)
 		workload->type == WORKLOAD_TYPE_RR ||
 		workload->type == WORKLOAD_TYPE_RUF ||
 		workload->type == WORKLOAD_TYPE_RUD ||
+		workload->type == WORKLOAD_TYPE_E ||
 		workload->type == WORKLOAD_TYPE_CDT;
 }
 
@@ -240,6 +245,7 @@ static inline bool workload_contains_reads(const workload_t* workload)
 		(workload->type == WORKLOAD_TYPE_RR && workload->read_pct != 0) ||
 		(workload->type == WORKLOAD_TYPE_RUF && workload->read_pct != 0) ||
 		(workload->type == WORKLOAD_TYPE_RUD && workload->read_pct != 0) ||
+		(workload->type == WORKLOAD_TYPE_E && workload->read_pct != 0) ||
 		(workload->type == WORKLOAD_TYPE_CDT && workload->read_pct != 0);
 }
 
@@ -249,6 +255,7 @@ static inline bool workload_contains_writes(const workload_t* workload)
 		(workload->type != WORKLOAD_TYPE_RR || workload->read_pct != 100) &&
 		(workload->type != WORKLOAD_TYPE_RUF || workload->write_pct != 0) &&
 		(workload->type != WORKLOAD_TYPE_RUD || workload->write_pct != 0) &&
+		(workload->type != WORKLOAD_TYPE_E || workload->read_pct != 100) &&
 		(workload->type != WORKLOAD_TYPE_CDT || workload->read_pct != 100);
 }
 
@@ -292,6 +299,7 @@ static inline bool workload_is_infinite(const workload_t* workload)
 		workload->type == WORKLOAD_TYPE_RR ||
 		workload->type == WORKLOAD_TYPE_RUF ||
 		workload->type == WORKLOAD_TYPE_RUD ||
+		workload->type == WORKLOAD_TYPE_E ||
 		workload->type == WORKLOAD_TYPE_CDT;
 }
 

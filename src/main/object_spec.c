@@ -444,6 +444,20 @@ obj_spec_has_bin_names(const obj_spec_t* obj_spec)
 	return obj_spec->bin_names != NULL;
 }
 
+bool
+obj_spec_first_bin_is_int(const obj_spec_t* obj_spec)
+{
+	if (obj_spec->bin_specs == NULL || obj_spec->n_bin_specs == 0) {
+		return false;
+	}
+
+	const struct bin_spec_s* first = &obj_spec->bin_specs[0];
+	uint8_t type = first->type & BIN_SPEC_TYPE_MASK;
+	return type == BIN_SPEC_TYPE_INT ||
+			(type == BIN_SPEC_TYPE_GEN &&
+			synth_spec_out_type(&first->gen) == SYNTH_OUT_INT);
+}
+
 LOCAL_HELPER uint32_t
 _obj_spec_locate(const obj_spec_t* obj_spec, uint32_t bin_idx,
 		uint32_t* repeat_idx)

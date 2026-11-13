@@ -12,6 +12,7 @@
 
 #include <aerospike/aerospike_batch.h>
 #include <aerospike/aerospike_key.h>
+#include <aerospike/as_exp_operations.h>
 #include <citrusleaf/cf_clock.h>
 
 #include <benchmark.h>
@@ -63,6 +64,11 @@ LOCAL_HELPER uint32_t _random_fp(as_random*);
 LOCAL_HELPER void _record_read(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_write(cdata_t* cdata, uint64_t dt_us);
 LOCAL_HELPER void _record_udf(cdata_t* cdata, uint64_t dt_us);
+
+LOCAL_HELPER int _exp_read_record_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, as_key* key);
+LOCAL_HELPER int _exp_write_record_sync(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage, as_key* key);
 
 // Read/Write singular/batch synchronous operations
 LOCAL_HELPER int _write_record_sync(tdata_t* tdata, cdata_t* cdata,
@@ -120,6 +126,8 @@ LOCAL_HELPER void random_write(tdata_t* tdata, cdata_t* cdata,
 LOCAL_HELPER void random_udf(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 LOCAL_HELPER void random_delete(tdata_t* tdata, cdata_t* cdata,
+		thr_coord_t* coord, const stage_t* stage);
+LOCAL_HELPER void random_read_write_exp(tdata_t* tdata, cdata_t* cdata,
 		thr_coord_t* coord, const stage_t* stage);
 
 // Synchronous workload methods
@@ -302,6 +310,119 @@ _record_udf(cdata_t* cdata, uint64_t dt_us)
 		histogram_incr(&cdata->udf_histogram, dt_us);
 	}
 	cdata->udf_count++;
+}
+
+/******************************************************************************
+ * Expression workload helpers
+ *****************************************************************************/
+
+LOCAL_HELPER int
+_exp_read_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, as_key* key)
+{
+	as_error err;
+	as_record* rec = NULL;
+	as_operations ops;
+	as_operations_inita(&ops, 1);
+	as_operations_exp_read(&ops, "exp_out", tdata->exp, AS_EXP_READ_DEFAULT);
+
+	uint64_t start = cf_getus();
+	as_status status = aerospike_key_operate(&cdata->client, &err,
+			&tdata->policies.operate, key, &ops, &rec);
+	uint64_t end = cf_getus();
+
+	as_operations_destroy(&ops);
+	as_record_destroy(rec);
+
+	if (status == AEROSPIKE_OK) {
+		_record_read(cdata, end - start);
+		throttle(tdata, coord);
+		return 0;
+	}
+
+	if (status == AEROSPIKE_ERR_RECORD_NOT_FOUND) {
+		cdata->read_miss_count++;
+	}
+	else if (status == AEROSPIKE_ERR_TIMEOUT) {
+		cdata->read_timeout_count++;
+	}
+	else {
+		cdata->read_error_count++;
+		if (cdata->debug) {
+			blog_error("Expression read error: ns=%s set=%s key=%lld bin=%s "
+					"code=%d message=%s", cdata->namespace, cdata->set,
+					(long long) key->value.integer.value,
+					stage->bin_names[0], status, err.message);
+		}
+	}
+
+	throttle(tdata, coord);
+	return -1;
+}
+
+LOCAL_HELPER int
+_exp_write_record_sync(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage, as_key* key)
+{
+	as_error err;
+	as_record* rec = NULL;
+	as_operations ops;
+	as_operations_inita(&ops, 1);
+	as_operations_exp_write(&ops, stage->bin_names[0], tdata->exp,
+			AS_EXP_WRITE_DEFAULT);
+
+	uint64_t start = cf_getus();
+	as_status status = aerospike_key_operate(&cdata->client, &err,
+			&tdata->policies.operate, key, &ops, &rec);
+	uint64_t end = cf_getus();
+
+	as_operations_destroy(&ops);
+	as_record_destroy(rec);
+
+	if (status == AEROSPIKE_OK) {
+		_record_write(cdata, end - start);
+		throttle(tdata, coord);
+		return 0;
+	}
+
+	if (status == AEROSPIKE_ERR_TIMEOUT) {
+		cdata->write_timeout_count++;
+	}
+	else {
+		cdata->write_error_count++;
+		if (cdata->debug) {
+			blog_error("Expression write error: ns=%s set=%s key=%lld bin=%s "
+					"code=%d message=%s", cdata->namespace, cdata->set,
+					(long long) key->value.integer.value,
+					stage->bin_names[0], status, err.message);
+		}
+	}
+
+	throttle(tdata, coord);
+	return -1;
+}
+
+LOCAL_HELPER void
+random_read_write_exp(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
+		const stage_t* stage)
+{
+	uint32_t read_pct = _pct_to_fp(stage->workload.read_pct);
+	thr_coordinator_complete(coord);
+
+	while (tdata->do_work) {
+		as_key key;
+		uint64_t key_val = stage_gen_random_key(stage, tdata->random);
+		_gen_key(key_val, &key, cdata);
+
+		if (_random_fp(tdata->random) < read_pct) {
+			_exp_read_record_sync(tdata, cdata, coord, stage, &key);
+		}
+		else {
+			_exp_write_record_sync(tdata, cdata, coord, stage, &key);
+		}
+
+		as_key_destroy(&key);
+	}
 }
 
 
@@ -2148,6 +2269,9 @@ do_sync_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete(tdata, cdata, coord, stage);
 			break;
+		case WORKLOAD_TYPE_E:
+			random_read_write_exp(tdata, cdata, coord, stage);
+			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt(tdata, cdata, coord, stage);
 			break;
@@ -2203,6 +2327,9 @@ do_async_workload(tdata_t* tdata, cdata_t* cdata, thr_coord_t* coord,
 		case WORKLOAD_TYPE_RUD:
 			random_read_write_delete_async(tdata, cdata, coord, stage, &adata_q);
 			break;
+		case WORKLOAD_TYPE_E:
+			thr_coordinator_complete(coord);
+			break;
 		case WORKLOAD_TYPE_CDT:
 			random_cdt_async(tdata, cdata, coord, stage, &adata_q);
 			break;
@@ -2254,10 +2381,16 @@ init_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 				(1000000.f * n_threads) / stage->tps);
 	}
 
+	if (stage->workload.type == WORKLOAD_TYPE_E) {
+		as_exp_build(exp, as_exp_add(
+				as_exp_bin_int(stage->bin_names[0]), as_exp_int(1)));
+		tdata->exp = exp;
+	}
+
 	if (stage->workload.type == WORKLOAD_TYPE_CDT) {
 		_init_cdt_stage(cdata, tdata, stage);
 	}
-	else if (!stage->random) {
+	else if (!stage->random && stage->workload.type != WORKLOAD_TYPE_E) {
 
 		if (workload_contains_writes(&stage->workload)) {
 			if (stage->workload.write_all_pct != 0) {
@@ -2327,7 +2460,7 @@ terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 	if (stage->workload.type == WORKLOAD_TYPE_CDT) {
 		_terminate_cdt_stage(tdata);
 	}
-	else if (!stage->random) {
+	else if (!stage->random && stage->workload.type != WORKLOAD_TYPE_E) {
 		if (stage->workload.write_all_pct != 0) {
 			as_record_destroy(&tdata->fixed_full_record);
 		}
@@ -2342,6 +2475,10 @@ terminate_stage(const cdata_t* cdata, tdata_t* tdata, stage_t* stage)
 
 	if (workload_contains_deletes(&stage->workload)) {
 		as_record_destroy(&tdata->fixed_delete_record);
+	}
+
+	if (stage->workload.type == WORKLOAD_TYPE_E) {
+		as_exp_destroy(tdata->exp);
 	}
 }
 

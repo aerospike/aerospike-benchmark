@@ -822,6 +822,28 @@ START_TEST(test_gen_has_generators)
 }
 END_TEST
 
+START_TEST(test_first_bin_is_int)
+{
+	struct obj_spec_s o;
+
+	ck_assert_int_eq(obj_spec_parse(&o, "count=I4,S10"), 0);
+	ck_assert(obj_spec_first_bin_is_int(&o));
+	obj_spec_free(&o);
+
+	ck_assert_int_eq(obj_spec_parse(&o, "@int(1,10)"), 0);
+	ck_assert(obj_spec_first_bin_is_int(&o));
+	obj_spec_free(&o);
+
+	ck_assert_int_eq(obj_spec_parse(&o, "@timestamp"), 0);
+	ck_assert(obj_spec_first_bin_is_int(&o));
+	obj_spec_free(&o);
+
+	ck_assert_int_eq(obj_spec_parse(&o, "S10,I4"), 0);
+	ck_assert(!obj_spec_first_bin_is_int(&o));
+	obj_spec_free(&o);
+}
+END_TEST
+
 START_TEST(test_gen_resolve_names)
 {
 	struct obj_spec_s o;
@@ -1386,6 +1408,7 @@ obj_spec_suite(void)
 	tcase_add_ftest(tc_generators, test_gen_name_in_map);
 	tcase_add_test(tc_generators, test_gen_now);
 	tcase_add_test(tc_generators, test_gen_has_generators);
+	tcase_add_test(tc_generators, test_first_bin_is_int);
 	tcase_add_test(tc_generators, test_gen_resolve_names);
 	tcase_add_test(tc_generators, test_gen_resolve_clash);
 	tcase_add_test(tc_generators, test_gen_bin_accessors);

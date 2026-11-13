@@ -327,6 +327,11 @@ bool obj_spec_has_generators(const obj_spec_t*);
 
 bool obj_spec_has_bin_names(const obj_spec_t*);
 
+/*
+ * returns true if the first generated bin contains an integer
+ */
+bool obj_spec_first_bin_is_int(const obj_spec_t*);
+
 void obj_spec_bin_name(const obj_spec_t*, uint32_t bin_idx, const char* base,
 		as_bin_name out);
 

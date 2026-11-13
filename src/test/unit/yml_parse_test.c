@@ -1381,6 +1381,33 @@ DEFINE_FAILING_TEST(test_cdt_udf_fails,
 		"    module: m\n"
 		"    function: f");
 
+START_TEST(test_expression_workload)
+{
+	const char* path = TMP_FILE_LOC "/expression-workload.yml";
+	FILE* tmp = fopen(path, "w+");
+	ck_assert_ptr_ne(tmp, NULL);
+	fputs("- stage: 1\n"
+			"  workload: E,75\n"
+			"  object-spec: count=I4\n", tmp);
+	fclose(tmp);
+
+	args_t args;
+	_load_defaults(&args);
+	args.workload_stages_file = strdup(path);
+
+	ck_assert_int_eq(_load_defaults_post(&args), 0);
+	ck_assert_uint_eq(args.stages.n_stages, 1);
+	ck_assert_int_eq(args.stages.stages[0].workload.type, WORKLOAD_TYPE_E);
+	ck_assert_float_eq(args.stages.stages[0].workload.read_pct, 75);
+	ck_assert_float_eq(args.stages.stages[0].workload.write_pct, 25);
+	ck_assert_uint_eq(args.stages.stages[0].duration,
+			DEFAULT_RANDOM_DURATION);
+
+	_free_args(&args);
+	remove(path);
+}
+END_TEST
+
 
 Suite*
 yaml_parse_suite(void)
@@ -1431,6 +1458,7 @@ yaml_parse_suite(void)
 	tcase_add_test(tc_simple, test_cdt_read_bins_fails);
 	tcase_add_test(tc_simple, test_cdt_batch_fails);
 	tcase_add_test(tc_simple, test_cdt_udf_fails);
+	tcase_add_test(tc_simple, test_expression_workload);
 	suite_add_tcase(s, tc_simple);
 
 	return s;
