@@ -328,6 +328,33 @@ parse_workload_type(workload_t* workload, const char* workload_str)
 		workload->type = WORKLOAD_TYPE_D;
 		workload->write_all_pct = WORKLOAD_UNSET_PCT;
 	}
+	else if (strncmp(workload_str, "BE", 2) == 0) {
+		const char* bin_name = NULL;
+
+		if (workload_str[2] == ',') {
+			bin_name = workload_str + 3;
+			if (bin_name[0] == '\0' ||
+					strlen(bin_name) > AS_BIN_NAME_MAX_LEN) {
+				fprintf(stderr, "BE bin name must be between 1 and %d "
+						"characters\n", AS_BIN_NAME_MAX_LEN);
+				return -1;
+			}
+		}
+		else if (workload_str[2] != '\0') {
+			fprintf(stderr, "Unknown workload \"%s\"\n", workload_str);
+			return -1;
+		}
+
+		workload->type = WORKLOAD_TYPE_BE;
+		workload->read_pct = 100.f;
+		workload->write_pct = 0.f;
+		workload->read_all_pct = 0.f;
+		workload->write_all_pct = 0.f;
+		workload->exp_bin_name[0] = '\0';
+		if (bin_name != NULL) {
+			strcpy(workload->exp_bin_name, bin_name);
+		}
+	}
 	else if (workload_str[0] == 'C') {
 		if (_parse_cdt_workload(workload, workload_str) != 0) {
 			return -1;
@@ -410,6 +437,12 @@ stages_set_defaults_and_parse(stages_t* stages, const stage_defs_t* stage_defs,
 
 		if (parse_workload_type(&stage->workload, stage_def->workload_str)
 				!= 0) {
+			ret = -1;
+		}
+
+		if (stage->workload.type == WORKLOAD_TYPE_BE && stage->async) {
+			fprintf(stderr, "Stage %d: BE workload is not supported in async "
+					"mode\n", i + 1);
 			ret = -1;
 		}
 
@@ -728,6 +761,7 @@ void stages_print(const stages_t* stages)
 		"DB",
 		"RUF",
 		"RUD",
+		"BE",
 		"C"
 	};
 

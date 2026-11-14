@@ -40,6 +40,8 @@ typedef enum {
 	WORKLOAD_TYPE_RUF,
 	// random read/update/delete workload
 	WORKLOAD_TYPE_RUD,
+	// random bin-exists expression workload
+	WORKLOAD_TYPE_BE,
 	// random collection data type (list/map) operation workload
 	WORKLOAD_TYPE_CDT
 } workload_type_t;
@@ -93,6 +95,9 @@ typedef struct workload_s {
 	 */
 	float read_all_pct;
 	float write_all_pct;
+
+	// optional bin name for BE; empty means the first object-spec bin
+	as_bin_name exp_bin_name;
 
 	// CDT only; cdt_cap 0 means unbounded
 	cdt_mode_t cdt_mode;
@@ -231,6 +236,7 @@ static inline bool workload_is_random(const workload_t* workload)
 		workload->type == WORKLOAD_TYPE_RR ||
 		workload->type == WORKLOAD_TYPE_RUF ||
 		workload->type == WORKLOAD_TYPE_RUD ||
+		workload->type == WORKLOAD_TYPE_BE ||
 		workload->type == WORKLOAD_TYPE_CDT;
 }
 
@@ -240,11 +246,15 @@ static inline bool workload_contains_reads(const workload_t* workload)
 		(workload->type == WORKLOAD_TYPE_RR && workload->read_pct != 0) ||
 		(workload->type == WORKLOAD_TYPE_RUF && workload->read_pct != 0) ||
 		(workload->type == WORKLOAD_TYPE_RUD && workload->read_pct != 0) ||
+		workload->type == WORKLOAD_TYPE_BE ||
 		(workload->type == WORKLOAD_TYPE_CDT && workload->read_pct != 0);
 }
 
 static inline bool workload_contains_writes(const workload_t* workload)
 {
+	if (workload->type == WORKLOAD_TYPE_BE) {
+		return false;
+	}
 	return (workload->type != WORKLOAD_TYPE_RU || workload->read_pct != 100) &&
 		(workload->type != WORKLOAD_TYPE_RR || workload->read_pct != 100) &&
 		(workload->type != WORKLOAD_TYPE_RUF || workload->write_pct != 0) &&
@@ -292,6 +302,7 @@ static inline bool workload_is_infinite(const workload_t* workload)
 		workload->type == WORKLOAD_TYPE_RR ||
 		workload->type == WORKLOAD_TYPE_RUF ||
 		workload->type == WORKLOAD_TYPE_RUD ||
+		workload->type == WORKLOAD_TYPE_BE ||
 		workload->type == WORKLOAD_TYPE_CDT;
 }
 

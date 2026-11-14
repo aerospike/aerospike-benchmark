@@ -83,6 +83,26 @@ START_TEST(cdt_reads_writes_flags)
 }
 END_TEST
 
+START_TEST(bin_exists_workload)
+{
+	workload_t w;
+
+	ck_assert_int_eq(parse_workload_type(&w, "BE"), 0);
+	ck_assert_int_eq(w.type, WORKLOAD_TYPE_BE);
+	ck_assert_str_eq(w.exp_bin_name, "");
+	ck_assert(workload_contains_reads(&w));
+	ck_assert(!workload_contains_writes(&w));
+	ck_assert(workload_is_random(&w));
+	ck_assert(workload_is_infinite(&w));
+
+	ck_assert_int_eq(parse_workload_type(&w, "BE,my_bin"), 0);
+	ck_assert_str_eq(w.exp_bin_name, "my_bin");
+
+	ck_assert_int_ne(parse_workload_type(&w, "BE,"), 0);
+	ck_assert_int_ne(parse_workload_type(&w, "BE,abcdefghijklmnop"), 0);
+}
+END_TEST
+
 START_TEST(existing_workloads_unchanged)
 {
 	workload_t w;
@@ -133,6 +153,7 @@ workload_parse_suite(void)
 	tcase_add_test(tc_cdt, cdt_cap_overflow);
 	tcase_add_test(tc_cdt, cdt_garbage_after);
 	tcase_add_test(tc_cdt, cdt_reads_writes_flags);
+	tcase_add_test(tc_cdt, bin_exists_workload);
 	tcase_add_test(tc_cdt, existing_workloads_unchanged);
 	suite_add_tcase(s, tc_cdt);
 
