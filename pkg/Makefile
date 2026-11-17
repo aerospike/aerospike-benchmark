@@ -68,6 +68,7 @@ deb: prep
 		--version $(PKG_VERSION) \
 		--iteration $(DEB_ITERATION) \
 		--maintainer $(MAINTAINER) \
+		--depends "libssl3 | libssl3t64" \
 		--description $(DESCRIPTION) \
 		--license $(LICENSE) \
 		--url $(URL) \

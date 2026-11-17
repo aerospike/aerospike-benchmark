@@ -23,6 +23,30 @@ function assert_dynamic_deps() {
 	return $fail
 }
 
+function assert_system_openssl() {
+	local lib fail=0
+	local needed
+	needed=$(readelf -d target/asbench | awk '/\(NEEDED\)/ { gsub(/[][]/, "", $NF); print $NF }')
+	for lib in libssl libcrypto; do
+		if ! grep -q "^$lib\.so" <<< "$needed"; then
+			echo "asbench does not link $lib dynamically; it must load the host's OpenSSL" >&2
+			fail=1
+		fi
+	done
+
+	local above_floor
+	above_floor=$(objdump -T target/asbench | grep -oE 'OPENSSL_3\.[0-9]+' | sort -u | awk -F. '$2 > 0' | tr '\n' ' ')
+	if [ -n "$above_floor" ]; then
+		echo "asbench needs OpenSSL symbols above 3.0 ($above_floor), but its packages accept any OpenSSL 3. Build against OpenSSL 3.0, or declare the minimum in pkg/Makefile and raise the floor here" >&2
+		fail=1
+	fi
+
+	if [ "$fail" -eq 0 ]; then
+		echo "assert_system_openssl: asbench loads the host's OpenSSL"
+	fi
+	return $fail
+}
+
 function build_packages() {
 	if [ "${ENV_DISTRO:-}" = "" ]; then
 		echo "ENV_DISTRO is not set" >&2
@@ -41,6 +65,7 @@ function build_packages() {
 	make EVENT_LIB=libuv LIBUV_STATIC_PATH=/usr/local/lib VERSION="${VERSION}"
 
 	assert_dynamic_deps
+	assert_system_openssl
 
 	# package
 	cd "$GIT_DIR"/pkg || exit 1
