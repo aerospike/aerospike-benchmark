@@ -28,4 +28,4 @@ else
 	. "${1}"/bin/activate
 fi
 
-pytest -v src/test/integration
+pytest -v "${2:-src/test/integration}"
