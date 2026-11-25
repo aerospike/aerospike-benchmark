@@ -73,6 +73,12 @@ The integration tests start a two node Aerospike cluster in Docker and need `pyt
 
 The Secret Agent tests against a secured Enterprise server also need a feature key: `export FEATKEY=$(base64 < features.conf)`. Without it they are skipped, or fail when `CI` is set.
 
+The FIPS tests build asbench from the working tree in a RHEL 9 container and run it with that container's OpenSSL forced into FIPS mode, against a TLS server that requires client certificates. They need the same feature key and are not part of `make test`:
+
+```sh
+make fips
+```
+
 The dictionary generator has its own tests:
 
 ```sh

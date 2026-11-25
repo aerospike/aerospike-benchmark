@@ -408,6 +408,10 @@ test_target/asbench: $(TEST_MAIN_OBJECT) $(TEST_BENCH_OBJECTS) $(TEST_HDR_OBJECT
 integration: check-python3 test_target/asbench
 	@PYTHON3="$(PYTHON3)" ./integration_tests.sh $(DIR_ENV)
 
+.PHONY: fips
+fips: check-python3
+	@PYTHON3="$(PYTHON3)" ./integration_tests.sh $(DIR_ENV) src/test/fips
+
 # Summary requires the lcov tool to be installed
 .PHONY: coverage-unit
 coverage-unit: do-unit
